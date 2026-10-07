@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #ffffff; --tile: #f4f5f7; --tile2: #eceef1; --ink: #1b2029; --ink2: #6b7480; --ink3: #9aa2ad;
+  --line: #edeef1; --black: #1c1b19; --accent: #029cda; --accent-ink: #0480b1; --accent-soft: #e6f4fb;
+  --good: #1f9d57; --good-soft: #e8f6ee; --warn: #d98600; --warn-soft: #fbf1db; --bad: #e24a41; --bad-soft: #fcecea;
+}
+@theme inline {
+  --color-tile: var(--tile); --color-tile2: var(--tile2); --color-ink: var(--ink); --color-ink2: var(--ink2); --color-ink3: var(--ink3);
+  --color-line: var(--line); --color-accent: var(--accent); --color-accent-ink: var(--accent-ink); --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good); --color-good-soft: var(--good-soft); --color-warn: var(--warn); --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad); --color-bad-soft: var(--bad-soft);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+.btn { display: inline-flex; align-items: center; gap: .5rem; border-radius: .75rem; padding: .55rem 1rem; font-size: .875rem; font-weight: 500; background: var(--black); color: #fff; transition: opacity .15s, background .15s; cursor: pointer; white-space: nowrap; }
+.btn:hover { opacity: .88; } .btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-accent { background: var(--accent); } .btn-ghost { background: var(--tile); color: var(--ink); } .btn-ghost:hover { background: var(--tile2); opacity: 1; }
+.btn-danger { background: var(--bad-soft); color: var(--bad); }
+.input { width: 100%; border-radius: .75rem; background: var(--tile); padding: .6rem .85rem; font-size: .875rem; border: 1px solid transparent; outline: none; }
+.input:focus { background: #fff; border-color: var(--accent); }
+.label { display: block; font-size: .75rem; font-weight: 500; color: var(--ink2); margin-bottom: .35rem; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 1rem; }
+.chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: 999px; padding: .15rem .6rem; font-size: .72rem; font-weight: 500; background: var(--tile); color: var(--ink2); }
