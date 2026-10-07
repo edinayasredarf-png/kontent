@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { diagnose } from "./errors";
 import { canWrite, login, logout, register, requireCtx, switchOrg, type Ctx } from "./auth";
 import { one, q } from "./db";
 import { PLANS } from "./plans";
@@ -18,13 +19,18 @@ async function writer(): Promise<Ctx> {
 }
 
 // ---------- auth ----------
+// redirect() в Next — это исключение, поэтому ловим только ошибки до него
 export async function loginAction(_: unknown, f: FormData) {
-  const r = await login(s(f, "email"), s(f, "password"));
+  let r: { error?: string };
+  try { r = await login(s(f, "email"), s(f, "password")); }
+  catch (e) { console.error("[login]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
   redirect("/app");
 }
 export async function registerAction(_: unknown, f: FormData) {
-  const r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"));
+  let r: { error?: string };
+  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org")); }
+  catch (e) { console.error("[register]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
   redirect("/app");
 }
