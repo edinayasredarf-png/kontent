@@ -13,7 +13,7 @@ export default async function Billing() {
   const free = process.env.ALLOW_FREE_PLAN_SWITCH === "1";
   return (
     <>
-      <PageHead title="Баланс и тариф" sub={`Баланс: ${rub(c.org.balance_kop)}`} />
+      <PageHead title="Баланс и тариф" sub={c.org.unlimited ? "Администратор платформы: лимиты тарифа и списания отключены" : `Баланс: ${rub(c.org.balance_kop)}`} />
       <div className="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {Object.values(PLANS).map((p) => {
           const cur = p.key === c.org.plan;

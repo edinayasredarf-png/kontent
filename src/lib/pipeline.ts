@@ -171,7 +171,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const low = await q<{ id: string; org_id: string }>(
     `select f.id,f.org_id from factories f where f.status='active' and f.approval='auto' and f.autopublish
         and (select count(*) from content_items i where i.factory_id=f.id and i.status in ('idea','approved') and i.planned_for >= current_date) < 3
-        and (select balance_kop from orgs o where o.id=f.org_id) >= $1 limit 3`, [PRICES.plan_day * 7]);
+        and (select balance_kop >= $1 or unlimited from orgs o where o.id=f.org_id) limit 3`, [PRICES.plan_day * 7]);
   for (const f of low) {
     if (Date.now() - t0 > budgetMs) break;
     const r = await buildPlan(f.org_id, f.id, 7);
@@ -183,7 +183,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const todo = await q<{ id: string; org_id: string }>(
     `select i.id,i.org_id from content_items i join factories f on f.id=i.factory_id join orgs o on o.id=i.org_id
       where f.status='active' and i.status='approved' and i.planned_for <= current_date + 1
-        and o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int else $4::int end
+        and (o.unlimited or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int else $4::int end)
       order by i.planned_for limit 4`, [PRICES.carousel_slide * 6, PRICES.article, PRICES.reels, PRICES.post]);
   for (const it of todo) {
     if (Date.now() - t0 > budgetMs - 60_000) break;

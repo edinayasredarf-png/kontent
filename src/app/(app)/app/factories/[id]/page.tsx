@@ -54,8 +54,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       </form>
       <form action={generatePlanAction} className="card mb-6 flex flex-wrap items-center gap-3 p-4">
         {hid}
-        <div className="mr-auto"><b className="text-sm">Контент-план</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {rub(PRICES.plan_day)} за день</p></div>
-        <select name="days" defaultValue="7" className="input !w-auto">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней — {rub(d * PRICES.plan_day)}</option>)}</select>
+        <div className="mr-auto"><b className="text-sm">Контент-план</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p></div>
+        <select name="days" defaultValue="7" className="input !w-auto">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней{c.org.unlimited ? "" : ` — ${rub(d * PRICES.plan_day)}`}</option>)}</select>
         <button className="btn btn-accent"><Sparkles size={15} />Сгенерировать</button>
       </form>
       {items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">План пуст. Нажмите «Сгенерировать».</p>}

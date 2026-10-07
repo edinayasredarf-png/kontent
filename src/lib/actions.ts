@@ -42,7 +42,7 @@ export async function saveBrand(_: unknown, f: FormData) {
     await q("update brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7 where id=$1 and org_id=$2",
       [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules]);
   } else {
-    const lim = PLANS[c.org.plan].brands;
+    const lim = c.org.unlimited ? null : PLANS[c.org.plan].brands;
     const n = Number((await one<{ n: string }>("select count(*) n from brands where org_id=$1", [c.org.id]))!.n);
     if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум брендов — ${lim}. Повысьте тариф.` };
     await q("insert into brands(org_id,name,description,audience,tone,rules) values($1,$2,$3,$4,$5,$6)",
@@ -58,7 +58,7 @@ export async function saveFactory(_: unknown, f: FormData) {
   const brand = await one("select 1 from brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]);
   if (!brand) return { error: "Выберите бренд" };
   if (!s(f, "name")) return { error: "Укажите название завода" };
-  const lim = PLANS[c.org.plan].factories;
+  const lim = c.org.unlimited ? null : PLANS[c.org.plan].factories;
   const n = Number((await one<{ n: string }>("select count(*) n from factories where org_id=$1", [c.org.id]))!.n);
   if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум заводов — ${lim}. Повысьте тариф.` };
   const formats = f.getAll("formats").map(String).filter(Boolean);

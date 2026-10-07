@@ -16,7 +16,7 @@ const key = () => {
 export interface Session { uid: string; org: string }
 export interface Ctx {
   user: { id: string; email: string; name: string };
-  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string };
+  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
 }
@@ -70,17 +70,22 @@ export async function switchOrg(orgId: string) {
 export async function requireCtx(): Promise<Ctx> {
   const s = await readSession();
   if (!s) redirect("/login");
-  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string }>(
-    `select u.email,u.name,o.name org_name,o.plan,o.balance_kop,m.role
+  // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
+  // её бесплатной не делает. Пересчитываем при каждом входе: убрали email из списка — безлимит снимется.
+  const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+  await q(`update orgs o set unlimited = exists(select 1 from memberships m join users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))
+            where o.id=$1 and o.unlimited is distinct from exists(select 1 from memberships m join users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))`, [s.org, admins]);
+  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean }>(
+    `select u.email,u.name,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
        from memberships m join users u on u.id=m.user_id join orgs o on o.id=m.org_id
       where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org]);
   if (!row) redirect("/login");
   const orgs = await q<{ id: string; name: string }>("select o.id,o.name from memberships m join orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]);
   return {
     user: { id: s.uid, email: row.email, name: row.name },
-    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role },
+    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited },
     orgs,
-    isAdmin: (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).includes(row.email),
+    isAdmin: admins.includes(row.email.toLowerCase()),
   };
 }
 

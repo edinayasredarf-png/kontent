@@ -14,7 +14,7 @@ export default async function Overview() {
   const recent = await q<{ id: string; topic: string; kind: string; status: string; brand: string; factory_id: string }>(
     `select i.id,i.topic,i.kind,i.status,b.name brand,i.factory_id from content_items i join brands b on b.id=i.brand_id
       where i.org_id=$1 order by i.created_at desc limit 8`, [c.org.id]);
-  const plan = PLANS[c.org.plan];
+  const plan = c.org.unlimited ? { brands: null, factories: null } : PLANS[c.org.plan];
   const tiles = [
     { l: "Бренды", v: `${cnt!.b} / ${fmtLimit(plan.brands)}`, i: Building2 },
     { l: "Заводы", v: `${cnt!.f} / ${fmtLimit(plan.factories)}`, i: Factory },

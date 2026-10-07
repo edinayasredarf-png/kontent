@@ -14,8 +14,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar orgs={c.orgs} orgId={c.org.id} user={c.user.email} isAdmin={c.isAdmin} />
       <div className="min-w-0 flex-1">
         <header className="flex items-center justify-end gap-3 border-b border-line px-5 py-3 md:px-8">
-          <span className="chip">{PLANS[c.org.plan].name}</span>
-          <Link href="/app/billing" className="btn btn-ghost !py-1.5"><Coins size={15} className="text-warn" />{rub(c.org.balance_kop)}</Link>
+          <span className="chip">{c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name}</span>
+          <Link href="/app/billing" className="btn btn-ghost !py-1.5"><Coins size={15} className="text-warn" />{c.org.unlimited ? "∞" : rub(c.org.balance_kop)}</Link>
         </header>
         <main className="mx-auto max-w-6xl px-5 py-6 md:px-8">{children}</main>
       </div>
