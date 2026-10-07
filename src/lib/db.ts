@@ -29,6 +29,16 @@ export async function one<T extends QueryResultRow = QueryResultRow>(sql: string
   return (await q<T>(sql, params))[0] ?? null;
 }
 
+/** Выполняет fn, только если никто другой не держит этот ключ (advisory-lock на отдельном соединении). Иначе вернёт null. */
+export async function withLock<T>(key: number, fn: () => Promise<T>): Promise<T | null> {
+  const c = await pool().connect();
+  try {
+    const got = (await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) ok", [key])).rows[0]?.ok;
+    if (!got) return null;
+    try { return await fn(); } finally { await c.query("select pg_advisory_unlock($1)", [key]).catch(() => {}); }
+  } finally { c.release(); }
+}
+
 export async function tx<T>(fn: (run: typeof q) => Promise<T>): Promise<T> {
   const c = await pool().connect();
   const run = async <R extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []) => (await c.query<R>(sql, params)).rows;
