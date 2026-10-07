@@ -1,11 +1,11 @@
 import { Pool, type QueryResultRow } from "pg";
-import { sslFor, stripSsl } from "./pgssl";
+import { cleanDbUrl, sslFor, stripSsl } from "./pgssl";
 
 const g = globalThis as unknown as { _pool?: Pool };
 
 function pool(): Pool {
   if (!g._pool) {
-    const url = (process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL ?? "").trim();
+    const url = cleanDbUrl(process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL);
     if (!url) throw new Error("DATABASE_URL не задан");
     // Маленький пул на инстанс: БД общая с единойсредой, лимит соединений у Timeweb один на всех.
     g._pool = new Pool({

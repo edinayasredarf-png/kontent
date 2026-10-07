@@ -3,7 +3,8 @@ import pg from "pg";
 import fs from "node:fs";
 
 export async function connect() {
-  const url = (process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL ?? "").trim();
+  const raw = (process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL ?? "").trim();
+  const url = raw.match(/postgres(?:ql)?:\/\/[^\s"'`]+/i)?.[0] ?? raw;
   if (!url) { console.error("DATABASE_URL не задан"); process.exit(1); }
   let host = "", cs = url;
   try { const u = new URL(url); host = u.hostname; for (const k of ["sslmode", "sslrootcert", "sslcert", "sslkey"]) u.searchParams.delete(k); cs = u.toString(); } catch {}
