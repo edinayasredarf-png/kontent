@@ -11,3 +11,10 @@ export function diagnose(e: unknown): string {
   if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|timeout|Connection terminated/i.test(m)) return "Нет соединения с БД: проверьте хост и порт в DATABASE_URL и разрешён ли доступ с Vercel (список IP в Timeweb)";
   return "Внутренняя ошибка сервера. Подробности — в Runtime Logs проекта на Vercel";
 }
+
+/** Технический код и текст ошибки для диагностики. pg не кладёт пароль в сообщение; на всякий случай вычищаем userinfo из URL. */
+export function technical(e: unknown): string {
+  const err = e as { code?: string; message?: string; errors?: unknown[] };
+  const inner = Array.isArray(err?.errors) && err.errors.length ? ` [${err.errors.map((x) => (x as { code?: string }).code).filter(Boolean).join(",")}]` : "";
+  return `${err?.code ?? "?"}${inner}: ${String(err?.message ?? e).replace(/\/\/[^@\s/]+@/g, "//***@")}`.slice(0, 220);
+}
