@@ -8,7 +8,7 @@ export function toPlain(md: string): string {
     .replace(/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/g, "$1")
     .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")
     .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1 ($2)")
-    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/^[ \t]*[-*][ \t]+/gm, "• ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
