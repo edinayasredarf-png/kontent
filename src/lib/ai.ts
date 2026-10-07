@@ -20,8 +20,11 @@ export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
 ];
 
 export async function modelFor(task: AiTask): Promise<string> {
-  const row = await one<{ model: string }>("select model from kz_ai_routes where task=$1", [task]).catch(() => null);
-  return row?.model || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || process.env.SELFHOSTED_LLM_MODEL?.trim() || "";
+  // своя модель задачи → общая модель из настроек → переменная окружения
+  const rows = await q<{ task: string; model: string }>("select task,model from kz_ai_routes where task in ($1,'default')", [task]).catch(() => []);
+  const own = rows.find((r) => r.task === task)?.model;
+  const def = rows.find((r) => r.task === "default")?.model;
+  return own || def || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || process.env.SELFHOSTED_LLM_MODEL?.trim() || "";
 }
 
 export async function listGatewayModels(): Promise<string[]> {
@@ -111,7 +114,7 @@ export async function genPost(b: BrandCtx, product: string, niche: string, topic
     { maxTokens: kind === "article" ? 3500 : 1500, temperature: 0.7, timeoutMs: kind === "article" ? 55_000 : 45_000 });
 }
 
-export async function saveRoute(task: AiTask, model: string) {
+export async function saveRoute(task: AiTask | "default", model: string) {
   if (!model) await q("delete from kz_ai_routes where task=$1", [task]);
   else await q("insert into kz_ai_routes(task,model) values($1,$2) on conflict(task) do update set model=excluded.model, updated_at=now()", [task, model]);
 }

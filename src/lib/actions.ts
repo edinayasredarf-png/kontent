@@ -134,7 +134,11 @@ export async function setFactoryChannels(f: FormData) {
 export async function saveAiRoutes(f: FormData) {
   const c = await requireCtx();
   if (!c.isAdmin) return;
-  for (const t of AI_TASKS) await saveRoute(t.key as AiTask, s(f, `route_${t.key}`));
+  for (const k of ["default", ...AI_TASKS.map((t) => t.key)] as (AiTask | "default")[]) {
+    const m = s(f, `route_${k}`);
+    if (m.length > 200 || /\s/.test(m)) continue; // id модели — одна строка без пробелов
+    await saveRoute(k, m);
+  }
   revalidatePath("/app/settings");
 }
 
