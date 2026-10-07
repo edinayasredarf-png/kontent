@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut } from "lucide-react";
+import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu } from "lucide-react";
 import clsx from "clsx";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 
@@ -15,8 +15,9 @@ const NAV = [
   { href: "/app/billing", label: "Баланс и тариф", icon: Wallet },
 ];
 
-export function Sidebar({ orgs, orgId, user }: { orgs: { id: string; name: string }[]; orgId: string; user: string }) {
+export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; name: string }[]; orgId: string; user: string; isAdmin: boolean }) {
   const path = usePathname();
+  const items = isAdmin ? [...NAV, { href: "/app/settings", label: "Настройки ИИ", icon: Cpu }] : NAV;
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-line bg-white md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
       <div className="flex items-center gap-2.5 px-5 py-4">
@@ -31,7 +32,7 @@ export function Sidebar({ orgs, orgId, user }: { orgs: { id: string; name: strin
         </form>
       )}
       <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:overflow-visible">
-        {NAV.map(({ href, label, icon: Icon, exact }) => {
+        {items.map(({ href, label, icon: Icon, exact }: { href: string; label: string; icon: typeof Cpu; exact?: boolean }) => {
           const on = exact ? path === href : path.startsWith(href);
           return (
             <Link key={href} href={href} className={clsx("flex items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm transition", on ? "bg-tile font-medium text-ink" : "text-ink2 hover:bg-tile/60")}>

@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const c = await requireCtx();
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar orgs={c.orgs} orgId={c.org.id} user={c.user.email} />
+      <Sidebar orgs={c.orgs} orgId={c.org.id} user={c.user.email} isAdmin={c.isAdmin} />
       <div className="min-w-0 flex-1">
         <header className="flex items-center justify-end gap-3 border-b border-line px-5 py-3 md:px-8">
           <span className="chip">{PLANS[c.org.plan].name}</span>

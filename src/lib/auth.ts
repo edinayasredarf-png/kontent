@@ -6,13 +6,19 @@ import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
 
 const COOKIE = "lt_session";
-const key = () => new TextEncoder().encode(process.env.AUTH_SECRET || "dev-only-secret-change-me");
+const key = () => {
+  const s = process.env.AUTH_SECRET;
+  // Без секрета в проде любой смог бы подделать сессию — лучше упасть, чем работать молча с известным ключом.
+  if (!s && process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET не задан");
+  return new TextEncoder().encode(s || "dev-only-secret-change-me");
+};
 
 export interface Session { uid: string; org: string }
 export interface Ctx {
   user: { id: string; email: string; name: string };
   org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string };
   orgs: { id: string; name: string }[];
+  isAdmin: boolean;
 }
 
 async function setSession(s: Session) {
@@ -74,6 +80,7 @@ export async function requireCtx(): Promise<Ctx> {
     user: { id: s.uid, email: row.email, name: row.name },
     org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role },
     orgs,
+    isAdmin: (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).includes(row.email),
   };
 }
 

@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { canWrite, login, logout, register, requireCtx, switchOrg, type Ctx } from "./auth";
 import { one, q } from "./db";
 import { PLANS } from "./plans";
-import { PRICES, charge, refund, InsufficientFunds } from "./wallet";
-import { aiReady, genPlan, genPost, type BrandCtx } from "./ai";
+import { AI_TASKS, saveRoute, type AiTask } from "./ai";
+import { buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
+import { seal } from "./crypto";
+import { providerFor } from "./publishing";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -84,39 +86,12 @@ export async function deleteFactory(f: FormData) {
   redirect("/app/factories");
 }
 
-async function factoryCtx(orgId: string, id: string) {
-  return one<{ id: string; brand_id: string; niche: string; product: string; formats: string[]; name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[] } }>(
-    `select f.id,f.brand_id,f.niche,f.product,f.formats,f.name,b.description,b.audience,b.tone,b.rules,b.name brand_name
-       from factories f join brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2`, [id, orgId]);
-}
-const brandOf = (r: NonNullable<Awaited<ReturnType<typeof factoryCtx>>> & { brand_name?: string }): BrandCtx =>
-  ({ name: r.brand_name ?? r.name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
-
 export async function generatePlanAction(f: FormData) {
   const c = await writer();
   const id = s(f, "id");
-  const days = Math.min(30, Math.max(1, Number(s(f, "days")) || 7));
-  const fac = await factoryCtx(c.org.id, id);
-  if (!fac) return;
-  if (!aiReady()) redirect(`/app/factories/${id}?err=${encodeURIComponent("Не задан ANTHROPIC_API_KEY")}`);
-  const cost = PRICES.plan_day * days;
-  try { await charge(c.org.id, cost, `Контент-план на ${days} дн.`, id); }
-  catch (e) { if (e instanceof InsufficientFunds) redirect(`/app/factories/${id}?err=${encodeURIComponent("Недостаточно средств на балансе")}`); throw e; }
-  try {
-    const used = (await q<{ topic: string }>("select topic from content_items where factory_id=$1 order by created_at desc limit 60", [id])).map((x) => x.topic);
-    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used);
-    const start = new Date(); start.setDate(start.getDate() + 1);
-    for (let i = 0; i < ideas.length; i++) {
-      const d = new Date(start); d.setDate(d.getDate() + i);
-      await q(`insert into content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for) values($1,$2,$3,$4,$5,$6,$7)`,
-        [c.org.id, id, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, d.toISOString().slice(0, 10)]);
-    }
-  } catch (e) {
-    await refund(c.org.id, cost, "ошибка генерации плана", id);
-    redirect(`/app/factories/${id}?err=${encodeURIComponent("Генерация не удалась, деньги возвращены")}`);
-  }
+  const r = await buildPlan(c.org.id, id, Math.min(30, Math.max(1, Number(s(f, "days")) || 7)));
   revalidatePath(`/app/factories/${id}`);
-  redirect(`/app/factories/${id}`);
+  redirect(`/app/factories/${id}${r.ok ? "" : `?err=${encodeURIComponent(r.error)}`}`);
 }
 
 export async function setItemStatus(f: FormData) {
@@ -129,23 +104,38 @@ export async function setItemStatus(f: FormData) {
 
 export async function generateItemAction(f: FormData) {
   const c = await writer();
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string }>(
-    "select id,factory_id,kind,topic,hook from content_items where id=$1 and org_id=$2 and status in ('idea','approved','failed')", [s(f, "id"), c.org.id]);
-  if (!item || !aiReady()) return;
-  const fac = await factoryCtx(c.org.id, item.factory_id);
-  if (!fac) return;
-  const cost = item.kind === "carousel" ? PRICES.carousel_slide * 6 : item.kind === "article" ? PRICES.article : item.kind === "reels" ? PRICES.reels : PRICES.post;
-  try { await charge(c.org.id, cost, `Генерация: ${item.topic.slice(0, 60)}`, item.id); }
-  catch (e) { if (e instanceof InsufficientFunds) return; throw e; }
-  await q("update content_items set status='generating' where id=$1", [item.id]);
-  try {
-    const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind);
-    await q("update content_items set body=$2,status='ready',cost_kop=$3 where id=$1", [item.id, body, cost]);
-  } catch {
-    await refund(c.org.id, cost, "ошибка генерации текста", item.id);
-    await q("update content_items set status='failed' where id=$1", [item.id]);
-  }
+  const r = await buildItem(c.org.id, s(f, "id"));
+  const fid = s(f, "factory");
   revalidatePath("/app", "layout");
+  if (!r.ok) redirect(`/app/factories/${fid}?err=${encodeURIComponent(r.error)}`);
+}
+
+export async function publishNowAction(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id"), fid = s(f, "factory");
+  const e = await enqueue(c.org.id, id);
+  if (e.ok) await processQueue(10, id);
+  revalidatePath("/app", "layout");
+  if (!e.ok) redirect(`/app/factories/${fid}?err=${encodeURIComponent(e.error)}`);
+}
+
+export async function setFactoryChannels(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id");
+  // принимаем только каналы того же бренда и той же организации
+  const ids = await q<{ id: string }>(
+    `select ch.id from channels ch join factories fa on fa.brand_id=ch.brand_id
+      where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 and ch.id = any($3::uuid[])`, [id, c.org.id, f.getAll("channels").map(String)]);
+  await q("update factories set channel_ids=$3, autopublish=$4, approval=$5 where id=$1 and org_id=$2",
+    [id, c.org.id, ids.map((x) => x.id), f.get("autopublish") === "on", s(f, "approval") === "auto" ? "auto" : "manual"]);
+  revalidatePath(`/app/factories/${id}`);
+}
+
+export async function saveAiRoutes(f: FormData) {
+  const c = await requireCtx();
+  if (!c.isAdmin) return;
+  for (const t of AI_TASKS) await saveRoute(t.key as AiTask, s(f, `route_${t.key}`));
+  revalidatePath("/app/settings");
 }
 
 export async function saveBody(f: FormData) {
@@ -159,8 +149,13 @@ export async function saveChannel(_: unknown, f: FormData) {
   const c = await writer();
   if (!(await one("select 1 from brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
   const kind = s(f, "kind");
-  const creds = JSON.stringify({ token: s(f, "token"), target: s(f, "target") });
-  await q("insert into channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5)", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || kind, creds]);
+  const prov = providerFor(kind);
+  if (!prov) return { error: "Этот тип канала пока не поддерживается" };
+  const cred = { token: s(f, "token"), target: s(f, "target") };
+  // Проверяем до сохранения: токен рабочий, бот — админ, сообщество существует.
+  let name: string;
+  try { name = await prov.verify(cred); } catch (e) { return { error: (e as Error).message }; }
+  await q("insert into channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5)", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || name, JSON.stringify(seal(cred))]);
   revalidatePath("/app/channels");
   redirect("/app/channels");
 }
