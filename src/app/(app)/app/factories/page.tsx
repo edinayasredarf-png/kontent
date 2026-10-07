@@ -8,9 +8,9 @@ export default async function Factories() {
   const c = await requireCtx();
   const rows = await q<{ id: string; name: string; brand: string; status: string; formats: string[]; ideas: string; ready: string; autopublish: boolean }>(
     `select f.id,f.name,b.name brand,f.status,f.formats,f.autopublish,
-            (select count(*) from content_items i where i.factory_id=f.id and i.status='idea') ideas,
-            (select count(*) from content_items i where i.factory_id=f.id and i.status='ready') ready
-       from factories f join brands b on b.id=f.brand_id where f.org_id=$1 order by f.created_at desc`, [c.org.id]);
+            (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='idea') ideas,
+            (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='ready') ready
+       from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 order by f.created_at desc`, [c.org.id]);
   const add = <Link href="/app/factories/new" className="btn btn-accent"><Plus size={16} />Создать завод</Link>;
   return (
     <>

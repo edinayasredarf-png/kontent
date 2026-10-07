@@ -9,9 +9,9 @@ import { SUPPORTED_CHANNELS as KINDS } from "@/lib/publishing";
 
 export default async function Channels() {
   const c = await requireCtx();
-  const brands = await q<{ id: string; name: string }>("select id,name from brands where org_id=$1 order by name", [c.org.id]);
+  const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
   const rows = await q<{ id: string; kind: string; title: string; brand: string }>(
-    "select ch.id,ch.kind,ch.title,b.name brand from channels ch join brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
+    "select ch.id,ch.kind,ch.title,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
   return (
     <>
       <PageHead title="Каналы" sub="Куда публикуем. Канал принадлежит бренду." />

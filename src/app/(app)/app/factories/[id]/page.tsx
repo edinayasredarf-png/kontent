@@ -18,17 +18,17 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const { err } = await searchParams;
   const c = await requireCtx();
   const f = await one<{ id: string; name: string; brand: string; status: string; niche: string; product: string }>(
-    "select f.id,f.name,b.name brand,f.status,f.niche,f.product from factories f join brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
+    "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
   const items = await q<Item>(
-    "select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for from content_items where factory_id=$1 and org_id=$2 order by planned_for nulls last, created_at", [id, c.org.id]);
+    "select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for from kz_content_items where factory_id=$1 and org_id=$2 order by planned_for nulls last, created_at", [id, c.org.id]);
   const pubs = await q<Pub>(
-    `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from publications p join channels ch on ch.id=p.channel_id
-      where p.org_id=$1 and p.item_id in (select id from content_items where factory_id=$2)`, [c.org.id, id]);
+    `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id
+      where p.org_id=$1 and p.item_id in (select id from kz_content_items where factory_id=$2)`, [c.org.id, id]);
   const chans = await q<{ id: string; kind: string; title: string; on: boolean }>(
-    `select ch.id,ch.kind,ch.title,(ch.id = any(fa.channel_ids)) "on" from factories fa join channels ch on ch.brand_id=fa.brand_id
+    `select ch.id,ch.kind,ch.title,(ch.id = any(fa.channel_ids)) "on" from kz_factories fa join kz_channels ch on ch.brand_id=fa.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
-  const set = await one<{ autopublish: boolean; approval: string }>("select autopublish,approval from factories where id=$1", [id]);
+  const set = await one<{ autopublish: boolean; approval: string }>("select autopublish,approval from kz_factories where id=$1", [id]);
   const hid = <input type="hidden" name="id" value={id} />;
   return (
     <>

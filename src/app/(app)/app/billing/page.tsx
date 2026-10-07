@@ -9,7 +9,7 @@ import { PageHead } from "@/components/ui";
 export default async function Billing() {
   const c = await requireCtx();
   const tx = await q<{ id: string; amount_kop: string; reason: string; created_at: string }>(
-    "select id,amount_kop,reason,created_at from wallet_tx where org_id=$1 order by created_at desc limit 30", [c.org.id]);
+    "select id,amount_kop,reason,created_at from kz_wallet_tx where org_id=$1 order by created_at desc limit 30", [c.org.id]);
   const free = process.env.ALLOW_FREE_PLAN_SWITCH === "1";
   return (
     <>

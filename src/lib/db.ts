@@ -1,16 +1,22 @@
 import { Pool, type QueryResultRow } from "pg";
+import { sslFor, stripSsl } from "./pgssl";
 
 const g = globalThis as unknown as { _pool?: Pool };
 
 function pool(): Pool {
   if (!g._pool) {
-    const url = process.env.DATABASE_URL;
+    const url = (process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL ?? "").trim();
     if (!url) throw new Error("DATABASE_URL не задан");
+    // Маленький пул на инстанс: БД общая с единойсредой, лимит соединений у Timeweb один на всех.
     g._pool = new Pool({
-      connectionString: url,
-      max: 5,
-      ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false },
+      connectionString: stripSsl(url),
+      max: Number(process.env.DATABASE_POOL_MAX) || 2,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+      keepAlive: true,
+      ssl: sslFor(url),
     });
+    g._pool.on("error", (e) => console.error("[pg] pool error:", e.message));
   }
   return g._pool;
 }

@@ -20,7 +20,7 @@ export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
 ];
 
 export async function modelFor(task: AiTask): Promise<string> {
-  const row = await one<{ model: string }>("select model from ai_routes where task=$1", [task]).catch(() => null);
+  const row = await one<{ model: string }>("select model from kz_ai_routes where task=$1", [task]).catch(() => null);
   return row?.model || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || process.env.SELFHOSTED_LLM_MODEL?.trim() || "";
 }
 
@@ -112,6 +112,6 @@ export async function genPost(b: BrandCtx, product: string, niche: string, topic
 }
 
 export async function saveRoute(task: AiTask, model: string) {
-  if (!model) await q("delete from ai_routes where task=$1", [task]);
-  else await q("insert into ai_routes(task,model) values($1,$2) on conflict(task) do update set model=excluded.model, updated_at=now()", [task, model]);
+  if (!model) await q("delete from kz_ai_routes where task=$1", [task]);
+  else await q("insert into kz_ai_routes(task,model) values($1,$2) on conflict(task) do update set model=excluded.model, updated_at=now()", [task, model]);
 }

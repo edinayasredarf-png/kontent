@@ -7,7 +7,7 @@ import { PageHead, Empty } from "@/components/ui";
 export default async function Brands() {
   const c = await requireCtx();
   const rows = await q<{ id: string; name: string; description: string; tone: string; factories: string }>(
-    `select b.id,b.name,b.description,b.tone,(select count(*) from factories f where f.brand_id=b.id) factories from brands b where b.org_id=$1 order by b.created_at`, [c.org.id]);
+    `select b.id,b.name,b.description,b.tone,(select count(*) from kz_factories f where f.brand_id=b.id) factories from kz_brands b where b.org_id=$1 order by b.created_at`, [c.org.id]);
   const add = <Link href="/app/brands/new" className="btn"><Plus size={16} />Добавить бренд</Link>;
   return (
     <>

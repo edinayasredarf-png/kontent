@@ -39,13 +39,13 @@ export async function saveBrand(_: unknown, f: FormData) {
   const rules = JSON.stringify({ forbidden: list("forbidden"), competitors: list("competitors") });
   if (!s(f, "name")) return { error: "Укажите название" };
   if (id) {
-    await q("update brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7 where id=$1 and org_id=$2",
+    await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7 where id=$1 and org_id=$2",
       [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules]);
   } else {
     const lim = c.org.unlimited ? null : PLANS[c.org.plan].brands;
-    const n = Number((await one<{ n: string }>("select count(*) n from brands where org_id=$1", [c.org.id]))!.n);
+    const n = Number((await one<{ n: string }>("select count(*) n from kz_brands where org_id=$1", [c.org.id]))!.n);
     if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум брендов — ${lim}. Повысьте тариф.` };
-    await q("insert into brands(org_id,name,description,audience,tone,rules) values($1,$2,$3,$4,$5,$6)",
+    await q("insert into kz_brands(org_id,name,description,audience,tone,rules) values($1,$2,$3,$4,$5,$6)",
       [c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules]);
   }
   revalidatePath("/app/brands");
@@ -55,18 +55,18 @@ export async function saveBrand(_: unknown, f: FormData) {
 // ---------- factories ----------
 export async function saveFactory(_: unknown, f: FormData) {
   const c = await writer();
-  const brand = await one("select 1 from brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]);
+  const brand = await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]);
   if (!brand) return { error: "Выберите бренд" };
   if (!s(f, "name")) return { error: "Укажите название завода" };
   const lim = c.org.unlimited ? null : PLANS[c.org.plan].factories;
-  const n = Number((await one<{ n: string }>("select count(*) n from factories where org_id=$1", [c.org.id]))!.n);
+  const n = Number((await one<{ n: string }>("select count(*) n from kz_factories where org_id=$1", [c.org.id]))!.n);
   if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум заводов — ${lim}. Повысьте тариф.` };
   const formats = f.getAll("formats").map(String).filter(Boolean);
   const days = f.getAll("days").map(Number);
   const times = s(f, "times").split(",").map((x) => x.trim()).filter((x) => /^\d{2}:\d{2}$/.test(x));
   const schedule = JSON.stringify({ days: days.length ? days : [1, 2, 3, 4, 5], times: times.length ? times : ["10:00"], tz: "Europe/Moscow" });
   const row = await one<{ id: string }>(
-    `insert into factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish)
+    `insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish)
      values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
     [c.org.id, s(f, "brand_id"), s(f, "name"), s(f, "niche"), s(f, "product"), formats.length ? formats : ["post"], schedule,
      s(f, "approval") === "auto" ? "auto" : "manual", f.get("autopublish") === "on"]);
@@ -76,13 +76,13 @@ export async function saveFactory(_: unknown, f: FormData) {
 
 export async function toggleFactory(f: FormData) {
   const c = await writer();
-  await q("update factories set status=case when status='active' then 'paused' else 'active' end where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
+  await q("update kz_factories set status=case when status='active' then 'paused' else 'active' end where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
   revalidatePath(`/app/factories/${s(f, "id")}`);
 }
 
 export async function deleteFactory(f: FormData) {
   const c = await writer();
-  await q("delete from factories where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
+  await q("delete from kz_factories where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
   redirect("/app/factories");
 }
 
@@ -98,7 +98,7 @@ export async function setItemStatus(f: FormData) {
   const c = await writer();
   const st = s(f, "status");
   if (!["approved", "rejected", "idea"].includes(st)) return;
-  await q("update content_items set status=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, st]);
+  await q("update kz_content_items set status=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, st]);
   revalidatePath("/app", "layout");
 }
 
@@ -124,9 +124,9 @@ export async function setFactoryChannels(f: FormData) {
   const id = s(f, "id");
   // принимаем только каналы того же бренда и той же организации
   const ids = await q<{ id: string }>(
-    `select ch.id from channels ch join factories fa on fa.brand_id=ch.brand_id
+    `select ch.id from kz_channels ch join kz_factories fa on fa.brand_id=ch.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 and ch.id = any($3::uuid[])`, [id, c.org.id, f.getAll("channels").map(String)]);
-  await q("update factories set channel_ids=$3, autopublish=$4, approval=$5 where id=$1 and org_id=$2",
+  await q("update kz_factories set channel_ids=$3, autopublish=$4, approval=$5 where id=$1 and org_id=$2",
     [id, c.org.id, ids.map((x) => x.id), f.get("autopublish") === "on", s(f, "approval") === "auto" ? "auto" : "manual"]);
   revalidatePath(`/app/factories/${id}`);
 }
@@ -140,14 +140,14 @@ export async function saveAiRoutes(f: FormData) {
 
 export async function saveBody(f: FormData) {
   const c = await writer();
-  await q("update content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, s(f, "body")]);
+  await q("update kz_content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, s(f, "body")]);
   revalidatePath("/app", "layout");
 }
 
 // ---------- channels ----------
 export async function saveChannel(_: unknown, f: FormData) {
   const c = await writer();
-  if (!(await one("select 1 from brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
+  if (!(await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
   const kind = s(f, "kind");
   const prov = providerFor(kind);
   if (!prov) return { error: "Этот тип канала пока не поддерживается" };
@@ -155,13 +155,13 @@ export async function saveChannel(_: unknown, f: FormData) {
   // Проверяем до сохранения: токен рабочий, бот — админ, сообщество существует.
   let name: string;
   try { name = await prov.verify(cred); } catch (e) { return { error: (e as Error).message }; }
-  await q("insert into channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5)", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || name, JSON.stringify(seal(cred))]);
+  await q("insert into kz_channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5)", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || name, JSON.stringify(seal(cred))]);
   revalidatePath("/app/channels");
   redirect("/app/channels");
 }
 export async function deleteChannel(f: FormData) {
   const c = await writer();
-  await q("delete from channels where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
+  await q("delete from kz_channels where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
   revalidatePath("/app/channels");
 }
 
@@ -173,6 +173,6 @@ export async function setPlan(f: FormData) {
   if (!(p in PLANS)) return;
   // Платёжного шлюза ещё нет: без флага смена тарифа закрыта, иначе любой владелец взял бы «Агентство» бесплатно.
   if (process.env.ALLOW_FREE_PLAN_SWITCH !== "1") return;
-  await q("update orgs set plan=$2 where id=$1", [c.org.id, p]);
+  await q("update kz_orgs set plan=$2 where id=$1", [c.org.id, p]);
   revalidatePath("/app", "layout");
 }

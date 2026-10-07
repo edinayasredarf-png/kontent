@@ -8,11 +8,11 @@ import { PageHead, Status, KIND } from "@/components/ui";
 export default async function Overview() {
   const c = await requireCtx();
   const cnt = await one<{ b: string; f: string; r: string; p: string }>(
-    `select (select count(*) from brands where org_id=$1) b, (select count(*) from factories where org_id=$1) f,
-            (select count(*) from content_items where org_id=$1 and status in ('idea','ready')) r,
-            (select count(*) from content_items where org_id=$1 and status='published') p`, [c.org.id]);
+    `select (select count(*) from kz_brands where org_id=$1) b, (select count(*) from kz_factories where org_id=$1) f,
+            (select count(*) from kz_content_items where org_id=$1 and status in ('idea','ready')) r,
+            (select count(*) from kz_content_items where org_id=$1 and status='published') p`, [c.org.id]);
   const recent = await q<{ id: string; topic: string; kind: string; status: string; brand: string; factory_id: string }>(
-    `select i.id,i.topic,i.kind,i.status,b.name brand,i.factory_id from content_items i join brands b on b.id=i.brand_id
+    `select i.id,i.topic,i.kind,i.status,b.name brand,i.factory_id from kz_content_items i join kz_brands b on b.id=i.brand_id
       where i.org_id=$1 order by i.created_at desc limit 8`, [c.org.id]);
   const plan = c.org.unlimited ? { brands: null, factories: null } : PLANS[c.org.plan];
   const tiles = [

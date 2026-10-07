@@ -11,7 +11,7 @@ npm i && npm run db:migrate && npm run dev
 ## Деплой на Vercel
 1. `npx vercel link` → создать проект, Root Directory — корень этого репозитория.
 2. Env:
-   - `DATABASE_URL` — отдельная БД, не БД основного сайта
+   - `DATABASE_URL` — можно та же Timeweb-БД, что у единойсреды: все таблицы проекта с префиксом `kz_`, чужие не затрагиваются. Те же `DATABASE_SSL_*`, если они там заданы (`DATABASE_SEARCH_PATH` не нужен)
    - `AUTH_SECRET` (`openssl rand -base64 32`), опционально `CHANNEL_SECRET` для шифрования токенов каналов
    - `SELFHOSTED_LLM_URL`, `SELFHOSTED_LLM_API_KEY`, `SELFHOSTED_LLM_MODEL` — AI Gateway Timeweb, **значения те же, что в проекте единойсреде.рф**
    - `CRON_SECRET` — секрет для воркера

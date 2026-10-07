@@ -9,7 +9,7 @@ const DAYS = [["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", 
 
 export default async function NewFactory() {
   const c = await requireCtx();
-  const brands = await q<{ id: string; name: string }>("select id,name from brands where org_id=$1 order by name", [c.org.id]);
+  const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
   if (!brands.length) return (
     <><PageHead title="Новый завод" /><div className="card p-6 text-sm">Сначала создайте бренд. <Link className="text-accent-ink" href="/app/brands/new">Добавить бренд →</Link></div></>
   );
