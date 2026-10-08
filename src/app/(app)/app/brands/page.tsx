@@ -15,11 +15,11 @@ export default async function Brands() {
       {rows.length === 0 ? <Empty icon={<Building2 />} title="Брендов пока нет" text="Бренд — это профиль компании. Один бренд может иметь несколько заводов." action={add} /> : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((b) => (
-            <div key={b.id} className="card p-5">
+            <Link key={b.id} href={`/app/brands/${b.id}`} className="card p-5 transition hover:border-accent/40">
               <div className="mb-1 font-medium">{b.name}</div>
               <p className="mb-3 line-clamp-2 min-h-10 text-sm text-ink2">{b.description || "Описание не заполнено"}</p>
-              <div className="flex gap-2"><span className="chip">Заводов: {b.factories}</span><span className="chip">{b.tone}</span></div>
-            </div>
+              <div className="flex gap-2"><span className="chip">Заводов: {b.factories}</span><span className="chip">{b.tone}</span><span className="ml-auto text-xs text-accent-ink">Брендбук →</span></div>
+            </Link>
           ))}
         </div>
       )}

@@ -27,10 +27,10 @@ export default async function Settings() {
           <div key={t.key}>
             <label className="label">{t.label} <span className="font-normal text-ink3">— {t.hint}</span></label>
             <input name={`route_${t.key}`} list="gateway-models" defaultValue={saved[t.key] ?? ""} autoComplete="off" spellCheck={false}
-              placeholder={t.key === "default" ? "начните печатать id модели…" : "как у модели по умолчанию"} className="input" />
+              placeholder={t.key === "default" ? "начните печатать id модели…" : t.key === "image" || t.key === "video" ? "обязательно выберите модель" : "как у модели по умолчанию"} className="input" />
           </div>
         ))}
-        <p className="text-xs text-ink3">Пустое поле — берётся модель по умолчанию, а если и она пуста — переменная SELFHOSTED_LLM_MODEL.</p>
+        <p className="text-xs text-ink3">Пустое поле — берётся модель по умолчанию, а если и она пуста — переменная SELFHOSTED_LLM_MODEL. Для изображений и видео общая модель не подходит: выбирайте их отдельно.</p>
         <button className="btn">Сохранить</button>
       </form>
     </>

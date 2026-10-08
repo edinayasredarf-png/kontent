@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink } from "lucide-react";
+import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
-import { deleteFactory, generateItemAction, generatePlanAction, publishNowAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
+import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 
 // генерация идёт в server action этой страницы — нужен длинный лимит функции
@@ -11,7 +11,7 @@ export const maxDuration = 300;
 import { PageHead, Status, KIND } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
   const { id } = await params;
@@ -21,14 +21,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
     "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
   const items = await q<Item>(
-    "select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for from kz_content_items where factory_id=$1 and org_id=$2 order by planned_for nulls last, created_at", [id, c.org.id]);
+    "select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error from kz_content_items where factory_id=$1 and org_id=$2 order by planned_for nulls last, created_at", [id, c.org.id]);
   const pubs = await q<Pub>(
     `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id
       where p.org_id=$1 and p.item_id in (select id from kz_content_items where factory_id=$2)`, [c.org.id, id]);
   const chans = await q<{ id: string; kind: string; title: string; on: boolean }>(
     `select ch.id,ch.kind,ch.title,(ch.id = any(fa.channel_ids)) "on" from kz_factories fa join kz_channels ch on ch.brand_id=fa.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
-  const set = await one<{ autopublish: boolean; approval: string }>("select autopublish,approval from kz_factories where id=$1", [id]);
+  const set = await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
   const hid = <input type="hidden" name="id" value={id} />;
   return (
     <>
@@ -48,6 +48,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="autopublish" defaultChecked={set?.autopublish} />Автопубликация по расписанию</label>
+          <label className="flex items-center gap-2"><input type="checkbox" name="images" defaultChecked={set?.images} />Картинки к материалам{c.org.unlimited ? "" : ` (+${rub(PRICES.image)})`}</label>
           <label className="flex items-center gap-2">Идеи:<select name="approval" defaultValue={set?.approval} className="input !w-auto !py-1.5"><option value="manual">одобряю вручную</option><option value="auto">одобряются сами (полный автомат, план пополняется с баланса)</option></select></label>
           <button className="btn btn-ghost ml-auto">Сохранить</button>
         </div>
@@ -77,6 +78,21 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <button className="btn btn-ghost">Сохранить правки</button>
                 </form>
               ) : null}
+              {i.image_error && <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />Картинка: {i.image_error}</p>}
+              {i.image_id && (
+                <div className="flex flex-wrap items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
+                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><button className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</button></form>
+                </div>
+              )}
+              {i.body && !["published", "scheduled", "generating"].includes(i.status) && (
+                <form action={generateImageAction} className="space-y-2 rounded-xl bg-tile p-3">
+                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                  <textarea name="prompt" rows={2} defaultValue="" placeholder={i.image_prompt ? `Прошлое описание: ${i.image_prompt.slice(0, 160)}…` : "Описание картинки (необязательно — иначе соберём из поста и брендбука)"} className="input !bg-white text-xs" />
+                  <button className="btn btn-ghost !py-1.5">{i.image_id ? <RefreshCw size={14} /> : <ImageIcon size={14} />}{i.image_id ? "Создать заново" : "Создать картинку"}{c.org.unlimited ? "" : ` · ${rub(PRICES.image)}`}</button>
+                </form>
+              )}
               {pubs.filter((p) => p.item_id === i.id).map((p, k) => (
                 <p key={k} className="flex flex-wrap items-center gap-2 text-xs text-ink2">
                   <span className="chip">{SUPPORTED_CHANNELS[p.kind] ?? p.kind}: {p.channel}</span>

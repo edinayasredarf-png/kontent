@@ -7,10 +7,10 @@ import { one, q } from "./db";
  *   SELFHOSTED_LLM_API_KEY  — ключ шлюза
  *   SELFHOSTED_LLM_MODEL    — модель по умолчанию
  */
-const baseUrl = () => (process.env.SELFHOSTED_LLM_URL || process.env.SELFHOSTED_LLM_BASE_URL || "").trim().replace(/\/+$/, "");
+export const baseUrl = () => (process.env.SELFHOSTED_LLM_URL || process.env.SELFHOSTED_LLM_BASE_URL || "").trim().replace(/\/+$/, "");
 export const aiReady = () => !!baseUrl();
 
-export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest";
+export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest" | "imageprompt" | "vision" | "image" | "video";
 export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "plan", label: "Контент-план", hint: "Идеи и хуки. Нужна модель, хорошо держащая JSON" },
   { key: "post", label: "Пост", hint: "Короткие тексты" },
@@ -19,6 +19,10 @@ export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "article", label: "Статья", hint: "Длинный текст — нужна сильная модель" },
   { key: "idea", label: "Идея из поста-источника", hint: "Короткий JSON: тема и хук" },
   { key: "digest", label: "Сводка трендов по источникам", hint: "Анализ ленты мониторинга" },
+  { key: "imageprompt", label: "Промпт для картинки", hint: "Текстовая модель: превращает пост и брендбук в описание картинки" },
+  { key: "vision", label: "Описание референсов и фото продукта", hint: "Модель, которая умеет «смотреть» картинки (vision)" },
+  { key: "image", label: "Генерация изображений", hint: "Модель изображений из каталога шлюза (вызывается через /images/generations)" },
+  { key: "video", label: "Генерация видео", hint: "Выбор сохраняется; генерация видео пока не подключена" },
 ];
 
 export async function modelFor(task: AiTask): Promise<string> {
@@ -26,7 +30,9 @@ export async function modelFor(task: AiTask): Promise<string> {
   const rows = await q<{ task: string; model: string }>("select task,model from kz_ai_routes where task in ($1,'default')", [task]).catch(() => []);
   const own = rows.find((r) => r.task === task)?.model;
   const def = rows.find((r) => r.task === "default")?.model;
-  return own || def || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || process.env.SELFHOSTED_LLM_MODEL?.trim() || "";
+  // Модель изображений/видео — не текстовая: подставлять ей общую «по умолчанию» нельзя, запрос просто сломается
+  const media = task === "image" || task === "video";
+  return own || (media ? "" : def) || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || (media ? "" : process.env.SELFHOSTED_LLM_MODEL?.trim()) || "";
 }
 
 export async function listGatewayModels(): Promise<string[]> {
@@ -39,7 +45,7 @@ export async function listGatewayModels(): Promise<string[]> {
   return (j.data ?? []).map((m) => m.id).filter((x): x is string => !!x).sort();
 }
 
-async function chat(task: AiTask, system: string, user: string, opts: { maxTokens: number; temperature: number; timeoutMs?: number }): Promise<string> {
+export async function chat(task: AiTask, system: string, user: string, opts: { maxTokens: number; temperature: number; timeoutMs?: number }): Promise<string> {
   const base = baseUrl();
   if (!base) throw new Error("AI Gateway не настроен: задайте SELFHOSTED_LLM_URL");
   const model = await modelFor(task);

@@ -4,10 +4,13 @@ import { chunk, toPlain } from "./format";
 /** credentials: token (от @BotFather), target (@username канала или числовой id; бот — админ канала). */
 interface Tg<T> { ok: boolean; result?: T; description?: string; error_code?: number; parameters?: { retry_after?: number } }
 
-async function call<T>(token: string, method: string, body: Record<string, unknown>): Promise<T> {
+const API = () => (process.env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
+
+async function call<T>(token: string, method: string, body: Record<string, unknown> | FormData): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
+    const form = body instanceof FormData;
+    res = await fetch(`${API()}/bot${token}/${method}`, { method: "POST", ...(form ? {} : { headers: { "Content-Type": "application/json" } }), body: form ? body : JSON.stringify(body), signal: AbortSignal.timeout(form ? 45_000 : 20_000) });
   } catch (e) { throw new PublishError(`Telegram недоступен: ${(e as Error).message}`, true); }
   const j = (await res.json().catch(() => ({ ok: false, description: `HTTP ${res.status}` }))) as Tg<T>;
   if (!j.ok) {
@@ -36,15 +39,31 @@ export const telegram: Provider = {
   },
   async publish(input, c) {
     const { token, target } = need(c);
-    // Лимит Telegram — 4096 знаков на сообщение; длинные статьи уходят несколькими сообщениями подряд.
-    const parts = chunk(toPlain(input.text), 4000);
+    const plain = toPlain(input.text);
     let first: number | null = null;
+    let warning: string | undefined;
+    let rest = plain;
+    if (input.image) {
+      // подпись к фото — до 1024 знаков; если текст длиннее, фото уходит без подписи, а текст следом
+      const fits = plain.length <= 1024;
+      const f = new FormData();
+      f.set("chat_id", target);
+      if (fits) f.set("caption", plain);
+      f.set("photo", new Blob([new Uint8Array(input.image.data)], { type: input.image.mime }), "image.jpg");
+      try { first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
+      catch (e) {
+        if ((e as PublishError).retryable) throw e; // временный сбой — повторит воркер, дубль не получится: фото не ушло
+        warning = `Картинка не отправлена (${(e as Error).message}), пост опубликован без неё`;
+      }
+    }
+    // Лимит Telegram — 4096 знаков на сообщение; длинные статьи уходят несколькими сообщениями подряд.
+    const parts = rest ? chunk(rest, 4000) : [];
     for (const text of parts) {
       const m = await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text, link_preview_options: { is_disabled: false } });
       first ??= m.message_id;
     }
     if (first == null) throw new PublishError("Telegram: пустой текст");
     const handle = target.startsWith("@") ? target.slice(1) : null;
-    return { externalId: String(first), url: handle ? `https://t.me/${handle}/${first}` : null };
+    return { externalId: String(first), url: handle ? `https://t.me/${handle}/${first}` : null, warning };
   },
 };

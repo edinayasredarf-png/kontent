@@ -6,7 +6,9 @@ import { canWrite, login, logout, register, requireCtx, switchOrg, type Ctx } fr
 import { one, q } from "./db";
 import { PLANS } from "./plans";
 import { AI_TASKS, saveRoute, type AiTask } from "./ai";
-import { buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
+import { buildImage, buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
+import { cleanKit, describeImage } from "./images";
+import { loadAsset } from "./assets";
 import { seal } from "./crypto";
 import { providerFor } from "./publishing";
 
@@ -45,8 +47,17 @@ export async function saveBrand(_: unknown, f: FormData) {
   const rules = JSON.stringify({ forbidden: list("forbidden"), competitors: list("competitors") });
   if (!s(f, "name")) return { error: "Укажите название" };
   if (id) {
-    await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7 where id=$1 and org_id=$2",
-      [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules]);
+    // 6 слотов цвета; включённые отмечены флажком (у <input type=color> «пустого» значения нет)
+    const colors = [0, 1, 2, 3, 4, 5].filter((i) => f.get(`color_on_${i}`) === "on").map((i) => ({ hex: s(f, `color_hex_${i}`), name: s(f, `color_name_${i}`) }));
+    const kit = f.has("kit_present") ? JSON.stringify(cleanKit({
+      colors,
+      fonts: s(f, "fonts"), style: s(f, "style"), styleNotes: s(f, "styleNotes"), imageMust: s(f, "imageMust"), imageNever: s(f, "imageNever"),
+      aspect: s(f, "aspect"), logoPos: s(f, "logoPos"), logoScale: Number(s(f, "logoScale")),
+    })) : null;
+    await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7,kit=coalesce($8::jsonb,kit) where id=$1 and org_id=$2",
+      [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules, kit]);
+    revalidatePath(`/app/brands/${id}`);
+    return { ok: "Сохранено" };
   } else {
     const lim = c.org.unlimited ? null : PLANS[c.org.plan].brands;
     const n = Number((await one<{ n: string }>("select count(*) n from kz_brands where org_id=$1", [c.org.id]))!.n);
@@ -56,6 +67,36 @@ export async function saveBrand(_: unknown, f: FormData) {
   }
   revalidatePath("/app/brands");
   redirect("/app/brands");
+}
+
+// ---------- brand assets & images ----------
+export async function deleteAssetAction(f: FormData) {
+  const c = await writer();
+  const a = await one<{ brand_id: string }>("delete from kz_assets where id=$1 and org_id=$2 and kind<>'generated' returning brand_id", [s(f, "id"), c.org.id]);
+  if (a) revalidatePath(`/app/brands/${a.brand_id}`);
+}
+
+export async function redescribeAssetAction(f: FormData) {
+  const c = await writer();
+  const a = await loadAsset(c.org.id, s(f, "id"));
+  if (!a || (a.kind !== "reference" && a.kind !== "product")) return;
+  try { await q("update kz_assets set note=$2 where id=$1", [a.id, await describeImage({ data: a.data, mime: a.mime }, a.kind)]); } catch { /* останется без описания, пользователь увидит кнопку снова */ }
+  revalidatePath("/app/brands", "layout");
+}
+
+export async function generateImageAction(f: FormData) {
+  const c = await writer();
+  const fid = s(f, "factory");
+  const r = await buildImage(c.org.id, s(f, "id"), s(f, "prompt"));
+  revalidatePath("/app", "layout");
+  if (!r.ok) redirect(`/app/factories/${fid}?err=${encodeURIComponent(r.error)}`);
+}
+
+export async function removeImageAction(f: FormData) {
+  const c = await writer();
+  const it = await one<{ image_id: string | null }>("update kz_content_items set image_id=null where id=$1 and org_id=$2 returning (select image_id from kz_content_items where id=$1) image_id", [s(f, "id"), c.org.id]);
+  if (it?.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, c.org.id]);
+  revalidatePath("/app", "layout");
 }
 
 // ---------- factories ----------
@@ -132,8 +173,8 @@ export async function setFactoryChannels(f: FormData) {
   const ids = await q<{ id: string }>(
     `select ch.id from kz_channels ch join kz_factories fa on fa.brand_id=ch.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 and ch.id = any($3::uuid[])`, [id, c.org.id, f.getAll("channels").map(String)]);
-  await q("update kz_factories set channel_ids=$3, autopublish=$4, approval=$5 where id=$1 and org_id=$2",
-    [id, c.org.id, ids.map((x) => x.id), f.get("autopublish") === "on", s(f, "approval") === "auto" ? "auto" : "manual"]);
+  await q("update kz_factories set channel_ids=$3, autopublish=$4, approval=$5, brief = brief || jsonb_build_object('images', $6::boolean) where id=$1 and org_id=$2",
+    [id, c.org.id, ids.map((x) => x.id), f.get("autopublish") === "on", s(f, "approval") === "auto" ? "auto" : "manual", f.get("images") === "on"]);
   revalidatePath(`/app/factories/${id}`);
 }
 

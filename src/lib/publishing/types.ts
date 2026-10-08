@@ -1,5 +1,6 @@
-export interface PublishInput { text: string }
-export interface PublishOutput { externalId: string; url: string | null }
+export interface PublishInput { text: string; image?: { data: Buffer; mime: string } }
+/** warning — публикация прошла, но что-то (например, картинка) не удалось: пост ушёл без неё. */
+export interface PublishOutput { externalId: string; url: string | null; warning?: string }
 
 /** retryable=true — временный сбой (лимиты, 5xx, сеть): воркер повторит позже. */
 export class PublishError extends Error {

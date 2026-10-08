@@ -77,6 +77,28 @@ export function checkUrl(raw: string): URL {
 
 export interface Fetched { text: string; url: string; contentType: string }
 
+/** Скачивание бинарного файла (картинка по ссылке из ответа модели) с теми же защитами. */
+export async function safeFetchBuffer(raw: string, maxBytes = 12_000_000): Promise<{ data: Buffer; contentType: string }> {
+  let url = checkUrl(raw);
+  for (let hop = 0; hop < 4; hop++) {
+    const res = await ufetch(url, { dispatcher: agent, redirect: "manual", signal: AbortSignal.timeout(30_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; KontentBot/1.0)" } });
+    if ([301, 302, 303, 307, 308].includes(res.status)) {
+      const loc = res.headers.get("location"); await res.body?.cancel().catch(() => {});
+      if (!loc) throw new Error("Редирект без адреса");
+      url = checkUrl(new URL(loc, url).toString()); continue;
+    }
+    if (!res.ok) { await res.body?.cancel().catch(() => {}); throw new Error(`Файл не скачался: ${res.status}`); }
+    const chunks: Uint8Array[] = []; let size = 0; const reader = res.body!.getReader();
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.length; if (size > maxBytes) { await reader.cancel().catch(() => {}); throw new Error("Файл слишком большой"); }
+      chunks.push(value);
+    }
+    return { data: Buffer.concat(chunks), contentType: res.headers.get("content-type") ?? "" };
+  }
+  throw new Error("Слишком много перенаправлений");
+}
+
 export async function safeFetchText(raw: string, opts: { maxBytes?: number; accept?: string; headers?: Record<string, string> } = {}): Promise<Fetched> {
   const max = opts.maxBytes ?? 2_000_000;
   let url = checkUrl(raw);

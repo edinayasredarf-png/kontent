@@ -4,15 +4,18 @@ import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError } from "./publishing";
 import { pollDue } from "./monitor/service";
+import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
+import { loadAsset, processImage, saveAsset } from "./assets";
 
 interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
   description: string; audience: string; tone: string; rules: { forbidden?: string[] }; brand_name: string;
+  brief: { images?: boolean }; kit: unknown;
 }
 
 export async function loadFactory(orgId: string, id: string): Promise<FactoryRow | null> {
   return one<FactoryRow>(
-    `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name
+    `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name,f.brief,b.kit
        from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2`, [id, orgId]);
 }
 const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
@@ -69,11 +72,54 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
   try {
     const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source);
     await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, body]);
+    // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст
+    if (fac.brief?.images) {
+      const im = await buildImage(orgId, item.id);
+      if (!im.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, im.error]);
+    }
     return { ok: true };
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации текста", item.id);
     await q("update kz_content_items set status='failed',cost_kop=0,updated_at=now() where id=$1", [item.id]);
     return { ok: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * Картинка к материалу. Захват через meta.imageBusy защищает от двойного клика и параллельного воркера: без него
+ * списалось бы дважды. Любой сбой после списания — возврат денег.
+ */
+export async function buildImage(orgId: string, itemId: string, customPrompt?: string): Promise<Result> {
+  const it = await one<{ id: string; brand_id: string; topic: string; hook: string; body: string; image_id: string | null }>(
+    `update kz_content_items set meta = meta || jsonb_build_object('imageBusy', extract(epoch from now())::bigint), updated_at=now()
+      where id=$1 and org_id=$2 and ((meta->>'imageBusy') is null or (meta->>'imageBusy')::bigint < extract(epoch from now())::bigint - 300)
+      returning id,brand_id,topic,hook,body,image_id`, [itemId, orgId]);
+  if (!it) return { ok: false, error: "Картинка уже создаётся или материал недоступен" };
+  const release = () => q("update kz_content_items set meta = meta - 'imageBusy' where id=$1", [it.id]);
+  const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]);
+  if (!brand) { await release(); return { ok: false, error: "Бренд не найден" }; }
+  const cost = PRICES.image;
+  try { await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id); }
+  catch (e) { await release(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try {
+    const kit = cleanKit(brand.kit);
+    let prompt = customPrompt?.trim();
+    if (!prompt) {
+      const notes = await q<{ kind: "reference" | "product"; note: string }>(
+        "select kind,note from kz_assets where org_id=$1 and brand_id=$2 and kind in ('reference','product') and note<>'' order by created_at limit 8", [orgId, it.brand_id]);
+      prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: it.topic, hook: it.hook, body: it.body, notes: notes.map((n) => ({ kind: n.kind, text: n.note })) });
+    }
+    const raw = await generateImage(prompt, kit.aspect ?? "square");
+    const logo = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
+    const done = await finalizeImage(raw, logo ? await loadAsset(orgId, logo.id) : null, kit);
+    const assetId = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 60)}.jpg`, done);
+    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError') || jsonb_build_object('imagePrompt',$3::text), updated_at=now() where id=$1", [it.id, assetId, prompt]);
+    if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]); // прежняя версия не копится в БД
+    return { ok: true };
+  } catch (e) {
+    await refund(orgId, cost, "ошибка генерации картинки", it.id);
+    await release();
+    return { ok: false, error: `Картинка не создана, деньги возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -112,12 +158,13 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string }>("select body from kz_content_items where id=$1", [j.item_id]);
+    const item = await one<{ body: string; image_id: string | null }>("select body,image_id from kz_content_items where id=$1", [j.item_id]);
+    const img = item?.image_id ? await loadAsset(j.org_id, item.image_id) : null;
     try {
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
-      const r = await prov.publish({ text: item?.body ?? "" }, open(ch.credentials));
-      await q("update kz_publications set status='published', external_url=$2, error=null, published_at=now(), updated_at=now() where id=$1", [j.id, r.url]);
+      const r = await prov.publish({ text: item?.body ?? "", image: img ? { data: img.data, mime: img.mime } : undefined }, open(ch.credentials));
+      await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
       const retryable = e instanceof PublishError ? e.retryable : true;
@@ -210,6 +257,9 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // 4.5) мониторинг: опрос источников, давно не обновлявшихся
   try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
+
+  // сгенерированные картинки, на которые больше ничего не ссылается (материал удалён), не копим в БД
+  await q("delete from kz_assets a where a.kind='generated' and a.created_at < now() - interval '1 hour' and not exists (select 1 from kz_content_items i where i.image_id=a.id)").catch(() => {});
 
   // 5) отправка очереди
   const s = await processQueue(15);
