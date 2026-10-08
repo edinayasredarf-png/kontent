@@ -21,10 +21,13 @@ export interface Ctx {
   isAdmin: boolean;
 }
 
-async function setSession(s: Session) {
-  const token = await new SignJWT({ ...s }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(key());
-  (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 30 });
+/** Cookie сессии. Отдельно от setSession — route handler ставит её прямо на ответ-редирект. */
+export async function sessionCookie(s: Session) {
+  const value = await new SignJWT({ ...s }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("90d").sign(key());
+  return { name: COOKIE, value, httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 90 };
 }
+
+export async function setSession(s: Session) { (await cookies()).set(await sessionCookie(s)); }
 
 export async function readSession(): Promise<Session | null> {
   const t = (await cookies()).get(COOKIE)?.value;
@@ -37,24 +40,33 @@ export async function register(email: string, password: string, name: string, or
   if (password.length < 8) return { error: "Пароль — минимум 8 символов" };
   if (await one("select 1 from kz_users where email=$1", [email])) return { error: "Этот email уже зарегистрирован" };
   const hash = await bcrypt.hash(password, 11);
-  const s = await tx(async (run) => {
-    const [u] = await run<{ id: string }>("insert into kz_users(email,name,password_hash) values($1,$2,$3) returning id", [email, name.trim(), hash]);
-    const [o] = await run<{ id: string }>("insert into kz_orgs(name,balance_kop) values($1,10000) returning id", [orgName.trim() || "Моя организация"]);
-    await run("insert into kz_memberships(org_id,user_id,role) values($1,$2,'owner')", [o.id, u.id]);
-    await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,10000,'Бонус при регистрации')", [o.id]);
-    return { uid: u.id, org: o.id };
-  });
+  const s = await tx((run) => createAccount(run, email, name, hash, orgName));
   await setSession(s);
   return {};
+}
+
+/** Пользователь + его организация + стартовый бонус. Общая для регистрации по паролю и через Яндекс/VK. */
+export async function createAccount(run: typeof q, email: string, name: string, passwordHash: string, orgName: string): Promise<Session> {
+  const [u] = await run<{ id: string }>("insert into kz_users(email,name,password_hash) values($1,$2,$3) returning id", [email, name.trim(), passwordHash]);
+  const [o] = await run<{ id: string }>("insert into kz_orgs(name,balance_kop) values($1,10000) returning id", [orgName.trim() || "Моя организация"]);
+  await run("insert into kz_memberships(org_id,user_id,role) values($1,$2,'owner')", [o.id, u.id]);
+  await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,10000,'Бонус при регистрации')", [o.id]);
+  return { uid: u.id, org: o.id };
+}
+
+/** Организация по умолчанию для входа: сначала где пользователь владелец. */
+export async function defaultOrg(userId: string): Promise<string | null> {
+  const m = await one<{ org_id: string }>("select org_id from kz_memberships where user_id=$1 order by case role when 'owner' then 0 else 1 end, org_id limit 1", [userId]);
+  return m?.org_id ?? null;
 }
 
 export async function login(email: string, password: string) {
   const u = await one<{ id: string; password_hash: string }>("select id,password_hash from kz_users where email=$1", [email.trim().toLowerCase()]);
   // одинаковый ответ на «нет пользователя» и «неверный пароль» — не раскрываем, какие email зарегистрированы
   if (!u || !(await bcrypt.compare(password, u.password_hash))) return { error: "Неверный email или пароль" };
-  const m = await one<{ org_id: string }>("select org_id from kz_memberships where user_id=$1 order by role limit 1", [u.id]);
-  if (!m) return { error: "У пользователя нет организации" };
-  await setSession({ uid: u.id, org: m.org_id });
+  const org = await defaultOrg(u.id);
+  if (!org) return { error: "У пользователя нет организации" };
+  await setSession({ uid: u.id, org });
   return {};
 }
 

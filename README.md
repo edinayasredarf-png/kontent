@@ -27,3 +27,11 @@ Vercel Hobby даёт cron раз в сутки (`vercel.json`) — это ст�
 - **Telegram:** бот от @BotFather, добавить админом канала; в форме — токен и `@канал`.
 - **VK:** сообщество → Управление → API → ключ доступа с правом «стена»; в форме — ключ и числовой id сообщества.
 Токен проверяется перед сохранением и хранится зашифрованным (AES-256-GCM).
+
+## Вход через Яндекс и VK
+Переменные (имена как на единойсреде): `YANDEX_CLIENT_ID` (или `NEXT_PUBLIC_YANDEX_CLIENT_ID`), `YANDEX_CLIENT_SECRET`, `VK_CLIENT_ID` (или `NEXT_PUBLIC_VK_CLIENT_ID`), `VK_CLIENT_SECRET`. Кнопки появляются на страницах входа и регистрации только для настроенных провайдеров.
+В настройках приложения у провайдера добавьте Redirect URI:
+- `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/yandex/callback`
+- `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/vk/callback`
+
+Миграция: `db/004_oauth.sql` (в `adminer-schema.sql` уже включена).

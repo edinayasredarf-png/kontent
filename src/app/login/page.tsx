@@ -2,19 +2,33 @@ import Link from "next/link";
 import { Form, Field } from "@/components/Form";
 import { loginAction } from "@/lib/actions";
 import { Factory } from "lucide-react";
+import { PasswordInput } from "@/components/PasswordInput";
+import { OAuthButtons } from "@/components/OAuthButtons";
+
+const ERRORS: Record<string, string> = {
+  denied: "Вход отменён на стороне провайдера",
+  state: "Сессия входа устарела. Попробуйте ещё раз",
+  failed: "Не удалось войти через провайдера. Попробуйте ещё раз или войдите по паролю",
+  provider: "Этот способ входа недоступен",
+  not_configured: "Вход через этого провайдера пока не настроен",
+};
+
 
 export const metadata = { title: "Вход" };
 
-export default function Login() {
+export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
       <div className="mb-8 flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-accent text-white"><Factory size={18} /></span><b className="text-lg">Контент-завод</b></div>
       <h1 className="mb-1 text-2xl font-semibold">Вход</h1>
       <p className="mb-6 text-sm text-ink2">Единая среда</p>
+      {error && ERRORS[error] && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{ERRORS[error]}</p>}
       <Form action={loginAction} submit="Войти">
-        <Field label="Email"><input name="email" type="email" required autoComplete="email" className="input" /></Field>
-        <Field label="Пароль"><input name="password" type="password" required autoComplete="current-password" className="input" /></Field>
+        <Field label="Email"><input name="email" type="email" required autoComplete="username" className="input" /></Field>
+        <Field label="Пароль"><PasswordInput autoComplete="current-password" /></Field>
       </Form>
+      <OAuthButtons verb="Войти" />
       <p className="mt-6 text-sm text-ink2">Нет аккаунта? <Link className="text-accent-ink" href="/register">Зарегистрироваться</Link></p>
     </main>
   );

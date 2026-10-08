@@ -132,5 +132,15 @@ create table if not exists kz_ai_routes (
 -- Организации владельцев-админов платформы: без лимитов тарифа и без списаний. Флаг синхронизируется при входе (requireCtx).
 alter table kz_orgs add column if not exists unlimited boolean not null default false;
 
+-- Вход через Яндекс / VK. Один внешний аккаунт — один пользователь.
+create table if not exists kz_oauth_identities (
+  provider text not null check (provider in ('yandex','vk')),
+  provider_id text not null,
+  user_id uuid not null references kz_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (provider, provider_id)
+);
+create index if not exists kz_oauth_user on kz_oauth_identities(user_id);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql') on conflict do nothing;
