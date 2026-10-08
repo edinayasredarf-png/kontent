@@ -3,6 +3,7 @@ import { aiReady, genPlan, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError } from "./publishing";
+import { pollDue } from "./monitor/service";
 
 interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
@@ -52,10 +53,10 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
 export async function buildItem(orgId: string, itemId: string): Promise<Result> {
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string }>(
+  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string } } }>(
     `update kz_content_items set status='generating', updated_at=now()
       where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
-      returning id,factory_id,kind,topic,hook`, [itemId, orgId]);
+      returning id,factory_id,kind,topic,hook,meta`, [itemId, orgId]);
   if (!item) return { ok: false, error: "Материал уже обрабатывается или недоступен" };
   const revert = () => q("update kz_content_items set status='approved', updated_at=now() where id=$1", [item.id]);
   if (!aiReady()) { await revert(); return { ok: false, error: "AI Gateway не настроен" }; }
@@ -66,7 +67,7 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
   catch (e) { await revert(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await q("update kz_content_items set cost_kop=$2 where id=$1", [item.id, cost]);
   try {
-    const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind);
+    const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source);
     await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, body]);
     return { ok: true };
   } catch (e) {
@@ -151,12 +152,12 @@ function nowIn(tz: string) {
   return { date: `${p.year}-${p.month}-${p.day}`, dow, minutes: Number(p.hour) * 60 + Number(p.minute) };
 }
 
-export interface TickReport { generated: number; planned: number; queued: number; sent: number; failed: number; retried: number; reaped: number; errors: string[] }
+export interface TickReport { sources: number; fetched: number; generated: number; planned: number; queued: number; sent: number; failed: number; retried: number; reaped: number; errors: string[] }
 
 /** Один проход воркера. Вызывается внешним планировщиком каждые ~5 минут (/api/cron/tick). */
 export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const t0 = Date.now();
-  const rep: TickReport = { generated: 0, planned: 0, queued: 0, sent: 0, failed: 0, retried: 0, reaped: 0, errors: [] };
+  const rep: TickReport = { sources: 0, fetched: 0, generated: 0, planned: 0, queued: 0, sent: 0, failed: 0, retried: 0, reaped: 0, errors: [] };
 
   // 0) застрявшие генерации (функцию убили посреди запроса): возврат денег и статус failed
   const stuck = await q<{ id: string; org_id: string; cost_kop: number }>(
@@ -206,6 +207,9 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
     const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
     for (const r of ready) { const e = await enqueue(f.org_id, r.id); if (e.ok) rep.queued++; else rep.errors.push(`enqueue ${r.id}: ${e.error}`); }
   }
+
+  // 4.5) мониторинг: опрос источников, давно не обновлявшихся
+  try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
 
   // 5) отправка очереди
   const s = await processQueue(15);

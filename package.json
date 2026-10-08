@@ -16,9 +16,11 @@
     "jose": "^6.0.0",
     "lucide-react": "^0.563.0",
     "next": "^15.4.8",
+    "node-html-parser": "^9.0.4",
     "pg": "^8.20.0",
     "react": "19.1.2",
     "react-dom": "19.1.2",
+    "undici": "^8.11.2",
     "zod": "^3.25.0"
   },
   "devDependencies": {

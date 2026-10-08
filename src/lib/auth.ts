@@ -102,3 +102,9 @@ export async function requireCtx(): Promise<Ctx> {
 }
 
 export function canWrite(role: string) { return role !== "viewer"; }
+
+export async function requireWriter(): Promise<Ctx> {
+  const c = await requireCtx();
+  if (!canWrite(c.org.role)) throw new Error("Недостаточно прав");
+  return c;
+}

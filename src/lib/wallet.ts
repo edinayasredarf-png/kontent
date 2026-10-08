@@ -3,7 +3,7 @@ import { tx } from "./db";
 export const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
 /** Цены операций в копейках. Списание — в момент сборки, при ошибке — возврат (refund). */
-export const PRICES = { plan_day: 300, post: 2000, carousel_slide: 700, article: 4000, reels: 9000 } as const;
+export const PRICES = { plan_day: 300, post: 2000, carousel_slide: 700, article: 4000, reels: 9000, idea: 300, digest: 600 } as const;
 
 export class InsufficientFunds extends Error {}
 
