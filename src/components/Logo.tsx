@@ -9,9 +9,9 @@ export function Logo({ href = "/app", className = "", big }: { href?: string; cl
   return (
     <Link href={href} aria-label="На главную" className={`${big ? "flex justify-center" : "inline-flex items-center"} ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-light.svg" alt="Логотип" width={150} height={42} className={`logo-light w-auto ${big ? "h-auto w-3/4" : "h-10"}`} />
+      <img src="/logo-light.svg" alt="Логотип" width={150} height={42} className={`logo-light w-auto ${big ? "h-auto w-[37%]" : "h-10"}`} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-dark.svg" alt="" aria-hidden width={150} height={42} className={`logo-dark w-auto ${big ? "h-auto w-3/4" : "h-10"}`} />
+      <img src="/logo-dark.svg" alt="" aria-hidden width={150} height={42} className={`logo-dark w-auto ${big ? "h-auto w-[37%]" : "h-10"}`} />
     </Link>
   );
 }
