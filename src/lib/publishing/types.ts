@@ -1,5 +1,7 @@
 export interface Article { title: string; description: string; slug: string; keywords: string[]; html: string }
-export interface PublishInput { text: string; image?: { data: Buffer; mime: string }; article?: Article }
+export interface Img { data: Buffer; mime: string }
+/** images — слайды карусели по порядку; image — одиночная картинка поста. */
+export interface PublishInput { text: string; image?: Img; images?: Img[]; article?: Article }
 /** warning — публикация прошла, но что-то (например, картинка) не удалось: пост ушёл без неё. */
 export interface PublishOutput { externalId: string; url: string | null; warning?: string }
 

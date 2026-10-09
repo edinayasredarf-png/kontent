@@ -9,6 +9,9 @@ import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
+import { CarouselPanel, type CarouselMeta } from "@/components/CarouselPanel";
+import { ContentSettingsCard } from "@/components/ContentSettingsCard";
+import { cleanSettings } from "@/lib/postsettings";
 import { cleanHtml, seoCheck, type SeoMeta } from "@/lib/seo";
 import { updateSeoMetaAction } from "@/lib/actions";
 
@@ -17,7 +20,7 @@ export const maxDuration = 300;
 import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -36,7 +39,9 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+  const carAssets = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel").map((x) => x.id)]);
+  const st = cleanSettings((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
   const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
   const runway = await planRunway(id);
   const href = (o: Record<string, string>) => {
@@ -80,6 +85,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его — кнопка ниже.
         </div>
       )}
+      <ContentSettingsCard factoryId={id} st={st} free={c.org.unlimited} />
       <details className="card mb-4 p-4">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Clock size={15} />Расписание публикаций</summary>
         <form action={saveScheduleAction} className="mt-4 space-y-3">
@@ -171,6 +177,9 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 </details>
               ) : null}
               {i.hook && <p className="text-sm text-ink2"><b>Хук:</b> {i.hook}</p>}
+              {i.kind === "carousel" && i.carousel && carAssets.some((a) => a.item_id === i.id) && (
+                <CarouselPanel itemId={i.id} factoryId={id} meta={i.carousel} assets={carAssets.filter((a) => a.item_id === i.id)} editable={["idea", "approved", "ready", "failed"].includes(i.status)} free={c.org.unlimited} />
+              )}
               {i.kind === "seo" && i.seo && i.body && (() => {
                 const chk = seoCheck({ ...i.seo, keyword: i.seo.keyword || i.topic, faq: i.seo.faq ?? [] }, i.body);
                 return (
@@ -209,7 +218,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><button className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</button></form>
                 </div>
               )}
-              {i.body && !["published", "scheduled", "generating"].includes(i.status) && (
+              {i.body && i.kind !== "carousel" && !["published", "scheduled", "generating"].includes(i.status) && (
                 <form action={generateImageAction} className="space-y-2 rounded-xl bg-tile p-3">
                   <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
                   <textarea name="prompt" rows={2} defaultValue="" placeholder={i.image_prompt ? `Прошлое описание: ${i.image_prompt.slice(0, 160)}…` : "Описание картинки (необязательно — иначе соберём из поста и брендбука)"} className="input !bg-surface text-xs" />

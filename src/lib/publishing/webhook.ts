@@ -28,6 +28,8 @@ export const webhook: Provider = {
       const r = await send(c, {
         event: "post.publish", text: input.text,
         image: input.image && input.image.data.length < 1_500_000 ? { mime: input.image.mime, base64: input.image.data.toString("base64") } : null,
+        // слайды карусели по порядку; если суммарно больше 6 МБ — не отправляем, чтобы не упереться в лимит запроса приёмника
+        images: input.images && input.images.reduce((s, x) => s + x.data.length, 0) < 6_000_000 ? input.images.map((x) => ({ mime: x.mime, base64: x.data.toString("base64") })) : null,
       });
       return { externalId: String(r.id ?? Date.now()), url: typeof r.url === "string" && /^https?:\/\//.test(r.url) ? r.url : null };
     }

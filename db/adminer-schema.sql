@@ -343,5 +343,10 @@ alter table kz_users add column if not exists theme text not null default 'syste
 alter table kz_users drop constraint if exists kz_users_theme_check;
 alter table kz_users add constraint kz_users_theme_check check (theme in ('light','dark','system'));
 
+-- Карусели картинками: слайды хранятся как файлы, привязанные к материалу (удаляются вместе с ним).
+alter table kz_assets add column if not exists item_id uuid references kz_content_items(id) on delete cascade;
+alter table kz_assets add column if not exists position int not null default 0;   -- порядок слайдов; -1 — фон обложки (нейросетью)
+create index if not exists kz_assets_item on kz_assets(item_id, position);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql') on conflict do nothing;

@@ -58,11 +58,12 @@ export const vk: Provider = {
   async publish(input, c) {
     const { token, id } = need(c);
     let attachment: string | undefined, warning: string | undefined;
-    if (input.image) {
-      try { attachment = await uploadPhoto(token, id, input.image); }
+    const pics = input.images?.length ? input.images.slice(0, 10) : input.image ? [input.image] : [];
+    if (pics.length) {
+      try { const ids: string[] = []; for (const pic of pics) ids.push(await uploadPhoto(token, id, pic)); attachment = ids.join(","); }
       catch (e) {
         if ((e as PublishError).retryable) throw e;
-        warning = `Картинка не загружена (${(e as Error).message}), пост опубликован без неё. Проверьте, что у ключа сообщества есть право «фотографии»`;
+        warning = `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"} (${(e as Error).message}), пост опубликован без ${pics.length > 1 ? "них" : "неё"}. Проверьте, что у ключа сообщества есть право «фотографии»`;
       }
     }
     const r = await call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message: toPlain(input.text).slice(0, 15000), ...(attachment ? { attachments: attachment } : {}) });

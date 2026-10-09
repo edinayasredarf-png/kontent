@@ -38,6 +38,6 @@ export const max: Provider = {
       const r = await call<{ message?: { body?: { mid?: string } } }>(token, "POST", `/messages?chat_id=${encodeURIComponent(chat)}`, { text });
       first ||= r.message?.body?.mid ?? "";
     }
-    return { externalId: first || String(Date.now()), url: null, warning: input.image ? "Картинка в MAX пока не отправляется — пост ушёл текстом" : undefined };
+    return { externalId: first || String(Date.now()), url: null, warning: input.image || input.images?.length ? "Картинки в MAX пока не отправляются — пост ушёл текстом" : undefined };
   },
 };

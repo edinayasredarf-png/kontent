@@ -43,13 +43,27 @@ export const telegram: Provider = {
     let first: number | null = null;
     let warning: string | undefined;
     let rest = plain;
-    if (input.image) {
+    if (input.images && input.images.length >= 2) {
+      // карусель — альбом из 2–10 фото; подпись (до 1024 знаков) крепится к первому, иначе текст уходит следом отдельным сообщением
+      const imgs = input.images.slice(0, 10);
+      const fits = plain.length <= 1024;
+      const f = new FormData();
+      f.set("chat_id", target);
+      f.set("media", JSON.stringify(imgs.map((_, i) => ({ type: "photo", media: `attach://p${i}`, ...(i === 0 && fits && plain ? { caption: plain } : {}) }))));
+      imgs.forEach((im, i) => f.set(`p${i}`, new Blob([new Uint8Array(im.data)], { type: im.mime }), `slide-${i + 1}.jpg`));
+      try { first = (await call<{ message_id: number }[]>(token, "sendMediaGroup", f))[0]?.message_id ?? null; if (fits) rest = ""; }
+      catch (e) {
+        if ((e as PublishError).retryable) throw e;
+        warning = `Слайды не отправлены (${(e as Error).message}), пост опубликован текстом`;
+      }
+    } else if (input.image || input.images?.length) {
+      const one = (input.image ?? input.images![0])!;
       // подпись к фото — до 1024 знаков; если текст длиннее, фото уходит без подписи, а текст следом
       const fits = plain.length <= 1024;
       const f = new FormData();
       f.set("chat_id", target);
       if (fits) f.set("caption", plain);
-      f.set("photo", new Blob([new Uint8Array(input.image.data)], { type: input.image.mime }), "image.jpg");
+      f.set("photo", new Blob([new Uint8Array(one.data)], { type: one.mime }), "image.jpg");
       try { first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e; // временный сбой — повторит воркер, дубль не получится: фото не ушло

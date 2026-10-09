@@ -32,7 +32,7 @@ export async function orgUsage(orgId: string): Promise<number> {
   return Number((await one<{ s: string }>("select coalesce(sum(size),0) s from kz_assets where org_id=$1", [orgId]))!.s);
 }
 
-export async function saveAsset(orgId: string, brandId: string | null, kind: AssetKind, name: string, p: Processed, note = ""): Promise<string> {
+export async function saveAsset(orgId: string, brandId: string | null, kind: AssetKind, name: string, p: Processed, note = "", link?: { itemId: string; position: number }): Promise<string> {
   if ((await orgUsage(orgId)) + p.data.length > ORG_QUOTA_BYTES) throw new Error("Достигнут лимит хранилища (150 МБ). Удалите ненужные картинки");
   if (brandId && kind !== "generated" && kind !== "studio") {
     if (kind === "logo") await q("delete from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, brandId]); // логотип один: новый заменяет
@@ -42,8 +42,8 @@ export async function saveAsset(orgId: string, brandId: string | null, kind: Ass
     }
   }
   const r = await one<{ id: string }>(
-    `insert into kz_assets(org_id,brand_id,kind,name,mime,width,height,size,data,note) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id`,
-    [orgId, brandId, kind, name.slice(0, 120), p.mime, p.width, p.height, p.data.length, p.data, note]);
+    `insert into kz_assets(org_id,brand_id,kind,name,mime,width,height,size,data,note,item_id,position) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id`,
+    [orgId, brandId, kind, name.slice(0, 120), p.mime, p.width, p.height, p.data.length, p.data, note, link?.itemId ?? null, link?.position ?? 0]);
   return r!.id;
 }
 

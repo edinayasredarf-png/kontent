@@ -1,4 +1,5 @@
 import { one, q } from "./db";
+import { cleanSettings, POST_TYPES, styleBlock, type ContentSettings } from "./postsettings";
 
 /**
  * Все нейросети берутся из AI Gateway Timeweb — того же OpenAI-совместимого шлюза, что на единойсреде.рф.
@@ -76,7 +77,7 @@ export async function chat(task: AiTask, system: string, user: string, opts: { m
 }
 
 export interface BrandCtx { name: string; description: string; audience: string; tone: string; forbidden: string[] }
-export interface PlanIdea { topic: string; hook: string; kind: string }
+export interface PlanIdea { topic: string; hook: string; kind: string; type?: string }
 
 export const brandBlock = (b: BrandCtx, product: string, niche: string) =>
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт/направление: ${product}\nНиша: ${niche}\n` +
@@ -101,32 +102,36 @@ function extractArray(text: string): unknown[] | null {
 }
 
 /** Контент-план. Уже использованные темы передаём в промпт — так план не повторяется между запусками. */
-export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[]): Promise<PlanIdea[]> {
+export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[], st?: ContentSettings): Promise<PlanIdea[]> {
   const seoOnly = kinds.length === 1 && kinds[0] === "seo";
+  const types = st?.postTypes ?? [];
   const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown." +
     (seoOnly ? " Это план SEO-статей для сайта: topic — реальный поисковый запрос так, как его вводит человек (без кавычек и «топ-10»), hook — намерение и угол статьи одной фразой. Запросы не должны дублировать друг друга." : "");
   const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ровно ${days} идей, по одной на день. Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
     (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 60).join("\n- ")}\n` : "") +
-    `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"}]`;
+    (types.length > 1 ? `Типы постов: ${types.map((t) => `${t} — ${POST_TYPES[t].toLowerCase()}`).join("; ")}. Распредели их по идеям равномерно и укажи в поле "type" (одно из: ${types.join(", ")}).\n` : "") +
+    `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"${types.length > 1 ? ',"type":"' + types[0] + '"' : ""}}]`;
   let arr: unknown[] | null = null;
   for (let attempt = 0; attempt < 2 && !arr; attempt++) {
     arr = extractArray(await chat("plan", system, attempt ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-массив." : user, { maxTokens: 4000, temperature: 0.7 }));
   }
   if (!arr) throw new Error("Модель не вернула валидный план");
-  const ideas = (arr as Partial<PlanIdea>[]).filter((x) => x && x.topic).map((x) => ({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds.includes(String(x.kind)) ? String(x.kind) : kinds[0] }));
+  const ideas = (arr as Partial<PlanIdea>[]).filter((x) => x && x.topic).map((x) => ({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds.includes(String(x.kind)) ? String(x.kind) : kinds[0], type: x.type && types.includes(String(x.type)) ? String(x.type) : undefined }));
   if (!ideas.length) throw new Error("Модель вернула пустой план");
   return ideas.slice(0, days);
 }
 
 export interface SourceNote { title: string; body: string; url: string }
 
-export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote): Promise<string> {
-  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "carousel" ? "6 слайдов, каждый с пометкой «Слайд N:» и 1–2 короткими фразами" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : "600–900 знаков";
+export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
+  const st = settings ?? cleanSettings({});
+  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
   const task: AiTask = kind === "article" ? "article" : kind === "carousel" ? "carousel" : kind === "reels" ? "reels" : "post";
   return chat(task,
     "Ты редактор бренда. Пиши по-русски, без воды и клише, без эмодзи-спама. Не выдумывай факты, цифры и цены — если данных нет, пиши без них. Выведи только готовый текст, без вступлений вроде «Вот текст».",
     `${brandBlock(b, product, niche)}\nФормат: ${kind}, объём: ${len}\nТема: ${topic}\nХук: ${hook}\n` +
       (source ? `\nМатериал-источник (${source.url}):\n«${source.title}»\n${source.body.slice(0, 3000)}\nИспользуй из него только факты, пиши своими словами и с позиции бренда, не копируй формулировки и не придумывай деталей, которых в источнике нет.\n` : "") +
+      (kind === "post" || kind === "story" || kind === "article" ? `\nПравила оформления:\n${styleBlock(st, kind, postType)}\n` : "") +
       `Напиши готовый текст.`,
     { maxTokens: kind === "article" ? 3500 : 1500, temperature: 0.7, timeoutMs: kind === "article" ? 55_000 : 45_000 });
 }
@@ -171,4 +176,27 @@ export async function genDigest(items: { title: string; body: string; source: st
     `Ключевые слова пользователя: ${keywords.join(", ") || "не заданы"}\n\nПосты за последние дни:\n${list}\n\n` +
     `Сделай: 1) 4–6 главных тем/трендов (по строке, с числом упоминаний); 2) что явно повторяется у разных источников; 3) 5 идей для собственных материалов с углом подачи.`,
     { maxTokens: 1800, temperature: 0.4, timeoutMs: 55_000 });
+}
+
+export interface CarouselText { slides: { title: string; body: string }[]; caption: string }
+
+/** Тексты карусели структурой: заголовок и текст каждого слайда (их набираем на картинках сами) и подпись к посту. */
+export async function genCarousel(b: BrandCtx, product: string, niche: string, topic: string, hook: string, n: number, st: ContentSettings, source?: SourceNote, postType?: string): Promise<CarouselText> {
+  const system = "Ты контент-стратег соцсетей. Пиши по-русски, коротко и конкретно, без воды и клише. Не выдумывай факты, цифры и цены. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
+  const user = `${brandBlock(b, product, niche)}\nТема карусели: ${topic}\nХук: ${hook}\n` +
+    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nФакты бери только оттуда, формулировки не копируй.\n` : "") +
+    `\nСделай карусель из ${n} слайдов:\n- слайд 1 — обложка: "title" до 60 знаков (цепляющий), "body" до 90 знаков (подзаголовок);\n- слайды 2–${n - 1}: "title" до 50 знаков, "body" до 200 знаков; одна мысль на слайд, конкретика и польза;\n- слайд ${n} — призыв к действию: "title" до 50 знаков, "body" до 160 знаков.\n` +
+    `Кроме слайдов напиши "caption" — подпись к посту 300–700 знаков.\nПравила оформления подписи:\n${styleBlock(st, "carousel", postType)}\n` +
+    `Формат: {"slides":[{"title":"...","body":"..."}],"caption":"..."}`;
+  let o: Record<string, unknown> | null = null;
+  for (let a = 0; a < 2; a++) {
+    o = extractObject(await chat("carousel", system, a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-объект." : user, { maxTokens: 2500, temperature: 0.7, timeoutMs: 50_000 }));
+    if (Array.isArray(o?.slides) && (o!.slides as unknown[]).length >= 3) break;
+    o = null;
+  }
+  if (!o) throw new Error("Модель не вернула структуру карусели");
+  const clip = (v: unknown, k: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, k) : "");
+  const slides = (o.slides as { title?: unknown; body?: unknown }[]).slice(0, 10).map((s) => ({ title: clip(s?.title, 90), body: clip(s?.body, 320) })).filter((s) => s.title);
+  if (slides.length < 3) throw new Error("В карусели получилось меньше трёх слайдов");
+  return { slides, caption: clip(o.caption, 2000) };
 }
