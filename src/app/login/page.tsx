@@ -24,9 +24,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   return (
     <main className="flex min-h-screen flex-col px-5">
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-8"><Logo href="/login" /></div>
-      <h1 className="mb-1 text-2xl font-semibold">Вход</h1>
-      <p className="mb-6 text-sm text-ink2">Единая среда</p>
+      <div className="mb-10"><Logo big href="/login" /></div>
+      <h1 className="mb-6 text-2xl font-semibold">Вход</h1>
       {reset === "1" && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Пароль изменён. Войдите с новым паролем.</p>}
       {error && ERRORS[error] && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{ERRORS[error]}</p>}
       <Form action={loginAction} submit="Войти" wide>

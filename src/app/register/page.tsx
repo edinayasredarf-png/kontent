@@ -14,7 +14,7 @@ export default async function Register({ searchParams }: { searchParams: Promise
   return (
     <main className="flex min-h-screen flex-col px-5">
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-8"><Logo href="/register" /></div>
+      <div className="mb-10"><Logo big href="/register" /></div>
       <h1 className="mb-1 text-2xl font-semibold">Создать аккаунт</h1>
       <p className="mb-6 text-sm text-ink2">100 ₽ на баланс в подарок — хватит на пробный контент-план.</p>
       <Form action={registerAction} submit="Создать аккаунт" wide>

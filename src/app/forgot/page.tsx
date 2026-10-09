@@ -13,7 +13,7 @@ export default function Forgot() {
   return (
     <main className="flex min-h-screen flex-col px-5">
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-8"><Logo href="/login" /></div>
+      <div className="mb-10"><Logo big href="/login" /></div>
       <h1 className="mb-1 text-2xl font-semibold">Восстановление пароля</h1>
       <p className="mb-6 text-sm text-ink2">Укажите email аккаунта — отправим ссылку для создания нового пароля.</p>
       {mail ? (

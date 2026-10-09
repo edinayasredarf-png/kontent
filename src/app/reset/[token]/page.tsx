@@ -15,7 +15,7 @@ export default async function Reset({ params }: { params: Promise<{ token: strin
   return (
     <main className="flex min-h-screen flex-col px-5">
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-8"><Logo href="/login" /></div>
+      <div className="mb-10"><Logo big href="/login" /></div>
       {info ? (
         <>
           <h1 className="mb-1 text-2xl font-semibold">Новый пароль</h1>
