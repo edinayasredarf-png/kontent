@@ -28,13 +28,11 @@ Vercel Hobby даёт cron раз в сутки (`vercel.json`) — это ст�
 - **VK:** сообщество → Управление → API → ключ доступа с правом «стена»; в форме — ключ и числовой id сообщества.
 Токен проверяется перед сохранением и хранится зашифрованным (AES-256-GCM).
 
-## Вход через Яндекс и VK
-Переменные (имена как на единойсреде): `YANDEX_CLIENT_ID` (или `NEXT_PUBLIC_YANDEX_CLIENT_ID`), `YANDEX_CLIENT_SECRET`, `VK_CLIENT_ID` (или `NEXT_PUBLIC_VK_CLIENT_ID`), `VK_CLIENT_SECRET`. Кнопки появляются на страницах входа и регистрации только для настроенных провайдеров.
-В настройках приложения у провайдера добавьте Redirect URI:
-- `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/yandex/callback`
-- `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/vk/callback`
-
-Миграция: `db/004_oauth.sql` (в `adminer-schema.sql` уже включена).
+## Вход через Яндекс ID и VK ID
+- **Яндекс:** `YANDEX_CLIENT_ID` (или `NEXT_PUBLIC_YANDEX_CLIENT_ID`) и `YANDEX_CLIENT_SECRET`.
+- **VK:** приложение **VK ID** (id.vk.com). Нужен только `VK_CLIENT_ID` (ID приложения, он публичный); секрет не требуется — используется PKCE. Необязательно `VK_SCOPE` (например `email`, только если право включено в приложении).
+- Redirect URI в настройках приложений: `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/yandex/callback` и `…/api/oauth/vk/callback`.
+- Вход идёт редиректом, обмен кода — на сервере; `state` и PKCE-verifier лежат в httpOnly-cookie. Кнопки появляются только у настроенных провайдеров.
 
 ## Мониторинг источников
 Раздел «Мониторинг»: сайты/RSS, публичные Telegram-каналы (через `t.me/s/…`, без токена), сообщества VK (нужен `VK_SERVICE_TOKEN` на сервере), новости по запросу (Google News) и ручное добавление постов (MAX, закрытые каналы). Читать чужие каналы MAX автоматически нельзя — открытого способа нет.

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { one, tx } from "./db";
 import { createAccount, defaultOrg, type Session } from "./auth";
@@ -7,12 +7,28 @@ export type Provider = "yandex" | "vk";
 export const PROVIDERS: Provider[] = ["yandex", "vk"];
 export const PROVIDER_NAME: Record<Provider, string> = { yandex: "Яндекс", vk: "VK" };
 
-/** Имена переменных те же, что на единойсреде (NEXT_PUBLIC_*_CLIENT_ID, *_CLIENT_SECRET) — можно скопировать как есть. */
+/**
+ * Яндекс: ID приложения + пароль приложения (client secret).
+ * VK: приложение VK ID (id.vk.com) — публичный клиент с PKCE, секрет не нужен: достаточно ID приложения (VK_CLIENT_ID).
+ * Имена переменных те же, что на единойсреде (NEXT_PUBLIC_*_CLIENT_ID) — можно скопировать как есть.
+ */
 export function creds(p: Provider): { id: string; secret: string } | null {
   const E = process.env;
   const id = (p === "yandex" ? E.YANDEX_CLIENT_ID || E.NEXT_PUBLIC_YANDEX_CLIENT_ID : E.VK_CLIENT_ID || E.NEXT_PUBLIC_VK_CLIENT_ID)?.trim();
-  const secret = (p === "yandex" ? E.YANDEX_CLIENT_SECRET : E.VK_CLIENT_SECRET)?.trim();
-  return id && secret ? { id, secret } : null;
+  if (!id) return null;
+  if (p === "vk") return { id, secret: "" };
+  const secret = E.YANDEX_CLIENT_SECRET?.trim();
+  return secret ? { id, secret } : null;
+}
+
+const VKID = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.com").replace(/\/+$/, "");
+const YA_OAUTH = () => (process.env.YANDEX_OAUTH_BASE?.trim() || "https://oauth.yandex.ru").replace(/\/+$/, "");
+const YA_LOGIN = () => (process.env.YANDEX_LOGIN_BASE?.trim() || "https://login.yandex.ru").replace(/\/+$/, "");
+
+/** PKCE (RFC 7636): verifier остаётся у нас в httpOnly-cookie, провайдеру уходит только его SHA-256. Перехваченный код без verifier бесполезен. */
+export function newPkce() {
+  const verifier = randomBytes(48).toString("base64url");
+  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
 }
 export const configured = (p: Provider) => creds(p) !== null;
 
@@ -26,12 +42,15 @@ export function appOrigin(req: Request): string {
 }
 export const redirectUri = (req: Request, p: Provider) => `${appOrigin(req)}/api/oauth/${p}/callback`;
 
-export function authorizeUrl(req: Request, p: Provider, state: string): string {
+export function authorizeUrl(req: Request, p: Provider, state: string, challenge?: string): string {
   const c = creds(p)!;
   const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirectUri(req, p), response_type: "code", state });
-  if (p === "yandex") { q.set("scope", "login:email login:info"); return `https://oauth.yandex.ru/authorize?${q}`; }
-  q.set("scope", "email"); q.set("display", "page"); q.set("v", "5.131");
-  return `https://oauth.vk.com/authorize?${q}`;
+  if (p === "yandex") { q.set("scope", "login:email login:info"); return `${YA_OAUTH()}/authorize?${q}`; }
+  q.set("code_challenge", challenge ?? ""); q.set("code_challenge_method", "S256");
+  // email у VK ID выдаётся только если право «email» включено в настройках приложения; по умолчанию просим минимум
+  const scope = process.env.VK_SCOPE?.trim();
+  if (scope) q.set("scope", scope);
+  return `${VKID()}/authorize?${q}`;
 }
 
 export interface Profile { id: string; email: string | null; name: string }
@@ -42,30 +61,28 @@ async function json(res: Response, what: string) {
   return j as Record<string, unknown>;
 }
 
-/** Обмен кода на токен и профиль. Все запросы — с сервера, секрет приложения в браузер не попадает. */
-export async function fetchProfile(req: Request, p: Provider, code: string): Promise<Profile> {
+/** Обмен кода на токен и профиль. Все запросы — с сервера, секрет приложения и токены в браузер не попадают. */
+export async function fetchProfile(req: Request, p: Provider, code: string, x: { verifier?: string; deviceId?: string; state?: string } = {}): Promise<Profile> {
   const c = creds(p)!;
   const t = AbortSignal.timeout(15_000);
+  const form = (o: Record<string, string>) => ({ method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: t, body: new URLSearchParams(o) });
   if (p === "yandex") {
-    const tok = await json(await fetch("https://oauth.yandex.ru/token", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: t,
-      body: new URLSearchParams({ grant_type: "authorization_code", code, client_id: c.id, client_secret: c.secret }),
-    }), "Яндекс token");
-    const me = await json(await fetch("https://login.yandex.ru/info?format=json", { headers: { Authorization: `OAuth ${tok.access_token}` }, signal: t }), "Яндекс info");
+    const tok = await json(await fetch(`${YA_OAUTH()}/token`, form({ grant_type: "authorization_code", code, client_id: c.id, client_secret: c.secret })), "Яндекс token");
+    const me = await json(await fetch(`${YA_LOGIN()}/info?format=json`, { headers: { Authorization: `OAuth ${tok.access_token}` }, signal: t }), "Яндекс info");
     const email = String(me.default_email ?? (me.emails as string[] | undefined)?.[0] ?? "").toLowerCase();
     return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim() };
   }
-  const q = new URLSearchParams({ client_id: c.id, client_secret: c.secret, redirect_uri: redirectUri(req, p), code });
-  const tok = await json(await fetch(`https://oauth.vk.com/access_token?${q}`, { signal: t }), "VK token");
-  const uid = String(tok.user_id ?? "");
-  if (!uid) throw new Error("VK не вернул user_id");
-  let name = "";
-  try {
-    const u = await json(await fetch(`https://api.vk.com/method/users.get?${new URLSearchParams({ access_token: String(tok.access_token), v: "5.131", fields: "first_name,last_name" })}`, { signal: t }), "VK users.get");
-    const r = (u.response as { first_name?: string; last_name?: string }[] | undefined)?.[0];
-    name = `${r?.first_name ?? ""} ${r?.last_name ?? ""}`.trim();
-  } catch { /* имя необязательно */ }
-  return { id: uid, email: tok.email ? String(tok.email).toLowerCase() : null, name };
+  // VK ID: код + code_verifier + device_id → токен → профиль
+  if (!x.verifier || !x.deviceId) throw new Error("VK не вернул device_id или потерян code_verifier");
+  const tok = await json(await fetch(`${VKID()}/oauth2/auth`, form({
+    grant_type: "authorization_code", code, code_verifier: x.verifier, client_id: c.id, device_id: x.deviceId, redirect_uri: redirectUri(req, p), state: x.state ?? "",
+  })), "VK ID token");
+  if (!tok.access_token) throw new Error("VK ID не вернул access_token");
+  const me = await json(await fetch(`${VKID()}/oauth2/user_info`, form({ client_id: c.id, access_token: String(tok.access_token) })), "VK ID user_info");
+  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string };
+  const id = String(u.user_id ?? tok.user_id ?? "");
+  if (!id) throw new Error("VK ID не вернул user_id");
+  return { id, email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() };
 }
 
 /**

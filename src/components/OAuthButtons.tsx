@@ -1,9 +1,17 @@
-import { configured, PROVIDER_NAME, PROVIDERS, type Provider } from "@/lib/oauth";
+import { configured, PROVIDERS, type Provider } from "@/lib/oauth";
 
-const ICON: Record<Provider, React.ReactNode> = {
-  yandex: <svg viewBox="0 0 24 24" className="size-5" aria-hidden><circle cx="12" cy="12" r="12" fill="#FC3F1D" /><path d="M13.6 18.5h-1.9V8.2h-.9c-1.5 0-2.3.8-2.3 1.9 0 1.3.6 1.9 1.7 2.6l.9.6-2.6 3.9H6.4L8.7 13c-1.3-1-2-1.9-2-3.5 0-2 1.4-3.5 4.1-3.5h2.8v12.5Z" fill="#fff" /></svg>,
-  vk: <svg viewBox="0 0 24 24" className="size-5" aria-hidden><rect width="24" height="24" rx="6" fill="#0077FF" /><path d="M12.8 17c-4.4 0-6.9-3-7-8h2.2c.1 3.7 1.7 5.200 3 5.5V9h2.100v3.200c1.300-.1 2.600-1.600 3.100-3.200h2.100c-.4 2-1.800 3.500-2.800 4.100 1 .5 2.600 1.700 3.200 3.900h-2.300c-.5-1.500-1.700-2.700-3.300-2.900V17h-.1Z" fill="#fff" /></svg>,
+/** Знаки провайдеров: Яндекс — красный круг с «Я», VK ID — «VK» на белом скруглённом квадрате. Простые фигуры вместо вставленных path, чтобы ничего не искажалось. */
+const MARK: Record<Provider, React.ReactNode> = {
+  yandex: <span aria-hidden className="grid size-6 place-items-center rounded-full bg-[#FC3F1D] text-[13px] font-bold leading-none text-white">Я</span>,
+  vk: <span aria-hidden className="grid size-6 place-items-center rounded-md bg-white text-[11px] font-extrabold leading-none tracking-tight text-[#0077FF]">VK</span>,
 };
+
+/** Цвета по гайдлайнам: VK ID — синий #0077FF, Яндекс ID — чёрная кнопка. Радиус тот же, что у остальных кнопок сайта (rounded-xl). */
+const STYLE: Record<Provider, string> = {
+  yandex: "bg-black text-white hover:bg-[#1c1c1c]",
+  vk: "bg-[#0077FF] text-white hover:bg-[#006AE6]",
+};
+const LABEL: Record<Provider, string> = { yandex: "Яндекс ID", vk: "VK ID" };
 
 /** Кнопки показываются только для настроенных провайдеров — иначе нажатие вело бы в никуда. */
 export function OAuthButtons({ verb }: { verb: string }) {
@@ -12,10 +20,12 @@ export function OAuthButtons({ verb }: { verb: string }) {
   return (
     <div className="mt-6">
       <div className="mb-4 flex items-center gap-3 text-xs text-ink3"><span className="h-px flex-1 bg-line" />или<span className="h-px flex-1 bg-line" /></div>
-      <div className="grid gap-2">
+      <div className="grid gap-2.5">
         {on.map((p) => (
-          // обычная ссылка, не <Link>: нужен полный переход, чтобы сервер поставил cookie со state
-          <a key={p} href={`/api/oauth/${p}/start`} className="btn btn-ghost justify-center !py-2.5">{ICON[p]}{verb} через {PROVIDER_NAME[p]}</a>
+          // обычная ссылка, не <Link>: нужен полный переход, чтобы сервер поставил cookie со state и PKCE
+          <a key={p} href={`/api/oauth/${p}/start`} className={`flex h-11 items-center justify-center gap-2.5 rounded-xl px-4 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 ${STYLE[p]}`}>
+            {MARK[p]}<span>{verb} через {LABEL[p]}</span>
+          </a>
         ))}
       </div>
     </div>

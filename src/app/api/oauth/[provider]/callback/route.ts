@@ -16,10 +16,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const sp = req.nextUrl.searchParams;
   if (sp.get("error")) return fail("denied"); // пользователь отказался на стороне провайдера
   const code = sp.get("code") ?? "", state = sp.get("state") ?? "";
-  const saved = req.cookies.get("lt_oauth_state")?.value ?? "";
-  if (!code || !state || !same(saved, `${p}.${state}`)) return fail("state");
+  const [sp0, ss, verifier = ""] = (req.cookies.get("lt_oauth_state")?.value ?? "").split(".");
+  if (!code || !state || !same(`${sp0}.${ss}`, `${p}.${state}`)) return fail("state");
   try {
-    const prof = await fetchProfile(req, p, code);
+    const prof = await fetchProfile(req, p, code, { verifier, deviceId: sp.get("device_id") ?? "", state });
     const s = await resolveUser(p, prof, req.cookies.get("lt_ref")?.value);
     const res = NextResponse.redirect(new URL("/app", req.url));
     res.cookies.set(await sessionCookie(s));
