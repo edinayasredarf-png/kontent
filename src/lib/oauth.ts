@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { one, tx } from "./db";
+import { one, q, tx } from "./db";
 import { createAccount, defaultOrg, type Session } from "./auth";
 
 export type Provider = "yandex" | "vk";
@@ -84,6 +84,12 @@ export async function yandexProfileFromToken(accessToken: string): Promise<Profi
   return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim() };
 }
 
+/** Заблокированный администратором пользователь не входит и через Яндекс/VK. */
+async function assertActive(userId: string, run: typeof q = q) {
+  const [u] = await run<{ disabled: boolean }>("select disabled from kz_users where id=$1", [userId]);
+  if (u?.disabled) throw new Error("Аккаунт заблокирован");
+}
+
 export interface Profile { id: string; email: string | null; name: string }
 
 async function json(res: Response, what: string) {
@@ -123,6 +129,7 @@ export async function fetchProfile(req: Request, p: Provider, code: string, x: {
 export async function resolveUser(p: Provider, prof: Profile, refCode?: string): Promise<Session> {
   const known = await one<{ user_id: string }>("select user_id from kz_oauth_identities where provider=$1 and provider_id=$2", [p, prof.id]);
   if (known) {
+    await assertActive(known.user_id);
     const org = await defaultOrg(known.user_id);
     if (!org) throw new Error("У пользователя нет организации");
     return { uid: known.user_id, org };
@@ -132,12 +139,13 @@ export async function resolveUser(p: Provider, prof: Profile, refCode?: string):
     const [ex] = await run<{ id: string }>("select id from kz_users where email=$1", [email]);
     let s: Session;
     if (ex) {
+      await assertActive(ex.id, run);
       const org = await defaultOrg(ex.id);
       if (!org) throw new Error("У пользователя нет организации");
       s = { uid: ex.id, org };
     } else {
       // пароль случайный и никому не известен: войти по паролю в такой аккаунт нельзя, только через провайдера
-      s = await createAccount(run, email, prof.name, await bcrypt.hash(randomBytes(24).toString("hex"), 8), prof.name ? `Организация ${prof.name}` : "Моя организация", { refCode, hasPassword: false });
+      s = await createAccount(run, email, prof.name, await bcrypt.hash(randomBytes(24).toString("hex"), 8), prof.name ? `Организация ${prof.name}` : "Моя организация", { refCode, hasPassword: false, consent: true });
     }
     await run("insert into kz_oauth_identities(provider,provider_id,user_id) values($1,$2,$3) on conflict do nothing", [p, prof.id, s.uid]);
     return s;

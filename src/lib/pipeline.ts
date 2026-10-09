@@ -159,7 +159,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   await q("update kz_publications set status='queued', updated_at=now() where status='sending' and updated_at < now() - interval '10 minutes'");
   const jobs = await q<{ id: string; org_id: string; item_id: string; channel_id: string; attempts: number }>(
     `update kz_publications set status='sending', attempts=attempts+1, updated_at=now()
-      where id in (select id from kz_publications where status='queued' and next_attempt_at <= now() ${onlyItem ? "and item_id=$2" : ""}
+      where id in (select id from kz_publications where status='queued' and next_attempt_at <= now() and not exists (select 1 from kz_orgs so where so.id=kz_publications.org_id and so.suspended) ${onlyItem ? "and item_id=$2" : ""}
                     order by next_attempt_at limit $1 for update skip locked)
       returning id,org_id,item_id,channel_id,attempts`, onlyItem ? [limit, onlyItem] : [limit]);
   const out = { sent: 0, failed: 0, retried: 0 };
@@ -220,11 +220,11 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // 1) полный автомат: одобряем идеи заводов с approval=auto
   await q(`update kz_content_items i set status='approved', updated_at=now() from kz_factories f
-            where i.factory_id=f.id and f.status='active' and f.approval='auto' and i.status='idea'`);
+            where i.factory_id=f.id and f.status='active' and f.approval='auto' and i.status='idea' and not exists (select 1 from kz_orgs so where so.id=f.org_id and so.suspended)`);
 
   // 2) автопополнение плана: у автозаводов осталось меньше 3 идей вперёд — докидываем 7 дней (с баланса организации)
   const low = await q<{ id: string; org_id: string }>(
-    `select f.id,f.org_id from kz_factories f where f.status='active' and f.approval='auto' and f.autopublish
+    `select f.id,f.org_id from kz_factories f where f.status='active' and f.approval='auto' and f.autopublish and not exists (select 1 from kz_orgs so where so.id=f.org_id and so.suspended)
         and (select count(*) from kz_content_items i where i.factory_id=f.id and i.status in ('idea','approved') and i.planned_for >= current_date) < 3
         and (select balance_kop >= $1 or unlimited from kz_orgs o where o.id=f.org_id) limit 3`, [PRICES.plan_day * 7]);
   for (const f of low) {
@@ -237,7 +237,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   //    пустой баланс занимал бы очередь всех остальных.
   const todo = await q<{ id: string; org_id: string }>(
     `select i.id,i.org_id from kz_content_items i join kz_factories f on f.id=i.factory_id join kz_orgs o on o.id=i.org_id
-      where f.status='active' and i.status='approved' and i.planned_for <= current_date + 1
+      where f.status='active' and not o.suspended and i.status='approved' and i.planned_for <= current_date + 1
         and (o.unlimited or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int else $4::int end)
       order by i.planned_for limit 4`, [PRICES.carousel_slide * 6, PRICES.article, PRICES.reels, PRICES.post]);
   for (const it of todo) {
@@ -248,7 +248,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // 4) расписание автопубликации: сколько слотов дня уже прошло минус сколько уже опубликовано/запланировано сегодня
   const facs = await q<{ id: string; org_id: string; schedule: { days: number[]; times: string[]; tz: string } }>(
-    "select id,org_id,schedule from kz_factories where status='active' and autopublish and cardinality(channel_ids)>0");
+    "select id,org_id,schedule from kz_factories where status='active' and autopublish and cardinality(channel_ids)>0 and not exists (select 1 from kz_orgs so where so.id=kz_factories.org_id and so.suspended)");
   for (const f of facs) {
     const tz = f.schedule.tz || "Europe/Moscow";
     const n = nowIn(tz);
@@ -275,5 +275,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   // 5) отправка очереди
   const s = await processQueue(15);
   rep.sent = s.sent; rep.failed = s.failed; rep.retried = s.retried;
+  // отчёт последнего прохода — для раздела «Система» в админке платформы (виден, работает ли cron)
+  await q("insert into kz_kv(key,value) values('last_tick',$1) on conflict(key) do update set value=excluded.value, updated_at=now()", [JSON.stringify({ ...rep, ms: Date.now() - t0 })]).catch(() => {});
   return rep;
 }

@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { diagnose } from "./errors";
+import { performReset, requestReset } from "./reset";
 import { canWrite, login, logout, register, requireCtx, safeNext, switchOrg, type Ctx } from "./auth";
 import { cookies, headers } from "next/headers";
 import { one, q } from "./db";
@@ -39,7 +40,7 @@ export async function loginAction(_: unknown, f: FormData) {
 }
 export async function registerAction(_: unknown, f: FormData) {
   let r: { error?: string };
-  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value, await clientIp()); }
+  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value, await clientIp(), f.get("consent") === "on"); }
   catch (e) { console.error("[register]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
   redirect(safeNext(s(f, "next")));
@@ -252,4 +253,29 @@ export async function updateSeoMetaAction(f: FormData) {
     [id, c.org.id, title, description, slug]);
   revalidatePath("/app", "layout");
   redirect(`/app/factories/${fid}?view=list&open=${id}#i-${id}`);
+}
+
+// ---------- сброс пароля ----------
+async function siteOrigin() {
+  const fixed = process.env.APP_URL?.trim().replace(/\/+$/, "");
+  if (fixed) return fixed;
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  return `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+}
+
+export async function forgotAction(_: unknown, f: FormData) {
+  let r;
+  try { r = await requestReset(s(f, "email"), await clientIp(), await siteOrigin()); }
+  catch (e) { console.error("[forgot]", e); return { error: diagnose(e) }; }
+  // ответ одинаковый, есть такой email или нет
+  return r.ok ? { ok: "Если такой email зарегистрирован, мы отправили письмо со ссылкой. Она действует 60 минут. Проверьте и папку «Спам»." } : { error: r.error };
+}
+
+export async function resetAction(_: unknown, f: FormData) {
+  let r;
+  try { r = await performReset(s(f, "token"), String(f.get("password") ?? ""), String(f.get("confirm") ?? "")); }
+  catch (e) { console.error("[reset]", e); return { error: diagnose(e) }; }
+  if (!r.ok) return { error: r.error };
+  redirect("/login?reset=1");
 }

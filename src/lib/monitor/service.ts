@@ -58,7 +58,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
 /** Проход воркера: самые давно не опрашивавшиеся активные источники всех организаций. */
 export async function pollDue(limit = 8, intervalMin = 60): Promise<{ polled: number; added: number; failed: number }> {
   const due = await q<{ id: string }>(
-    `select id from kz_sources where status='active' and kind<>'manual' and (last_fetched_at is null or last_fetched_at < now() - ($2||' minutes')::interval)
+    `select id from kz_sources where status='active' and kind<>'manual' and not exists (select 1 from kz_orgs so where so.id=kz_sources.org_id and so.suspended) and (last_fetched_at is null or last_fetched_at < now() - ($2||' minutes')::interval)
       order by last_fetched_at nulls first limit $1`, [limit, String(intervalMin)]);
   const out = { polled: 0, added: 0, failed: 0 };
   for (let i = 0; i < due.length; i += 3) {

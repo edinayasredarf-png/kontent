@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
 import { isSchemaError } from "./errors";
+import { LEGAL_VERSION } from "./legal";
 import { cleanupAttempts, loginBlocked, loginFailed, loginSucceeded, registerBlocked, registerNoted } from "./throttle";
 
 const COOKIE = "lt_session";
@@ -22,7 +23,7 @@ const key = () => {
 export interface Session { uid: string; org: string; v?: number }
 export interface Ctx {
   user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null };
-  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean };
+  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; suspended: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
 }
@@ -43,23 +44,24 @@ export async function readSession(): Promise<Session | null> {
   try { return (await jwtVerify(t, key())).payload as unknown as Session; } catch { return null; }
 }
 
-export async function register(email: string, password: string, name: string, orgName: string, refCode?: string, ip = "") {
+export async function register(email: string, password: string, name: string, orgName: string, refCode?: string, ip = "", consent = false) {
   email = email.trim().toLowerCase();
+  if (!consent) return { error: "Чтобы зарегистрироваться, примите условия соглашения и политику конфиденциальности" };
   if (await registerBlocked(ip)) return { error: "Слишком много регистраций с вашего адреса. Попробуйте позже" };
   if (password.length < 8) return { error: "Пароль — минимум 8 символов" };
   if (await one("select 1 from kz_users where email=$1", [email])) return { error: "Этот email уже зарегистрирован" };
   const hash = await bcrypt.hash(password, 11);
-  const s = await tx((run) => createAccount(run, email, name, hash, orgName, { refCode }));
+  const s = await tx((run) => createAccount(run, email, name, hash, orgName, { refCode, consent: true }));
   await registerNoted(ip);
   await setSession(s);
   return {};
 }
 
 /** Пользователь + его организация + стартовый бонус. Общая для регистрации по паролю и через Яндекс/VK. */
-export async function createAccount(run: typeof q, email: string, name: string, passwordHash: string, orgName: string, opts: { refCode?: string; hasPassword?: boolean } = {}): Promise<Session> {
+export async function createAccount(run: typeof q, email: string, name: string, passwordHash: string, orgName: string, opts: { refCode?: string; hasPassword?: boolean; consent?: boolean } = {}): Promise<Session> {
   const ref = opts.refCode && /^[a-z0-9]{6,12}$/.test(opts.refCode) ? (await run<{ id: string }>("select id from kz_users where ref_code=$1", [opts.refCode]))[0] : undefined;
-  const [u] = await run<{ id: string }>("insert into kz_users(email,name,password_hash,has_password,ref_code,referred_by) values($1,$2,$3,$4,$5,$6) returning id",
-    [email, name.trim(), passwordHash, opts.hasPassword ?? true, newRefCode(), ref?.id ?? null]);
+  const [u] = await run<{ id: string }>("insert into kz_users(email,name,password_hash,has_password,ref_code,referred_by,consent_at,consent_version) values($1,$2,$3,$4,$5,$6,$7,$8) returning id",
+    [email, name.trim(), passwordHash, opts.hasPassword ?? true, newRefCode(), ref?.id ?? null, opts.consent ? new Date() : null, opts.consent ? LEGAL_VERSION : null]);
   if (ref) await run("insert into kz_referral_events(referrer_id,referred_id,kind) values($1,$2,'signup') on conflict do nothing", [ref.id, u.id]);
   const [o] = await run<{ id: string }>("insert into kz_orgs(name,balance_kop) values($1,10000) returning id", [orgName.trim() || "Моя организация"]);
   await run("insert into kz_memberships(org_id,user_id,role) values($1,$2,'owner')", [o.id, u.id]);
@@ -88,11 +90,12 @@ export async function defaultOrg(userId: string): Promise<string | null> {
 export async function login(email: string, password: string, ip = "") {
   email = email.trim().toLowerCase();
   if (await loginBlocked(email, ip)) return { error: "Слишком много неудачных попыток входа. Подождите 15 минут" };
-  const u = await one<{ id: string; password_hash: string; has_password: boolean }>("select id,password_hash,has_password from kz_users where email=$1", [email]);
+  const u = await one<{ id: string; password_hash: string; has_password: boolean; disabled: boolean }>("select id,password_hash,has_password,disabled from kz_users where email=$1", [email]);
   // одинаковый ответ на «нет пользователя» и «неверный пароль» — не раскрываем, какие email зарегистрированы.
   // Сравнение делаем всегда (даже без пользователя), иначе время ответа выдаёт, есть ли такой email.
   const ok = await bcrypt.compare(password, u?.password_hash ?? (await dummyHash()));
   if (!u || !u.has_password || !ok) { await loginFailed(email, ip); return { error: "Неверный email или пароль" }; }
+  if (u.disabled) return { error: "Аккаунт заблокирован. Обратитесь к администратору платформы" };
   await loginSucceeded(email);
   if (Math.random() < 0.02) cleanupAttempts().catch(() => {});
   const org = await defaultOrg(u.id);
@@ -123,17 +126,20 @@ async function loadCtx(): Promise<Ctx> {
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   await q(`update kz_orgs o set unlimited = exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))
             where o.id=$1 and o.unlimited is distinct from exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))`, [s.org, admins]);
-  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null }>(
-    `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
+  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean }>(
+    `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
        from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
       where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org]);
-  if (!row || (s.v ?? 0) !== row.session_ver) redirect("/login");
+  if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
   const orgs = await q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]);
+  const isAdmin = admins.includes(row.email.toLowerCase());
+  // приостановленная организация недоступна её участникам; администратор платформы заходит всегда
+  if (row.suspended && !isAdmin) redirect("/suspended");
   return {
     user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code },
-    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited },
+    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited, suspended: row.suspended },
     orgs,
-    isAdmin: admins.includes(row.email.toLowerCase()),
+    isAdmin,
   };
 }
 

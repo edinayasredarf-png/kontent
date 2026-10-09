@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays, UsersRound, Gift, UserRound, BarChart3, Inbox, Sparkles } from "lucide-react";
+import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays, UsersRound, Gift, UserRound, BarChart3, Inbox, Sparkles, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
+import { Logo } from "./Logo";
+import { LegalLinks } from "./LegalLinks";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 
 const NAV = [
@@ -25,13 +27,10 @@ const NAV = [
 
 export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; name: string }[]; orgId: string; user: string; isAdmin: boolean }) {
   const path = usePathname();
-  const items = isAdmin ? [...NAV, { href: "/app/settings", label: "Настройки ИИ", icon: Cpu }] : NAV;
+  const items = isAdmin ? [...NAV, { href: "/app/admin", label: "Администрирование", icon: ShieldCheck }] : NAV;
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-line bg-white md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
-      <div className="flex items-center gap-2.5 px-5 py-4">
-        <span className="grid size-9 place-items-center rounded-xl bg-accent text-white"><Factory size={18} /></span>
-        <div className="leading-tight"><b className="block text-[15px]">Контент-завод</b><span className="text-xs text-ink3">Единая среда</span></div>
-      </div>
+      <div className="px-4 pb-3 pt-4"><Logo className="w-full justify-center" /></div>
       {orgs.length > 1 && (
         <form action={switchOrgAction} className="px-4 pb-2">
           <select name="org" defaultValue={orgId} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="input !py-2">
@@ -49,6 +48,7 @@ export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; na
           );
         })}
       </nav>
+      <div className="hidden px-5 pb-2 md:block"><LegalLinks className="!gap-x-3" /></div>
       <form action={logoutAction} className="hidden items-center justify-between border-t border-line px-5 py-3 md:flex">
         <Link href="/app/profile" className="truncate text-xs text-ink2 hover:text-ink" title="Профиль и безопасность">{user}</Link>
         <button title="Выйти" className="text-ink3 hover:text-ink"><LogOut size={16} /></button>

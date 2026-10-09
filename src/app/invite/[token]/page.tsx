@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Factory, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { readSession, requireCtx } from "@/lib/auth";
 import { inviteInfo, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { acceptInviteAction } from "@/lib/account-actions";
@@ -16,7 +17,7 @@ export default async function Invite({ params, searchParams }: { params: Promise
   const inv = await inviteInfo(token);
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
-      <div className="mb-8 flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-accent text-white"><Factory size={18} /></span><b className="text-lg">Контент-завод</b></div>
+      <div className="mb-8"><Logo href="/app" /></div>
       {inv ? (
         <>
           <div className="mb-3 grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent"><UsersRound size={22} /></div>
