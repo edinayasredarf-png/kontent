@@ -73,3 +73,13 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   :root:not([data-theme="light"]) .logo-light { display: none; }
   :root:not([data-theme="light"]) .logo-dark { display: inline; }
 }
+
+/* Лендинг */
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+@keyframes lt-float { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-10px) rotate(var(--r, 0deg)); } }
+.lt-float { animation: lt-float 7s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .lt-float { animation: none; } html { scroll-behavior: auto; } }
+.lt-grad-text { background: linear-gradient(95deg, #00AEEF 0%, #5DAF6B 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+details.lt-faq > summary { list-style: none; cursor: pointer; }
+details.lt-faq > summary::-webkit-details-marker { display: none; }
+details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
