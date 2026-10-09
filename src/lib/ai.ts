@@ -10,7 +10,7 @@ import { one, q } from "./db";
 export const baseUrl = () => (process.env.SELFHOSTED_LLM_URL || process.env.SELFHOSTED_LLM_BASE_URL || "").trim().replace(/\/+$/, "");
 export const aiReady = () => !!baseUrl();
 
-export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest" | "imageprompt" | "vision" | "image" | "video";
+export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest" | "imageprompt" | "vision" | "image" | "video" | "analyst";
 export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "plan", label: "Контент-план", hint: "Идеи и хуки. Нужна модель, хорошо держащая JSON" },
   { key: "post", label: "Пост", hint: "Короткие тексты" },
@@ -19,6 +19,7 @@ export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "article", label: "Статья", hint: "Длинный текст — нужна сильная модель" },
   { key: "idea", label: "Идея из поста-источника", hint: "Короткий JSON: тема и хук" },
   { key: "digest", label: "Сводка трендов по источникам", hint: "Анализ ленты мониторинга" },
+  { key: "analyst", label: "Аналитик: рекомендации по результатам", hint: "Текстовая модель: разбирает статистику постов" },
   { key: "imageprompt", label: "Промпт для картинки", hint: "Текстовая модель: превращает пост и брендбук в описание картинки" },
   { key: "vision", label: "Описание референсов и фото продукта", hint: "Модель, которая умеет «смотреть» картинки (vision)" },
   { key: "image", label: "Генерация изображений", hint: "Модель изображений из каталога шлюза (вызывается через /images/generations)" },

@@ -3,9 +3,9 @@ import { Bookmark, EyeOff, ExternalLink, RefreshCw, Settings2, Sparkles, PenLine
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
-import { itemToPlanAction, refreshAllAction, setItemStatusAction } from "@/lib/monitor/actions";
+import { digestAction, itemToPlanAction, refreshAllAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
-import { Digest } from "@/components/Digest";
+import { AiPanel } from "@/components/AiPanel";
 import { Empty, PageHead } from "@/components/ui";
 
 export const maxDuration = 60;
@@ -66,7 +66,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу — лента заполнится сама."
           action={<Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link>} />
       ) : (<>
-        <Digest price={c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)} />
+        <AiPanel title="Анализ ленты" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Что в тренде" action={digestAction} />
         <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" action="/app/monitor">
           <input name="q" defaultValue={sp.q} placeholder="Поиск по тексту" className="input !w-48" />
           <select name="src" defaultValue={sp.src ?? ""} className="input !w-auto"><option value="">Все источники</option>{sources.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select>

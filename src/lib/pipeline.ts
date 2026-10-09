@@ -5,6 +5,7 @@ import { open } from "./crypto";
 import { providerFor, PublishError } from "./publishing";
 import { pollDue } from "./monitor/service";
 import { allocateDates } from "./plan";
+import { collectComments, collectStats } from "./engage";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -197,12 +198,12 @@ function nowIn(tz: string) {
   return { date: `${p.year}-${p.month}-${p.day}`, dow, minutes: Number(p.hour) * 60 + Number(p.minute) };
 }
 
-export interface TickReport { sources: number; fetched: number; generated: number; planned: number; queued: number; sent: number; failed: number; retried: number; reaped: number; errors: string[] }
+export interface TickReport { stats: number; comments: number; sources: number; fetched: number; generated: number; planned: number; queued: number; sent: number; failed: number; retried: number; reaped: number; errors: string[] }
 
 /** Один проход воркера. Вызывается внешним планировщиком каждые ~5 минут (/api/cron/tick). */
 export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const t0 = Date.now();
-  const rep: TickReport = { sources: 0, fetched: 0, generated: 0, planned: 0, queued: 0, sent: 0, failed: 0, retried: 0, reaped: 0, errors: [] };
+  const rep: TickReport = { stats: 0, comments: 0, sources: 0, fetched: 0, generated: 0, planned: 0, queued: 0, sent: 0, failed: 0, retried: 0, reaped: 0, errors: [] };
 
   // 0) застрявшие генерации (функцию убили посреди запроса): возврат денег и статус failed
   const stuck = await q<{ id: string; org_id: string; cost_kop: number }>(
@@ -255,6 +256,10 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // 4.5) мониторинг: опрос источников, давно не обновлявшихся
   try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
+
+  // статистика опубликованных постов и новые комментарии (сбой площадки не должен ронять остальной проход)
+  try { const s = await collectStats(40); rep.stats = s.updated; rep.errors.push(...s.errors.slice(0, 3)); } catch (e) { rep.errors.push(`stats: ${(e as Error).message}`); }
+  try { const c = await collectComments(15); rep.comments = c.added; rep.errors.push(...c.errors.slice(0, 3)); } catch (e) { rep.errors.push(`comments: ${(e as Error).message}`); }
 
   // сгенерированные картинки, на которые больше ничего не ссылается (материал удалён), не копим в БД
   await q("delete from kz_assets a where a.kind='generated' and a.created_at < now() - interval '1 hour' and not exists (select 1 from kz_content_items i where i.image_id=a.id)").catch(() => {});

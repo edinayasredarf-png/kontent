@@ -5,7 +5,7 @@ import { toPlain } from "./format";
 const V = "5.199";
 interface Vk<T> { response?: T; error?: { error_code: number; error_msg: string } }
 
-async function call<T>(token: string, method: string, params: Record<string, string>): Promise<T> {
+export async function call<T>(token: string, method: string, params: Record<string, string>): Promise<T> {
   let res: Response;
   try {
     // токен — в теле POST, а не в URL: URL попадает в логи
