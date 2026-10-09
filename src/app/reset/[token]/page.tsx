@@ -13,13 +13,14 @@ export default async function Reset({ params }: { params: Promise<{ token: strin
   const { token } = await params;
   const info = await resetInfo(token);
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
+    <main className="flex min-h-screen flex-col px-5">
+    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
       <div className="mb-8"><Logo href="/login" /></div>
       {info ? (
         <>
           <h1 className="mb-1 text-2xl font-semibold">Новый пароль</h1>
           <p className="mb-6 text-sm text-ink2">Для {info.email}. После смены вы выйдете со всех устройств.</p>
-          <Form action={resetAction} submit="Сохранить пароль">
+          <Form action={resetAction} submit="Сохранить пароль" wide>
             <input type="hidden" name="token" value={token} />
             <Field label="Новый пароль (от 8 символов)"><PasswordInput name="password" autoComplete="new-password" minLength={8} /></Field>
             <Field label="Повторите пароль"><PasswordInput name="confirm" autoComplete="new-password" minLength={8} /></Field>
@@ -32,7 +33,8 @@ export default async function Reset({ params }: { params: Promise<{ token: strin
           <Link href="/forgot" className="btn w-fit">Запросить новую ссылку</Link>
         </>
       )}
-      <LegalLinks className="mt-8" />
+    </div>
+    <footer className="pb-5 pt-2"><LegalLinks className="justify-center" /></footer>
     </main>
   );
 }
