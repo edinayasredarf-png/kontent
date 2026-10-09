@@ -4,13 +4,19 @@ import { Form, Field } from "@/components/Form";
 import { PasswordInput } from "@/components/PasswordInput";
 import { changeEmailAction, changePasswordAction, logoutEverywhereAction, updateNameAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
+import { ThemePicker } from "@/components/ThemePicker";
 
 export default async function Profile() {
   const c = await requireCtx();
   return (
     <>
-      <PageHead title="Профиль и безопасность" sub={c.user.email} />
+      <PageHead title="Профиль и настройки" sub={c.user.email} />
       <div className="grid max-w-3xl gap-6">
+        <section className="card p-6">
+          <b className="mb-1 block text-sm">Тема оформления</b>
+          <p className="mb-4 text-xs text-ink2">Сохраняется в аккаунте и одинакова на всех ваших устройствах.</p>
+          <ThemePicker initial={c.user.theme} />
+        </section>
         <section className="card p-6">
           <b className="mb-4 block text-sm">Имя</b>
           <Form action={updateNameAction} submit="Сохранить"><Field label="Как к вам обращаться"><input name="name" defaultValue={c.user.name} required minLength={2} maxLength={80} className="input" /></Field></Form>

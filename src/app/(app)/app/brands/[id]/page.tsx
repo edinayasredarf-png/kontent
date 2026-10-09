@@ -50,7 +50,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
                 <div key={i} className="flex items-center gap-2 rounded-xl bg-tile p-2">
                   <input type="checkbox" name={`color_on_${i}`} defaultChecked={!!s} aria-label={`Цвет ${i + 1}`} />
                   <input type="color" name={`color_hex_${i}`} defaultValue={s?.hex ?? "#029cda"} className="size-9 shrink-0 cursor-pointer rounded-lg border-0 bg-transparent p-0" />
-                  <input name={`color_name_${i}`} defaultValue={s?.name ?? ""} placeholder="Название (необязательно)" maxLength={30} className="input !bg-white !py-1.5 text-xs" />
+                  <input name={`color_name_${i}`} defaultValue={s?.name ?? ""} placeholder="Название (необязательно)" maxLength={30} className="input !bg-surface !py-1.5 text-xs" />
                 </div>
               ))}
             </div>
@@ -108,8 +108,8 @@ function Gallery({ title, hint, items, brandId, kind, max, canEdit }: { title: s
               {!a.note && <span className="absolute left-1 top-1 rounded-md bg-warn-soft p-0.5 text-warn" title="Описание не получено"><AlertTriangle size={12} /></span>}
               {canEdit && (
                 <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-                  {!a.note && <form action={redescribeAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-white/90 p-1 text-ink2 shadow" title="Описать заново"><RefreshCw size={12} /></button></form>}
-                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-white/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></button></form>
+                  {!a.note && <form action={redescribeAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-surface/90 p-1 text-ink2 shadow" title="Описать заново"><RefreshCw size={12} /></button></form>}
+                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-surface/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></button></form>
                 </div>
               )}
             </div>

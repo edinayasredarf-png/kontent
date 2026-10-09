@@ -6,6 +6,7 @@ import { requireCtx, sessionCookie, logout } from "./auth";
 import { cookies } from "next/headers";
 import { q } from "./db";
 import { changeEmail, changePassword, updateName } from "./account";
+import { setTheme } from "./account";
 import { acceptInvite, createInvite, removeMember, revokeInvite, setRole } from "./team";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -84,4 +85,14 @@ export async function acceptInviteAction(f: FormData) {
   if (!r.ok) redirect(`/invite/${encodeURIComponent(s(f, "token"))}?err=${encodeURIComponent(r.error)}`);
   (await cookies()).set(await sessionCookie({ uid: c.user.id, org: r.orgId }));
   redirect("/app");
+}
+
+export async function setThemeAction(theme: string) {
+  const c = await requireCtx();
+  const r = await setTheme(c.user.id, theme);
+  if (!r.ok) return { error: r.error };
+  // cookie тоже ставим на сервере (на случай, если браузер не дал записать с клиента)
+  (await cookies()).set("lt_theme", theme, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
+  revalidatePath("/app", "layout");
+  return {};
 }

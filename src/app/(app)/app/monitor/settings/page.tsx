@@ -107,7 +107,7 @@ function KwList({ title, items, danger }: { title: string; items: { id: string; 
         {items.map((k) => (
           <form key={k.id} action={deleteKeywordAction} className={`chip !pr-1 ${danger ? "!bg-bad-soft !text-bad" : "!bg-accent-soft !text-accent-ink"}`}>
             <input type="hidden" name="id" value={k.id} />{k.word}
-            <button className="grid size-5 place-items-center rounded-full hover:bg-black/10" title="Удалить" aria-label={`Удалить «${k.word}»`}><X size={12} /></button>
+            <button className="grid size-5 place-items-center rounded-full hover:bg-ink/10" title="Удалить" aria-label={`Удалить «${k.word}»`}><X size={12} /></button>
           </form>
         ))}
       </div>

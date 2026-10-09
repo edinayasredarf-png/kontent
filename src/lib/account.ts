@@ -51,3 +51,9 @@ export async function referralStats(userId: string) {
   return one<{ signups: string; paid: string; earned: string }>(
     `select count(*) filter (where kind='signup') signups, count(*) filter (where kind='payment') paid, coalesce(sum(amount_kop),0) earned from kz_referral_events where referrer_id=$1`, [userId]);
 }
+
+export async function setTheme(userId: string, theme: string): Promise<R> {
+  if (!["light", "dark", "system"].includes(theme)) return { ok: false, error: "Неизвестная тема" };
+  await q("update kz_users set theme=$2 where id=$1", [userId, theme]);
+  return { ok: true };
+}

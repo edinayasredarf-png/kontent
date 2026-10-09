@@ -29,8 +29,8 @@ export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; na
   const path = usePathname();
   const items = isAdmin ? [...NAV, { href: "/app/admin", label: "Администрирование", icon: ShieldCheck }] : NAV;
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-line bg-white md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
-      <div className="px-4 pb-3 pt-4"><Logo className="w-full justify-center" /></div>
+    <aside className="flex w-full shrink-0 flex-col border-b border-line bg-surface md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
+      <div className="px-4 pb-3 pt-4"><Logo /></div>
       {orgs.length > 1 && (
         <form action={switchOrgAction} className="px-4 pb-2">
           <select name="org" defaultValue={orgId} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="input !py-2">

@@ -28,7 +28,7 @@ export function YandexIdWidget({ clientId, next }: { clientId: string; next: str
         const origin = window.location.origin;
         const r = await window.YaAuthSuggest!.init(
           { client_id: clientId, response_type: "token", redirect_uri: `${origin}/suggest/token` }, origin,
-          { view: "button", parentId: "ya-id-button", buttonView: "main", buttonTheme: "light", buttonSize: "m", buttonBorderRadius: 12, buttonIcon: "ya" },
+          { view: "button", parentId: "ya-id-button", buttonView: "main", buttonTheme: document.documentElement.getAttribute("data-theme") === "dark" || (!document.documentElement.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light", buttonSize: "m", buttonBorderRadius: 12, buttonIcon: "ya" },
         );
         if (r.status === "error") { setFallback(true); return; }
         const data = await r.handler();

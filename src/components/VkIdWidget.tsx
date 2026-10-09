@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
+/** Какая тема сейчас показана: явный выбор в профиле или системная. */
+const isDark = () => { const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches; };
+
 /**
  * Официальный виджет VK ID (OneTap) с теми же параметрами, что в коде из кабинета VK: режим Callback, источник LOWCODE.
  * Радиус скругления и высота подогнаны под остальные кнопки сайта (rounded-xl, 44 px). Если виджет не загрузился —
@@ -29,8 +32,9 @@ export function VkIdWidget({ appId, next }: { appId: string; next: string }) {
           scope: "",
         });
         const oneTap = new VKID.OneTap();
+        const dark = isDark();
         oneTap
-          .render({ container: box.current!, showAlternativeLogin: true, styles: { borderRadius: 12, height: 44 } })
+          .render({ container: box.current!, showAlternativeLogin: true, scheme: dark ? VKID.Scheme.DARK : VKID.Scheme.LIGHT, styles: { borderRadius: 12, height: 44 } })
           .on(VKID.WidgetEvents.ERROR, (e: unknown) => { console.error("VKID", e); setError("VK ID вернул ошибку. Попробуйте ещё раз"); setFallback(true); })
           .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload: { code: string; device_id: string }) => {
             try {

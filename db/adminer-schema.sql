@@ -338,5 +338,10 @@ create table if not exists kz_kv (
 alter table kz_auth_attempts drop constraint if exists kz_auth_attempts_kind_check;
 alter table kz_auth_attempts add constraint kz_auth_attempts_kind_check check (kind in ('login','register','reset'));
 
+-- Тема оформления пользователя: светлая, тёмная или как в системе.
+alter table kz_users add column if not exists theme text not null default 'system';
+alter table kz_users drop constraint if exists kz_users_theme_check;
+alter table kz_users add constraint kz_users_theme_check check (theme in ('light','dark','system'));
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql') on conflict do nothing;

@@ -130,8 +130,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex rounded-xl bg-tile p-1 text-sm">
-          <Link href={href({ view: "list" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "list" ? "bg-white shadow-sm" : "text-ink2"}`}><List size={14} />Список</Link>
-          <Link href={href({ view: "calendar" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-white shadow-sm" : "text-ink2"}`}><CalendarDays size={14} />Календарь</Link>
+          <Link href={href({ view: "list" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "list" ? "bg-surface shadow-sm" : "text-ink2"}`}><List size={14} />Список</Link>
+          <Link href={href({ view: "calendar" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-surface shadow-sm" : "text-ink2"}`}><CalendarDays size={14} />Календарь</Link>
         </div>
         <form className="ml-auto flex flex-wrap items-center gap-2" action={`/app/factories/${id}`}>
           <input type="hidden" name="view" value={view} /><input type="hidden" name="m" value={month} />
@@ -160,11 +160,11 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тему, хук, формат, дату</summary>
                   <form action={updateIdeaAction} className="mt-3 space-y-2">
                     <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
-                    <input name="topic" defaultValue={i.topic} required minLength={3} maxLength={300} className="input !bg-white" />
-                    <input name="hook" defaultValue={i.hook} maxLength={300} placeholder="Хук" className="input !bg-white" />
+                    <input name="topic" defaultValue={i.topic} required minLength={3} maxLength={300} className="input !bg-surface" />
+                    <input name="hook" defaultValue={i.hook} maxLength={300} placeholder="Хук" className="input !bg-surface" />
                     <div className="flex flex-wrap items-center gap-2">
-                      <select name="kind" defaultValue={i.kind} className="input !w-auto !bg-white">{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
-                      <input name="date" type="date" defaultValue={i.planned_for ?? ""} className="input !w-auto !bg-white" />
+                      <select name="kind" defaultValue={i.kind} className="input !w-auto !bg-surface">{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+                      <input name="date" type="date" defaultValue={i.planned_for ?? ""} className="input !w-auto !bg-surface" />
                       <button className="btn btn-ghost !py-1.5">Сохранить</button>
                     </div>
                   </form>
@@ -189,7 +189,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                       <button className="btn btn-ghost !py-1.5">Сохранить SEO-поля</button>
                     </form>
                     <details><summary className="cursor-pointer text-xs font-medium text-ink2">Предпросмотр статьи</summary>
-                      <article className="article mt-3 rounded-xl bg-white p-4" dangerouslySetInnerHTML={{ __html: `<h1>${i.seo.title.replace(/[<>&]/g, "")}</h1>${cleanHtml(i.body)}` }} />
+                      <article className="article mt-3 rounded-xl p-4" dangerouslySetInnerHTML={{ __html: `<h1>${i.seo.title.replace(/[<>&]/g, "")}</h1>${cleanHtml(i.body)}` }} />
                     </details>
                   </div>
                 );
@@ -212,7 +212,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               {i.body && !["published", "scheduled", "generating"].includes(i.status) && (
                 <form action={generateImageAction} className="space-y-2 rounded-xl bg-tile p-3">
                   <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
-                  <textarea name="prompt" rows={2} defaultValue="" placeholder={i.image_prompt ? `Прошлое описание: ${i.image_prompt.slice(0, 160)}…` : "Описание картинки (необязательно — иначе соберём из поста и брендбука)"} className="input !bg-white text-xs" />
+                  <textarea name="prompt" rows={2} defaultValue="" placeholder={i.image_prompt ? `Прошлое описание: ${i.image_prompt.slice(0, 160)}…` : "Описание картинки (необязательно — иначе соберём из поста и брендбука)"} className="input !bg-surface text-xs" />
                   <button className="btn btn-ghost !py-1.5">{i.image_id ? <RefreshCw size={14} /> : <ImageIcon size={14} />}{i.image_id ? "Создать заново" : "Создать картинку"}{c.org.unlimited ? "" : ` · ${rub(PRICES.image)}`}</button>
                 </form>
               )}

@@ -22,7 +22,7 @@ const key = () => {
 
 export interface Session { uid: string; org: string; v?: number }
 export interface Ctx {
-  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null };
+  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system" };
   org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; suspended: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
@@ -126,8 +126,8 @@ async function loadCtx(): Promise<Ctx> {
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   await q(`update kz_orgs o set unlimited = exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))
             where o.id=$1 and o.unlimited is distinct from exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))`, [s.org, admins]);
-  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean }>(
-    `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
+  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
+    `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
        from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
       where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org]);
   if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
@@ -136,7 +136,7 @@ async function loadCtx(): Promise<Ctx> {
   // приостановленная организация недоступна её участникам; администратор платформы заходит всегда
   if (row.suspended && !isAdmin) redirect("/suspended");
   return {
-    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code },
+    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme },
     org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited, suspended: row.suspended },
     orgs,
     isAdmin,

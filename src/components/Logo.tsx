@@ -1,14 +1,17 @@
 import Link from "next/link";
 
 /**
- * Логотип нарисован белым шрифтом, поэтому всегда стоит на тёмной подложке: на белом интерфейсе надпись была бы не видна.
- * Файл — /public/logo.svg (исходник без изменений), иконка для вкладки браузера — src/app/icon.svg.
+ * Две версии логотипа без подложки: с чёрным шрифтом — для светлой темы, с белым — для тёмной.
+ * Какая видна, решает CSS (.logo-light / .logo-dark в globals.css) по выбранной теме или по системной.
+ * Файлы: /public/logo-light.svg, /public/logo-dark.svg; иконка вкладки — src/app/icon.svg.
  */
 export function Logo({ href = "/app", className = "" }: { href?: string; className?: string }) {
   return (
-    <Link href={href} aria-label="На главную" className={`inline-flex items-center rounded-2xl bg-[#0f1113] px-4 py-3 ${className}`}>
+    <Link href={href} aria-label="На главную" className={`inline-flex items-center ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.svg" alt="Логотип" width={130} height={36} className="h-9 w-auto" />
+      <img src="/logo-light.svg" alt="Логотип" width={150} height={42} className="logo-light h-10 w-auto" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo-dark.svg" alt="" aria-hidden width={150} height={42} className="logo-dark h-10 w-auto" />
     </Link>
   );
 }
