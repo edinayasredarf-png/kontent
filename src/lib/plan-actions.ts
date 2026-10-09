@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
-import { addIdeas, deleteIdea, parseIdeaLines, updateIdea } from "./plan";
+import { addIdeas, deleteIdea, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const go = (fid: string, r: { ok: boolean; error?: string }, extra = "") => {
@@ -37,12 +37,6 @@ export async function deleteIdeaAction(f: FormData) {
   const fid = s(f, "factory");
   go(fid, await deleteIdea(c.org.id, s(f, "id")));
 }
-
-export const TIMEZONES: Record<string, string> = {
-  "Europe/Kaliningrad": "Калининград (UTC+2)", "Europe/Moscow": "Москва (UTC+3)", "Europe/Samara": "Самара (UTC+4)", "Asia/Yekaterinburg": "Екатеринбург (UTC+5)",
-  "Asia/Omsk": "Омск (UTC+6)", "Asia/Novosibirsk": "Новосибирск (UTC+7)", "Asia/Krasnoyarsk": "Красноярск (UTC+7)", "Asia/Irkutsk": "Иркутск (UTC+8)",
-  "Asia/Yakutsk": "Якутск (UTC+9)", "Asia/Vladivostok": "Владивосток (UTC+10)", "Asia/Magadan": "Магадан (UTC+11)", "Asia/Kamchatka": "Камчатка (UTC+12)",
-};
 
 export async function saveScheduleAction(f: FormData) {
   const c = await requireWriter();

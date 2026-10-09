@@ -72,7 +72,7 @@ export async function fetchProfile(req: Request, p: Provider, code: string): Pro
  * Кто этот человек у нас: 1) уже входил этим аккаунтом; 2) есть пользователь с тем же email — привязываем (провайдер
  * подтверждает email); 3) новый — создаём пользователя и организацию. Без email (VK мог не отдать) заводим служебный адрес.
  */
-export async function resolveUser(p: Provider, prof: Profile): Promise<Session> {
+export async function resolveUser(p: Provider, prof: Profile, refCode?: string): Promise<Session> {
   const known = await one<{ user_id: string }>("select user_id from kz_oauth_identities where provider=$1 and provider_id=$2", [p, prof.id]);
   if (known) {
     const org = await defaultOrg(known.user_id);
@@ -89,7 +89,7 @@ export async function resolveUser(p: Provider, prof: Profile): Promise<Session> 
       s = { uid: ex.id, org };
     } else {
       // пароль случайный и никому не известен: войти по паролю в такой аккаунт нельзя, только через провайдера
-      s = await createAccount(run, email, prof.name, await bcrypt.hash(randomBytes(24).toString("hex"), 8), prof.name ? `Организация ${prof.name}` : "Моя организация");
+      s = await createAccount(run, email, prof.name, await bcrypt.hash(randomBytes(24).toString("hex"), 8), prof.name ? `Организация ${prof.name}` : "Моя организация", { refCode, hasPassword: false });
     }
     await run("insert into kz_oauth_identities(provider,provider_id,user_id) values($1,$2,$3) on conflict do nothing", [p, prof.id, s.uid]);
     return s;

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   if (!code || !state || !same(saved, `${p}.${state}`)) return fail("state");
   try {
     const prof = await fetchProfile(req, p, code);
-    const s = await resolveUser(p, prof);
+    const s = await resolveUser(p, prof, req.cookies.get("lt_ref")?.value);
     const res = NextResponse.redirect(new URL("/app", req.url));
     res.cookies.set(await sessionCookie(s));
     res.cookies.delete({ name: "lt_oauth_state", path: "/api/oauth" });

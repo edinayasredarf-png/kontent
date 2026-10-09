@@ -2,7 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { diagnose } from "./errors";
-import { canWrite, login, logout, register, requireCtx, switchOrg, type Ctx } from "./auth";
+import { canWrite, login, logout, register, requireCtx, safeNext, switchOrg, type Ctx } from "./auth";
+import { cookies } from "next/headers";
 import { one, q } from "./db";
 import { PLANS } from "./plans";
 import { AI_TASKS, saveRoute, type AiTask } from "./ai";
@@ -27,14 +28,14 @@ export async function loginAction(_: unknown, f: FormData) {
   try { r = await login(s(f, "email"), s(f, "password")); }
   catch (e) { console.error("[login]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
-  redirect("/app");
+  redirect(safeNext(s(f, "next")));
 }
 export async function registerAction(_: unknown, f: FormData) {
   let r: { error?: string };
-  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org")); }
+  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value); }
   catch (e) { console.error("[register]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
-  redirect("/app");
+  redirect(safeNext(s(f, "next")));
 }
 export async function logoutAction() { await logout(); redirect("/login"); }
 export async function switchOrgAction(f: FormData) { await switchOrg(s(f, "org")); redirect("/app"); }

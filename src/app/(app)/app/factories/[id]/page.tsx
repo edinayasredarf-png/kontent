@@ -6,8 +6,8 @@ import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
-import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, TIMEZONES, updateIdeaAction } from "@/lib/plan-actions";
-import { planRunway, KINDS } from "@/lib/plan";
+import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
+import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 
 // генерация идёт в server action этой страницы — нужен длинный лимит функции

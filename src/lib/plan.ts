@@ -78,3 +78,9 @@ export async function planRunway(factoryId: string): Promise<number | null> {
   if (!r?.d) return null;
   return Math.ceil((new Date(r.d + "T12:00:00").getTime() - Date.now()) / 86_400_000);
 }
+
+export const TIMEZONES: Record<string, string> = {
+  "Europe/Kaliningrad": "Калининград (UTC+2)", "Europe/Moscow": "Москва (UTC+3)", "Europe/Samara": "Самара (UTC+4)", "Asia/Yekaterinburg": "Екатеринбург (UTC+5)",
+  "Asia/Omsk": "Омск (UTC+6)", "Asia/Novosibirsk": "Новосибирск (UTC+7)", "Asia/Krasnoyarsk": "Красноярск (UTC+7)", "Asia/Irkutsk": "Иркутск (UTC+8)",
+  "Asia/Yakutsk": "Якутск (UTC+9)", "Asia/Vladivostok": "Владивосток (UTC+10)", "Asia/Magadan": "Магадан (UTC+11)", "Asia/Kamchatka": "Камчатка (UTC+12)",
+};

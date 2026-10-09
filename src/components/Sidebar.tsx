@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays } from "lucide-react";
+import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays, UsersRound, Gift, UserRound } from "lucide-react";
 import clsx from "clsx";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 
@@ -15,6 +15,9 @@ const NAV = [
   { href: "/app/channels", label: "Каналы", icon: Radio },
   { href: "/app/studio", label: "Студия", icon: Wand2 },
   { href: "/app/billing", label: "Баланс и тариф", icon: Wallet },
+  { href: "/app/team", label: "Команда", icon: UsersRound },
+  { href: "/app/partners", label: "Партнёрка", icon: Gift },
+  { href: "/app/profile", label: "Профиль", icon: UserRound },
 ];
 
 export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; name: string }[]; orgId: string; user: string; isAdmin: boolean }) {
@@ -44,7 +47,7 @@ export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; na
         })}
       </nav>
       <form action={logoutAction} className="hidden items-center justify-between border-t border-line px-5 py-3 md:flex">
-        <span className="truncate text-xs text-ink2">{user}</span>
+        <Link href="/app/profile" className="truncate text-xs text-ink2 hover:text-ink" title="Профиль и безопасность">{user}</Link>
         <button title="Выйти" className="text-ink3 hover:text-ink"><LogOut size={16} /></button>
       </form>
     </aside>
