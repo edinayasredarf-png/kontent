@@ -12,13 +12,26 @@ export const PROVIDER_NAME: Record<Provider, string> = { yandex: "Яндекс",
  * VK: приложение VK ID (id.vk.com) — публичный клиент с PKCE, секрет не нужен: достаточно ID приложения (VK_CLIENT_ID).
  * Имена переменных те же, что на единойсреде (NEXT_PUBLIC_*_CLIENT_ID) — можно скопировать как есть.
  */
+/** Значения из панели Vercel часто вставляют с кавычками, пробелами или переводом строки (так уже было с DATABASE_URL) — вычищаем. */
+const clean = (v?: string) => (v ?? "").trim().replace(/^["'`\s]+|["'`\s]+$/g, "").trim();
+
 export function creds(p: Provider): { id: string; secret: string } | null {
   const E = process.env;
-  const id = (p === "yandex" ? E.YANDEX_CLIENT_ID || E.NEXT_PUBLIC_YANDEX_CLIENT_ID : E.VK_CLIENT_ID || E.NEXT_PUBLIC_VK_CLIENT_ID)?.trim();
+  const id = clean(p === "yandex" ? E.YANDEX_CLIENT_ID || E.NEXT_PUBLIC_YANDEX_CLIENT_ID : E.VK_CLIENT_ID || E.NEXT_PUBLIC_VK_CLIENT_ID);
   if (!id) return null;
-  if (p === "vk") return { id, secret: "" };
-  const secret = E.YANDEX_CLIENT_SECRET?.trim();
+  if (p === "vk") return /^\d{4,12}$/.test(id) ? { id, secret: "" } : null; // ID приложения VK — только цифры; иначе виджет упадёт на старте
+  const secret = clean(E.YANDEX_CLIENT_SECRET);
   return secret ? { id, secret } : null;
+}
+
+/** Что не так с настройкой входа через соцсети — для админки и /api/health. null = всё в порядке. */
+export function oauthProblem(p: Provider): string | null {
+  const E = process.env;
+  const raw = clean(p === "yandex" ? E.YANDEX_CLIENT_ID || E.NEXT_PUBLIC_YANDEX_CLIENT_ID : E.VK_CLIENT_ID || E.NEXT_PUBLIC_VK_CLIENT_ID);
+  if (!raw) return "не задан ID приложения";
+  if (p === "vk" && !/^\d{4,12}$/.test(raw)) return "VK_CLIENT_ID должен состоять только из цифр (ID приложения VK ID), проверьте кавычки и пробелы";
+  if (p === "yandex" && !clean(E.YANDEX_CLIENT_SECRET)) return "не задан YANDEX_CLIENT_SECRET";
+  return null;
 }
 
 const VKID = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.ru").replace(/\/+$/, "");

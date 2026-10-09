@@ -11,7 +11,9 @@ export async function widgetLogin(req: NextRequest, p: Provider, getProfile: (to
   const fail = (error: string, status: number) => NextResponse.json({ ok: false, error }, { status });
   if (!configured(p)) return fail("Этот способ входа не настроен", 404);
   const origin = req.headers.get("origin");
-  if (!origin || origin !== appOrigin(req)) return fail("Запрос отклонён", 403);
+  // сравниваем через URL: он приводит кириллический домен к punycode, и «kontent.единаясреда.рф» совпадает с «kontent.xn--…»
+  const norm = (u: string) => { try { return new URL(u).origin; } catch { return ""; } };
+  if (!origin || !norm(origin) || norm(origin) !== norm(appOrigin(req))) return fail("Запрос отклонён: адрес сайта не совпадает с настроенным (APP_URL)", 403);
   if (!(req.headers.get("content-type") ?? "").includes("application/json")) return fail("Запрос отклонён", 415);
   let body: { access_token?: unknown; next?: unknown };
   try { body = await req.json(); } catch { return fail("Некорректный запрос", 400); }
@@ -23,7 +25,9 @@ export async function widgetLogin(req: NextRequest, p: Provider, getProfile: (to
     res.cookies.set(await sessionCookie(s));
     return res;
   } catch (e) {
-    console.error(`[widget-login ${p}]`, (e as Error).message);
-    return fail("Провайдер не подтвердил вход. Попробуйте ещё раз или войдите по паролю", 401);
+    const detail = (e as Error).message.slice(0, 200);
+    console.error(`[widget-login ${p}]`, detail);
+    // detail — ответ провайдера или наша проверка, без секретов: показываем, чтобы причину можно было увидеть сразу
+    return NextResponse.json({ ok: false, error: "Провайдер не подтвердил вход. Попробуйте ещё раз или войдите по паролю", detail }, { status: 401 });
   }
 }

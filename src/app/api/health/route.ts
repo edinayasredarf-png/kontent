@@ -3,6 +3,7 @@ import { one, q } from "@/lib/db";
 import { EXPECTED_MIGRATIONS } from "@/lib/migrations";
 import { diagnose, technical } from "@/lib/errors";
 import { cleanDbUrl, dbUrlProblem } from "@/lib/pgssl";
+import { oauthProblem } from "@/lib/oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function GET() {
     CRON_SECRET: env("CRON_SECRET"), PLATFORM_ADMIN_EMAILS: env("PLATFORM_ADMIN_EMAILS"),
     SELFHOSTED_LLM_URL: env("SELFHOSTED_LLM_URL"), SELFHOSTED_LLM_API_KEY: env("SELFHOSTED_LLM_API_KEY"),
   };
+  out.vk_login = oauthProblem("vk") ?? "настроен"; out.yandex_login = oauthProblem("yandex") ?? "настроен";
   // Форма адреса без самого адреса: помогает увидеть опечатку, не раскрывая хост и логин.
   try {
     const raw = process.env.DATABASE_URL || process.env.TIMEWEB_DATABASE_URL;

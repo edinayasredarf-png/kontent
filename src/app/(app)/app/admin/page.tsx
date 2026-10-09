@@ -4,6 +4,7 @@ import { overview, requireAdmin } from "@/lib/admin";
 import { operatorFilled } from "@/lib/legal";
 import { mailConfigured } from "@/lib/mail";
 import { aiReady } from "@/lib/ai";
+import { oauthProblem } from "@/lib/oauth";
 import { rub } from "@/lib/wallet";
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
@@ -18,6 +19,8 @@ export default async function AdminHome() {
     { ok: mailConfigured(), text: mailConfigured() ? "Почта (SMTP) настроена" : "Почта не настроена: сброс пароля по email не работает (SMTP_HOST, SMTP_USER, SMTP_PASS)" },
     { ok: operatorFilled(), text: operatorFilled() ? "Реквизиты оператора заполнены" : "Реквизиты оператора не заполнены (LEGAL_NAME, LEGAL_INN, LEGAL_ADDRESS, LEGAL_EMAIL) — в юридических документах стоят пометки", href: "/legal/privacy" },
     { ok: tickAge !== null && tickAge < 15, text: tickAge === null ? "Воркер ещё ни разу не запускался: проверьте задание в cron-job.org" : tickAge < 15 ? `Воркер работает: последний проход ${tickAge} мин назад` : `Воркер не запускался ${tickAge} мин — проверьте cron-job.org и CRON_SECRET` },
+    ...(["vk", "yandex"] as const).map((p) => { const pr = oauthProblem(p); return { ok: !pr, text: pr ? `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"}: ${pr}` : `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"} настроен` }; }),
+    { ok: !!process.env.APP_URL?.trim(), text: process.env.APP_URL?.trim() ? `APP_URL задан: ${process.env.APP_URL.trim()}` : "APP_URL не задан (рекомендуется https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai): тогда вход через VK и Яндекс всегда идёт на основной адрес" },
     { ok: !!process.env.CRON_SECRET?.trim(), text: process.env.CRON_SECRET?.trim() ? "CRON_SECRET задан" : "CRON_SECRET не задан — воркер закрыт" },
   ];
   const tiles = [["Пользователей", n("users"), `за 7 дней: +${n("users_7d")}`], ["Организаций", n("orgs"), n("suspended") ? `приостановлено: ${n("suspended")}` : "все активны"], ["Материалов за 7 дней", n("items_7d"), `опубликовано: ${n("pubs_7d")}`], ["Расход за 7 дней", rub(n("spent_7d")), `остатки клиентов: ${rub(n("balances"))}`]];
