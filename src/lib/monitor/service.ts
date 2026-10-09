@@ -6,6 +6,7 @@ import { aiReady, genDigest, genIdea } from "../ai";
 import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { loadFactory, buildItem, type Result } from "../pipeline";
 import { PLANS, type PlanKey } from "../plans";
+import { allocateDates } from "../plan";
 
 export const loadKeywords = (orgId: string) => q<Kw & { id: string }>("select id,word,kind from kz_keywords where org_id=$1 order by kind,word", [orgId]);
 
@@ -117,14 +118,12 @@ export async function itemToPlan(orgId: string, itemId: string, factoryId: strin
     idea = await genIdea({ name: fac.brand_name, description: fac.description, audience: fac.audience, tone: fac.tone, forbidden: fac.rules?.forbidden ?? [] },
       fac.product, fac.niche, fac.formats, { title: it.title, body: it.body, url: it.url });
   } catch (e) { await refund(orgId, cost, "ошибка генерации идеи", it.id); return { ok: false, error: `Не удалось придумать идею, деньги возвращены: ${(e as Error).message}` }; }
-  const last = await one<{ d: string | null }>("select to_char(max(planned_for),'YYYY-MM-DD') d from kz_content_items where factory_id=$1", [factoryId]);
-  const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + 1);
-  if (last?.d && new Date(last.d + "T12:00:00") >= d) { d.setTime(new Date(last.d + "T12:00:00").getTime()); d.setDate(d.getDate() + 1); }
+  const [planDate] = await allocateDates(factoryId, 1);
   const meta = JSON.stringify({ source: { title: it.title, body: it.body.slice(0, 3000), url: it.url, name: it.source } });
   const id = await tx(async (run) => {
     const [c] = await run<{ id: string }>(
       `insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
-      [orgId, factoryId, fac.brand_id, idea.kind, idea.topic, idea.hook, d.toISOString().slice(0, 10), writeNow ? "approved" : "idea", meta]);
+      [orgId, factoryId, fac.brand_id, idea.kind, idea.topic, idea.hook, planDate, writeNow ? "approved" : "idea", meta]);
     await run("update kz_feed_items set status='used', content_item_id=$2 where id=$1", [itemId, c.id]);
     return c.id;
   });

@@ -4,6 +4,7 @@ import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError } from "./publishing";
 import { pollDue } from "./monitor/service";
+import { allocateDates } from "./plan";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -36,15 +37,12 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
   try {
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 60", [factoryId])).map((x) => x.topic);
     const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used);
-    // продолжаем план с дня после последнего запланированного, а не с «завтра» — иначе новые идеи ложатся на занятые даты
-    const last = await one<{ d: string | null }>("select to_char(max(planned_for),'YYYY-MM-DD') d from kz_content_items where factory_id=$1", [factoryId]);
-    const start = new Date(); start.setHours(12, 0, 0, 0); start.setDate(start.getDate() + 1);
-    if (last?.d && new Date(last.d + "T12:00:00") >= start) { start.setTime(new Date(last.d + "T12:00:00").getTime()); start.setDate(start.getDate() + 1); }
+    // продолжаем с дня после последнего запланированного и только в дни публикации завода
+    const dates = await allocateDates(factoryId, ideas.length);
     await tx(async (run) => {
       for (let i = 0; i < ideas.length; i++) {
-        const d = new Date(start); d.setDate(d.getDate() + i);
         await run("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for) values($1,$2,$3,$4,$5,$6,$7)",
-          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, d.toISOString().slice(0, 10)]);
+          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, dates[i]]);
       }
     });
     return { ok: true };

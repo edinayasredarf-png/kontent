@@ -1,27 +1,47 @@
 import { notFound } from "next/navigation";
-import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
+import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, TIMEZONES, updateIdeaAction } from "@/lib/plan-actions";
+import { planRunway, KINDS } from "@/lib/plan";
+import { CalendarGrid } from "@/components/CalendarGrid";
 
 // генерация идёт в server action этой страницы — нужен длинный лимит функции
 export const maxDuration = 300;
-import { PageHead, Status, KIND } from "@/components/ui";
+import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean }
 
-export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
+export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
-  const { err } = await searchParams;
+  const sp = await searchParams;
+  const err = sp.err;
   const c = await requireCtx();
   const f = await one<{ id: string; name: string; brand: string; status: string; niche: string; product: string }>(
     "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
+  const view = sp.view === "calendar" ? "calendar" : "list";
+  const kindF = KINDS.includes(sp.kind as never) ? sp.kind : "";
+  const statusF = sp.status && STATUS[sp.status] ? sp.status : "";
+  const month = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : new Date().toISOString().slice(0, 7);
+  const args: unknown[] = [id, c.org.id];
+  const cond: string[] = [];
+  if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
+  if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    "select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error from kz_content_items where factory_id=$1 and org_id=$2 order by planned_for nulls last, created_at", [id, c.org.id]);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+  const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
+  const runway = await planRunway(id);
+  const href = (o: Record<string, string>) => {
+    const u = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...sp, ...o })) if (v && k !== "err" && k !== "open") u.set(k, v);
+    return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
+  };
   const pubs = await q<Pub>(
     `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id
       where p.org_id=$1 and p.item_id in (select id from kz_content_items where factory_id=$2)`, [c.org.id, id]);
@@ -53,23 +73,101 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <button className="btn btn-ghost ml-auto">Сохранить</button>
         </div>
       </form>
+      {(runway === null || runway < 3) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-warn-soft px-4 py-3 text-sm text-warn">
+          <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его — кнопка ниже.
+        </div>
+      )}
+      <details className="card mb-4 p-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Clock size={15} />Расписание публикаций</summary>
+        <form action={saveScheduleAction} className="mt-4 space-y-3">
+          <input type="hidden" name="factory" value={id} />
+          <div className="flex flex-wrap gap-2">
+            {[["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", "Пт"], ["6", "Сб"], ["0", "Вс"]].map(([v, l]) => (
+              <label key={v} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="days" value={v} defaultChecked={sched?.schedule.days.includes(Number(v))} className="hidden" />{l}</label>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div><label className="label">Время (через запятую)</label><input name="times" defaultValue={sched?.schedule.times.join(", ")} className="input !w-56" /></div>
+            <div><label className="label">Часовой пояс</label><select name="tz" defaultValue={sched?.schedule.tz} className="input !w-auto">{Object.entries(TIMEZONES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+            <button className="btn btn-ghost">Сохранить расписание</button>
+          </div>
+          <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
+        </form>
+      </details>
+      <div className="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
+        <form action={addIdeaAction} className="space-y-2">
+          <input type="hidden" name="factory" value={id} />
+          <b className="text-sm">Своя идея</b>
+          <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала" className="input" />
+          <input name="hook" maxLength={300} placeholder="Хук — первая строка (необязательно)" className="input" />
+          <div className="flex flex-wrap items-center gap-2">
+            <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+            <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — ближайший свободный день)" />
+            <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
+            <button className="btn btn-ghost ml-auto"><Plus size={15} />Добавить</button>
+          </div>
+        </form>
+        <form action={addIdeasBulkAction} className="space-y-2">
+          <input type="hidden" name="factory" value={id} />
+          <b className="text-sm">Список идей</b>
+          <textarea name="list" rows={4} required placeholder={"По одной идее в строке. Можно с хуком через «|»:\n5 ошибок при планировании бюджета | Вы тоже так делаете?\nКак читать выписку из ЕГРН"} className="input text-xs" />
+          <div className="flex flex-wrap items-center gap-2">
+            <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+            <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
+            <button className="btn btn-ghost ml-auto"><Plus size={15} />Добавить список</button>
+          </div>
+        </form>
+      </div>
       <form action={generatePlanAction} className="card mb-6 flex flex-wrap items-center gap-3 p-4">
         {hid}
-        <div className="mr-auto"><b className="text-sm">Контент-план</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p></div>
+        <div className="mr-auto"><b className="text-sm">Продлить план с помощью ИИ</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p></div>
         <select name="days" defaultValue="7" className="input !w-auto">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней{c.org.unlimited ? "" : ` — ${rub(d * PRICES.plan_day)}`}</option>)}</select>
-        <button className="btn btn-accent"><Sparkles size={15} />Сгенерировать</button>
+        <button className="btn btn-accent"><Sparkles size={15} />Продлить</button>
       </form>
-      {items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">План пуст. Нажмите «Сгенерировать».</p>}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-xl bg-tile p-1 text-sm">
+          <Link href={href({ view: "list" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "list" ? "bg-white shadow-sm" : "text-ink2"}`}><List size={14} />Список</Link>
+          <Link href={href({ view: "calendar" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-white shadow-sm" : "text-ink2"}`}><CalendarDays size={14} />Календарь</Link>
+        </div>
+        <form className="ml-auto flex flex-wrap items-center gap-2" action={`/app/factories/${id}`}>
+          <input type="hidden" name="view" value={view} /><input type="hidden" name="m" value={month} />
+          <select name="kind" defaultValue={kindF} className="input !w-auto !py-1.5"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+          <select name="status" defaultValue={statusF} className="input !w-auto !py-1.5"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+          <button className="btn btn-ghost !py-1.5">Применить</button>
+        </form>
+      </div>
+      {view === "calendar" && (
+        <CalendarGrid month={month} items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status }))}
+          itemHref={(i) => href({ view: "list", open: i.id }) + `#i-${i.id}`} monthHref={(m) => href({ view: "calendar", m })} />
+      )}
+      {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}
       <div className="space-y-3">
-        {items.map((i) => (
-          <details key={i.id} className="card group p-4 open:shadow-sm">
+        {(view === "list" ? items : []).map((i) => (
+          <details key={i.id} id={`i-${i.id}`} open={sp.open === i.id} className="card group p-4 open:shadow-sm">
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
               <span className="w-20 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
               <span className="chip">{KIND[i.kind]}</span>
-              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}</span>
+              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}</span>
               <Status s={i.status} />
             </summary>
             <div className="mt-4 space-y-3 border-t border-line pt-4">
+              {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) ? (
+                <details className="rounded-xl bg-tile p-3">
+                  <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тему, хук, формат, дату</summary>
+                  <form action={updateIdeaAction} className="mt-3 space-y-2">
+                    <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                    <input name="topic" defaultValue={i.topic} required minLength={3} maxLength={300} className="input !bg-white" />
+                    <input name="hook" defaultValue={i.hook} maxLength={300} placeholder="Хук" className="input !bg-white" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select name="kind" defaultValue={i.kind} className="input !w-auto !bg-white">{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+                      <input name="date" type="date" defaultValue={i.planned_for ?? ""} className="input !w-auto !bg-white" />
+                      <button className="btn btn-ghost !py-1.5">Сохранить</button>
+                    </div>
+                  </form>
+                </details>
+              ) : null}
               {i.hook && <p className="text-sm text-ink2"><b>Хук:</b> {i.hook}</p>}
               {i.body ? (
                 <form action={saveBody} className="space-y-2">
@@ -107,6 +205,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   {i.status === "idea" && <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="approved" /><button className="btn btn-ghost"><Check size={15} />Одобрить</button></form>}
                   <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="rejected" /><button className="btn btn-ghost"><X size={15} />Отклонить</button></form>
                 </>)}
+                {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && <form action={deleteIdeaAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><button className="btn btn-danger" title="Удалить из плана"><Trash2 size={15} />Удалить</button></form>}
                 {["idea", "approved", "failed"].includes(i.status) && <form action={generateItemAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><button className="btn btn-accent"><Sparkles size={15} />Написать</button></form>}
               </div>
             </div>
