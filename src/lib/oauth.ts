@@ -21,7 +21,7 @@ export function creds(p: Provider): { id: string; secret: string } | null {
   return secret ? { id, secret } : null;
 }
 
-const VKID = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.com").replace(/\/+$/, "");
+const VKID = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.ru").replace(/\/+$/, "");
 const YA_OAUTH = () => (process.env.YANDEX_OAUTH_BASE?.trim() || "https://oauth.yandex.ru").replace(/\/+$/, "");
 const YA_LOGIN = () => (process.env.YANDEX_LOGIN_BASE?.trim() || "https://login.yandex.ru").replace(/\/+$/, "");
 
@@ -51,6 +51,37 @@ export function authorizeUrl(req: Request, p: Provider, state: string, challenge
   const scope = process.env.VK_SCOPE?.trim();
   if (scope) q.set("scope", scope);
   return `${VKID()}/authorize?${q}`;
+}
+
+/**
+ * Профиль по access_token из виджета VK ID. Токену из браузера не верим на слово: спрашиваем VK, чей он, — токен другого приложения
+ * или поддельный VK отклонит. Всё, что попадёт в аккаунт (id, имя, email), берётся из ответа VK, а не из тела запроса.
+ */
+export async function vkProfileFromToken(accessToken: string): Promise<Profile> {
+  const c = creds("vk");
+  if (!c) throw new Error("VK ID не настроен (VK_CLIENT_ID)");
+  const res = await fetch(`${VKID()}/oauth2/user_info`, {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: AbortSignal.timeout(15_000),
+    body: new URLSearchParams({ client_id: c.id, access_token: accessToken }),
+  });
+  const me = await json(res, "VK ID user_info");
+  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string };
+  if (!u.user_id) throw new Error("VK ID не вернул user_id");
+  return { id: String(u.user_id), email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() };
+}
+
+/**
+ * Профиль по access_token из кнопки Яндекс ID (SDK YaAuthSuggest). Токен проверяем у Яндекса, а не верим браузеру: профиль берётся из ответа.
+ * Токен мог быть выдан другому приложению (чужой сайт получил токен пользователя) — поэтому сверяем client_id из ответа с нашим.
+ */
+export async function yandexProfileFromToken(accessToken: string): Promise<Profile> {
+  const c = creds("yandex");
+  if (!c) throw new Error("Яндекс ID не настроен");
+  const me = await json(await fetch(`${YA_LOGIN()}/info?format=json`, { headers: { Authorization: `OAuth ${accessToken}` }, signal: AbortSignal.timeout(15_000) }), "Яндекс info");
+  if (me.client_id && String(me.client_id) !== c.id) throw new Error("Токен выдан другому приложению");
+  if (!me.id) throw new Error("Яндекс не вернул id");
+  const email = String(me.default_email ?? (me.emails as string[] | undefined)?.[0] ?? "").toLowerCase();
+  return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim() };
 }
 
 export interface Profile { id: string; email: string | null; name: string }

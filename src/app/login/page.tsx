@@ -31,7 +31,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         <Field label="Email"><input name="email" type="email" required autoComplete="username" className="input" /></Field>
         <Field label="Пароль"><PasswordInput autoComplete="current-password" /></Field>
       </Form>
-      <OAuthButtons verb="Войти" />
+      <OAuthButtons verb="Войти" next={nx} />
       <p className="mt-6 text-sm text-ink2">Нет аккаунта? <Link className="text-accent-ink" href={nx === "/app" ? "/register" : `/register?next=${encodeURIComponent(nx)}`}>Зарегистрироваться</Link></p>
     </main>
   );

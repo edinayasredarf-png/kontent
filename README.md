@@ -29,10 +29,10 @@ Vercel Hobby даёт cron раз в сутки (`vercel.json`) — это ст�
 Токен проверяется перед сохранением и хранится зашифрованным (AES-256-GCM).
 
 ## Вход через Яндекс ID и VK ID
-- **Яндекс:** `YANDEX_CLIENT_ID` (или `NEXT_PUBLIC_YANDEX_CLIENT_ID`) и `YANDEX_CLIENT_SECRET`.
-- **VK:** приложение **VK ID** (id.vk.com). Нужен только `VK_CLIENT_ID` (ID приложения, он публичный); секрет не требуется — используется PKCE. Необязательно `VK_SCOPE` (например `email`, только если право включено в приложении).
-- Redirect URI в настройках приложений: `https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai/api/oauth/yandex/callback` и `…/api/oauth/vk/callback`.
-- Вход идёт редиректом, обмен кода — на сервере; `state` и PKCE-verifier лежат в httpOnly-cookie. Кнопки появляются только у настроенных провайдеров.
+Используются **официальные виджеты**: кнопка Яндекс ID (SDK `YaAuthSuggest`) и VK ID OneTap (`@vkid/sdk`). Токен из браузера сервер проверяет у провайдера (`/api/auth/yandex-id`, `/api/auth/vk-id`), у токена Яндекса сверяется `client_id`. Если виджет не загрузился, через 7 секунд появляется запасная ссылка со входом редиректом (`/api/oauth/<провайдер>/start`, PKCE).
+- **Яндекс:** `YANDEX_CLIENT_ID` и `YANDEX_CLIENT_SECRET`. В приложении Яндекса: Callback URI `https://<домен>/suggest/token` (для кнопки) и `https://<домен>/api/oauth/yandex/callback` (запасной вход); Suggest Hostname — `https://<домен>`.
+- **VK:** приложение VK ID, нужен только `VK_CLIENT_ID`. Базовый домен и Redirect URL: `https://<домен>` и `https://<домен>/api/oauth/vk/callback`. Необязательно `VK_SCOPE` (например `email`).
+- `<домен>` = `kontent.xn--80aakbcct4b2aj7m.xn--p1ai` (punycode).
 
 ## Мониторинг источников
 Раздел «Мониторинг»: сайты/RSS, публичные Telegram-каналы (через `t.me/s/…`, без токена), сообщества VK (нужен `VK_SERVICE_TOKEN` на сервере), новости по запросу (Google News) и ручное добавление постов (MAX, закрытые каналы). Читать чужие каналы MAX автоматически нельзя — открытого способа нет.
