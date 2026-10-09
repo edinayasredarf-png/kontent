@@ -10,6 +10,7 @@ import { AI_TASKS, saveRoute, type AiTask } from "./ai";
 import { buildImage, buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
 import { cleanKit, describeImage } from "./images";
 import { loadAsset } from "./assets";
+import { cleanHtml, slugify } from "./seo";
 import { seal } from "./crypto";
 import { providerFor } from "./publishing";
 
@@ -192,7 +193,9 @@ export async function saveAiRoutes(f: FormData) {
 
 export async function saveBody(f: FormData) {
   const c = await writer();
-  await q("update kz_content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, s(f, "body")]);
+  // у SEO-статей тело — HTML для сайта: чистим при каждом сохранении
+  const it = await one<{ kind: string }>("select kind from kz_content_items where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
+  await q("update kz_content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, it?.kind === "seo" ? cleanHtml(String(f.get("body") ?? "")) : s(f, "body")]);
   revalidatePath("/app", "layout");
 }
 
@@ -203,7 +206,12 @@ export async function saveChannel(_: unknown, f: FormData) {
   const kind = s(f, "kind");
   const prov = providerFor(kind);
   if (!prov) return { error: "Этот тип канала пока не поддерживается" };
-  const cred = { token: s(f, "token"), target: s(f, "target") };
+  const cred: Record<string, string> = { token: s(f, "token"), target: s(f, "target") };
+  if (kind === "wordpress") {
+    if (!s(f, "wp_user")) return { error: "Укажите логин WordPress" };
+    cred.token = `${s(f, "wp_user")}:${s(f, "token").replace(/\s+/g, " ")}`;
+    cred.status = s(f, "wp_status") === "publish" ? "publish" : "draft";
+  }
   // Проверяем до сохранения: токен рабочий, бот — админ, сообщество существует.
   let name: string;
   try { name = await prov.verify(cred); } catch (e) { return { error: (e as Error).message }; }
@@ -227,4 +235,15 @@ export async function setPlan(f: FormData) {
   if (process.env.ALLOW_FREE_PLAN_SWITCH !== "1") return;
   await q("update kz_orgs set plan=$2 where id=$1", [c.org.id, p]);
   revalidatePath("/app", "layout");
+}
+
+export async function updateSeoMetaAction(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id"), fid = s(f, "factory");
+  const title = s(f, "title").slice(0, 90), description = s(f, "description").slice(0, 200), slug = slugify(s(f, "slug") || title);
+  if (title.length < 3) redirect(`/app/factories/${fid}?err=${encodeURIComponent("Укажите Title")}`);
+  await q(`update kz_content_items set meta = jsonb_set(meta,'{seo}', coalesce(meta->'seo','{}'::jsonb) || jsonb_build_object('title',$3::text,'description',$4::text,'slug',$5::text)) where id=$1 and org_id=$2 and kind='seo'`,
+    [id, c.org.id, title, description, slug]);
+  revalidatePath("/app", "layout");
+  redirect(`/app/factories/${fid}?view=list&open=${id}#i-${id}`);
 }

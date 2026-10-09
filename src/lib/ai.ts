@@ -100,7 +100,9 @@ function extractArray(text: string): unknown[] | null {
 
 /** Контент-план. Уже использованные темы передаём в промпт — так план не повторяется между запусками. */
 export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[]): Promise<PlanIdea[]> {
-  const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown.";
+  const seoOnly = kinds.length === 1 && kinds[0] === "seo";
+  const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown." +
+    (seoOnly ? " Это план SEO-статей для сайта: topic — реальный поисковый запрос так, как его вводит человек (без кавычек и «топ-10»), hook — намерение и угол статьи одной фразой. Запросы не должны дублировать друг друга." : "");
   const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ровно ${days} идей, по одной на день. Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
     (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 60).join("\n- ")}\n` : "") +
     `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"}]`;

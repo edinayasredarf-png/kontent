@@ -99,6 +99,15 @@ export async function safeFetchBuffer(raw: string, maxBytes = 12_000_000): Promi
   throw new Error("Слишком много перенаправлений");
 }
 
+/** Произвольный запрос (POST и т. п.) на адрес пользователя: для WordPress и webhook. Те же защиты, редиректы не выполняются. */
+export async function safeRequest(raw: string, o: { method: string; headers?: Record<string, string>; body?: Uint8Array | string | FormData; timeoutMs?: number; maxBytes?: number }): Promise<{ status: number; text: string }> {
+  const url = checkUrl(raw);
+  const res = await ufetch(url, { dispatcher: agent, method: o.method, redirect: "manual", signal: AbortSignal.timeout(o.timeoutMs ?? 30_000), headers: { "User-Agent": "KontentBot/1.0", ...(o.headers ?? {}) }, body: o.body as never });
+  const chunks: Uint8Array[] = []; let size = 0; const max = o.maxBytes ?? 1_000_000; const reader = res.body?.getReader();
+  if (reader) for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > max) { await reader.cancel().catch(() => {}); break; } chunks.push(value); }
+  return { status: res.status, text: Buffer.concat(chunks).toString("utf8") };
+}
+
 export async function safeFetchText(raw: string, opts: { maxBytes?: number; accept?: string; headers?: Record<string, string> } = {}): Promise<Fetched> {
   const max = opts.maxBytes ?? 2_000_000;
   let url = checkUrl(raw);

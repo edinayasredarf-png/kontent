@@ -1,7 +1,7 @@
 import { one, q, tx } from "./db";
 import type { Result } from "./pipeline";
 
-export const KINDS = ["post", "carousel", "reels", "article", "story"] as const;
+export const KINDS = ["post", "carousel", "reels", "article", "story", "seo"] as const;
 export type Kind = (typeof KINDS)[number];
 const isKind = (k: string): k is Kind => (KINDS as readonly string[]).includes(k);
 

@@ -23,7 +23,7 @@ export default async function NewFactory() {
           <Field label="Ниша"><input name="niche" className="input" /></Field>
           <Field label="Продукт / направление"><textarea name="product" rows={3} className="input" /></Field>
           <div><span className="label">Форматы</span><div className="flex flex-wrap gap-2">
-            {["post", "carousel", "article", "reels"].map((k, i) => (
+            {["post", "carousel", "article", "reels", "seo"].map((k, i) => (
               <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="formats" value={k} defaultChecked={i === 0} className="hidden" />{KIND[k]}</label>
             ))}</div></div>
           <div><span className="label">Дни публикации</span><div className="flex flex-wrap gap-2">

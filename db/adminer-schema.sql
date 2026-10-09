@@ -266,5 +266,11 @@ create table if not exists kz_comments (
 );
 create index if not exists kz_comments_org on kz_comments(org_id, status, posted_at desc);
 
+-- SEO-статьи для сайтов; каналы WordPress и webhook.
+alter table kz_content_items drop constraint if exists kz_content_items_kind_check;
+alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo'));
+alter table kz_channels drop constraint if exists kz_channels_kind_check;
+alter table kz_channels add constraint kz_channels_kind_check check (kind in ('telegram','vk','dzen','site','webhook','wordpress'));
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql') on conflict do nothing;

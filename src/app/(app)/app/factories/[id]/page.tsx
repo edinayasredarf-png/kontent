@@ -9,13 +9,15 @@ import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
+import { cleanHtml, seoCheck, type SeoMeta } from "@/lib/seo";
+import { updateSeoMetaAction } from "@/lib/actions";
 
 // генерация идёт в server action этой страницы — нужен длинный лимит функции
 export const maxDuration = 300;
 import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -34,7 +36,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
   const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
   const runway = await planRunway(id);
   const href = (o: Record<string, string>) => {
@@ -169,11 +171,34 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 </details>
               ) : null}
               {i.hook && <p className="text-sm text-ink2"><b>Хук:</b> {i.hook}</p>}
+              {i.kind === "seo" && i.seo && i.body && (() => {
+                const chk = seoCheck({ ...i.seo, keyword: i.seo.keyword || i.topic, faq: i.seo.faq ?? [] }, i.body);
+                return (
+                  <div className="space-y-3 rounded-xl border border-line p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <b className="text-sm">SEO-проверка</b>
+                      <span className={`chip ${chk.score >= 80 ? "!bg-good-soft !text-good" : chk.score >= 60 ? "!bg-warn-soft !text-warn" : "!bg-bad-soft !text-bad"}`}>{chk.score}%</span>
+                      <a href={`/api/export/${i.id}`} className="btn btn-ghost ml-auto !py-1.5">Скачать HTML</a>
+                    </div>
+                    <ul className="grid gap-1 text-xs sm:grid-cols-2">{chk.checks.map((k) => <li key={k.label} className={k.ok ? "text-good" : "text-warn"}>{k.ok ? "✓" : "✗"} {k.label}{!k.ok && k.hint ? ` — ${k.hint}` : ""}</li>)}</ul>
+                    <form action={updateSeoMetaAction} className="space-y-2">
+                      <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                      <div><label className="label">Title ({i.seo.title.length})</label><input name="title" defaultValue={i.seo.title} maxLength={90} className="input" /></div>
+                      <div><label className="label">Description ({i.seo.description.length})</label><textarea name="description" defaultValue={i.seo.description} rows={2} maxLength={200} className="input" /></div>
+                      <div><label className="label">Адрес (slug)</label><input name="slug" defaultValue={i.seo.slug} maxLength={70} className="input font-mono text-xs" /></div>
+                      <button className="btn btn-ghost !py-1.5">Сохранить SEO-поля</button>
+                    </form>
+                    <details><summary className="cursor-pointer text-xs font-medium text-ink2">Предпросмотр статьи</summary>
+                      <article className="article mt-3 rounded-xl bg-white p-4" dangerouslySetInnerHTML={{ __html: `<h1>${i.seo.title.replace(/[<>&]/g, "")}</h1>${cleanHtml(i.body)}` }} />
+                    </details>
+                  </div>
+                );
+              })()}
               {i.body ? (
                 <form action={saveBody} className="space-y-2">
                   <input type="hidden" name="id" value={i.id} />
                   <textarea name="body" defaultValue={i.body} rows={10} className="input font-mono !text-[13px]" />
-                  <button className="btn btn-ghost">Сохранить правки</button>
+                  <button className="btn btn-ghost">{i.kind === "seo" ? "Сохранить HTML" : "Сохранить правки"}</button>
                 </form>
               ) : null}
               {i.image_error && <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />Картинка: {i.image_error}</p>}

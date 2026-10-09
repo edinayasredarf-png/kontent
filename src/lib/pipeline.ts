@@ -2,10 +2,11 @@ import { one, q, tx } from "./db";
 import { aiReady, genPlan, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
-import { providerFor, PublishError } from "./publishing";
+import { providerFor, PublishError, SITE_CHANNELS } from "./publishing";
 import { pollDue } from "./monitor/service";
 import { allocateDates } from "./plan";
 import { collectComments, collectStats } from "./engage";
+import { genSeoArticle } from "./seo";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -23,7 +24,7 @@ export async function loadFactory(orgId: string, id: string): Promise<FactoryRow
 const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
 
 export const priceOf = (kind: string) =>
-  kind === "carousel" ? PRICES.carousel_slide * 6 : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : PRICES.post;
+  kind === "carousel" ? PRICES.carousel_slide * 6 : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : PRICES.post;
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -69,8 +70,14 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
   catch (e) { await revert(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await q("update kz_content_items set cost_kop=$2 where id=$1", [item.id, cost]);
   try {
-    const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source);
-    await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, body]);
+    if (item.kind === "seo") {
+      // тема идеи — поисковый запрос, хук — угол статьи; тело — готовый HTML, SEO-поля — в meta.seo
+      const art = await genSeoArticle(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
+      await q("update kz_content_items set body=$2,meta = meta || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
+    } else {
+      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source);
+      await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, body]);
+    }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст
     if (fac.brief?.images) {
       const im = await buildImage(orgId, item.id);
@@ -124,14 +131,15 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
 
 /** Ставит материал в очередь на все каналы завода. Повтор для упавшей публикации — переводит её обратно в queued. */
 export async function enqueue(orgId: string, itemId: string): Promise<Result> {
-  const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string }>(
-    `select i.factory_id,f.channel_ids,i.body,i.status from kz_content_items i join kz_factories f on f.id=i.factory_id
+  const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
+    `select i.factory_id,f.channel_ids,i.body,i.status,i.kind from kz_content_items i join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
   if (!row.body.trim()) return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
-  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[])", [orgId, row.channel_ids]);
-  if (!chans.length) return { ok: false, error: "У завода не выбраны каналы публикации" };
+  // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
+  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and ((kind = any($3::text[])) = $4::boolean)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo"]);
+  if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации (для постов — Telegram или VK)" };
   await tx(async (run) => {
     for (const ch of chans) {
       await run(`insert into kz_publications(org_id,item_id,channel_id) values($1,$2,$3)
@@ -157,12 +165,12 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string; image_id: string | null }>("select body,image_id from kz_content_items where id=$1", [j.item_id]);
+    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] } } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     const img = item?.image_id ? await loadAsset(j.org_id, item.image_id) : null;
     try {
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
-      const r = await prov.publish({ text: item?.body ?? "", image: img ? { data: img.data, mime: img.mime } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: item?.body ?? "", image: img ? { data: img.data, mime: img.mime } : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
