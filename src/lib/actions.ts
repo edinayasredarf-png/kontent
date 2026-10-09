@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { diagnose } from "./errors";
 import { canWrite, login, logout, register, requireCtx, safeNext, switchOrg, type Ctx } from "./auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { one, q } from "./db";
 import { PLANS } from "./plans";
 import { AI_TASKS, saveRoute, type AiTask } from "./ai";
@@ -23,17 +23,23 @@ async function writer(): Promise<Ctx> {
 }
 
 // ---------- auth ----------
+/** IP клиента: на Vercel первый адрес в x-forwarded-for. Подделать его можно только до Vercel, поэтому это ограничитель, а не единственная защита. */
+async function clientIp() {
+  const h = await headers();
+  return (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim().slice(0, 64);
+}
+
 // redirect() в Next — это исключение, поэтому ловим только ошибки до него
 export async function loginAction(_: unknown, f: FormData) {
   let r: { error?: string };
-  try { r = await login(s(f, "email"), s(f, "password")); }
+  try { r = await login(s(f, "email"), s(f, "password"), await clientIp()); }
   catch (e) { console.error("[login]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
   redirect(safeNext(s(f, "next")));
 }
 export async function registerAction(_: unknown, f: FormData) {
   let r: { error?: string };
-  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value); }
+  try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value, await clientIp()); }
   catch (e) { console.error("[register]", e); return { error: diagnose(e) }; }
   if (r.error) return r;
   redirect(safeNext(s(f, "next")));

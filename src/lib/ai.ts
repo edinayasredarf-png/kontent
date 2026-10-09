@@ -10,7 +10,7 @@ import { one, q } from "./db";
 export const baseUrl = () => (process.env.SELFHOSTED_LLM_URL || process.env.SELFHOSTED_LLM_BASE_URL || "").trim().replace(/\/+$/, "");
 export const aiReady = () => !!baseUrl();
 
-export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest" | "imageprompt" | "vision" | "image" | "video" | "analyst";
+export type AiTask = "plan" | "post" | "carousel" | "reels" | "article" | "idea" | "digest" | "imageprompt" | "vision" | "image" | "video" | "analyst" | "tts" | "assistant";
 export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "plan", label: "Контент-план", hint: "Идеи и хуки. Нужна модель, хорошо держащая JSON" },
   { key: "post", label: "Пост", hint: "Короткие тексты" },
@@ -23,6 +23,8 @@ export const AI_TASKS: { key: AiTask; label: string; hint: string }[] = [
   { key: "imageprompt", label: "Промпт для картинки", hint: "Текстовая модель: превращает пост и брендбук в описание картинки" },
   { key: "vision", label: "Описание референсов и фото продукта", hint: "Модель, которая умеет «смотреть» картинки (vision)" },
   { key: "image", label: "Генерация изображений", hint: "Модель изображений из каталога шлюза (вызывается через /images/generations)" },
+  { key: "assistant", label: "Лия: помощник и быстрый запуск", hint: "Текстовая модель: отвечает на вопросы по платформе и собирает бренд с заводом по описанию бизнеса" },
+  { key: "tts", label: "Озвучка текста", hint: "TTS-модель шлюза (вызывается через /audio/speech)" },
   { key: "video", label: "Генерация видео", hint: "Выбор сохраняется; генерация видео пока не подключена" },
 ];
 
@@ -32,7 +34,7 @@ export async function modelFor(task: AiTask): Promise<string> {
   const own = rows.find((r) => r.task === task)?.model;
   const def = rows.find((r) => r.task === "default")?.model;
   // Модель изображений/видео — не текстовая: подставлять ей общую «по умолчанию» нельзя, запрос просто сломается
-  const media = task === "image" || task === "video";
+  const media = task === "image" || task === "video" || task === "tts";
   return own || (media ? "" : def) || process.env[`AI_MODEL_${task.toUpperCase()}`]?.trim() || (media ? "" : process.env.SELFHOSTED_LLM_MODEL?.trim()) || "";
 }
 
@@ -76,7 +78,7 @@ export async function chat(task: AiTask, system: string, user: string, opts: { m
 export interface BrandCtx { name: string; description: string; audience: string; tone: string; forbidden: string[] }
 export interface PlanIdea { topic: string; hook: string; kind: string }
 
-const brandBlock = (b: BrandCtx, product: string, niche: string) =>
+export const brandBlock = (b: BrandCtx, product: string, niche: string) =>
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт/направление: ${product}\nНиша: ${niche}\n` +
   (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "");
 
@@ -134,7 +136,7 @@ export async function saveRoute(task: AiTask | "default", model: string) {
   else await q("insert into kz_ai_routes(task,model) values($1,$2) on conflict(task) do update set model=excluded.model, updated_at=now()", [task, model]);
 }
 
-function extractObject(text: string): Record<string, unknown> | null {
+export function extractObject(text: string): Record<string, unknown> | null {
   const t = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
   const s = t.indexOf("{"); if (s < 0) return null;
   let d = 0, inStr = false, esc = false;

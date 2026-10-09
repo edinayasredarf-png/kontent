@@ -23,7 +23,14 @@ export const webhook: Provider = {
   },
   async publish(input, c) {
     const a = input.article;
-    if (!a) throw new PublishError("Webhook принимает только SEO-статьи");
+    if (!a) {
+      // обычный пост: мост в любые сети через n8n / Make / Zapier (Instagram, TikTok, Threads, X…)
+      const r = await send(c, {
+        event: "post.publish", text: input.text,
+        image: input.image && input.image.data.length < 1_500_000 ? { mime: input.image.mime, base64: input.image.data.toString("base64") } : null,
+      });
+      return { externalId: String(r.id ?? Date.now()), url: typeof r.url === "string" && /^https?:\/\//.test(r.url) ? r.url : null };
+    }
     const r = await send(c, {
       event: "article.publish", title: a.title, slug: a.slug, description: a.description, keywords: a.keywords, html: a.html,
       image: input.image && input.image.data.length < 1_500_000 ? { mime: input.image.mime, base64: input.image.data.toString("base64") } : null,

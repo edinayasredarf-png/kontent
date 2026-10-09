@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { one } from "@/lib/db";
+import { one, q } from "@/lib/db";
+import { EXPECTED_MIGRATIONS } from "@/lib/migrations";
 import { diagnose, technical } from "@/lib/errors";
 import { cleanDbUrl, dbUrlProblem } from "@/lib/pgssl";
 
@@ -24,6 +25,12 @@ export async function GET() {
   try { await one("select 1"); out.db = "отвечает"; } catch (e) { out.db = diagnose(e); out.db_error = technical(e); }
   if (out.db === "отвечает") {
     try { await one("select 1 from kz_users limit 1"); out.tables = "есть"; } catch (e) { out.tables = diagnose(e); }
+    // какие миграции применены: недостающие надо выполнить через db/adminer-schema.sql
+    try {
+      const done = new Set((await q<{ name: string }>("select name from kz_migrations")).map((r) => r.name));
+      const missing = EXPECTED_MIGRATIONS.filter((m) => !done.has(m));
+      out.schema = missing.length ? `УСТАРЕЛА, не применены: ${missing.join(", ")} — выполните db/adminer-schema.sql` : "актуальна";
+    } catch { out.schema = "неизвестна (нет таблицы kz_migrations) — выполните db/adminer-schema.sql"; }
   }
   return NextResponse.json(out);
 }

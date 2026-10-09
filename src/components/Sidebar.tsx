@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays, UsersRound, Gift, UserRound, BarChart3, Inbox } from "lucide-react";
+import { Factory, LayoutDashboard, Building2, Send, Radio, Wand2, Wallet, LogOut, Cpu, Radar, CalendarDays, UsersRound, Gift, UserRound, BarChart3, Inbox, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 
@@ -15,7 +15,8 @@ const NAV = [
   { href: "/app/analytics", label: "Аналитика", icon: BarChart3 },
   { href: "/app/inbox", label: "Входящие", icon: Inbox },
   { href: "/app/channels", label: "Каналы", icon: Radio },
-  { href: "/app/studio", label: "Студия", icon: Wand2 },
+  { href: "/app/assistant", label: "Лия", icon: Sparkles },
+  { href: "/app/studio", label: "Студия и агенты", icon: Wand2 },
   { href: "/app/billing", label: "Баланс и тариф", icon: Wallet },
   { href: "/app/team", label: "Команда", icon: UsersRound },
   { href: "/app/partners", label: "Партнёрка", icon: Gift },

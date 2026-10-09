@@ -1,8 +1,8 @@
 import sharp from "sharp";
 import { one, q } from "./db";
 
-export type AssetKind = "logo" | "product" | "reference" | "generated";
-export const LIMITS: Record<AssetKind, number> = { logo: 1, product: 12, reference: 12, generated: 1_000_000 };
+export type AssetKind = "logo" | "product" | "reference" | "generated" | "studio";
+export const LIMITS: Record<AssetKind, number> = { logo: 1, product: 12, reference: 12, generated: 1_000_000, studio: 1_000_000 };
 export const ORG_QUOTA_BYTES = 150 * 1024 * 1024;
 export const MAX_UPLOAD = 4 * 1024 * 1024;
 const MAX_PIXELS = 40_000_000;
@@ -34,7 +34,7 @@ export async function orgUsage(orgId: string): Promise<number> {
 
 export async function saveAsset(orgId: string, brandId: string | null, kind: AssetKind, name: string, p: Processed, note = ""): Promise<string> {
   if ((await orgUsage(orgId)) + p.data.length > ORG_QUOTA_BYTES) throw new Error("Достигнут лимит хранилища (150 МБ). Удалите ненужные картинки");
-  if (brandId && kind !== "generated") {
+  if (brandId && kind !== "generated" && kind !== "studio") {
     if (kind === "logo") await q("delete from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, brandId]); // логотип один: новый заменяет
     else {
       const n = Number((await one<{ n: string }>("select count(*) n from kz_assets where org_id=$1 and brand_id=$2 and kind=$3", [orgId, brandId, kind]))!.n);

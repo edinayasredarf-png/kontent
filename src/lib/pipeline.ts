@@ -2,7 +2,7 @@ import { one, q, tx } from "./db";
 import { aiReady, genPlan, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
-import { providerFor, PublishError, SITE_CHANNELS } from "./publishing";
+import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
 import { pollDue } from "./monitor/service";
 import { allocateDates } from "./plan";
 import { collectComments, collectStats } from "./engage";
@@ -138,8 +138,8 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   if (!row.body.trim()) return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
   // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
-  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and ((kind = any($3::text[])) = $4::boolean)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo"]);
-  if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации (для постов — Telegram или VK)" };
+  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and (case when $4::boolean then kind = any($3::text[]) else not (kind = any($5::text[])) end)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo", ARTICLE_ONLY]);
+  if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации (для постов — Telegram, VK, MAX или Webhook)" };
   await tx(async (run) => {
     for (const ch of chans) {
       await run(`insert into kz_publications(org_id,item_id,channel_id) values($1,$2,$3)

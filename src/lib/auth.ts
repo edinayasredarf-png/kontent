@@ -5,8 +5,13 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
+import { isSchemaError } from "./errors";
+import { cleanupAttempts, loginBlocked, loginFailed, loginSucceeded, registerBlocked, registerNoted } from "./throttle";
 
 const COOKIE = "lt_session";
+// настоящий хеш случайного пароля: на нём «тратим» то же время bcrypt, когда пользователя с таким email нет
+let dummy: Promise<string> | null = null;
+const dummyHash = () => (dummy ??= bcrypt.hash(randomBytes(16).toString("hex"), 11));
 const key = () => {
   const s = process.env.AUTH_SECRET;
   // Без секрета в проде любой смог бы подделать сессию — лучше упасть, чем работать молча с известным ключом.
@@ -25,7 +30,7 @@ export interface Ctx {
 /** Cookie сессии. Отдельно от setSession — route handler ставит её прямо на ответ-редирект. */
 export async function sessionCookie(s: Session) {
   // версия сессии пользователя: после смены пароля старые cookie перестают действовать
-  const ver = (await one<{ v: number }>("select session_ver v from kz_users where id=$1", [s.uid]))?.v ?? 0;
+  const ver = (await one<{ v: number }>("select session_ver v from kz_users where id=$1", [s.uid]).catch((e) => { if (isSchemaError(e)) return null; throw e; }))?.v ?? 0;
   const value = await new SignJWT({ uid: s.uid, org: s.org, v: ver }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("90d").sign(key());
   return { name: COOKIE, value, httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 90 };
 }
@@ -38,12 +43,14 @@ export async function readSession(): Promise<Session | null> {
   try { return (await jwtVerify(t, key())).payload as unknown as Session; } catch { return null; }
 }
 
-export async function register(email: string, password: string, name: string, orgName: string, refCode?: string) {
+export async function register(email: string, password: string, name: string, orgName: string, refCode?: string, ip = "") {
   email = email.trim().toLowerCase();
+  if (await registerBlocked(ip)) return { error: "Слишком много регистраций с вашего адреса. Попробуйте позже" };
   if (password.length < 8) return { error: "Пароль — минимум 8 символов" };
   if (await one("select 1 from kz_users where email=$1", [email])) return { error: "Этот email уже зарегистрирован" };
   const hash = await bcrypt.hash(password, 11);
   const s = await tx((run) => createAccount(run, email, name, hash, orgName, { refCode }));
+  await registerNoted(ip);
   await setSession(s);
   return {};
 }
@@ -78,10 +85,16 @@ export async function defaultOrg(userId: string): Promise<string | null> {
   return m?.org_id ?? null;
 }
 
-export async function login(email: string, password: string) {
-  const u = await one<{ id: string; password_hash: string }>("select id,password_hash from kz_users where email=$1", [email.trim().toLowerCase()]);
-  // одинаковый ответ на «нет пользователя» и «неверный пароль» — не раскрываем, какие email зарегистрированы
-  if (!u || !(await bcrypt.compare(password, u.password_hash))) return { error: "Неверный email или пароль" };
+export async function login(email: string, password: string, ip = "") {
+  email = email.trim().toLowerCase();
+  if (await loginBlocked(email, ip)) return { error: "Слишком много неудачных попыток входа. Подождите 15 минут" };
+  const u = await one<{ id: string; password_hash: string; has_password: boolean }>("select id,password_hash,has_password from kz_users where email=$1", [email]);
+  // одинаковый ответ на «нет пользователя» и «неверный пароль» — не раскрываем, какие email зарегистрированы.
+  // Сравнение делаем всегда (даже без пользователя), иначе время ответа выдаёт, есть ли такой email.
+  const ok = await bcrypt.compare(password, u?.password_hash ?? (await dummyHash()));
+  if (!u || !u.has_password || !ok) { await loginFailed(email, ip); return { error: "Неверный email или пароль" }; }
+  await loginSucceeded(email);
+  if (Math.random() < 0.02) cleanupAttempts().catch(() => {});
   const org = await defaultOrg(u.id);
   if (!org) return { error: "У пользователя нет организации" };
   await setSession({ uid: u.id, org });
@@ -98,6 +111,11 @@ export async function switchOrg(orgId: string) {
 
 /** Контекст запроса. Единственная точка, откуда берётся org_id — все запросы данных обязаны брать его отсюда. */
 export async function requireCtx(): Promise<Ctx> {
+  try { return await loadCtx(); }
+  catch (e) { if (isSchemaError(e)) redirect("/update-required"); throw e; }
+}
+
+async function loadCtx(): Promise<Ctx> {
   const s = await readSession();
   if (!s) redirect("/login");
   // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации

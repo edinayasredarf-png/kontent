@@ -9,7 +9,7 @@ export class PublishError extends Error {
 }
 
 export interface Provider {
-  kind: "telegram" | "vk" | "wordpress" | "webhook";
+  kind: "telegram" | "vk" | "wordpress" | "webhook" | "max";
   /** Проверка при подключении: токен рабочий, бот/сообщество доступны. Возвращает человекочитаемое имя. */
   verify(cred: Record<string, string>): Promise<string>;
   publish(input: PublishInput, cred: Record<string, string>): Promise<PublishOutput>;
