@@ -40,9 +40,12 @@ export async function saveContentSettingsAction(f: FormData) {
   if (s(f, "link") && !link) { redirect(`/app/factories/${fid}?err=${encodeURIComponent("Ссылка должна быть адресом сайта (http:// или https://)")}`); }
   const st = cleanSettings({
     postTypes: f.getAll("postTypes").map(String), length: s(f, "length"), examples: String(f.get("examples") ?? ""), link, cta: s(f, "cta"),
-    learn: f.get("learn") === "on", hashtags: s(f, "hashtags"), emoji: s(f, "emoji"), slides: Number(s(f, "slides")), carouselStyle: s(f, "carouselStyle"), carouselCover: s(f, "carouselCover"), carouselFormat: s(f, "carouselFormat"),
+    learn: f.get("learn") === "on", linkMode: s(f, "linkMode"), hashtags: s(f, "hashtags"), emoji: s(f, "emoji"), slides: Number(s(f, "slides")), carouselStyle: s(f, "carouselStyle"), carouselCover: s(f, "carouselCover"), carouselFormat: s(f, "carouselFormat"),
   });
-  await q("update kz_factories set brief = brief || $3::jsonb where id=$1 and org_id=$2", [fid, c.org.id, JSON.stringify(st)]);
+  // служебные поля (выводы, стратегия, подсказка рубрики) в настройках не хранятся: стратегия лежит в brief.strategy отдельно
+  const { learnings: _l, strategy: _s, rubricNote: _r, ...persist } = st;
+  void _l; void _s; void _r;
+  await q("update kz_factories set brief = brief || $3::jsonb where id=$1 and org_id=$2", [fid, c.org.id, JSON.stringify(persist)]);
   revalidatePath(`/app/factories/${fid}`);
   redirect(`/app/factories/${fid}`);
 }

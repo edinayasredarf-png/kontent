@@ -1,3 +1,4 @@
+import { LINK_MODES } from "@/lib/links";
 import { Settings2 } from "lucide-react";
 import { CAROUSEL_STYLES, EMOJI, HASHTAGS, LENGTHS, POST_TYPES, type ContentSettings } from "@/lib/postsettings";
 import { saveContentSettingsAction } from "@/lib/carousel/actions";
@@ -30,6 +31,11 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Призыв к действию</label><input name="cta" defaultValue={st.cta} maxLength={200} placeholder="Например: Запишитесь на бесплатную консультацию" className="input" /></div>
           <div><label className="label">Ссылка на сайт или товар</label><input name="link" defaultValue={st.link} maxLength={300} placeholder="https://" className="input" /><p className="mt-1 text-xs text-ink3">Будет добавляться в конце постов как есть.</p></div>
+        </div>
+        <div>
+          <label className="label">Ссылки на ваш сайт в постах</label>
+          <Sel name="linkMode" value={st.linkMode} opts={LINK_MODES} />
+          <p className="mt-1 text-xs text-ink3">Работает для ссылки на сайт из поля выше. UTM-метки (источник, кампания) попадут в вашу Метрику или аналитику; со счётчиком в ссылке будет адрес нашего сервиса, и переходы видны в «Аналитике».</p>
         </div>
         <div>
           <label className="label">Примеры ваших постов</label>

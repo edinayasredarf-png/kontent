@@ -27,8 +27,8 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
       {posts === 0 ? (
         <Empty icon={<BarChart3 />} title="Пока нет данных" text="Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)." />
       ) : (<>
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[["Постов", posts.toLocaleString("ru-RU")], ["Просмотров", views.toLocaleString("ru-RU")], ["Реакций", eng.toLocaleString("ru-RU")], ["Вовлечённость", `${er}%`]].map(([l, v]) => (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {[["Постов", posts.toLocaleString("ru-RU")], ["Просмотров", views.toLocaleString("ru-RU")], ["Реакций", eng.toLocaleString("ru-RU")], ["Вовлечённость", `${er}%`], ...(a.clicks > 0 ? [["Переходов на сайт", a.clicks.toLocaleString("ru-RU")]] : [])].map(([l, v]) => (
             <div key={l} className="rounded-2xl bg-tile p-5"><div className="mb-1 text-sm text-ink2">{l}</div><div className="text-2xl font-semibold">{v}</div></div>
           ))}
         </div>
@@ -78,7 +78,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
             <div key={i} className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 last:border-0">
               <span className="chip">{KIND[t.kind]}</span><span className="min-w-0 flex-1 truncate text-sm">{t.topic}</span>
               <span className="text-xs text-ink3">{t.channel}</span>
-              <span className="text-sm font-medium">{t.views.toLocaleString("ru-RU")} просм.</span><span className="text-xs text-ink2">{t.likes + t.comments + t.reposts} реакций</span>
+              <span className="text-sm font-medium">{t.views.toLocaleString("ru-RU")} просм.</span><span className="text-xs text-ink2">{t.likes + t.comments + t.reposts} реакций</span>{Number(t.clicks) > 0 && <span className="text-xs text-good">{t.clicks} переходов</span>}
               {t.url && <a href={t.url} target="_blank" rel="noreferrer noopener" className="text-accent-ink"><ExternalLink size={14} /></a>}
             </div>
           ))}

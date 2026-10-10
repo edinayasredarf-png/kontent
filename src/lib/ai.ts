@@ -78,7 +78,7 @@ export async function chat(task: AiTask, system: string, user: string, opts: { m
 }
 
 export interface BrandCtx { name: string; description: string; audience: string; tone: string; forbidden: string[] }
-export interface PlanIdea { topic: string; hook: string; kind: string; type?: string }
+export interface PlanIdea { topic: string; hook: string; kind: string; type?: string; rubric?: string }
 
 export const brandBlock = (b: BrandCtx, product: string, niche: string) =>
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт/направление: ${product}\nНиша: ${niche}\n` +
@@ -106,19 +106,21 @@ export function extractArray(text: string): unknown[] | null {
 export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[], st?: ContentSettings): Promise<PlanIdea[]> {
   const seoOnly = kinds.length === 1 && kinds[0] === "seo";
   const types = st?.postTypes ?? [];
+  const rubrics = st?.strategy?.rubrics ?? [];
   const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown." +
     (seoOnly ? " Это план SEO-статей для сайта: topic — реальный поисковый запрос так, как его вводит человек (без кавычек и «топ-10»), hook — намерение и угол статьи одной фразой. Запросы не должны дублировать друг друга." : "");
   const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ровно ${days} идей, по одной на день. Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
     (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 60).join("\n- ")}\n` : "") +
     (st?.learnings ? `${st.learnings}\nПредлагай идеи в духе того, что сработало лучше, но с новыми углами.\n` : "") +
+    (rubrics.length ? `Контент-стратегия: ${st!.strategy!.positioning ? st!.strategy!.positioning + " " : ""}${st!.strategy!.pains.length ? "Боли аудитории: " + st!.strategy!.pains.join("; ") + ". " : ""}\nРубрики и доли в плане: ${rubrics.map((r) => `«${r.name}» ${r.share}% (${r.desc})`).join("; ")}. Распредели идеи по рубрикам согласно долям и укажи в поле "rubric" точное название рубрики.\n` : "") +
     (types.length > 1 ? `Типы постов: ${types.map((t) => `${t} — ${POST_TYPES[t].toLowerCase()}`).join("; ")}. Распредели их по идеям равномерно и укажи в поле "type" (одно из: ${types.join(", ")}).\n` : "") +
-    `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"${types.length > 1 ? ',"type":"' + types[0] + '"' : ""}}]`;
+    `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"${types.length > 1 ? ',"type":"' + types[0] + '"' : ""}${rubrics.length ? ',"rubric":"' + rubrics[0].name + '"' : ""}}]`;
   let arr: unknown[] | null = null;
   for (let attempt = 0; attempt < 2 && !arr; attempt++) {
     arr = extractArray(await chat("plan", system, attempt ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-массив." : user, { maxTokens: 4000, temperature: 0.7 }));
   }
   if (!arr) throw new Error("Модель не вернула валидный план");
-  const ideas = (arr as Partial<PlanIdea>[]).filter((x) => x && x.topic).map((x) => ({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds.includes(String(x.kind)) ? String(x.kind) : kinds[0], type: x.type && types.includes(String(x.type)) ? String(x.type) : undefined }));
+  const ideas = (arr as Partial<PlanIdea>[]).filter((x) => x && x.topic).map((x) => ({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds.includes(String(x.kind)) ? String(x.kind) : kinds[0], type: x.type && types.includes(String(x.type)) ? String(x.type) : undefined, rubric: rubrics.find((r) => r.name === String(x.rubric))?.name }));
   if (!ideas.length) throw new Error("Модель вернула пустой план");
   return ideas.slice(0, days);
 }

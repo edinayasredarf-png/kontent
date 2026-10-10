@@ -8,14 +8,18 @@ import { allocateDates } from "./plan";
 import { cleanAngles, htmlTitle, htmlToText, MAX_SOURCE, MIN_SOURCE } from "./repurpose";
 import { safeFetchText } from "./safefetch";
 import { collectComments, collectMembers, collectStats } from "./engage";
+import { collectCompetitors } from "./competitors";
 import { genSeoArticle } from "./seo";
 import { learnings } from "./engage";
+import { prepareLinks } from "./links";
+import { textForChannel } from "./growth-lite";
+import { strategyOf } from "./strategy";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
-interface FactoryRow {
+export interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
   description: string; audience: string; tone: string; rules: { forbidden?: string[] }; brand_name: string;
   brief: { images?: boolean }; kit: unknown;
@@ -26,7 +30,7 @@ export async function loadFactory(orgId: string, id: string): Promise<FactoryRow
     `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name,f.brief,b.kit
        from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2`, [id, orgId]);
 }
-const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
+export const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>
@@ -50,7 +54,7 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
     await tx(async (run) => {
       for (let i = 0; i < ideas.length; i++) {
         await run("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,meta) values($1,$2,$3,$4,$5,$6,$7,$8)",
-          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, dates[i], JSON.stringify(ideas[i].type ? { postType: ideas[i].type } : {})]);
+          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, dates[i], JSON.stringify({ ...(ideas[i].type ? { postType: ideas[i].type } : {}), ...(ideas[i].rubric ? { rubric: ideas[i].rubric } : {}) })]);
       }
     });
     return { ok: true };
@@ -61,9 +65,12 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
 }
 
 /** Настройки завода + выводы из статистики прошлых публикаций бренда (если самообучение включено и данных достаточно). Сбой сбора не мешает генерации. */
-async function settingsFor(orgId: string, fac: { brand_id: string; brief: unknown }): Promise<ContentSettings> {
+export async function settingsFor(orgId: string, fac: { brand_id: string; brief: unknown }, rubric?: string): Promise<ContentSettings> {
   const st = cleanSettings(fac.brief);
   if (st.learn) { try { st.learnings = await learnings(orgId, fac.brand_id); } catch { /* без выводов */ } }
+  st.strategy = strategyOf(fac.brief);
+  const rb = rubric ? st.strategy?.rubrics.find((r) => r.name === rubric) : undefined;
+  if (rb) st.rubricNote = `Рубрика: «${rb.name}» — ${rb.desc}. Материал должен соответствовать этой рубрике.`;
   return st;
 }
 
@@ -142,7 +149,7 @@ async function brandNotes(orgId: string, brandId: string) {
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
 export async function buildItem(orgId: string, itemId: string): Promise<Result> {
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string } }>(
+  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string } }>(
     `update kz_content_items set status='generating', updated_at=now()
       where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
       returning id,factory_id,kind,topic,hook,meta`, [itemId, orgId]);
@@ -163,7 +170,7 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await q("update kz_content_items set body=$2,meta = (meta-'client') || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
     } else if (item.kind === "carousel") {
       // тексты слайдов — структурой от нейросети, сами картинки набираем и рисуем у себя (кириллица на картинках нейросетей искажается)
-      const st = await settingsFor(orgId, fac);
+      const st = await settingsFor(orgId, fac, item.meta?.rubric);
       const car = await genCarousel(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st.slides, st, item.meta?.source, item.meta?.postType);
       let cover: Buffer | null = null;
       if (st.carouselCover === "ai") {
@@ -181,15 +188,15 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
     } else if (item.kind === "poll") {
-      const poll = await genPoll(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac), item.meta?.source);
+      const poll = await genPoll(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options })]);
     } else if (item.kind === "infographic") {
-      const st = await settingsFor(orgId, fac);
+      const st = await settingsFor(orgId, fac, item.meta?.rubric);
       const g = await genInfographic(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st, item.meta?.source);
       await renderInfographicForItem(orgId, item.id, { title: g.title, subtitle: g.subtitle, layout: g.layout, blocks: g.blocks }, st.carouselStyle);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, g.caption]);
     } else {
-      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac), item.meta?.postType);
+      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.postType);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
@@ -314,7 +321,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] } } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
+    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] }; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
     const img = infoAsset ? await loadAsset(j.org_id, infoAsset.id) : item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
@@ -323,7 +330,11 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
     try {
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
-      const r = await prov.publish({ text: withSignature(pollText(item?.body ?? "", item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
+      // ссылки на сайт из настроек завода получают UTM-метки или короткий адрес со счётчиком; SEO-статьи не трогаем
+      const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
+      const st = cleanSettings(fx?.brief);
+      const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
+      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
@@ -455,6 +466,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
 
   // статистика опубликованных постов и новые комментарии (сбой площадки не должен ронять остальной проход)
+  try { const cc = await collectCompetitors(4); rep.errors.push(...cc.errors.slice(0, 2)); } catch (e) { rep.errors.push(`competitors: ${(e as Error).message}`); }
   try { await spawnRepeats(); } catch (e) { rep.errors.push(`repeats: ${(e as Error).message}`); }
   try { const s = await collectStats(40); rep.stats = s.updated; rep.errors.push(...s.errors.slice(0, 3)); } catch (e) { rep.errors.push(`stats: ${(e as Error).message}`); }
   try { const m = await collectMembers(20); rep.errors.push(...m.errors.slice(0, 2)); } catch (e) { rep.errors.push(`members: ${(e as Error).message}`); }

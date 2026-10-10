@@ -9,6 +9,10 @@ import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { addIdeaAction, addIdeasBulkAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
+import { GrowthPanel } from "@/components/GrowthPanel";
+import { StrategyCard } from "@/components/StrategyCard";
+import { planMatrix, strategyOf } from "@/lib/strategy";
+import { abResult, type AbResult } from "@/lib/growth";
 import { InfographicPanel } from "@/components/InfographicPanel";
 import { PollPanel } from "@/components/PollPanel";
 import type { Infographic } from "@/lib/carousel/infographic";
@@ -25,7 +29,7 @@ import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
 const shiftMonth = (month: string, n: number) => { const [y, m] = month.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null; repeat: { days: number; left: number } | null; repeat_of: string | null; infographic: Infographic | null; info_style: string | null; poll: { question: string; options: string[] } | null }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null; repeat: { days: number; left: number } | null; repeat_of: string | null; infographic: Infographic | null; info_style: string | null; poll: { question: string; options: string[] } | null; ab: { variant: string; pair?: string } | null; variants: Record<string, string> | null; rubric: string | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -44,9 +48,12 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
   const carAssets = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
   const fb = await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
+  const strategy = strategyOf((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
+  const matrix = strategy ? await planMatrix(id, strategy.rubrics) : null;
+  const abMap = new Map<string, AbResult | null>(await Promise.all(items.filter((x) => x.ab?.pair).map(async (x) => [x.id, await abResult(c.org.id, x.id)] as const)));
   const st = cleanSettings((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
   const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
   const runway = await planRunway(id);
@@ -91,6 +98,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его — кнопка ниже.
         </div>
       )}
+      <StrategyCard factoryId={id} strategy={strategy} matrix={matrix} free={c.org.unlimited} />
       <ContentSettingsCard factoryId={id} st={st} free={c.org.unlimited} />
       <details className="card mb-4 p-4">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Clock size={15} />Расписание публикаций</summary>
@@ -178,7 +186,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
               <span className="w-20 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
               <span className="chip">{KIND[i.kind]}</span>
-              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}</span>
+              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}{i.rubric && <span className="ml-2 rounded-full bg-tile px-2 py-0.5 text-[11px] font-normal text-ink2">{i.rubric}</span>}{i.ab && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-normal text-accent-ink">A/B {i.ab.variant === "A" ? "А" : "Б"}</span>}</span>
               {i.client && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${i.client === "approved" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"}`}>{i.client === "approved" ? "Клиент одобрил" : "Клиент просит правки"}</span>}
               <Status s={i.status} />
             </summary>
@@ -216,6 +224,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                     <li key={n}><span className={`mr-2 rounded-full px-2 py-0.5 text-xs font-medium ${f.verdict === "approved" ? "bg-good-soft text-good" : f.verdict === "changes" ? "bg-warn-soft text-warn" : "bg-tile text-ink2"}`}>{f.verdict === "approved" ? "Одобрено" : f.verdict === "changes" ? "Нужны правки" : "Комментарий"}</span><span className="text-xs text-ink3">{f.author || "Клиент"} · {new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" })}</span>{f.comment && <p className="mt-1 whitespace-pre-wrap text-ink2">{f.comment}</p>}</li>))}</ul>
                 </div>
               )}
+              <GrowthPanel itemId={i.id} factoryId={id} kind={i.kind} status={i.status} hasBody={!!i.body.trim()} ab={i.ab} abRes={abMap.get(i.id) ?? null} variants={i.variants} free={c.org.unlimited} canEdit={canWrite(c.org.role)} />
               {i.kind === "infographic" && i.infographic && (
                 <InfographicPanel itemId={i.id} factoryId={id} info={i.infographic} style={i.info_style ?? "brand"} assetId={carAssets.find((a) => a.item_id === i.id)?.id} editable={["idea", "approved", "ready", "failed"].includes(i.status)} />
               )}

@@ -4,6 +4,7 @@ import { call as vkCall } from "./publishing/vk";
 import { chat } from "./ai";
 import { aiReady } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
+import { classifyComment } from "./comments";
 
 /* ───────── разбор адресов опубликованных постов ───────── */
 export function parseVkUrl(url: string): { owner: string; id: string } | null {
@@ -104,8 +105,8 @@ export async function collectComments(limitPosts = 25): Promise<{ added: number;
       for (const g of r.groups ?? []) names.set(-g.id, g.name);
       for (const c of r.items ?? []) {
         if (c.deleted || !c.text?.trim() || c.from_id === Number(v.owner)) continue; // свои ответы от имени сообщества не копим
-        const ins = await q(`insert into kz_comments(org_id,publication_id,channel_id,ext_id,author,body,posted_at) values($1,$2,$3,$4,$5,$6,to_timestamp($7)) on conflict(channel_id,ext_id) do nothing returning id`,
-          [p.org_id, p.id, p.ch, `${v.owner}_${v.id}_${c.id}`, (names.get(c.from_id) ?? `id${c.from_id}`).slice(0, 80), c.text.slice(0, 4000), c.date]);
+        const ins = await q(`insert into kz_comments(org_id,publication_id,channel_id,ext_id,author,body,posted_at,tone) values($1,$2,$3,$4,$5,$6,to_timestamp($7),$8) on conflict(channel_id,ext_id) do nothing returning id`,
+          [p.org_id, p.id, p.ch, `${v.owner}_${v.id}_${c.id}`, (names.get(c.from_id) ?? `id${c.from_id}`).slice(0, 80), c.text.slice(0, 4000), c.date, classifyComment(c.text)]);
         out.added += ins.length;
       }
     } catch (e) { out.errors.push(`vk comments: ${(e as Error).message}`.slice(0, 160)); }
@@ -137,15 +138,16 @@ const since = (d: Period) => (d ? `now() - interval '${d} days'` : `'1970-01-01'
 export async function analytics(orgId: string, days: Period) {
   const base = `from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
                 where p.org_id=$1 and p.status='published' and p.published_at >= ${since(days)}`;
-  const [tot, byChannel, byKind, top, byHour] = await Promise.all([
+  const [tot, byChannel, byKind, top, byHour, clicksRow] = await Promise.all([
     one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes),0) likes,coalesce(sum(s.comments),0) comments,coalesce(sum(s.reposts),0) reposts ${base}`, [orgId]),
     q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select c.kind,c.title,count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by c.kind,c.title order by views desc`, [orgId]),
     q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select i.kind,count(*) posts,coalesce(sum(s.views),0) views,round(coalesce(avg(s.views),0)) avg,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by i.kind order by avg desc`, [orgId]),
-    q<{ topic: string; kind: string; channel: string; url: string | null; published_at: string; views: number; likes: number; comments: number; reposts: number }>(
-      `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, [orgId]),
+    q<{ topic: string; kind: string; channel: string; url: string | null; published_at: string; views: number; likes: number; comments: number; reposts: number; clicks: string }>(
+      `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, [orgId]),
     q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, [orgId]),
+    one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1 and l.created_at >= ${since(days)}`, [orgId]),
   ]);
-  return { tot: tot!, byChannel, byKind, top, byHour };
+  return { tot: tot!, byChannel, byKind, top, byHour, clicks: Number(clicksRow?.n ?? 0) };
 }
 
 export async function recommendations(orgId: string, days: Period): Promise<{ text?: string; error?: string }> {

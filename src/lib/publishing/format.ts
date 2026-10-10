@@ -2,7 +2,7 @@
 export function toPlain(md: string): string {
   return md
     .replace(/\r\n/g, "\n")
-    .replace(/^#{1,6}\s*(.+)$/gm, "$1")
+    .replace(/^#{1,6}[ \t]+(.+)$/gm, "$1") // заголовок markdown — «#» с пробелом; хештег «#слово» в начале строки не трогаем
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/__(.+?)__/g, "$1")
     .replace(/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/g, "$1")

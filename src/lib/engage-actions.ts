@@ -1,5 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { suggestReply } from "./comments";
 import { requireCtx, requireWriter } from "./auth";
 import { q } from "./db";
 import { collectComments, collectStats, recommendations, replyToComment, type Period } from "./engage";
@@ -27,6 +29,20 @@ export async function commentStatusAction(f: FormData) {
   const st = s(f, "status");
   if (!["new", "done", "hidden"].includes(st)) return;
   await q("update kz_comments set status=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, st]);
+  revalidatePath("/app/inbox");
+}
+
+export async function suggestReplyAction(f: FormData) {
+  const c = await requireWriter();
+  const r = await suggestReply(c.org.id, s(f, "id"));
+  revalidatePath("/app/inbox");
+  if (!r.ok) redirect(`/app/inbox?err=${encodeURIComponent(r.error)}`);
+}
+
+/** Скрыть все новые комментарии со спамом одним нажатием. */
+export async function hideSpamAction() {
+  const c = await requireWriter();
+  await q("update kz_comments set status='hidden' where org_id=$1 and status='new' and tone='spam'", [c.org.id]);
   revalidatePath("/app/inbox");
 }
 
