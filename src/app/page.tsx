@@ -157,18 +157,6 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Площадки */}
-        <section aria-label="Площадки публикации" className="border-y border-line bg-tile/60">
-          <div className={`${wrap} flex flex-col items-center gap-4 py-7 md:flex-row md:justify-between`}>
-            <p className="text-sm font-medium text-ink2">Публикуем туда, где ваши клиенты</p>
-            <ul className="flex flex-wrap items-center justify-center gap-2.5">
-              {["Telegram", "VK", "MAX", "WordPress", "n8n / Make (webhook)"].map((n) => (
-                <li key={n} className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold">{n}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
         {/* Проблема → решение */}
         <section className="py-20 md:py-28">
           <div className={wrap}>
