@@ -26,4 +26,4 @@ export const STATUS: Record<string, { label: string; cls: string }> = {
 };
 export const Status = ({ s }: { s: string }) => <span className={clsx("chip", STATUS[s]?.cls)}>{STATUS[s]?.label ?? s}</span>;
 
-export const KIND: Record<string, string> = { post: "Пост", carousel: "Карусель", reels: "Ролик", article: "Статья", story: "Сторис", seo: "SEO-статья" };
+export const KIND: Record<string, string> = { post: "Пост", carousel: "Карусель", reels: "Ролик", article: "Статья", story: "Сторис", seo: "SEO-статья", poll: "Опрос", contest: "Конкурс", infographic: "Инфографика" };

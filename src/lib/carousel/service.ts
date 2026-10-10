@@ -4,6 +4,7 @@ import { loadAsset, saveAsset } from "../assets";
 import { cleanKit } from "../images";
 import { cleanSettings } from "../postsettings";
 import { fixLayout } from "./layouts";
+import { renderInfographic, type Infographic } from "./infographic";
 import { renderCarousel, type CarouselStyle, type Slide } from "./render";
 
 export const carouselAssets = (itemId: string) =>
@@ -52,4 +53,18 @@ export async function renderForItem(orgId: string, itemId: string, slides: Slide
     throw e;
   }
   await q("update kz_content_items set meta = meta || jsonb_build_object('carousel', jsonb_build_object('slides',$3::jsonb,'style',$4::text)), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(slides), style]);
+}
+
+/** Инфографика материала: один файл (position 0), прежний удаляется после сохранения нового. Параметры хранятся в meta.infographic для правки. */
+export async function renderInfographicForItem(orgId: string, itemId: string, info: Infographic, style: CarouselStyle): Promise<void> {
+  const it = await one<{ brand_id: string; brand: string; kit: unknown }>(
+    "select i.brand_id,b.name brand,b.kit from kz_content_items i join kz_brands b on b.id=i.brand_id where i.id=$1 and i.org_id=$2", [itemId, orgId]);
+  if (!it) throw new Error("Материал не найден");
+  const kit = cleanKit(it.kit);
+  const logoRow = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
+  const logo = logoRow ? (await loadAsset(orgId, logoRow.id))?.data ?? null : null;
+  const out = await renderInfographic({ info, style, colors: kit.colors ?? [], brandName: it.brand, logo });
+  const id = await saveAsset(orgId, it.brand_id, "generated", "infographic.jpg", out, "", { itemId, position: 0 });
+  await q("delete from kz_assets where item_id=$1 and org_id=$2 and id <> $3", [itemId, orgId, id]);
+  await q("update kz_content_items set meta = meta || jsonb_build_object('infographic', $3::jsonb, 'infographicStyle', $4::text), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(info), style]);
 }

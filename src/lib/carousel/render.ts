@@ -9,18 +9,18 @@ export interface RenderOpts {
   aspect: "square" | "portrait"; logo?: Buffer | null; cover?: Buffer | null;
 }
 
-const W = 1080, M = 84;
+export const W = 1080, M = 84;
 
 /* ───────── цвет ───────── */
 const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const hex = (c: number[]) => "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
-const lum = (h: string) => { const [r, g, b] = rgb(h).map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+export const lum = (h: string) => { const [r, g, b] = rgb(h).map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 /** amount > 0 — светлее, < 0 — темнее. */
-const shade = (h: string, a: number) => hex(rgb(h).map((v) => (a >= 0 ? v + (255 - v) * a : v * (1 + a))));
-const inkOn = (bg: string) => (lum(bg) > 0.42 ? "#14161a" : "#ffffff");
-const safeHex = (h?: string) => (h && /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : null);
+export const shade = (h: string, a: number) => hex(rgb(h).map((v) => (a >= 0 ? v + (255 - v) * a : v * (1 + a))));
+export const inkOn = (bg: string) => (lum(bg) > 0.42 ? "#14161a" : "#ffffff");
+export const safeHex = (h?: string) => (h && /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : null);
 
-interface Pal { bg: string; ink: string; accent: string; ctaBg: string; ctaInk: string; chip: string }
+export interface Pal { bg: string; ink: string; accent: string; ctaBg: string; ctaInk: string; chip: string }
 export function palette(style: CarouselStyle, colors: { hex: string }[]): Pal {
   const c0 = safeHex(colors[0]?.hex) ?? "#029cda", c1 = safeHex(colors[1]?.hex);
   const readableAccent = (bg: string, a: string) => (Math.abs(lum(a) - lum(bg)) > 0.22 ? a : inkOn(bg));
@@ -35,13 +35,13 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const dataUri = (b: Buffer, mime: string) => `data:${mime};base64,${b.toString("base64")}`;
 
 /* ───────── слайды ───────── */
-async function prepLogo(logo: Buffer | null | undefined) {
+export async function prepLogo(logo: Buffer | null | undefined) {
   if (!logo) return null;
   try { const { data, info } = await sharp(logo).resize({ height: 64, width: 280, fit: "inside" }).png().toBuffer({ resolveWithObject: true }); return { uri: dataUri(data, "image/png"), w: info.width, h: info.height }; }
   catch { return null; } // битый логотип не должен ронять всю карусель
 }
 
-function decor(p: Pal, H: number, i: number): string {
+export function decor(p: Pal, H: number, i: number): string {
   const a = p.accent;
   const x = i % 2 ? -120 : W + 80;
   return `<circle cx="${x}" cy="${i % 2 ? 220 : 160}" r="360" fill="${a}" fill-opacity=".10"/><circle cx="${i % 2 ? W + 40 : -40}" cy="${H - 120}" r="190" fill="${a}" fill-opacity=".08"/>`;

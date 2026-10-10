@@ -5,7 +5,8 @@ import { requireWriter } from "../auth";
 import { one, q } from "../db";
 import { CAROUSEL_STYLES, cleanLink, cleanSettings, EMOJI, HASHTAGS, LENGTHS, POST_TYPES } from "../postsettings";
 import { setCarouselCover } from "../pipeline";
-import { cleanSlides, renderForItem } from "./service";
+import { cleanSlides, renderForItem, renderInfographicForItem } from "./service";
+import { cleanInfographic } from "./infographic";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const back = (fid: string, id: string, err?: string) => { revalidatePath("/app", "layout"); redirect(`/app/factories/${fid}?view=list&open=${id}${err ? `&err=${encodeURIComponent(err)}` : ""}#i-${id}`); };
@@ -46,3 +47,27 @@ export async function saveContentSettingsAction(f: FormData) {
   redirect(`/app/factories/${fid}`);
 }
 
+
+/** Правка инфографики: заголовок, подзаголовок, раскладка, блоки. Перерисовка бесплатная. */
+export async function saveInfographicAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id"), fid = s(f, "factory");
+  const it = await one<{ status: string }>("select status from kz_content_items where id=$1 and org_id=$2 and kind='infographic'", [id, c.org.id]);
+  if (!it || !["idea", "approved", "ready", "failed"].includes(it.status)) return back(fid, id, "Эту инфографику сейчас нельзя изменить");
+  const info = cleanInfographic({ title: s(f, "title"), subtitle: s(f, "subtitle"), layout: s(f, "layout"), blocks: Array.from({ length: 6 }, (_, i) => ({ head: s(f, `head_${i}`), text: s(f, `text_${i}`) })) });
+  if (!info) return back(fid, id, "Нужны заголовок и минимум два блока с заголовками");
+  const style = (s(f, "style") in CAROUSEL_STYLES ? s(f, "style") : "brand") as keyof typeof CAROUSEL_STYLES;
+  try { await renderInfographicForItem(c.org.id, id, info, style); } catch (e) { return back(fid, id, `Не удалось перерисовать: ${(e as Error).message}`); }
+  back(fid, id);
+}
+
+/** Правка опроса: вопрос и варианты (по одному в строке, 2–10). */
+export async function savePollAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id"), fid = s(f, "factory");
+  const question = s(f, "question").slice(0, 280);
+  const options = [...new Set(String(f.get("options") ?? "").split("\n").map((x) => x.trim().slice(0, 90)).filter(Boolean))].slice(0, 10);
+  if (!question || options.length < 2) return back(fid, id, "Нужен вопрос и минимум два варианта ответа (каждый с новой строки)");
+  const r = await q("update kz_content_items set meta = meta || jsonb_build_object('poll', $3::jsonb), updated_at=now() where id=$1 and org_id=$2 and kind='poll' and status in ('idea','approved','ready','failed') returning id", [id, c.org.id, JSON.stringify({ question, options })]);
+  back(fid, id, r.length ? undefined : "Этот опрос сейчас нельзя изменить");
+}

@@ -1,5 +1,5 @@
 import { one, q, tx } from "./db";
-import { aiReady, brandBlock, chat, extractArray, genCarousel, genPlan, genPost, type BrandCtx } from "./ai";
+import { aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
@@ -11,7 +11,7 @@ import { collectComments, collectMembers, collectStats } from "./engage";
 import { genSeoArticle } from "./seo";
 import { learnings } from "./engage";
 import { cleanSettings, type ContentSettings } from "./postsettings";
-import { carouselAssets, prepCover, renderForItem, slideHeight } from "./carousel/service";
+import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -30,7 +30,7 @@ const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description:
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>
-  kind === "carousel" ? PRICES.carousel + (cleanSettings(brief).carouselCover === "ai" ? PRICES.image : 0) : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : PRICES.post;
+  kind === "carousel" ? PRICES.carousel + (cleanSettings(brief).carouselCover === "ai" ? PRICES.image : 0) : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : kind === "infographic" ? PRICES.infographic : PRICES.post;
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -180,12 +180,20 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       }
       await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
+    } else if (item.kind === "poll") {
+      const poll = await genPoll(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac), item.meta?.source);
+      await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options })]);
+    } else if (item.kind === "infographic") {
+      const st = await settingsFor(orgId, fac);
+      const g = await genInfographic(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st, item.meta?.source);
+      await renderInfographicForItem(orgId, item.id, { title: g.title, subtitle: g.subtitle, layout: g.layout, blocks: g.blocks }, st.carouselStyle);
+      await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, g.caption]);
     } else {
       const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac), item.meta?.postType);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
-    if (fac.brief?.images && item.kind !== "carousel") {
+    if (fac.brief?.images && !["carousel", "infographic", "poll"].includes(item.kind)) {
       const im = await buildImage(orgId, item.id);
       if (!im.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, im.error]);
     }
@@ -262,7 +270,7 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
     `select i.factory_id,f.channel_ids,i.body,i.status,i.kind from kz_content_items i join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
-  if (!row.body.trim()) return { ok: false, error: "Нет текста для публикации" };
+  if (!row.body.trim() && row.kind !== "poll") return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
   // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
   const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and (case when $4::boolean then kind = any($3::text[]) else not (kind = any($5::text[])) end)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo", ARTICLE_ONLY]);
@@ -281,6 +289,13 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
 const MAX_ATTEMPTS = 3;
 
 /** Подпись канала добавляется к постам и каруселям, но не к SEO-статьям и не дважды (если пост уже заканчивается ею). */
+/** Опрос на площадках без встроенных опросов: вопрос и варианты текстом, голосуют цифрой в комментариях. */
+export function pollText(body: string, poll: { question: string; options: string[] } | undefined, channelKind: string): string {
+  if (!poll || channelKind === "telegram") return body;
+  const opts = poll.options.map((o, i) => `${i + 1}. ${o}`).join("\n");
+  return `${body.trim() ? body.trim() + "\n\n" : ""}${poll.question}\n\n${opts}\n\nГолосуйте в комментариях: напишите цифру варианта.`;
+}
+
 export function withSignature(body: string, kind: string, signature?: string): string {
   const sig = (signature ?? "").trim();
   if (!sig || kind === "seo" || kind === "article" || body.trimEnd().endsWith(sig)) return body;
@@ -299,14 +314,16 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] } } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
-    const img = item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
+    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] } } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
+    // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
+    const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
+    const img = infoAsset ? await loadAsset(j.org_id, infoAsset.id) : item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
     // карусель: все слайды по порядку (загружаем только своими файлами организации)
     const slides = item?.kind === "carousel" ? (await Promise.all((await carouselAssets(j.item_id)).map((a) => loadAsset(j.org_id, a.id)))).filter((a): a is NonNullable<typeof a> => !!a).map((a) => ({ data: a.data, mime: a.mime })) : [];
     try {
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
-      const r = await prov.publish({ text: withSignature(item?.body ?? "", item?.kind ?? "post", ch.signature), image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: withSignature(pollText(item?.body ?? "", item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {

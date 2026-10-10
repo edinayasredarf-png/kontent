@@ -43,6 +43,15 @@ export const telegram: Provider = {
     let first: number | null = null;
     let warning: string | undefined;
     let rest = plain;
+    if (input.poll) {
+      // подводка — обычным сообщением, затем встроенный опрос (анонимный, один ответ)
+      if (plain) first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain.slice(0, 4000) })).message_id;
+      const opts = input.poll.options.map((t) => ({ text: t.slice(0, 100) })).slice(0, 10);
+      const p = await call<{ message_id: number }>(token, "sendPoll", { chat_id: target, question: input.poll.question.slice(0, 300), options: opts, is_anonymous: true });
+      first ??= p.message_id;
+      const handle0 = target.startsWith("@") ? target.slice(1) : null;
+      return { externalId: String(first), url: handle0 ? `https://t.me/${handle0}/${first}` : null };
+    }
     if (input.images && input.images.length >= 2) {
       // карусель — альбом из 2–10 фото; подпись (до 1024 знаков) крепится к первому, иначе текст уходит следом отдельным сообщением
       const imgs = input.images.slice(0, 10);

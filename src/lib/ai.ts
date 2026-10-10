@@ -127,13 +127,14 @@ export interface SourceNote { title: string; body: string; url: string }
 
 export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
   const st = settings ?? cleanSettings({});
-  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
+  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : kind === "contest" ? "пост-конкурс, 500–900 знаков: что разыгрываем, условия участия по шагам, срок, как и когда объявим победителя" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
   const task: AiTask = kind === "article" ? "article" : kind === "carousel" ? "carousel" : kind === "reels" ? "reels" : "post";
   return chat(task,
     "Ты редактор бренда. Пиши по-русски, без воды и клише, без эмодзи-спама. Не выдумывай факты, цифры и цены — если данных нет, пиши без них. Выведи только готовый текст, без вступлений вроде «Вот текст».",
     `${brandBlock(b, product, niche)}\nФормат: ${kind}, объём: ${len}\nТема: ${topic}\nХук: ${hook}\n` +
       (source ? `\nМатериал-источник (${source.url}):\n«${source.title}»\n${source.body.slice(0, 3000)}\nИспользуй из него только факты, пиши своими словами и с позиции бренда, не копируй формулировки и не придумывай деталей, которых в источнике нет.\n` : "") +
-      (kind === "post" || kind === "story" || kind === "article" ? `\nПравила оформления:\n${styleBlock(st, kind, postType)}\n` : "") +
+      (kind === "contest" ? "\nПриз, срок и условия бери только из темы и хука. Если чего-то там нет, не выдумывай и не ставь заглушки в квадратных скобках: напиши условия без этой детали (например, «подведём итоги в ближайшее время»).\n" : "") +
+      (kind === "post" || kind === "story" || kind === "article" || kind === "contest" ? `\nПравила оформления:\n${styleBlock(st, kind, postType)}\n` : "") +
       `Напиши готовый текст.`,
     { maxTokens: kind === "article" ? 3500 : 1500, temperature: 0.7, timeoutMs: kind === "article" ? 55_000 : 45_000 });
 }
@@ -202,4 +203,50 @@ export async function genCarousel(b: BrandCtx, product: string, niche: string, t
     .map((s, i, a) => { const l = fixLayout(s.layout, s.title, s.body, i > 0 && i < a.length - 1); return l === "text" ? { title: s.title, body: s.body } : { title: s.title, body: s.body, layout: l }; });
   if (slides.length < 3) throw new Error("В карусели получилось меньше трёх слайдов");
   return { slides, caption: clip(o.caption, 2000) };
+}
+
+/* ───────── опрос и инфографика ───────── */
+export interface PollText { question: string; options: string[]; caption: string }
+/** Опрос для аудитории: вопрос до 250 знаков, 2–6 вариантов до 90 знаков, короткая подводка. Формат Telegram: опрос публикуется встроенным опросом. */
+export async function genPoll(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote): Promise<PollText> {
+  const system = "Ты контент-стратег соцсетей. Пиши по-русски коротко и по делу. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
+  const user = `${brandBlock(b, product, niche)}\nТема опроса: ${topic}\nХук: ${hook}\n` +
+    (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 1500)}\n` : "") +
+    `\nСделай опрос для аудитории: "question" — вопрос до 250 знаков, на который легко ответить одним нажатием; "options" — от 3 до 5 вариантов ответа до 80 знаков, не пересекающихся, без нумерации; "caption" — подводка к опросу 150–350 знаков (зачем мы спрашиваем и что сделаем с ответами).\n` +
+    `Правила оформления подводки:\n${styleBlock(st, "poll")}\nФормат: {"question":"...","options":["...","..."],"caption":"..."}`;
+  let o: Record<string, unknown> | null = null;
+  for (let a = 0; a < 2; a++) {
+    o = extractObject(await chat("post", system, a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-объект." : user, { maxTokens: 900, temperature: 0.7, timeoutMs: 40_000 }));
+    if (typeof o?.question === "string" && Array.isArray(o.options) && o.options.length >= 2) break;
+    o = null;
+  }
+  if (!o) throw new Error("Модель не вернула опрос");
+  const clip = (v: unknown, k: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, k) : "");
+  const options = [...new Set((o.options as unknown[]).map((x) => clip(x, 90).replace(/^\d+[.)]\s*/, "")).filter(Boolean))].slice(0, 6);
+  const question = clip(o.question, 280);
+  if (!question || options.length < 2) throw new Error("В опросе получилось меньше двух вариантов");
+  return { question, options, caption: clip(o.caption, 600) };
+}
+
+export type InfoLayout = "steps" | "stats" | "checklist";
+export interface InfographicText { title: string; subtitle: string; layout: InfoLayout; blocks: { head: string; text: string }[]; caption: string }
+/** Инфографика: заголовок, 3–6 блоков и тип раскладки (шаги, цифры, чек-лист). Рисуется у нас, кириллица без искажений. */
+export async function genInfographic(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote): Promise<InfographicText> {
+  const system = "Ты контент-стратег и редактор инфографики. Пиши по-русски коротко и конкретно, не выдумывай цифры, факты и цены. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
+  const user = `${brandBlock(b, product, niche)}\nТема инфографики: ${topic}\nХук: ${hook}\n` +
+    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nЦифры и факты бери только оттуда.\n` : "") +
+    `\nСделай инфографику: "title" до 70 знаков, "subtitle" до 110 знаков, "layout": "steps" (последовательность шагов), "stats" (до 4 цифр: head — сама цифра до 12 знаков, text — что она значит) или "checklist" (список проверок); "blocks" — от 3 до 6 блоков (для stats от 2 до 4): "head" до 40 знаков, "text" до 120 знаков. "caption" — подпись к посту 250–600 знаков.\n` +
+    `Правила оформления подписи:\n${styleBlock(st, "post")}\nФормат: {"title":"...","subtitle":"...","layout":"steps","blocks":[{"head":"...","text":"..."}],"caption":"..."}`;
+  let o: Record<string, unknown> | null = null;
+  for (let a = 0; a < 2; a++) {
+    o = extractObject(await chat("carousel", system, a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-объект." : user, { maxTokens: 1800, temperature: 0.6, timeoutMs: 50_000 }));
+    if (typeof o?.title === "string" && Array.isArray(o.blocks) && o.blocks.length >= 2) break;
+    o = null;
+  }
+  if (!o) throw new Error("Модель не вернула структуру инфографики");
+  const clip = (v: unknown, k: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, k) : "");
+  const layout: InfoLayout = o.layout === "stats" || o.layout === "checklist" ? o.layout : "steps";
+  const blocks = (o.blocks as { head?: unknown; text?: unknown }[]).map((x) => ({ head: clip(x?.head, 60), text: clip(x?.text, 160) })).filter((x) => x.head).slice(0, layout === "stats" ? 4 : 6);
+  if (blocks.length < 2) throw new Error("В инфографике получилось меньше двух блоков");
+  return { title: clip(o.title, 90), subtitle: clip(o.subtitle, 140), layout, blocks, caption: clip(o.caption, 2000) };
 }
