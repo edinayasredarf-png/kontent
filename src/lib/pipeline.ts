@@ -1,10 +1,12 @@
 import { one, q, tx } from "./db";
-import { aiReady, genCarousel, genPlan, genPost, type BrandCtx } from "./ai";
+import { aiReady, brandBlock, chat, extractArray, genCarousel, genPlan, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
 import { pollDue } from "./monitor/service";
 import { allocateDates } from "./plan";
+import { cleanAngles, htmlTitle, htmlToText, MAX_SOURCE, MIN_SOURCE } from "./repurpose";
+import { safeFetchText } from "./safefetch";
 import { collectComments, collectMembers, collectStats } from "./engage";
 import { genSeoArticle } from "./seo";
 import { learnings } from "./engage";
@@ -63,6 +65,72 @@ async function settingsFor(orgId: string, fac: { brand_id: string; brief: unknow
   const st = cleanSettings(fac.brief);
   if (st.learn) { try { st.learnings = await learnings(orgId, fac.brand_id); } catch { /* без выводов */ } }
   return st;
+}
+
+/**
+ * Контент из одного источника: статья по ссылке или вставленный текст → несколько идей с разными углами подачи.
+ * Каждая идея хранит источник (meta.source), поэтому посты и карусели потом пишутся по фактам оттуда. Платим как за идеи (PRICES.idea за штуку),
+ * сами материалы оплачиваются при генерации, как обычно. Любой сбой после списания — полный возврат.
+ */
+export async function repurposeSource(orgId: string, factoryId: string, o: { url?: string; text?: string; count: number; kinds?: string[] }): Promise<Result & { added?: number }> {
+  const fac = await loadFactory(orgId, factoryId);
+  if (!fac) return { ok: false, error: "Завод не найден" };
+  if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
+  const count = Math.min(10, Math.max(3, Math.round(o.count) || 5));
+  const allowed = ["post", "carousel", "story", "article"];
+  const kinds = (o.kinds?.length ? o.kinds : fac.formats).filter((k) => allowed.includes(k));
+  if (!kinds.length) return { ok: false, error: "У завода нет форматов для постов или каруселей. Включите «Пост» или «Карусель» в настройках завода." };
+
+  let title = "", text = (o.text ?? "").replace(/\r/g, "").trim(), url = (o.url ?? "").trim();
+  if (url) {
+    try {
+      const page = await safeFetchText(url, { maxBytes: 3_000_000 });
+      title = htmlTitle(page.text);
+      text = /<(html|body|p|div)\b/i.test(page.text) ? htmlToText(page.text) : page.text.trim();
+      url = page.url;
+    } catch (e) { return { ok: false, error: `Не удалось открыть страницу: ${(e as Error).message}` }; }
+  }
+  if (text.length < MIN_SOURCE) return { ok: false, error: url ? "На странице слишком мало текста. Вставьте текст статьи вручную." : `Текст слишком короткий: нужно хотя бы ${MIN_SOURCE} знаков` };
+  text = text.slice(0, MAX_SOURCE);
+  if (!title) title = text.split("\n").find((l) => l.trim().length > 8)?.trim().slice(0, 120) ?? "Исходный материал";
+
+  const cost = PRICES.idea * count;
+  try { await charge(orgId, cost, `Контент из источника (${count} идей)`, factoryId); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try {
+    const st = await settingsFor(orgId, fac), types = st.postTypes;
+    const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 40", [factoryId])).map((x) => x.topic);
+    const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown.";
+    const user = `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nИсходный материал «${title}»:\n---\n${text.slice(0, 9000)}\n---\n` +
+      `Разбери его на ровно ${count} разных материалов для соцсетей. У каждого свой угол и своя мысль из исходника (факт, цифра, ошибка, совет, вывод, вопрос), без повторов между материалами. ` +
+      `Не придумывай ничего, чего нет в исходнике.\nДопустимые форматы: ${kinds.join(", ")} (карусель — для списков и последовательностей; пост — для одной мысли).\n` +
+      (used.length ? `Уже есть в плане, не повторять:\n- ${used.slice(0, 40).join("\n- ")}\n` : "") +
+      (types.length > 1 ? `Типы постов: ${types.join(", ")} — распредели и укажи в "type".\n` : "") +
+      `Формат ответа: [{"topic":"тема материала","hook":"цепляющая первая строка","kind":"${kinds[0]}","angle":"какую мысль или факт из исходника раскрывает материал, 1–2 предложения"${types.length > 1 ? ',"type":"' + types[0] + '"' : ""}}]`;
+    let angles = null as ReturnType<typeof cleanAngles> | null;
+    for (let attempt = 0; attempt < 2 && !angles?.length; attempt++) {
+      const arr = extractArray(await chat("idea", system, attempt ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-массив." : user, { maxTokens: 4000, temperature: 0.6, timeoutMs: 55_000 }));
+      angles = arr ? cleanAngles(arr, kinds, types, count) : null;
+    }
+    if (!angles?.length) throw new Error("Модель не вернула идеи");
+    const dates = await allocateDates(factoryId, angles.length);
+    await tx(async (run) => {
+      for (let i = 0; i < angles!.length; i++) {
+        const a = angles![i];
+        // в источник каждого материала кладём его угол и сам текст: пост пишется по фактам исходника, а не по домыслам модели
+        const source = { title, url: url || "текст, предоставленный автором", body: `Основная мысль этого материала: ${a.angle || a.topic}\n\nИсходный текст:\n${text.slice(0, 2400)}` };
+        await run("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,meta) values($1,$2,$3,$4,$5,$6,$7,$8)",
+          [orgId, factoryId, fac.brand_id, a.kind, a.topic, a.hook, dates[i], JSON.stringify({ source, repurposed: true, ...(a.type ? { postType: a.type } : {}) })]);
+      }
+    });
+    // если ответили меньше, чем заказано, возвращаем разницу
+    const done = angles.length;
+    if (done < count) await refund(orgId, PRICES.idea * (count - done), "из источника получено меньше идей", factoryId);
+    return { ok: true, added: done };
+  } catch (e) {
+    await refund(orgId, cost, "ошибка разбора источника", factoryId);
+    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+  }
 }
 
 /** Описания референсов и фото продукта бренда — они попадают в промпт картинки как «видение стиля». */

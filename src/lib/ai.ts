@@ -84,7 +84,7 @@ export const brandBlock = (b: BrandCtx, product: string, niche: string) =>
   (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "");
 
 /** Первый сбалансированный JSON-массив в тексте (модели любят добавлять пояснения до/после). */
-function extractArray(text: string): unknown[] | null {
+export function extractArray(text: string): unknown[] | null {
   const t = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
   const start = t.indexOf("[");
   if (start < 0) return null;

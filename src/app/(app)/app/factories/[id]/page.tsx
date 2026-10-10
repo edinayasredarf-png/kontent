@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock } from "lucide-react";
+import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
-import { addIdeaAction, addIdeasBulkAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
+import { addIdeaAction, addIdeasBulkAction, repurposeAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { CarouselPanel, type CarouselMeta } from "@/components/CarouselPanel";
@@ -102,6 +102,21 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <button className="btn btn-ghost">Сохранить расписание</button>
           </div>
           <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
+        </form>
+      </details>
+      <details className="card mb-4 p-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Layers size={15} />Контент из одного источника: статья или текст → несколько материалов</summary>
+        <form action={repurposeAction} className="mt-4 space-y-3">
+          <input type="hidden" name="factory" value={id} />
+          <p className="text-xs text-ink2">Дайте ссылку на статью или вставьте текст (блог, расшифровку вебинара, длинный пост). Сервис выделит разные мысли и предложит материалы с отдельным углом подачи. Тексты потом пишутся по фактам исходника.</p>
+          <input name="url" type="url" maxLength={500} placeholder="Ссылка на статью (https://…)" className="input" />
+          <textarea name="text" rows={5} maxLength={30000} placeholder="…или вставьте текст целиком (от 400 знаков)" className="input" />
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">Сколько материалов
+              <select name="count" defaultValue="5" className="input !w-auto">{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+            <button className="btn ml-auto"><Layers size={15} />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</button>
+          </div>
+          <p className="text-xs text-ink3">Идеи появятся в плане на ближайшие свободные дни. Создание самих постов и каруселей оплачивается как обычно.</p>
         </form>
       </details>
       <div className="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
