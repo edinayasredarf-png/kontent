@@ -22,6 +22,17 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: TITLE, description: DESC, images: ["/demo/b1.jpg"] },
 };
 
+/** Декор из трёх форм логотипа: голубая, лаймовая, зелёная «капли». Мягкая замена 3D-иллюстрациям. */
+function Blobs({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg aria-hidden viewBox="0 0 100 100" className={className} style={style} fill="none">
+      <path d="M58.3 67.9a15 15 0 0 0 6.3-5.3l4.7-8c6.4-10.8 23-6.3 23 6.3v19.1c0 6.8-5.5 12.4-12.4 12.4H61.2c-13.7 0-17.2-19-4.4-23.9l1.5-.6Z" fill="#8EC180" />
+      <path d="M36.3 51.7c-.2 2.8.6 5.6 2.2 7.9l5.3 7.6c7.2 10.3-3.8 23.6-15.3 18.3L11.1 77.6C4.9 74.8 2.2 67.5 5 61.2l7.8-17c5.7-12.5 24.5-7.8 23.6 5.9l-.1 1.6Z" fill="#00BEFD" />
+      <path d="M59.6 43.6a15 15 0 0 0-7.7-2.8l-9.3-.1c-12.6-.1-17-16.8-6.1-23.1L53 8.1c5.9-3.4 13.5-1.4 16.9 4.5l9.4 16.2c6.9 11.9-7.8 24.5-18.5 15.8l-1.2-1Z" fill="#D5FF00" />
+    </svg>
+  );
+}
+
 const LIME = "#D5FF00", CYAN = "#00BEFD", GREEN = "#8EC180";
 
 const FAQ: { q: string; a: string }[] = [
@@ -58,13 +69,13 @@ function H2({ children }: { children: React.ReactNode }) {
 
 export default function Landing() {
   return (
-    <div className="overflow-x-clip">
+    <div className="lt-light overflow-x-clip bg-[var(--bg)] text-[var(--ink)]">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       {/* Шапка */}
       <header className="sticky top-0 z-40 border-b border-line/70 bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl">
         <div className={`${wrap} flex h-16 items-center justify-between gap-4`}>
-          <div className="w-28 shrink-0 sm:w-36"><Logo href="/" className="[&_img]:h-8" /></div>
+          <div className="w-28 shrink-0 sm:w-36"><Logo href="/" light className="[&_img]:h-8" /></div>
           <nav aria-label="Разделы" className="hidden items-center gap-7 text-sm font-medium text-ink2 lg:flex">
             <a href="#how" className="hover:text-ink">Как работает</a>
             <a href="#features" className="hover:text-ink">Возможности</a>
@@ -81,13 +92,12 @@ export default function Landing() {
 
       <main>
         {/* Hero */}
-        <section className="relative">
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-            <div className="absolute -left-32 -top-24 h-[28rem] w-[28rem] rounded-full opacity-30 blur-3xl" style={{ background: CYAN }} />
-            <div className="absolute -right-24 top-20 h-[26rem] w-[26rem] rounded-full opacity-25 blur-3xl" style={{ background: LIME }} />
-            <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full opacity-20 blur-3xl" style={{ background: GREEN }} />
+        <section className="relative mx-2 mt-2 overflow-hidden rounded-[2rem] sm:mx-3 sm:rounded-[2.5rem]" style={{ background: "linear-gradient(180deg, #f6ffc7 0%, #eefadf 55%, #e3f6fe 100%)" }}>
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <Blobs className="absolute -right-24 -top-16 h-[34rem] w-[34rem] rotate-12 opacity-[.16]" />
+            <Blobs className="absolute -bottom-32 -left-28 h-[26rem] w-[26rem] -rotate-12 opacity-[.12]" />
           </div>
-          <div className={`${wrap} grid items-center gap-12 pb-16 pt-12 md:pb-24 md:pt-20 lg:grid-cols-[1.05fr_.95fr]`}>
+          <div className={`${wrap} relative grid items-center gap-12 pb-10 pt-12 md:pt-20 lg:grid-cols-[1.05fr_.95fr]`}>
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 text-xs font-semibold text-ink2 backdrop-blur">
                 <span className="h-2 w-2 rounded-full" style={{ background: GREEN }} />Автоматический контент для бизнеса
@@ -129,6 +139,21 @@ export default function Landing() {
                 <div><p className="text-xs font-semibold">План на месяц готов</p><p className="text-[11px] text-ink2">30 идей за 1 минуту</p></div>
               </div>
             </div>
+          </div>
+          <div className={`${wrap} relative pb-10 md:pb-14`}>
+            <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                ["1 минута", "на контент-план месяца"],
+                ["от 20 ₽", "стоимость готового поста"],
+                ["4–10 слайдов", "карусель-картинки за 35 ₽"],
+                ["3 площадки", "Telegram, VK и MAX в один клик"],
+              ].map(([n, d]) => (
+                <li key={n} className="rounded-3xl p-5 text-[#14161a] shadow-[0_10px_30px_-18px_rgba(120,150,0,.6)]" style={{ background: LIME }}>
+                  <p className="text-2xl font-extrabold tracking-tight sm:text-3xl">{n}</p>
+                  <p className="mt-1.5 text-[13px] font-medium leading-snug opacity-80 sm:text-sm">{d}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -183,7 +208,7 @@ export default function Landing() {
                 { i: Sparkles, t: "Одобрите материалы", d: "Тексты, карусели и картинки готовы. Правьте любую деталь, а правки слайдов бесплатны." },
                 { i: Send, t: "Публикация по расписанию", d: "Посты выходят в Telegram, VK и MAX в лучшее время. Если что-то пошло не так, деньги возвращаются." },
               ].map((s, n) => (
-                <li key={s.t} className="relative rounded-3xl border border-line bg-surface p-6">
+                <li key={s.t} className="relative rounded-3xl p-6" style={{ background: ["var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)", "var(--pastel-cyan)"][n] }}>
                   <span className="mb-5 flex items-center gap-3">
                     <span className="grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: [CYAN, LIME, GREEN, CYAN][n] }}><s.i size={21} /></span>
                     <span className="text-3xl font-extrabold text-ink3/50">0{n + 1}</span>
@@ -204,7 +229,7 @@ export default function Landing() {
             <H2>Всё, что нужно для регулярного контента, в одном окне</H2>
             <div className="mt-12 grid gap-4 md:grid-cols-6">
               {/* Карусели — крупная карточка */}
-              <article className="relative overflow-hidden rounded-3xl border border-line bg-surface p-7 md:col-span-4">
+              <article className="relative overflow-hidden rounded-3xl p-7 md:col-span-4" style={{ background: "var(--pastel-cyan)" }}>
                 <div className="grid items-center gap-6 sm:grid-cols-[1fr_auto]">
                   <div>
                     <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: CYAN }}><GalleryHorizontal size={21} /></span>
@@ -221,7 +246,7 @@ export default function Landing() {
                 </div>
               </article>
 
-              <article className="rounded-3xl border border-line bg-surface p-7 md:col-span-2">
+              <article className="rounded-3xl p-7 md:col-span-2" style={{ background: "var(--pastel-lime)" }}>
                 <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: LIME }}><CalendarDays size={21} /></span>
                 <h3 className="text-xl font-bold">Контент-план на месяц</h3>
                 <p className="mt-3 text-[15px] leading-relaxed text-ink2">Идеи с учётом ниши, типов постов и дат. Календарь публикаций и подбор лучшего времени выхода.</p>
@@ -234,14 +259,14 @@ export default function Landing() {
                 { i: Radar, c: CYAN, t: "Мониторинг и идеи", d: "Следим за новостями, каналами VK и Telegram, сайтами и ключевыми словами. Находки превращаются в темы." },
                 { i: BarChart3, c: GREEN, t: "Аналитика", d: "Что вышло, что сработало, в какое время лучше публиковать. Решения на данных, а не на ощущениях." },
                 { i: Bot, c: LIME, t: "Автопилот и помощник Лия", d: "Автопилот сам собирает идеи и пишет черновики. Помощник отвечает на вопросы по сервису." },
-              ].map((f) => (
-                <article key={f.t} className="rounded-3xl border border-line bg-surface p-7 md:col-span-2">
+              ].map((f, n) => (
+                <article key={f.t} className="rounded-3xl p-7 md:col-span-2" style={{ background: ["var(--pastel-green)", "var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)"][n] }}>
                   <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: f.c }}><f.i size={21} /></span>
                   <h3 className="text-xl font-bold">{f.t}</h3>
                   <p className="mt-3 text-[15px] leading-relaxed text-ink2">{f.d}</p>
                 </article>
               ))}
-              <article className="rounded-3xl border border-line bg-tile/60 p-7 md:col-span-6">
+              <article className="relative overflow-hidden rounded-3xl p-7 md:col-span-6" style={{ background: "var(--pastel-green)" }}>
                 <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
                   <span className="grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: GREEN }}><Users size={21} /></span>
                   <div><h3 className="text-xl font-bold">Много брендов, команда и роли</h3><p className="mt-1.5 max-w-2xl text-[15px] text-ink2">Любое число брендов и контент-заводов в одной организации, у каждого свой стиль и каналы. Приглашайте сотрудников и клиентов с ролями «администратор», «редактор», «наблюдатель».</p></div>
@@ -303,8 +328,8 @@ export default function Landing() {
                 { i: ShieldCheck, t: "Публикация только с вашего «да»", d: "Автопилот собирает идеи и пишет черновики, а выходит в канал только то, что вы одобрили." },
                 { i: Wallet, t: "Платите за результат", d: "Нет абонемента. Если генерация не удалась, списанные деньги автоматически возвращаются на счёт." },
                 { i: Zap, t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
-              ].map((b) => (
-                <div key={b.t} className="rounded-3xl border border-line bg-surface p-7">
+              ].map((b, n) => (
+                <div key={b.t} className="rounded-3xl p-7" style={{ background: ["var(--pastel-lime)", "var(--pastel-cyan)", "var(--pastel-green)"][n] }}>
                   <b.i size={26} className="text-accent-ink" />
                   <h3 className="mt-4 text-lg font-bold">{b.t}</h3>
                   <p className="mt-2 text-[15px] leading-relaxed text-ink2">{b.d}</p>
@@ -325,9 +350,9 @@ export default function Landing() {
                 { i: UserRound, t: "Эксперты и блогеры", d: "Ваш голос и ваши идеи, а рутину оформления и публикации берёт на себя сервис." },
                 { i: Briefcase, t: "Агентства и фрилансеры", d: "Ведите десятки клиентов в одном окне и берите больше проектов без роста штата." },
                 { i: Building2, t: "Компании и команды", d: "Единый стиль всех каналов, роли для сотрудников и контроль каждого материала." },
-              ].map((w) => (
-                <div key={w.t} className="rounded-3xl border border-line bg-surface p-6">
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-accent-soft text-accent-ink"><w.i size={21} /></span>
+              ].map((w, n) => (
+                <div key={w.t} className="rounded-3xl p-6" style={{ background: ["var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)", "var(--pastel-cyan)"][n] }}>
+                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-accent-ink"><w.i size={21} /></span>
                   <h3 className="mt-4 text-lg font-bold">{w.t}</h3>
                   <p className="mt-2 text-[15px] leading-relaxed text-ink2">{w.d}</p>
                 </div>
@@ -362,7 +387,7 @@ export default function Landing() {
                 </ul>
               </div>
               <div className="relative overflow-hidden rounded-3xl p-8 text-[#14161a]" style={{ background: `linear-gradient(145deg, ${CYAN}, ${GREEN} 60%, ${LIME})` }}>
-                <p className="text-sm font-semibold opacity-80">Пример: контент на месяц</p>
+                <Blobs className="absolute -right-10 -top-10 h-44 w-44 rotate-12 opacity-40 [filter:saturate(.5)_brightness(1.5)]" /><p className="relative text-sm font-semibold opacity-80">Пример: контент на месяц</p>
                 <p className="mt-3 text-5xl font-extrabold tracking-tight">≈ 900 ₽</p>
                 <p className="mt-3 text-[15px] font-medium leading-relaxed">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста.</p>
                 <Link href="/register" className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#14161a] px-6 text-[15px] font-semibold text-white transition hover:opacity-90">Получить 100 ₽ и начать<ArrowRight size={18} /></Link>
@@ -392,7 +417,7 @@ export default function Landing() {
         {/* Финальный призыв */}
         <section className="px-5 py-16 md:py-24">
           <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] px-6 py-14 text-center text-[#14161a] sm:px-12 md:py-20" style={{ background: `linear-gradient(120deg, ${CYAN} 0%, ${GREEN} 55%, ${LIME} 100%)` }}>
-            <div aria-hidden className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white/25 blur-2xl" />
+            <Blobs className="absolute -right-16 -top-20 h-80 w-80 rotate-12 opacity-30 [filter:saturate(.4)_brightness(1.4)]" /><Blobs className="absolute -bottom-24 -left-16 h-72 w-72 -rotate-12 opacity-25 [filter:saturate(.4)_brightness(1.4)]" />
             <h2 className="relative mx-auto max-w-3xl text-balance text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">Запустите контент-завод для своего бренда сегодня</h2>
             <p className="relative mx-auto mt-4 max-w-xl text-lg font-medium">100 ₽ в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
             <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -406,7 +431,7 @@ export default function Landing() {
       <footer className="border-t border-line">
         <div className={`${wrap} flex flex-col gap-6 py-10 md:flex-row md:items-start md:justify-between`}>
           <div className="max-w-xs">
-            <div className="w-36"><Logo href="/" className="[&_img]:h-8" /></div>
+            <div className="w-36"><Logo href="/" light className="[&_img]:h-8" /></div>
             <p className="mt-3 text-sm text-ink2">Автоматический контент для соцсетей и сайта: план, тексты, карусели, публикация.</p>
           </div>
           <nav aria-label="Навигация" className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-ink2">
