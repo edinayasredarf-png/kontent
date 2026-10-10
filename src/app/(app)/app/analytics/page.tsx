@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
-import { analytics, type Period } from "@/lib/engage";
+import { analytics, membersReport, type Period } from "@/lib/engage";
 import { recommendAction, refreshStatsAction } from "@/lib/engage-actions";
 import { PRICES, rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
@@ -13,7 +13,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
   const { d } = await searchParams;
   const days: Period = d === "7" ? 7 : d === "all" ? 0 : 30;
   const c = await requireCtx();
-  const a = await analytics(c.org.id, days);
+  const [a, members] = await Promise.all([analytics(c.org.id, days), membersReport(c.org.id)]);
   const posts = Number(a.tot.posts), views = Number(a.tot.views), eng = Number(a.tot.likes) + Number(a.tot.comments) + Number(a.tot.reposts);
   const er = views ? ((eng / views) * 100).toFixed(1) : "0";
   const maxH = Math.max(1, ...a.byHour.map((h) => Number(h.avg)));
@@ -32,6 +32,26 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
             <div key={l} className="rounded-2xl bg-tile p-5"><div className="mb-1 text-sm text-ink2">{l}</div><div className="text-2xl font-semibold">{v}</div></div>
           ))}
         </div>
+        {members.length > 0 && (
+          <section className="card mb-6 p-5">
+            <b className="mb-3 block text-sm">Подписчики</b>
+            <div className="grid gap-3 md:grid-cols-2">
+              {members.map((m) => {
+                const mx = Math.max(1, ...m.series.map((p) => p.members)), mn = Math.min(...m.series.map((p) => p.members));
+                const diff = (b: number | null) => (b != null && m.now != null ? m.now - b : null);
+                const fmtD = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v}`);
+                return (
+                  <div key={m.id} className="rounded-xl bg-tile p-4">
+                    <div className="flex items-baseline justify-between gap-2"><span className="truncate text-sm">{SUPPORTED_CHANNELS[m.kind] ?? m.kind}: {m.title}</span><span className="text-xl font-semibold">{(m.now ?? 0).toLocaleString("ru-RU")}</span></div>
+                    <div className="mt-1 flex gap-4 text-xs text-ink2"><span>за 7 дней: <b className={(diff(m.d7) ?? 0) >= 0 ? "text-good" : "text-bad"}>{fmtD(diff(m.d7))}</b></span><span>за 30 дней: <b className={(diff(m.d30) ?? 0) >= 0 ? "text-good" : "text-bad"}>{fmtD(diff(m.d30))}</b></span></div>
+                    {m.series.length > 1 && <div className="mt-3 flex h-12 items-end gap-0.5">{m.series.map((p, i) => <div key={i} title={`${p.day}: ${p.members}`} className="flex-1 rounded-t bg-accent/70" style={{ height: `${10 + ((p.members - mn) / Math.max(1, mx - mn)) * 90}%` }} />)}</div>}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-ink3">Число подписчиков записывается раз в сутки. График появится через пару дней после подключения канала.</p>
+          </section>
+        )}
         <AiPanel title="Рекомендации ИИ" hint={`Разбор того, что работает, и что делать на следующей неделе · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Получить рекомендации" action={bound} />
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
           <section className="card p-5">

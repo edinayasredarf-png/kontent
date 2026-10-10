@@ -20,7 +20,7 @@ export const maxDuration = 300;
 import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null }
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -39,8 +39,9 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
   const carAssets = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel").map((x) => x.id)]);
+  const fb = await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
   const st = cleanSettings((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
   const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
   const runway = await planRunway(id);
@@ -158,6 +159,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               <span className="w-20 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
               <span className="chip">{KIND[i.kind]}</span>
               <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}</span>
+              {i.client && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${i.client === "approved" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"}`}>{i.client === "approved" ? "Клиент одобрил" : "Клиент просит правки"}</span>}
               <Status s={i.status} />
             </summary>
             <div className="mt-4 space-y-3 border-t border-line pt-4">
@@ -177,6 +179,13 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 </details>
               ) : null}
               {i.hook && <p className="text-sm text-ink2"><b>Хук:</b> {i.hook}</p>}
+              {fb.some((f) => f.item_id === i.id) && (
+                <div className="rounded-xl border border-line p-3">
+                  <b className="text-sm">Ответы клиента</b>
+                  <ul className="mt-2 space-y-2 text-sm">{fb.filter((f) => f.item_id === i.id).map((f, n) => (
+                    <li key={n}><span className={`mr-2 rounded-full px-2 py-0.5 text-xs font-medium ${f.verdict === "approved" ? "bg-good-soft text-good" : f.verdict === "changes" ? "bg-warn-soft text-warn" : "bg-tile text-ink2"}`}>{f.verdict === "approved" ? "Одобрено" : f.verdict === "changes" ? "Нужны правки" : "Комментарий"}</span><span className="text-xs text-ink3">{f.author || "Клиент"} · {new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" })}</span>{f.comment && <p className="mt-1 whitespace-pre-wrap text-ink2">{f.comment}</p>}</li>))}</ul>
+                </div>
+              )}
               {i.kind === "carousel" && i.carousel && carAssets.some((a) => a.item_id === i.id) && (
                 <CarouselPanel itemId={i.id} factoryId={id} meta={i.carousel} assets={carAssets.filter((a) => a.item_id === i.id)} editable={["idea", "approved", "ready", "failed"].includes(i.status)} free={c.org.unlimited} />
               )}

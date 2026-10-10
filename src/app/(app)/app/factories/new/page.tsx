@@ -4,6 +4,10 @@ import { q } from "@/lib/db";
 import { Form, Field } from "@/components/Form";
 import { saveFactory } from "@/lib/actions";
 import { PageHead, KIND } from "@/components/ui";
+import { NichePicker } from "@/components/NichePicker";
+import { NICHES } from "@/lib/niches";
+
+const PRESETS = Object.entries(NICHES).map(([key, n]) => ({ key, name: n.name, values: { name: n.factory.name, niche: n.factory.niche, product: n.factory.product }, checks: { formats: n.factory.formats } }));
 
 const DAYS = [["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", "Пт"], ["6", "Сб"], ["0", "Вс"]];
 
@@ -18,6 +22,7 @@ export default async function NewFactory() {
       <PageHead title="Новый завод" sub="Один завод — один продукт или направление. Не смешивайте темы." />
       <div className="card max-w-2xl p-6">
         <Form action={saveFactory} submit="Создать завод">
+          <NichePicker presets={PRESETS} hint="Подставит нишу, продукт, форматы, а также типы постов, длину, эмодзи, хештеги и призыв к действию завода." />
           <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
           <Field label="Название завода"><input name="name" required className="input" placeholder="Например: Блог про закупки" /></Field>
           <Field label="Ниша"><input name="niche" className="input" /></Field>

@@ -109,6 +109,7 @@ export async function genPlan(b: BrandCtx, product: string, niche: string, kinds
     (seoOnly ? " Это план SEO-статей для сайта: topic — реальный поисковый запрос так, как его вводит человек (без кавычек и «топ-10»), hook — намерение и угол статьи одной фразой. Запросы не должны дублировать друг друга." : "");
   const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ровно ${days} идей, по одной на день. Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
     (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 60).join("\n- ")}\n` : "") +
+    (st?.learnings ? `${st.learnings}\nПредлагай идеи в духе того, что сработало лучше, но с новыми углами.\n` : "") +
     (types.length > 1 ? `Типы постов: ${types.map((t) => `${t} — ${POST_TYPES[t].toLowerCase()}`).join("; ")}. Распредели их по идеям равномерно и укажи в поле "type" (одно из: ${types.join(", ")}).\n` : "") +
     `Формат ответа: [{"topic":"...","hook":"первая строка, цепляющая внимание","kind":"${kinds[0]}"${types.length > 1 ? ',"type":"' + types[0] + '"' : ""}}]`;
   let arr: unknown[] | null = null;

@@ -35,6 +35,7 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
           <label className="label">Примеры ваших постов</label>
           <textarea name="examples" defaultValue={st.examples} rows={5} maxLength={3000} placeholder="Вставьте 2–3 примера постов, которые вам нравятся. Нейросеть перенимает манеру и интонацию, но не содержание." className="input text-sm" />
         </div>
+        <label className="flex items-start gap-2 rounded-xl bg-tile p-3 text-sm"><input type="checkbox" name="learn" defaultChecked={st.learn} className="mt-0.5" /><span><b>Учиться на результатах</b><span className="block text-xs text-ink2">Когда накопится статистика (от 6 постов), ИИ видит, какие темы и форматы набрали больше просмотров, и предлагает идеи в этом духе.</span></span></label>
         <div className="border-t border-line pt-4">
           <b className="mb-3 block text-sm">Карусели</b>
           <div className="grid gap-4 sm:grid-cols-4">

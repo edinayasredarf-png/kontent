@@ -39,7 +39,7 @@ export async function saveContentSettingsAction(f: FormData) {
   if (s(f, "link") && !link) { redirect(`/app/factories/${fid}?err=${encodeURIComponent("Ссылка должна быть адресом сайта (http:// или https://)")}`); }
   const st = cleanSettings({
     postTypes: f.getAll("postTypes").map(String), length: s(f, "length"), examples: String(f.get("examples") ?? ""), link, cta: s(f, "cta"),
-    hashtags: s(f, "hashtags"), emoji: s(f, "emoji"), slides: Number(s(f, "slides")), carouselStyle: s(f, "carouselStyle"), carouselCover: s(f, "carouselCover"), carouselFormat: s(f, "carouselFormat"),
+    learn: f.get("learn") === "on", hashtags: s(f, "hashtags"), emoji: s(f, "emoji"), slides: Number(s(f, "slides")), carouselStyle: s(f, "carouselStyle"), carouselCover: s(f, "carouselCover"), carouselFormat: s(f, "carouselFormat"),
   });
   await q("update kz_factories set brief = brief || $3::jsonb where id=$1 and org_id=$2", [fid, c.org.id, JSON.stringify(st)]);
   revalidatePath(`/app/factories/${fid}`);

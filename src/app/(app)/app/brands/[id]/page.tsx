@@ -9,6 +9,8 @@ import { Form, Field } from "@/components/Form";
 import { AssetUploader } from "@/components/AssetUploader";
 import { deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
+import { ShareCard } from "@/components/ShareCard";
+import { listLinks } from "@/lib/share";
 
 const TONES: Record<string, string> = { professional: "Профессиональный", friendly: "Дружелюбный", humor: "Юмористический", serious: "Серьёзный", inspiring: "Вдохновляющий" };
 const ASPECT: Record<string, string> = { square: "Квадрат 1:1", portrait: "Вертикальный 2:3", landscape: "Горизонтальный 3:2" };
@@ -75,6 +77,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="space-y-6">
+          <ShareCard brandId={id} links={await listLinks(c.org.id, id)} canEdit={canEdit} />
           <section className="card p-5">
             <b className="text-sm">Логотип</b>
             <p className="mb-3 mt-1 text-xs text-ink2">PNG с прозрачным фоном. Накладывается на готовую картинку, а не рисуется нейросетью — так буквы не искажаются.</p>

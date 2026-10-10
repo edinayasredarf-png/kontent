@@ -13,6 +13,8 @@ import { cleanKit, describeImage } from "./images";
 import { loadAsset } from "./assets";
 import { cleanHtml, slugify } from "./seo";
 import { seal } from "./crypto";
+import { NICHES } from "./niches";
+import { cleanSettings } from "./postsettings";
 import { providerFor } from "./publishing";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -122,10 +124,11 @@ export async function saveFactory(_: unknown, f: FormData) {
   const times = s(f, "times").split(",").map((x) => x.trim()).filter((x) => /^\d{2}:\d{2}$/.test(x));
   const schedule = JSON.stringify({ days: days.length ? days : [1, 2, 3, 4, 5], times: times.length ? times : ["10:00"], tz: "Europe/Moscow" });
   const row = await one<{ id: string }>(
-    `insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish)
-     values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
+    `insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish,brief)
+     values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id`,
     [c.org.id, s(f, "brand_id"), s(f, "name"), s(f, "niche"), s(f, "product"), formats.length ? formats : ["post"], schedule,
-     s(f, "approval") === "auto" ? "auto" : "manual", f.get("autopublish") === "on"]);
+     s(f, "approval") === "auto" ? "auto" : "manual", f.get("autopublish") === "on",
+     JSON.stringify(NICHES[s(f, "niche_key")] ? cleanSettings(NICHES[s(f, "niche_key")].settings) : {})]);
   revalidatePath("/app/factories");
   redirect(`/app/factories/${row!.id}`);
 }

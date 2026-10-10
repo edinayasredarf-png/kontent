@@ -8,6 +8,8 @@ export const CAROUSEL_STYLES = { brand: "Фирменный цвет", light: "�
 export interface ContentSettings {
   postTypes: string[]; length: keyof typeof LENGTHS; examples: string; link: string; cta: string;
   hashtags: keyof typeof HASHTAGS; emoji: keyof typeof EMOJI;
+  /** Учитывать результаты прошлых публикаций бренда (самообучение). */ learn: boolean;
+  /** Служебное: текст выводов из статистики, подставляется перед генерацией и не сохраняется. */ learnings: string;
   slides: number; carouselStyle: keyof typeof CAROUSEL_STYLES; carouselCover: "plain" | "ai"; carouselFormat: "portrait" | "square";
 }
 
@@ -28,6 +30,7 @@ export function cleanSettings(raw: unknown): ContentSettings {
     postTypes: types, length: pick(b.length, Object.keys(LENGTHS) as (keyof typeof LENGTHS)[], "short"),
     examples: str(b.examples, 3000), link: cleanLink(b.link), cta: str(b.cta, 200),
     hashtags: pick(b.hashtags, Object.keys(HASHTAGS) as (keyof typeof HASHTAGS)[], "few"), emoji: pick(b.emoji, Object.keys(EMOJI) as (keyof typeof EMOJI)[], "moderate"),
+    learn: b.learn !== false, learnings: "",
     slides: Math.min(10, Math.max(4, Math.round(Number(b.slides)) || 6)),
     carouselStyle: pick(b.carouselStyle, Object.keys(CAROUSEL_STYLES) as (keyof typeof CAROUSEL_STYLES)[], "brand"),
     carouselCover: b.carouselCover === "ai" ? "ai" : "plain", carouselFormat: b.carouselFormat === "square" ? "square" : "portrait",
@@ -45,5 +48,6 @@ export function styleBlock(s: ContentSettings, kind: string, postType?: string):
   if (s.cta) lines.push(`Призыв к действию (используй близко к этому смыслу): «${s.cta}».`);
   if (s.link) lines.push(`Ссылка для читателя: ${s.link} — вставь её в конце как есть, ничего не меняя и не придумывая другие ссылки.`);
   if (s.examples) lines.push(`Примеры постов автора. Перенимай манеру: длину фраз, интонацию, как начинаются и заканчиваются тексты. Содержание и факты из примеров НЕ копируй:\n---\n${s.examples}\n---`);
+  if (s.learnings) lines.push(s.learnings);
   return lines.join("\n");
 }

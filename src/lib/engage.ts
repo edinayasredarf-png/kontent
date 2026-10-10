@@ -171,3 +171,74 @@ export async function recommendations(orgId: string, days: Period): Promise<{ te
     return { text };
   } catch (e) { await refund(orgId, cost, "ошибка рекомендаций"); return { error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
 }
+
+/* ───────── самообучение: выводы из статистики прошлых публикаций бренда ───────── */
+/**
+ * Короткая выжимка для промпта: какие темы и форматы набрали больше всего просмотров и какие провалились.
+ * Работает только когда накопилось хотя бы 6 постов со статистикой — иначе выводы случайны. Пустая строка — данных мало.
+ */
+export async function learnings(orgId: string, brandId: string): Promise<string> {
+  const rows = await q<{ topic: string; hook: string; kind: string; views: number; react: number }>(
+    `select i.topic,i.hook,i.kind,s.views,(s.likes+s.comments+s.reposts) react
+       from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id
+      where p.org_id=$1 and i.brand_id=$2 and p.status='published' and p.published_at > now() - interval '120 days' and s.views > 0
+      order by s.views desc limit 60`, [orgId, brandId]);
+  if (rows.length < 6) return "";
+  const best = rows.slice(0, 4), worst = rows.slice(-3);
+  const byKind = new Map<string, number[]>();
+  for (const r of rows) byKind.set(r.kind, [...(byKind.get(r.kind) ?? []), r.views]);
+  const kinds = [...byKind.entries()].filter(([, v]) => v.length >= 2).map(([k, v]) => [k, Math.round(v.reduce((a, b) => a + b, 0) / v.length)] as const).sort((a, b) => b[1] - a[1]);
+  const t = (r: { topic: string; hook: string }) => `«${r.topic.slice(0, 90)}»${r.hook ? ` (хук: ${r.hook.slice(0, 80)})` : ""}`;
+  return [
+    "Что показала статистика этого бренда (учитывай как подсказку, не копируй дословно и не повторяй темы):",
+    `Лучше всего сработало:\n${best.map((r) => `- ${t(r)} — ${r.views} просм.`).join("\n")}`,
+    `Хуже всего:\n${worst.map((r) => `- ${t(r)} — ${r.views} просм.`).join("\n")}`,
+    kinds.length > 1 ? `Средние просмотры по форматам: ${kinds.map(([k, v]) => `${k} ${v}`).join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
+}
+
+/* ───────── подписчики каналов ───────── */
+const TG_API = () => (process.env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
+
+/** Раз в сутки записывает число подписчиков каждого активного канала Telegram и VK — из этого строится рост аудитории. */
+export async function collectMembers(limit = 30): Promise<{ saved: number; errors: string[] }> {
+  const chans = await q<{ id: string; org_id: string; kind: string; credentials: unknown }>(
+    `select c.id,c.org_id,c.kind,c.credentials from kz_channels c
+      where c.status='active' and c.kind in ('telegram','vk') and not exists (select 1 from kz_channel_stats s where s.channel_id=c.id and s.day=current_date)
+        and not exists (select 1 from kz_orgs o where o.id=c.org_id and o.suspended)
+      limit $1`, [limit]);
+  const out = { saved: 0, errors: [] as string[] };
+  for (const c of chans) {
+    try {
+      const cred = open(c.credentials);
+      let n: number | null = null;
+      if (c.kind === "telegram") {
+        const res = await fetch(`${TG_API()}/bot${cred.token}/getChatMemberCount?chat_id=${encodeURIComponent((cred.target ?? "").trim())}`, { signal: AbortSignal.timeout(12_000) });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: number };
+        if (j.ok && typeof j.result === "number") n = j.result;
+      } else {
+        const id = (cred.target ?? "").trim().replace(/^-/, "");
+        const r = await vkCall<{ groups?: { members_count?: number }[] } | { members_count?: number }[]>(cred.token, "groups.getById", { group_id: id, fields: "members_count" });
+        const g = Array.isArray(r) ? r[0] : r.groups?.[0];
+        if (typeof g?.members_count === "number") n = g.members_count;
+      }
+      if (n == null) { out.errors.push(`${c.kind}: число подписчиков недоступно`); continue; }
+      await q("insert into kz_channel_stats(channel_id,org_id,day,members) values($1,$2,current_date,$3) on conflict(channel_id,day) do update set members=excluded.members", [c.id, c.org_id, n]);
+      out.saved++;
+    } catch (e) { out.errors.push(`${c.kind}: ${(e as Error).message}`.slice(0, 140)); }
+  }
+  return out;
+}
+
+/** Подписчики по каналам: сейчас, 7 и 30 дней назад и ряд по дням для графика. */
+export async function membersReport(orgId: string) {
+  const rows = await q<{ id: string; title: string; kind: string; now: number | null; d7: number | null; d30: number | null }>(
+    `select c.id,c.title,c.kind,
+            (select members from kz_channel_stats where channel_id=c.id order by day desc limit 1) as now,
+            (select members from kz_channel_stats where channel_id=c.id and day <= current_date - 7 order by day desc limit 1) as d7,
+            (select members from kz_channel_stats where channel_id=c.id and day <= current_date - 30 order by day desc limit 1) as d30
+       from kz_channels c where c.org_id=$1 and c.status='active' and c.kind in ('telegram','vk') order by c.created_at`, [orgId]);
+  const series = await q<{ channel_id: string; day: string; members: number }>(
+    "select channel_id,to_char(day,'DD.MM') as day,members from kz_channel_stats where org_id=$1 and day > current_date - 60 order by day", [orgId]);
+  return rows.filter((r) => r.now != null).map((r) => ({ ...r, series: series.filter((s) => s.channel_id === r.id) }));
+}

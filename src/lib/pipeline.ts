@@ -5,9 +5,10 @@ import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
 import { pollDue } from "./monitor/service";
 import { allocateDates } from "./plan";
-import { collectComments, collectStats } from "./engage";
+import { collectComments, collectMembers, collectStats } from "./engage";
 import { genSeoArticle } from "./seo";
-import { cleanSettings } from "./postsettings";
+import { learnings } from "./engage";
+import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, slideHeight } from "./carousel/service";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
@@ -41,7 +42,7 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   try {
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 60", [factoryId])).map((x) => x.topic);
-    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, cleanSettings(fac.brief));
+    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, await settingsFor(orgId, fac));
     // продолжаем с дня после последнего запланированного и только в дни публикации завода
     const dates = await allocateDates(factoryId, ideas.length);
     await tx(async (run) => {
@@ -55,6 +56,13 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
     await refund(orgId, cost, "ошибка генерации плана", factoryId);
     return { ok: false, error: `Генерация не удалась, деньги возвращены: ${(e as Error).message}` };
   }
+}
+
+/** Настройки завода + выводы из статистики прошлых публикаций бренда (если самообучение включено и данных достаточно). Сбой сбора не мешает генерации. */
+async function settingsFor(orgId: string, fac: { brand_id: string; brief: unknown }): Promise<ContentSettings> {
+  const st = cleanSettings(fac.brief);
+  if (st.learn) { try { st.learnings = await learnings(orgId, fac.brand_id); } catch { /* без выводов */ } }
+  return st;
 }
 
 /** Описания референсов и фото продукта бренда — они попадают в промпт картинки как «видение стиля». */
@@ -84,10 +92,10 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
     if (item.kind === "seo") {
       // тема идеи — поисковый запрос, хук — угол статьи; тело — готовый HTML, SEO-поля — в meta.seo
       const art = await genSeoArticle(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
-      await q("update kz_content_items set body=$2,meta = meta || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
+      await q("update kz_content_items set body=$2,meta = (meta-'client') || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
     } else if (item.kind === "carousel") {
       // тексты слайдов — структурой от нейросети, сами картинки набираем и рисуем у себя (кириллица на картинках нейросетей искажается)
-      const st = cleanSettings(fac.brief);
+      const st = await settingsFor(orgId, fac);
       const car = await genCarousel(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st.slides, st, item.meta?.source, item.meta?.postType);
       let cover: Buffer | null = null;
       if (st.carouselCover === "ai") {
@@ -103,10 +111,10 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
         }
       }
       await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
-      await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
+      await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
     } else {
-      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, cleanSettings(fac.brief), item.meta?.postType);
-      await q("update kz_content_items set body=$2,status='ready',updated_at=now() where id=$1", [item.id, body]);
+      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac), item.meta?.postType);
+      await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
     if (fac.brief?.images && item.kind !== "carousel") {
@@ -320,6 +328,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // статистика опубликованных постов и новые комментарии (сбой площадки не должен ронять остальной проход)
   try { const s = await collectStats(40); rep.stats = s.updated; rep.errors.push(...s.errors.slice(0, 3)); } catch (e) { rep.errors.push(`stats: ${(e as Error).message}`); }
+  try { const m = await collectMembers(20); rep.errors.push(...m.errors.slice(0, 2)); } catch (e) { rep.errors.push(`members: ${(e as Error).message}`); }
   try { const c = await collectComments(15); rep.comments = c.added; rep.errors.push(...c.errors.slice(0, 3)); } catch (e) { rep.errors.push(`comments: ${(e as Error).message}`); }
 
   // сгенерированные картинки, на которые больше ничего не ссылается (материал удалён), не копим в БД
