@@ -3,6 +3,7 @@ import { one, q } from "../db";
 import { loadAsset, saveAsset } from "../assets";
 import { cleanKit } from "../images";
 import { cleanSettings } from "../postsettings";
+import { fixLayout } from "./layouts";
 import { renderCarousel, type CarouselStyle, type Slide } from "./render";
 
 export const carouselAssets = (itemId: string) =>
@@ -17,7 +18,9 @@ export const slideHeight = (format: "portrait" | "square") => (format === "portr
 
 export function cleanSlides(raw: unknown): Slide[] {
   const arr = Array.isArray(raw) ? raw : [];
-  return arr.slice(0, 10).map((s) => ({ title: String((s as Slide)?.title ?? "").replace(/\s+/g, " ").trim().slice(0, 90), body: String((s as Slide)?.body ?? "").replace(/\s+/g, " ").trim().slice(0, 320) })).filter((s) => s.title);
+  const slides = arr.slice(0, 10).map((s) => ({ title: String((s as Slide)?.title ?? "").replace(/\s+/g, " ").trim().slice(0, 90), body: String((s as Slide)?.body ?? "").replace(/\s+/g, " ").trim().slice(0, 320), layout: (s as Slide)?.layout })).filter((s) => s.title);
+  // макет только у внутренних слайдов и только если текст ему подходит; иначе обычный (поле не сохраняем)
+  return slides.map((s, i) => { const l = fixLayout(s.layout, s.title, s.body, i > 0 && i < slides.length - 1 && slides.length >= 3); return l === "text" ? { title: s.title, body: s.body } : { title: s.title, body: s.body, layout: l }; });
 }
 
 /**

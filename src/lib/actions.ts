@@ -229,6 +229,12 @@ export async function saveChannel(_: unknown, f: FormData) {
   revalidatePath("/app/channels");
   redirect("/app/channels");
 }
+export async function saveSignatureAction(f: FormData) {
+  const c = await writer();
+  await q("update kz_channels set signature=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, String(f.get("signature") ?? "").replace(/\r/g, "").trim().slice(0, 500)]);
+  revalidatePath("/app/channels");
+}
+
 export async function deleteChannel(f: FormData) {
   const c = await writer();
   await q("delete from kz_channels where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);

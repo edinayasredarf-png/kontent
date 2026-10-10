@@ -16,7 +16,7 @@ export async function saveCarouselAction(f: FormData) {
   const id = s(f, "id"), fid = s(f, "factory");
   const it = await one<{ status: string }>("select status from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
   if (!it || !["idea", "approved", "ready", "failed"].includes(it.status)) return back(fid, id, "Эту карусель сейчас нельзя изменить");
-  const raw = Array.from({ length: 10 }, (_, i) => ({ title: s(f, `title_${i}`), body: s(f, `body_${i}`) }));
+  const raw = Array.from({ length: 10 }, (_, i) => ({ title: s(f, `title_${i}`), body: s(f, `body_${i}`), layout: s(f, `layout_${i}`) }));
   const slides = cleanSlides(raw);
   if (slides.length < 2) return back(fid, id, "В карусели должно быть минимум 2 слайда с заголовками");
   const style = (s(f, "style") in CAROUSEL_STYLES ? s(f, "style") : "brand") as keyof typeof CAROUSEL_STYLES;

@@ -1,7 +1,8 @@
 import sharp from "sharp";
 import { cleanText, fit, paths, widthOf } from "./text";
+import { fixLayout, parseCompare, parseList, type SlideLayout } from "./layouts";
 
-export interface Slide { title: string; body: string }
+export interface Slide { title: string; body: string; layout?: SlideLayout }
 export type CarouselStyle = "brand" | "light" | "dark";
 export interface RenderOpts {
   slides: Slide[]; style: CarouselStyle; colors: { hex: string; name?: string }[]; brandName: string;
@@ -57,6 +58,49 @@ function footer(p: Pal, H: number, label: string, ink: string, logo: Awaited<Ret
   return out;
 }
 
+/** Внутренние слайды с особым макетом: цифра, список, было/стало, цитата. Области считаются от высоты слайда, текст всегда помещается. */
+function specialSlide(layout: SlideLayout, title: string, body: string, p: Pal, ink: string, H: number, bg: string): string {
+  const innerW = W - 2 * M, top = 190, bottom = H - 170, area = bottom - top;
+  let g = "";
+  if (layout === "stat") {
+    const t = fit(title, 800, { maxWidth: innerW, maxHeight: 300, maxSize: 260, minSize: 110, maxLines: 1, lh: 1 });
+    const bd = fit(body, 500, { maxWidth: innerW, maxHeight: area - 340, maxSize: 58, minSize: 30, maxLines: 8, lh: 1.35 });
+    const total = t.lineHeight + 50 + bd.lines.length * bd.lineHeight, y0 = top + Math.max(0, (area - total) * 0.4);
+    g += paths(t.lines, M, y0 + t.size * 0.86, t.size, t.lineHeight, 800, p.accent);
+    g += `<rect x="${M}" y="${y0 + t.lineHeight + 8}" width="120" height="8" rx="4" fill="${p.accent}"/>`;
+    g += `<g opacity=".9">${paths(bd.lines, M, y0 + t.lineHeight + 50 + bd.size * 0.9, bd.size, bd.lineHeight, 500, ink)}</g>`;
+  } else if (layout === "quote") {
+    const q = fit(title, 800, { maxWidth: innerW, maxHeight: area - 330, maxSize: 76, minSize: 38, maxLines: 9, lh: 1.2 });
+    const by = body ? fit(body, 500, { maxWidth: innerW, maxHeight: 130, maxSize: 40, minSize: 26, maxLines: 2, lh: 1.3 }) : null;
+    const total = 200 + q.lines.length * q.lineHeight + (by ? 60 + by.lines.length * by.lineHeight : 0), y0 = top + Math.max(0, (area - total) * 0.35);
+    g += `<g opacity=".95">${paths(["\u201C"], M - 6, y0 + 210, 330, 330, 800, p.accent)}</g>`;
+    g += paths(q.lines, M, y0 + 190 + q.size * 0.9, q.size, q.lineHeight, 800, ink);
+    if (by) g += `<rect x="${M}" y="${y0 + 190 + q.lines.length * q.lineHeight + 22}" width="80" height="6" rx="3" fill="${p.accent}"/><g opacity=".75">${paths(by.lines, M, y0 + 190 + q.lines.length * q.lineHeight + 60 + by.size * 0.9, by.size, by.lineHeight, 500, ink)}</g>`;
+  } else {
+    const t = fit(title, 800, { maxWidth: innerW, maxHeight: 220, maxSize: 70, minSize: 40, maxLines: 3, lh: 1.12 });
+    g += paths(t.lines, M, top + t.size * 0.9, t.size, t.lineHeight, 800, ink);
+    const y1 = top + t.lines.length * t.lineHeight + 50, room = bottom - y1;
+    if (layout === "list") {
+      const items = parseList(body), gap = 26, each = Math.min(190, (room - gap * (items.length - 1)) / items.length);
+      items.forEach((it, k) => {
+        const y = y1 + k * (each + gap), f = fit(it, 500, { maxWidth: innerW - 130, maxHeight: each - 16, maxSize: 46, minSize: 28, maxLines: 3, lh: 1.25 });
+        g += `<rect x="${M}" y="${y}" width="${innerW}" height="${each}" rx="30" fill="${ink}" fill-opacity=".07"/>`;
+        g += `<circle cx="${M + 56}" cy="${y + each / 2}" r="32" fill="${p.accent}"/>${paths([String(k + 1)], M + 56, y + each / 2 + 16, 44, 48, 800, inkOn(p.accent), "middle")}`;
+        g += paths(f.lines, M + 118, y + (each - f.lines.length * f.lineHeight) / 2 + f.size * 0.88, f.size, f.lineHeight, 500, ink);
+      });
+    } else {
+      const c = parseCompare(body)!, gap = 28, each = (room - gap) / 2;
+      const card = (y: number, label: string, text: string, fill: string, fo: string, tc: string) => {
+        const f = fit(text, 500, { maxWidth: innerW - 80, maxHeight: each - 130, maxSize: 48, minSize: 28, maxLines: 6, lh: 1.28 });
+        return `<rect x="${M}" y="${y}" width="${innerW}" height="${each}" rx="34" fill="${fill}" fill-opacity="${fo}"/><g opacity=".7">${paths([label], M + 40, y + 70, 28, 32, 800, tc)}</g>${paths(f.lines, M + 40, y + 70 + 28 + f.size * 0.9, f.size, f.lineHeight, 500, tc)}`;
+      };
+      g += card(y1, c.a.label, c.a.text, ink, ".07", ink) + card(y1 + each + gap, c.b.label, c.b.text, p.accent, "1", inkOn(p.accent));
+    }
+  }
+  void bg;
+  return g;
+}
+
 async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<ReturnType<typeof prepLogo>>, p: Pal): Promise<string> {
   const n = o.slides.length, s = o.slides[i];
   const title = cleanText(s.title), body = cleanText(s.body);
@@ -92,6 +136,10 @@ async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<Retur
     if (bd) g += `<g opacity=".85">${paths(bd.lines, W / 2, top + t.lines.length * t.lineHeight + 48 + bd.size * 0.9, bd.size, bd.lineHeight, 500, ink, "middle")}</g>`;
     if (logo) { const lx = (W - logo.w) / 2, ly = H - M - logo.h; g += `<rect x="${lx - 22}" y="${ly - 16}" width="${logo.w + 44}" height="${logo.h + 32}" rx="22" fill="${p.chip}" fill-opacity=".95"/><image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
     else { const nm = cleanText(o.brandName).slice(0, 30); if (nm) g += `<g opacity=".8">${paths([nm], W / 2, H - 100, 36, 42, 800, ink, "middle")}</g>`; }
+  } else if (fixLayout(s.layout, title, body, true) !== "text") {
+    g += decor(p, H, i);
+    g += specialSlide(fixLayout(s.layout, title, body, true), title, body, p, ink, H, bg);
+    g += footer(p, H, `${i + 1} / ${n}`, ink, logo, lum(bg) < 0.3);
   } else {
     g += decor(p, H, i);
     g += `<g opacity=".95">${paths([String(i).padStart(2, "0")], M, 250, 150, 150, 800, p.accent)}</g>`;

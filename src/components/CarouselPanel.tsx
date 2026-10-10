@@ -2,9 +2,10 @@ import { Download, ImageIcon, X } from "lucide-react";
 import { CAROUSEL_STYLES } from "@/lib/postsettings";
 import { carouselCoverAction } from "@/lib/carousel/actions";
 import { CarouselEditor } from "./CarouselEditor";
+import type { SlideLayout } from "@/lib/carousel/layouts";
 import { PRICES, rub } from "@/lib/wallet";
 
-export interface CarouselMeta { slides: { title: string; body: string }[]; style: keyof typeof CAROUSEL_STYLES }
+export interface CarouselMeta { slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES }
 
 /** Слайды карусели у материала: превью, правка текстов с перерисовкой, обложка нейросетью, скачивание архивом. */
 export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean }) {

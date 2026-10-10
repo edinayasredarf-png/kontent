@@ -1,3 +1,4 @@
+import { fixLayout, type SlideLayout } from "./carousel/layouts";
 import { one, q } from "./db";
 import { cleanSettings, POST_TYPES, styleBlock, type ContentSettings } from "./postsettings";
 
@@ -179,16 +180,16 @@ export async function genDigest(items: { title: string; body: string; source: st
     { maxTokens: 1800, temperature: 0.4, timeoutMs: 55_000 });
 }
 
-export interface CarouselText { slides: { title: string; body: string }[]; caption: string }
+export interface CarouselText { slides: { title: string; body: string; layout?: SlideLayout }[]; caption: string }
 
 /** Тексты карусели структурой: заголовок и текст каждого слайда (их набираем на картинках сами) и подпись к посту. */
 export async function genCarousel(b: BrandCtx, product: string, niche: string, topic: string, hook: string, n: number, st: ContentSettings, source?: SourceNote, postType?: string): Promise<CarouselText> {
   const system = "Ты контент-стратег соцсетей. Пиши по-русски, коротко и конкретно, без воды и клише. Не выдумывай факты, цифры и цены. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
   const user = `${brandBlock(b, product, niche)}\nТема карусели: ${topic}\nХук: ${hook}\n` +
     (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nФакты бери только оттуда, формулировки не копируй.\n` : "") +
-    `\nСделай карусель из ${n} слайдов:\n- слайд 1 — обложка: "title" до 60 знаков (цепляющий), "body" до 90 знаков (подзаголовок);\n- слайды 2–${n - 1}: "title" до 50 знаков, "body" до 200 знаков; одна мысль на слайд, конкретика и польза;\n- слайд ${n} — призыв к действию: "title" до 50 знаков, "body" до 160 знаков.\n` +
+    `\nСделай карусель из ${n} слайдов:\n- слайд 1 — обложка: "title" до 60 знаков (цепляющий), "body" до 90 знаков (подзаголовок);\n- слайды 2–${n - 1}: "title" до 50 знаков, "body" до 200 знаков; одна мысль на слайд, конкретика и польза. Для разнообразия у части слайдов (не у всех подряд) укажи "layout": "stat" — когда есть цифра из источника (title = только цифра, например "73%", до 14 знаков, body — что она значит); "list" — перечисление (body = 2–5 коротких пунктов через " | "); "compare" — контраст (body = "Миф: … | Факт: …" или "Было: … | Стало: …"); "quote" — цитата или сильная фраза (title = фраза, body = кто сказал). Остальным слайдам layout не нужен. Цифры и цитаты — только из источника или темы, не выдумывай;\n- слайд ${n} — призыв к действию: "title" до 50 знаков, "body" до 160 знаков.\n` +
     `Кроме слайдов напиши "caption" — подпись к посту 300–700 знаков.\nПравила оформления подписи:\n${styleBlock(st, "carousel", postType)}\n` +
-    `Формат: {"slides":[{"title":"...","body":"..."}],"caption":"..."}`;
+    `Формат: {"slides":[{"title":"...","body":"..."},{"title":"73%","body":"...","layout":"stat"}],"caption":"..."}`;
   let o: Record<string, unknown> | null = null;
   for (let a = 0; a < 2; a++) {
     o = extractObject(await chat("carousel", system, a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-объект." : user, { maxTokens: 2500, temperature: 0.7, timeoutMs: 50_000 }));
@@ -197,7 +198,8 @@ export async function genCarousel(b: BrandCtx, product: string, niche: string, t
   }
   if (!o) throw new Error("Модель не вернула структуру карусели");
   const clip = (v: unknown, k: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, k) : "");
-  const slides = (o.slides as { title?: unknown; body?: unknown }[]).slice(0, 10).map((s) => ({ title: clip(s?.title, 90), body: clip(s?.body, 320) })).filter((s) => s.title);
+  const slides = (o.slides as { title?: unknown; body?: unknown; layout?: unknown }[]).slice(0, 10).map((s) => ({ title: clip(s?.title, 90), body: clip(s?.body, 320), layout: s?.layout })).filter((s) => s.title)
+    .map((s, i, a) => { const l = fixLayout(s.layout, s.title, s.body, i > 0 && i < a.length - 1); return l === "text" ? { title: s.title, body: s.body } : { title: s.title, body: s.body, layout: l }; });
   if (slides.length < 3) throw new Error("В карусели получилось меньше трёх слайдов");
   return { slides, caption: clip(o.caption, 2000) };
 }

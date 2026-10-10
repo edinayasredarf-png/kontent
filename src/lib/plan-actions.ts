@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
 import { repurposeSource } from "./pipeline";
-import { addIdeas, deleteIdea, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
+import { addIdeas, deleteIdea, moveItem, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const go = (fid: string, r: { ok: boolean; error?: string }, extra = "") => {
@@ -56,4 +56,22 @@ export async function repurposeAction(f: FormData) {
   const fid = s(f, "factory");
   const r = await repurposeSource(c.org.id, fid, { url: s(f, "url"), text: String(f.get("text") ?? ""), count: Number(s(f, "count")) });
   go(fid, r);
+}
+
+/** Повтор опубликованного материала: раз в N дней, не больше 5 раз. 0 дней — выключить. */
+export async function setRepeatAction(f: FormData) {
+  const c = await requireWriter();
+  const fid = s(f, "factory"), id = s(f, "id");
+  const days = Math.max(0, Math.min(365, Math.round(Number(s(f, "days"))) || 0)), times = Math.max(1, Math.min(5, Math.round(Number(s(f, "times"))) || 1));
+  if (days === 0) await q("update kz_content_items set meta = meta - 'repeat' where id=$1 and org_id=$2", [id, c.org.id]);
+  else await q("update kz_content_items set meta = meta || jsonb_build_object('repeat', jsonb_build_object('days',$3::int,'left',$4::int)) where id=$1 and org_id=$2 and status='published' and kind in ('post','carousel','story')", [id, c.org.id, days, times]);
+  go(fid, { ok: true });
+}
+
+/** Вызывается из календаря при перетаскивании. Возвращает результат, а не перенаправляет: страница остаётся на месте. */
+export async function moveItemDateAction(id: string, date: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const c = await requireWriter();
+  const r = await moveItem(c.org.id, String(id), String(date));
+  if (r.ok) revalidatePath("/app/calendar");
+  return r.ok ? { ok: true } : { ok: false, error: r.error ?? "Не удалось перенести" };
 }

@@ -280,6 +280,13 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
 
 const MAX_ATTEMPTS = 3;
 
+/** Подпись канала добавляется к постам и каруселям, но не к SEO-статьям и не дважды (если пост уже заканчивается ею). */
+export function withSignature(body: string, kind: string, signature?: string): string {
+  const sig = (signature ?? "").trim();
+  if (!sig || kind === "seo" || kind === "article" || body.trimEnd().endsWith(sig)) return body;
+  return `${body.trimEnd()}\n\n${sig}`;
+}
+
 /** Отправка очереди. Строки захватываются `for update skip locked` — параллельные тики не пересекаются. */
 export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sent: number; failed: number; retried: number }> {
   // зависшие в sending (функцию убили по таймауту) возвращаем в очередь
@@ -291,7 +298,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       returning id,org_id,item_id,channel_id,attempts`, onlyItem ? [limit, onlyItem] : [limit]);
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
-    const ch = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
+    const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
     const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] } } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     const img = item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
     // карусель: все слайды по порядку (загружаем только своими файлами организации)
@@ -299,7 +306,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
     try {
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
-      const r = await prov.publish({ text: item?.body ?? "", image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: withSignature(item?.body ?? "", item?.kind ?? "post", ch.signature), image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
@@ -333,6 +340,42 @@ function nowIn(tz: string) {
   const p = Object.fromEntries(f.formatToParts(new Date()).map((x) => [x.type, x.value]));
   const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { date: `${p.year}-${p.month}-${p.day}`, dow, minutes: Number(p.hour) * 60 + Number(p.minute) };
+}
+
+/**
+ * Повторные публикации «вечнозелёных» материалов: у опубликованного поста или карусели можно включить повтор раз в N дней.
+ * Каждый раз создаётся копия (текст, картинки) в статусе «готов»: она публикуется по обычному расписанию автопубликации или после ручного подтверждения.
+ * Пока предыдущая копия не вышла, новая не создаётся.
+ */
+export async function spawnRepeats(limit = 5): Promise<number> {
+  const rows = await q<{ id: string; org_id: string; factory_id: string; brand_id: string; kind: string; topic: string; hook: string; body: string; image_id: string | null; meta: Record<string, unknown> }>(
+    `select i.id,i.org_id,i.factory_id,i.brand_id,i.kind,i.topic,i.hook,i.body,i.image_id,i.meta
+       from kz_content_items i join kz_factories f on f.id=i.factory_id
+      where i.status='published' and i.kind in ('post','carousel','story') and coalesce((i.meta->'repeat'->>'left')::int,0) > 0 and f.status='active'
+        and not exists (select 1 from kz_orgs o where o.id=i.org_id and o.suspended)
+        and (select max(p.published_at) from kz_publications p where p.item_id=i.id and p.status='published') < now() - make_interval(days => coalesce((i.meta->'repeat'->>'days')::int, 30))
+        and not exists (select 1 from kz_content_items c where c.meta->>'repeatOf' = i.id::text and c.status in ('approved','generating','ready','scheduled'))
+      order by i.updated_at limit $1`, [limit]);
+  let n = 0;
+  for (const r of rows) {
+    await tx(async (run) => {
+      const [left] = await run<{ left: number }>("update kz_content_items set meta = jsonb_set(meta,'{repeat,left}', to_jsonb(((meta->'repeat'->>'left')::int - 1))), updated_at=now() where id=$1 and coalesce((meta->'repeat'->>'left')::int,0) > 0 returning (meta->'repeat'->>'left')::int as \"left\"", [r.id]);
+      if (!left) return;
+      const meta = { repeatOf: r.id, ...(r.meta.carousel ? { carousel: r.meta.carousel } : {}), ...(r.meta.postType ? { postType: r.meta.postType } : {}) };
+      const [c] = await run<{ id: string }>(
+        "insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,body,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7,current_date,'ready',$8) returning id",
+        [r.org_id, r.factory_id, r.brand_id, r.kind, r.topic, r.hook, r.body, JSON.stringify(meta)]);
+      // слайды карусели и обложка копируются как есть, одиночная картинка — отдельной записью (чтобы удаление одной копии не трогало другую)
+      await run(`insert into kz_assets(org_id,brand_id,kind,name,mime,width,height,size,data,note,item_id,position)
+                 select org_id,brand_id,kind,name,mime,width,height,size,data,note,$2,position from kz_assets where item_id=$1`, [r.id, c.id]);
+      if (r.image_id) {
+        const [img] = await run<{ id: string }>("insert into kz_assets(org_id,brand_id,kind,name,mime,width,height,size,data,note) select org_id,brand_id,kind,name,mime,width,height,size,data,note from kz_assets where id=$1 returning id", [r.image_id]);
+        if (img) await run("update kz_content_items set image_id=$2 where id=$1", [c.id, img.id]);
+      }
+      n++;
+    });
+  }
+  return n;
 }
 
 export interface TickReport { stats: number; comments: number; sources: number; fetched: number; generated: number; planned: number; queued: number; sent: number; failed: number; retried: number; reaped: number; errors: string[] }
@@ -395,6 +438,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
 
   // статистика опубликованных постов и новые комментарии (сбой площадки не должен ронять остальной проход)
+  try { await spawnRepeats(); } catch (e) { rep.errors.push(`repeats: ${(e as Error).message}`); }
   try { const s = await collectStats(40); rep.stats = s.updated; rep.errors.push(...s.errors.slice(0, 3)); } catch (e) { rep.errors.push(`stats: ${(e as Error).message}`); }
   try { const m = await collectMembers(20); rep.errors.push(...m.errors.slice(0, 2)); } catch (e) { rep.errors.push(`members: ${(e as Error).message}`); }
   try { const c = await collectComments(15); rep.comments = c.added; rep.errors.push(...c.errors.slice(0, 3)); } catch (e) { rep.errors.push(`comments: ${(e as Error).message}`); }

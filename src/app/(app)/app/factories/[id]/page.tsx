@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { canWrite, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
-import { addIdeaAction, addIdeasBulkAction, repurposeAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
+import { addIdeaAction, addIdeasBulkAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { CarouselPanel, type CarouselMeta } from "@/components/CarouselPanel";
@@ -20,7 +20,9 @@ export const maxDuration = 300;
 import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
-interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null }
+const shiftMonth = (month: string, n: number) => { const [y, m] = month.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+
+interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null; repeat: { days: number; left: number } | null; repeat_of: string | null }
 
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -39,7 +41,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
   const carAssets = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel").map((x) => x.id)]);
   const fb = await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
   const st = cleanSettings((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
@@ -163,8 +165,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </form>
       </div>
       {view === "calendar" && (
-        <CalendarGrid month={month} items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status }))}
-          itemHref={(i) => href({ view: "list", open: i.id }) + `#i-${i.id}`} monthHref={(m) => href({ view: "calendar", m })} />
+        <CalendarGrid month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
+          items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status, href: href({ view: "list", open: i.id }) + `#i-${i.id}`, movable: canWrite(c.org.role) && ["idea", "approved", "ready", "failed", "rejected"].includes(i.status) }))} />
       )}
       {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}
       <div className="space-y-3">
@@ -173,7 +175,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
               <span className="w-20 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
               <span className="chip">{KIND[i.kind]}</span>
-              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}</span>
+              <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}</span>
               {i.client && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${i.client === "approved" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"}`}>{i.client === "approved" ? "Клиент одобрил" : "Клиент просит правки"}</span>}
               <Status s={i.status} />
             </summary>
@@ -193,6 +195,16 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   </form>
                 </details>
               ) : null}
+              {i.status === "published" && ["post", "carousel", "story"].includes(i.kind) && (
+                <form action={setRepeatAction} className="flex flex-wrap items-center gap-2 rounded-xl bg-tile p-3 text-sm">
+                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                  <b className="text-xs">Повторять материал</b>
+                  <select name="days" defaultValue={String(i.repeat?.days ?? 0)} className="input !w-auto !bg-surface !py-1 text-xs"><option value="0">Не повторять</option><option value="30">Раз в 30 дней</option><option value="60">Раз в 60 дней</option><option value="90">Раз в 90 дней</option><option value="180">Раз в полгода</option></select>
+                  <select name="times" defaultValue={String(Math.max(1, i.repeat?.left ?? 3))} className="input !w-auto !bg-surface !py-1 text-xs">{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} раз</option>)}</select>
+                  <button className="btn btn-ghost !py-1">Сохранить</button>
+                  <span className="text-xs text-ink3">{i.repeat ? `Осталось повторов: ${i.repeat.left}. ` : ""}Копия появится готовой к публикации.</span>
+                </form>
+              )}
               {i.hook && <p className="text-sm text-ink2"><b>Хук:</b> {i.hook}</p>}
               {fb.some((f) => f.item_id === i.id) && (
                 <div className="rounded-xl border border-line p-3">

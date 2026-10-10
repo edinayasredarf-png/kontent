@@ -65,6 +65,13 @@ export async function updateIdea(orgId: string, id: string, v: { topic: string; 
   return r.length ? { ok: true } : { ok: false, error: "Эту идею сейчас нельзя изменить (уже в очереди, публикуется или опубликована)" };
 }
 
+/** Перенос материала на другой день (из календаря). Только пока он не в очереди и не опубликован. */
+export async function moveItem(orgId: string, id: string, date: string): Promise<Result> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return { ok: false, error: "Неверная дата" };
+  const r = await q("update kz_content_items set planned_for=$3, updated_at=now() where id=$1 and org_id=$2 and status = any($4::text[]) returning id", [id, orgId, date, EDITABLE]);
+  return r.length ? { ok: true } : { ok: false, error: "Этот материал уже нельзя переносить (в очереди или опубликован)" };
+}
+
 export async function deleteIdea(orgId: string, id: string): Promise<Result> {
   const it = await one<{ image_id: string | null }>("delete from kz_content_items where id=$1 and org_id=$2 and status = any($3::text[]) returning image_id", [id, orgId, EDITABLE]);
   if (!it) return { ok: false, error: "Эту идею нельзя удалить (в очереди, публикуется или уже опубликована)" };
