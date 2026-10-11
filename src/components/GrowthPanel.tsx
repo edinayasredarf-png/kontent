@@ -2,6 +2,7 @@ import { FlaskConical, Languages, Repeat2 } from "lucide-react";
 import { createVariantAction, genVariantsAction, moreLikeThisAction, saveVariantsAction } from "@/lib/growth-actions";
 import { VARIANT_LABEL, type AbResult } from "@/lib/growth";
 import { PRICES, rub } from "@/lib/wallet";
+import { CopyText } from "./CopyText";
 
 const TEXT_KINDS = ["post", "story", "contest"];
 
@@ -39,7 +40,7 @@ export function GrowthPanel({ itemId, factoryId, kind, status, hasBody, ab, abRe
           <form action={saveVariantsAction} className="mt-3 space-y-2">
             {hid}
             {Object.entries(VARIANT_LABEL).map(([k, label]) => (
-              <div key={k}><label className="label">{label}{["telegram", "vk", "max"].includes(k) ? " — уйдёт в каналы этой площадки" : " — для ручного использования"}</label>
+              <div key={k}><div className="mb-1 flex items-center justify-between gap-2"><label className="label !mb-0">{label}{["telegram", "vk", "max"].includes(k) ? " — уйдёт в каналы этой площадки" : " — для ручного использования"}</label>{variants[k] && <CopyText text={variants[k]} label="Копировать версию" />}</div>
                 <textarea name={`v_${k}`} defaultValue={variants[k] ?? ""} rows={k === "short" ? 2 : 4} className="input !bg-surface text-sm" /></div>
             ))}
             <div className="flex items-center gap-3"><button className="btn btn-ghost !py-1.5">Сохранить версии</button><span className="text-xs text-ink3">Пустое поле — для площадки берётся основной текст.</span></div>

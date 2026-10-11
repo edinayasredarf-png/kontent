@@ -3,18 +3,20 @@ import { CAROUSEL_STYLES } from "@/lib/postsettings";
 import { carouselCoverAction, resetSlideAction } from "@/lib/carousel/actions";
 import { CarouselEditor } from "./CarouselEditor";
 import { SlideEditor } from "./SlideEditor";
+import { CopyText } from "./CopyText";
 import type { SlideLayout } from "@/lib/carousel/layouts";
 import { PRICES, rub } from "@/lib/wallet";
 
 export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES }
 
 /** Слайды карусели у материала: превью, правка текстов с перерисовкой, обложка нейросетью, скачивание архивом. */
-export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [] }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[] }) {
+export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [], caption = "" }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[]; caption?: string }) {
   return (
     <div className="space-y-3 rounded-xl border border-line p-3">
       <div className="flex flex-wrap items-center gap-2">
         <b className="text-sm">Слайды карусели ({assets.length})</b>
-        <a href={`/api/export/${itemId}/carousel`} className="btn btn-ghost ml-auto !py-1.5"><Download size={14} />Скачать архивом</a>
+        {caption.trim() && <span className="ml-auto"><CopyText text={caption} label="Копировать подпись" /></span>}
+        <a href={`/api/export/${itemId}/carousel`} className="btn btn-ghost !py-1.5"><Download size={14} />Скачать архивом</a>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {assets.map((a, i) => (

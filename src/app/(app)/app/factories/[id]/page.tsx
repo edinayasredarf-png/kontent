@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers } from "lucide-react";
+import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
@@ -11,6 +11,9 @@ import { cleanKit } from "@/lib/images";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { SlideEditor } from "@/components/SlideEditor";
+import { CopyText } from "@/components/CopyText";
+import { ExportMenu } from "@/components/ExportMenu";
+import { plainOf, type ExportItem } from "@/lib/exporter";
 import { DocPanel } from "@/components/DocPanel";
 import { GrowthPanel } from "@/components/GrowthPanel";
 import { StrategyCard } from "@/components/StrategyCard";
@@ -31,6 +34,8 @@ import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
 const shiftMonth = (month: string, n: number) => { const [y, m] = month.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+
+const toExp = (i: { kind: string; topic: string; hook: string; body: string; seo: { title: string; description?: string } | null; email: ExportItem["email"]; guide: ExportItem["guide"]; carousel: ExportItem["carousel"]; infographic: ExportItem["infographic"]; poll: ExportItem["poll"] }): ExportItem => ({ kind: i.kind, topic: i.topic, hook: i.hook, body: i.body, seo: i.seo, email: i.email, guide: i.guide, carousel: i.carousel, infographic: i.infographic, poll: i.poll });
 
 interface Item { id: string; kind: string; topic: string; hook: string; body: string; status: string; planned_for: string | null; image_id: string | null; image_prompt: string | null; image_error: string | null; manual: boolean; seo: SeoMeta | null; carousel: CarouselMeta | null; client: string | null; repeat: { days: number; left: number } | null; repeat_of: string | null; infographic: Infographic | null; info_style: string | null; poll: { question: string; options: string[] } | null; ab: { variant: string; pair?: string } | null; variants: Record<string, string> | null; rubric: string | null; email: import("@/lib/docs").EmailMeta | null; guide: import("@/lib/docs").GuideMeta | null }
 
@@ -201,6 +206,17 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <select name="status" defaultValue={statusF} className="input !w-auto !py-1.5"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
           <button className="btn btn-ghost !py-1.5">Применить</button>
         </form>
+        <details className="relative">
+          <summary className="btn btn-ghost !py-1.5 cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
+          <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg">
+            <p className="text-xs text-ink2">Материалы завода по фильтру: формат и статус из полей выше, период выбираете здесь.</p>
+            <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
+            <div className="grid grid-cols-2 gap-2"><div><label className="label">С даты</label><input type="date" name="from" className="input !py-1.5" /></div><div><label className="label">По дату</label><input type="date" name="to" className="input !py-1.5" /></div></div>
+            <select name="format" className="input"><option value="csv">Таблица для Excel (.csv)</option><option value="zip">Архив: тексты и картинки (.zip)</option></select>
+            <button className="btn w-full justify-center">Скачать</button>
+            <p className="text-xs text-ink3">CSV: до 300 материалов. ZIP: до 120 материалов и 40 МБ, папка на каждый.</p>
+          </form>
+        </details>
       </div>
       {view === "calendar" && (
         <CalendarGrid month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
@@ -215,6 +231,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               <span className="chip">{KIND[i.kind]}</span>
               <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}{i.rubric && <span className="ml-2 rounded-full bg-tile px-2 py-0.5 text-[11px] font-normal text-ink2">{i.rubric}</span>}{i.ab && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-normal text-accent-ink">A/B {i.ab.variant === "A" ? "А" : "Б"}</span>}</span>
               {i.client && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${i.client === "approved" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"}`}>{i.client === "approved" ? "Клиент одобрил" : "Клиент просит правки"}</span>}
+              {(i.body.trim() || i.poll) && <CopyText icon text={plainOf(toExp(i))} label="Копировать текст" />}
               <Status s={i.status} />
             </summary>
             <div className="mt-4 space-y-3 border-t border-line pt-4">
@@ -251,6 +268,13 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                     <li key={n}><span className={`mr-2 rounded-full px-2 py-0.5 text-xs font-medium ${f.verdict === "approved" ? "bg-good-soft text-good" : f.verdict === "changes" ? "bg-warn-soft text-warn" : "bg-tile text-ink2"}`}>{f.verdict === "approved" ? "Одобрено" : f.verdict === "changes" ? "Нужны правки" : "Комментарий"}</span><span className="text-xs text-ink3">{f.author || "Клиент"} · {new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" })}</span>{f.comment && <p className="mt-1 whitespace-pre-wrap text-ink2">{f.comment}</p>}</li>))}</ul>
                 </div>
               )}
+              {(i.body.trim() || i.poll || i.carousel || i.infographic) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <CopyText text={plainOf(toExp(i))} label="Копировать текст" />
+                  {["seo", "email", "guide"].includes(i.kind) && <CopyText text={i.body} label="Копировать HTML" />}
+                  <ExportMenu id={i.id} kind={i.kind} hasImages={!!i.image_id || carAssets.some((a) => a.item_id === i.id)} />
+                </div>
+              )}
               <GrowthPanel itemId={i.id} factoryId={id} kind={i.kind} status={i.status} hasBody={!!i.body.trim()} ab={i.ab} abRes={abMap.get(i.id) ?? null} variants={i.variants} free={c.org.unlimited} canEdit={canWrite(c.org.role)} />
               {i.kind === "infographic" && i.infographic && (
                 <InfographicPanel colors={brandColors} itemId={i.id} factoryId={id} info={i.infographic} style={i.info_style ?? "brand"} assetId={carAssets.find((a) => a.item_id === i.id)?.id} editable={["idea", "approved", "ready", "failed"].includes(i.status)} />
@@ -258,7 +282,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               {(i.kind === "email" || i.kind === "guide") && i.body && (i.kind === "email" ? i.email : i.guide) && <DocPanel itemId={i.id} factoryId={id} kind={i.kind} email={i.email} guide={i.guide} html={i.body} editable={["idea", "approved", "ready", "failed"].includes(i.status)} />}
               {i.kind === "poll" && i.poll && <PollPanel itemId={i.id} factoryId={id} poll={i.poll} editable={["idea", "approved", "ready", "failed"].includes(i.status)} />}
               {i.kind === "carousel" && i.carousel && carAssets.some((a) => a.item_id === i.id) && (
-                <CarouselPanel colors={brandColors} itemId={i.id} factoryId={id} meta={i.carousel} assets={carAssets.filter((a) => a.item_id === i.id)} editable={["idea", "approved", "ready", "failed"].includes(i.status)} free={c.org.unlimited} />
+                <CarouselPanel caption={i.body} colors={brandColors} itemId={i.id} factoryId={id} meta={i.carousel} assets={carAssets.filter((a) => a.item_id === i.id)} editable={["idea", "approved", "ready", "failed"].includes(i.status)} free={c.org.unlimited} />
               )}
               {i.kind === "seo" && i.seo && i.body && (() => {
                 const chk = seoCheck({ ...i.seo, keyword: i.seo.keyword || i.topic, faq: i.seo.faq ?? [] }, i.body);
