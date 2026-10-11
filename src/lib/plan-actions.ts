@@ -5,7 +5,7 @@ import { requireWriter } from "./auth";
 import { q } from "./db";
 import { buildItem, repurposeSource } from "./pipeline";
 import { one } from "./db";
-import { addIdeas, deleteIdea, moveItem, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
+import { KINDS, addIdeas, deleteIdea, moveItem, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const go = (fid: string, r: { ok: boolean; error?: string }, extra = "") => {
@@ -77,15 +77,36 @@ export async function moveItemDateAction(id: string, date: string): Promise<{ ok
   return r.ok ? { ok: true } : { ok: false, error: r.error ?? "Не удалось перенести" };
 }
 
-/** SEO-статья сразу: создаём идею с запросом, одобряем и пишем без лишних шагов, затем открываем готовую статью. */
-export async function createSeoNowAction(f: FormData) {
+/**
+ * Создать материал(ы): вводите тему и выбираете, какие типы нужны. Режим «сразу»: материалы пишутся без карточек-идей в плане
+ * (до 3 штук в этом запросе, остальные уходят в фоновую очередь и появятся через несколько минут). Режим «в план»: только идеи-карточки.
+ * Для SEO-статьи тема — поисковый запрос.
+ */
+export async function createMaterialsAction(f: FormData) {
   const c = await requireWriter();
-  const fid = s(f, "factory"), keyword = s(f, "keyword").slice(0, 300), angle = s(f, "angle").slice(0, 300);
-  if (keyword.length < 3) return go(fid, { ok: false, error: "Введите поисковый запрос (минимум 3 символа)" });
+  const fid = s(f, "factory"), topic = s(f, "topic").slice(0, 300), hook = s(f, "hook").slice(0, 300);
+  const kinds = [...new Set(f.getAll("kinds").map(String).filter((k) => (KINDS as readonly string[]).includes(k)))].slice(0, 6);
+  if (topic.length < 3) return go(fid, { ok: false, error: "Введите тему или запрос (минимум 3 символа)" });
+  if (!kinds.length) return go(fid, { ok: false, error: "Выберите хотя бы один тип материала" });
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [fid, c.org.id]);
   if (!fac) return go(fid, { ok: false, error: "Завод не найден" });
-  const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,'seo',$4,$5,current_date,'approved','{\"manual\":true}') returning id", [c.org.id, fid, fac.brand_id, keyword, angle]);
-  const r = await buildItem(c.org.id, row!.id);
+  const now = s(f, "mode") !== "ideas";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(s(f, "date")) ? s(f, "date") : null;
+  const ids: string[] = [];
+  for (const k of kinds) {
+    const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,coalesce($7::date,current_date),$8,'{\"manual\":true}') returning id",
+      [c.org.id, fid, fac.brand_id, k, topic, hook, date, now ? "approved" : "idea"]);
+    ids.push(row!.id);
+  }
+  let errMsg = "";
+  if (now) {
+    const t0 = Date.now();
+    for (const id of ids.slice(0, 3)) {
+      if (Date.now() - t0 > 170_000) break; // остальные подхватит воркер
+      const r = await buildItem(c.org.id, id);
+      if (!r.ok) { errMsg = r.error ?? "Не удалось создать материал"; break; }
+    }
+  }
   revalidatePath("/app", "layout");
-  redirect(`/app/factories/${fid}?view=list&open=${row!.id}${r.ok ? "" : `&err=${encodeURIComponent(r.error ?? "Не удалось написать статью")}`}#i-${row!.id}`);
+  redirect(`/app/factories/${fid}?view=list&open=${ids[0]}${errMsg ? `&err=${encodeURIComponent(errMsg)}` : ""}${now && ids.length > 3 ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне и появятся через несколько минут.")}` : ""}#i-${ids[0]}`);
 }

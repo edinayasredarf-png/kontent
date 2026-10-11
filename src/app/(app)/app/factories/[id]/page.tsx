@@ -6,7 +6,7 @@ import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
-import { addIdeaAction, addIdeasBulkAction, createSeoNowAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
+import { addIdeaAction, addIdeasBulkAction, createMaterialsAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { GrowthPanel } from "@/components/GrowthPanel";
@@ -34,7 +34,7 @@ interface Item { id: string; kind: string; topic: string; hook: string; body: st
 export default async function FactoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const err = sp.err;
+  const err = sp.err, note = sp.note;
   const c = await requireCtx();
   const f = await one<{ id: string; name: string; brand: string; status: string; niche: string; product: string }>(
     "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
@@ -59,7 +59,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const runway = await planRunway(id);
   const href = (o: Record<string, string>) => {
     const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...sp, ...o })) if (v && k !== "err" && k !== "open") u.set(k, v);
+    for (const [k, v] of Object.entries({ ...sp, ...o })) if (v && k !== "err" && k !== "note" && k !== "open") u.set(k, v);
     return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
   };
   const pubs = await q<Pub>(
@@ -77,6 +77,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <form action={toggleFactory}>{hid}<button className="btn btn-ghost">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</button></form>
           <form action={deleteFactory}>{hid}<button className="btn btn-danger" title="Удалить завод"><Trash2 size={15} /></button></form>
         </div>} />
+      {note && <div className="mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {err && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
       <form action={setFactoryChannels} className="card mb-4 space-y-3 p-4">
         {hid}
@@ -117,16 +118,28 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
         </form>
       </details>
-      <details className="card mb-4 p-4">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Sparkles size={15} />SEO-статья сразу по запросу</summary>
-        <form action={createSeoNowAction} className="mt-4 space-y-2">
+      <section className="card mb-4 p-4">
+        <form action={createMaterialsAction} className="space-y-3">
           <input type="hidden" name="factory" value={id} />
-          <p className="text-xs text-ink2">Введите поисковый запрос, который набирают люди. Сервис составит план и напишет статью на 1100+ слов с заголовком, описанием, адресом и блоком вопросов. Это займёт 1–2 минуты, затем статья откроется здесь.</p>
-          <input name="keyword" required minLength={3} maxLength={300} placeholder="Например: как выбрать зерновой кофе для кофемашины" className="input" />
-          <input name="angle" maxLength={300} placeholder="Угол или намерение (необязательно)" className="input" />
-          <button className="btn"><Sparkles size={14} />Написать статью{c.org.unlimited ? "" : ` · ${rub(PRICES.seo)}`}</button>
+          <b className="flex items-center gap-2 text-sm"><Sparkles size={15} />Создать материал</b>
+          <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала (для SEO-статьи — поисковый запрос)" className="input" />
+          <input name="hook" maxLength={300} placeholder="Хук или угол (необязательно)" className="input" />
+          <div>
+            <span className="label">Какие материалы создать по этой теме</span>
+            <div className="flex flex-wrap gap-2">
+              {KINDS.map((k) => (
+                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="kinds" value={k} defaultChecked={k === (sched?.formats?.[0] ?? "post")} className="hidden" />{KIND[k]}</label>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <select name="mode" className="input !w-auto"><option value="now">Создать сразу (без карточек-идей)</option><option value="ideas">Только добавить идеи в план</option></select>
+            <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — сегодня)" />
+            <button className="btn ml-auto"><Sparkles size={14} />Создать</button>
+          </div>
+          <p className="text-xs text-ink3">Каждый выбранный тип стоит как обычно (пост {rub(PRICES.post)}, карусель {rub(PRICES.carousel)}, SEO-статья {rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.</p>
         </form>
-      </details>
+      </section>
       <details className="card mb-4 p-4">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Layers size={15} />Контент из одного источника: статья или текст → несколько материалов</summary>
         <form action={repurposeAction} className="mt-4 space-y-3">
@@ -145,7 +158,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <div className="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
         <form action={addIdeaAction} className="space-y-2">
           <input type="hidden" name="factory" value={id} />
-          <b className="text-sm">Своя идея</b>
+          <b className="text-sm">Идея-карточка в план</b>
           <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала" className="input" />
           <input name="hook" maxLength={300} placeholder="Хук — первая строка (необязательно)" className="input" />
           <div className="flex flex-wrap items-center gap-2">

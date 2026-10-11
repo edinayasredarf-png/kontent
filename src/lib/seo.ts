@@ -67,69 +67,82 @@ export function parseOutline(raw: string): Outline {
 
 const wordCount = (html: string) => textOf(html).split(/\s+/).filter(Boolean).length;
 
-/** Параллельность ограничена: шлюз и таймаут функции не любят десяток одновременных запросов. */
-async function pool<T, R>(items: T[], n: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length); let next = 0;
-  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); } }));
-  return out;
-}
-
-/** Один раздел: заголовок h2 и 220–320 слов. Сбой раздела не роняет статью: её дописывает следующий этап или раздел пропускается. */
-async function genSection(ctx: string, outline: Outline, i: number, kind: "intro" | "section", keyword: string): Promise<string> {
-  const sec = kind === "section" ? outline.sections[i] : null;
+/** Один раздел: заголовок h2 и 230–330 слов. prev — уже написанный текст статьи: раздел продолжает его, а не пишется «с нуля». */
+async function genSection(ctx: string, outline: Outline, i: number, keyword: string, prev: string): Promise<string> {
+  const sec = outline.sections[i];
   const toc = outline.sections.map((x, n) => `${n + 1}. ${x.h}`).join("\n");
-  const task = kind === "intro"
-    ? `Напиши ВСТУПЛЕНИЕ статьи: 2 абзаца, 110–160 слов. Запрос «${keyword}» естественно встречается в первом предложении. Без заголовка. Только HTML: <p>…</p>.`
-    : `Напиши раздел «${sec!.h}» (о чём: ${sec!.brief || "раскрой тему раздела"}): 230–330 слов, конкретика и польза, где уместно — список <ul><li>. Начни с <h2>${sec!.h}</h2>. Только HTML: h2, h3, p, ul, ol, li, strong, em, blockquote. Не повторяй содержание других разделов.${i === outline.sections.length - 1 ? " Это завершающий раздел: сделай вывод и мягкий призыв к действию от бренда." : ""}`;
-  const raw = await chat("article", SEO_SYSTEM, `${ctx}\nТема статьи: «${outline.title || keyword}»\nПлан статьи:\n${toc}\n\n${task}`, { maxTokens: 1700, temperature: 0.6, timeoutMs: 50_000 });
+  const raw = await chat("article", SEO_SYSTEM,
+    `${ctx}\nТема статьи: «${outline.title || keyword}»\nПлан статьи:\n${toc}\n` +
+    (prev ? `\nУже написанная часть статьи (последние абзацы):\n${prev.slice(-2800)}\n\nПродолжай эту статью: тот же стиль, интонация и термины, плавный переход от предыдущего раздела, ничего не повторяй.\n` : "") +
+    `\nНапиши раздел «${sec.h}» (о чём: ${sec.brief || "раскрой тему раздела"}): 230–330 слов, конкретика и польза, где уместно — список <ul><li>. Начни с <h2>${sec.h}</h2>. Только HTML: h2, h3, p, ul, ol, li, strong, em, blockquote.` +
+    (i === outline.sections.length - 1 ? " Это завершающий раздел: сделай вывод и мягкий призыв к действию от бренда." : ""),
+    { maxTokens: 1700, temperature: 0.6, timeoutMs: 50_000 });
   return cleanHtml(raw.replace(/^```(?:html)?\s*|```\s*$/g, "").trim());
 }
 
 /**
- * SEO-статья по шагам: план (заголовок, описание, разделы, вопросы) → вступление и разделы отдельными запросами (по 3 параллельно) →
- * вопросы-ответы → проверка объёма с дописыванием. Так длина не упирается в один лимит ответа модели, как при генерации «всё сразу».
- * Если план не получился (модель не слушается формата), используется прежний одношаговый способ.
+ * Дописывает короткую статью: модель видит ВЕСЬ уже написанный текст, поэтому новые разделы продолжают его (термины, интонация, логика),
+ * а не пишутся отдельно. Вставка перед завершающим разделом (последний h2 до блока вопросов).
+ */
+async function continueArticle(ctx: string, art: { meta: SeoMeta; html: string }, keyword: string): Promise<{ meta: SeoMeta; html: string }> {
+  const marker = "<h2>Частые вопросы</h2>";
+  const at = art.html.indexOf(marker);
+  const body = at >= 0 ? art.html.slice(0, at) : art.html, tail = at >= 0 ? art.html.slice(at) : "";
+  const heads = [...body.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => textOf(m[1]));
+  const raw = await chat("article", SEO_SYSTEM,
+    `${ctx}\nНиже статья, которая получилась короче нужного. Допиши в неё 2 НОВЫХ раздела (по 250–350 слов), которые органично продолжают текст: тот же стиль, термины и интонация, без повторов уже сказанного, с плавным переходом. Разделы вставятся перед заключением.\nУже есть разделы: ${heads.join("; ")}.\n\nСТАТЬЯ:\n${body.slice(0, 14000)}\n\nВерни ТОЛЬКО HTML двух новых разделов (каждый начинается с <h2>), без пояснений.`,
+    { maxTokens: 2600, temperature: 0.6, timeoutMs: 70_000 });
+  const add = cleanHtml(raw.replace(/^```(?:html)?\s*|```\s*$/g, "").trim());
+  if (wordCount(add) < 120 || !/<h2/i.test(add)) return art;
+  const last = body.lastIndexOf("<h2");
+  const merged = heads.length >= 2 && last > 0 ? body.slice(0, last) + add + "\n" + body.slice(last) : body + "\n" + add;
+  void keyword;
+  return { meta: art.meta, html: merged + (tail ? "\n" + tail : "") };
+}
+
+/**
+ * SEO-статья ЦЕЛИКОМ одним ответом: так текст получается связным (единая логика, термины, переходы). Если вышло короче 1100 слов,
+ * модель видит готовый текст и дописывает разделы в него (до двух раундов). Только если цельная генерация не удалась (ошибка, таймаут),
+ * включается последовательный режим: план и разделы по порядку, каждый видит уже написанное.
  */
 export async function genSeoArticle(b: BrandCtx, product: string, niche: string, keyword: string, angle: string, source?: SourceNote): Promise<{ meta: SeoMeta; html: string }> {
   const ctx = context(b, product, niche, keyword, angle, source);
-  let outline: Outline | null = null;
+  const t0 = Date.now();
   try {
-    const o = parseOutline(await chat("article", SEO_SYSTEM,
-      `${ctx}\nСоставь план статьи на 1100–1500 слов. Формат ответа строго такой, без пояснений:\nTITLE: заголовок до 60 знаков, с запросом\nDESCRIPTION: описание 120–155 знаков\nSLUG: короткий-адрес-латиницей\nKEYWORDS: 5–8 ключевых слов через запятую\nSECTION: заголовок раздела | о чём раздел, что раскрыть (5–6 строк SECTION: последний раздел — вывод и призыв к действию; запрос должен быть в 1–2 заголовках)\nFAQ: вопрос читателя (4–5 строк FAQ:)`,
-      { maxTokens: 1200, temperature: 0.5, timeoutMs: 40_000 }));
-    if (o.sections.length >= 4 && o.title) outline = o;
-  } catch { /* запасной путь ниже */ }
-  if (!outline) return genSeoArticleSingle(ctx, keyword);
-
-  const jobs: { kind: "intro" | "section"; i: number }[] = [{ kind: "intro", i: 0 }, ...outline.sections.map((_, i) => ({ kind: "section" as const, i }))];
-  const parts = await pool(jobs, 3, async (j) => { try { return await genSection(ctx, outline!, j.i, j.kind, keyword); } catch { return ""; } });
-  const faqParts = outline.faq.length
-    ? await chat("article", SEO_SYSTEM, `${ctx}\nТема статьи: «${outline.title}»\nОтветь на вопросы читателя по 1–3 предложения каждый, только по делу. Формат строго:\nQ: вопрос\nA: ответ\n\nВопросы:\n${outline.faq.map((q) => "- " + q).join("\n")}`, { maxTokens: 1200, temperature: 0.5, timeoutMs: 45_000 }).catch(() => "")
-    : "";
-
-  let intro = parts[0], sections = parts.slice(1);
-  if (!intro && !sections.some(Boolean)) return genSeoArticleSingle(ctx, keyword);
-  // дописываем, если получилось короче цели: два дополнительных раздела перед выводом (одна попытка)
-  const total = () => wordCount([intro, ...sections].join(" "));
-  if (total() < SEO_TARGET_WORDS) {
-    const have = outline.sections.map((x) => x.h).join("; ");
-    const extra = await pool(["Практические советы и типичные ошибки", "Как применить это на практике: шаги и примеры"], 2, async (h) => {
-      try { return await genSection(ctx, { ...outline!, sections: [...outline!.sections, { h, brief: `дополни статью, не повторяя разделы: ${have}` }] }, outline!.sections.length, "section", keyword); } catch { return ""; }
-    });
-    const add = extra.filter((x) => x && wordCount(x) > 80);
-    if (add.length) sections = [...sections.slice(0, -1), ...add, sections[sections.length - 1]].filter(Boolean);
-  }
-  const body = [intro, ...sections].filter(Boolean).join("\n");
-  const raw = `TITLE: ${outline.title}\nDESCRIPTION: ${outline.description}\nSLUG: ${outline.slug}\nKEYWORDS: ${outline.keywords}\n---BODY---\n${body}\n---FAQ---\n${faqParts}`;
-  return parseSeoResponse(raw, keyword);
+    let art = await genSeoArticleSingle(ctx, keyword);
+    for (let round = 0; round < 2 && wordCount(art.html) < SEO_TARGET_WORDS && Date.now() - t0 < 150_000; round++) {
+      try { art = await continueArticle(ctx, art, keyword); } catch { break; }
+    }
+    return art;
+  } catch { /* цельная генерация не удалась: последовательный режим ниже */ }
+  return genSeoSequential(ctx, keyword, t0);
 }
 
-/** Запасной способ: вся статья одним ответом (может получиться короче из-за лимита ответа). */
+async function genSeoSequential(ctx: string, keyword: string, t0: number): Promise<{ meta: SeoMeta; html: string }> {
+  const o = parseOutline(await chat("article", SEO_SYSTEM,
+    `${ctx}\nСоставь план статьи на 1100–1500 слов. Формат ответа строго такой, без пояснений:\nTITLE: заголовок до 60 знаков, с запросом\nDESCRIPTION: описание 120–155 знаков\nSLUG: короткий-адрес-латиницей\nKEYWORDS: 5–8 ключевых слов через запятую\nSECTION: заголовок раздела | о чём раздел (5–6 строк SECTION:, последний — вывод и призыв к действию)\nFAQ: вопрос читателя (4–5 строк FAQ:)`,
+    { maxTokens: 1200, temperature: 0.5, timeoutMs: 40_000 }));
+  if (o.sections.length < 3 || !o.title) throw new Error("Модель не составила план статьи");
+  // вступление и разделы по порядку: каждый получает уже написанный текст, чтобы статья читалась как единое целое
+  let acc = "";
+  const parts: string[] = [];
+  const intro = await chat("article", SEO_SYSTEM, `${ctx}\nТема статьи: «${o.title}»\nНапиши ВСТУПЛЕНИЕ: 2 абзаца, 110–160 слов, запрос «${keyword}» в первом предложении. Только HTML: <p>…</p>.`, { maxTokens: 800, temperature: 0.6, timeoutMs: 40_000 }).catch(() => "");
+  if (intro) { const h = cleanHtml(intro.replace(/^```(?:html)?\s*|```\s*$/g, "").trim()); parts.push(h); acc += h; }
+  for (let i = 0; i < o.sections.length; i++) {
+    if (Date.now() - t0 > 200_000 && parts.length >= 3) break; // уложиться в лимит времени: лучше короче, чем потерять всё
+    try { const h = await genSection(ctx, o, i, keyword, acc); if (h) { parts.push(h); acc += "\n" + h; } } catch { /* раздел пропускаем */ }
+  }
+  if (parts.length < 3) throw new Error("Не удалось написать статью: модель не отвечает");
+  const faq = o.faq.length ? await chat("article", SEO_SYSTEM, `${ctx}\nТема статьи: «${o.title}»\nОтветь на вопросы читателя по 1–3 предложения каждый. Формат строго:\nQ: вопрос\nA: ответ\n\nВопросы:\n${o.faq.map((x) => "- " + x).join("\n")}`, { maxTokens: 1200, temperature: 0.5, timeoutMs: 45_000 }).catch(() => "") : "";
+  return parseSeoResponse(`TITLE: ${o.title}\nDESCRIPTION: ${o.description}\nSLUG: ${o.slug}\nKEYWORDS: ${o.keywords}\n---BODY---\n${parts.join("\n")}\n---FAQ---\n${faq}`, keyword);
+}
+
+/** Вся статья одним ответом. Лимит ответа большой: 1100+ слов по-русски — это 4–6 тысяч токенов вместе с разметкой. */
 async function genSeoArticleSingle(ctx: string, keyword: string): Promise<{ meta: SeoMeta; html: string }> {
   const raw = await chat("article", SEO_SYSTEM,
-    `${ctx}\nТребования: 1000–1500 слов; 4–6 разделов <h2>, где нужно — <h3>; запрос естественно встречается в заголовке, первом абзаце и 1–2 подзаголовках; списки и короткие абзацы; в конце — вывод и мягкий призыв к действию от бренда. Без <h1>.\n` +
-    `ФОРМАТ ОТВЕТА строго такой (маркеры оставь как есть):\nTITLE: заголовок до 60 знаков\nDESCRIPTION: описание 120–155 знаков\nSLUG: короткий-адрес-латиницей\nKEYWORDS: 5–8 ключевых слов через запятую\n---BODY---\n(HTML: только h2,h3,p,ul,ol,li,strong,em,blockquote,table)\n---FAQ---\nQ: вопрос\nA: ответ 1–3 предложения\n(3–5 пар)`,
-    { maxTokens: 4500, temperature: 0.6, timeoutMs: 58_000 });
+    `${ctx}\nТребования: 1200–1600 слов (не короче 1100); 5–7 разделов <h2>, где нужно — <h3>; запрос естественно встречается в заголовке, первом абзаце и 1–2 подзаголовках; единая логика от начала до конца, плавные переходы между разделами, одни и те же термины; списки и короткие абзацы; в конце — вывод и мягкий призыв к действию от бренда. Без <h1>.\n` +
+    `ФОРМАТ ОТВЕТА строго такой (маркеры оставь как есть):\nTITLE: заголовок до 60 знаков\nDESCRIPTION: описание 120–155 знаков\nSLUG: короткий-адрес-латиницей\nKEYWORDS: 5–8 ключевых слов через запятую\n---BODY---\n(HTML: только h2,h3,p,ul,ol,li,strong,em,blockquote,table)\n---FAQ---\nQ: вопрос\nA: ответ 1–3 предложения\n(4–5 пар)`,
+    { maxTokens: 8000, temperature: 0.6, timeoutMs: 120_000 });
   return parseSeoResponse(raw, keyword);
 }
 
