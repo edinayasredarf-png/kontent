@@ -103,9 +103,10 @@ export async function fetchItems(kind: Kind, ref: string, config: Record<string,
       const text = (p.text || p.copy_history?.[0]?.text || "").replace(/\s+/g, " ").trim();
       if (!text) return [];
       const url = `https://vk.com/wall${p.owner_id}_${p.id}`;
-      return [{ extId: sha(url), url, title: text.length > 140 ? text.slice(0, 139) + "…" : text, body: text.slice(0, 4000), publishedAt: new Date(p.date * 1000) }];
+      const media = (p.attachments ?? []).filter((a) => a.type === "photo" && a.photo?.sizes?.length).map((a) => ({ type: "image" as const, url: [...a.photo!.sizes!].sort((x, y) => y.width - x.width)[0].url })).slice(0, 6);
+      return [{ extId: sha(url), url, title: text.length > 140 ? text.slice(0, 139) + "…" : text, body: text.slice(0, 4000), publishedAt: new Date(p.date * 1000), media }];
     });
   }
   return [];
 }
-interface VkPost { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[] }
+interface VkPost { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; attachments?: { type: string; photo?: { sizes?: { width: number; url: string }[] } }[] }

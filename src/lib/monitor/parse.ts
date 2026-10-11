@@ -27,7 +27,12 @@ export function parseFeed(xml: string, baseUrl: string): Item[] {
     try { link = new URL(link, baseUrl).toString(); } catch { continue; }
     const pub = Date.parse(strip(tag(b, "pubDate") || tag(b, "published") || tag(b, "updated") || tag(b, "dc:date")));
     const body = strip(tag(b, "content:encoded") || tag(b, "description") || tag(b, "summary") || tag(b, "content"));
-    out.push({ extId: sha(tag(b, "guid") || link), url: link, title: clip(title, 300), body: clip(body, 4000), publishedAt: Number.isNaN(pub) ? new Date() : new Date(pub) });
+    const media: Media[] = [];
+    const add = (u: string | undefined) => { const url = (u ?? "").replace(/&amp;/g, "&").trim(); if (/^https?:\/\//i.test(url) && !media.some((m) => m.url === url)) media.push({ type: "image", url }); };
+    for (const m of b.matchAll(/<enclosure[^>]*>/gi)) if (/type=["']image\//i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
+    for (const m of b.matchAll(/<media:(?:content|thumbnail)[^>]*>/gi)) if (!/medium=["']video/i.test(m[0]) && !/type=["']video/i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
+    if (!media.length) add((tag(b, "content:encoded") || tag(b, "description")).match(/<img[^>]+src=["']([^"']+)["']/i)?.[1]);
+    out.push({ extId: sha(tag(b, "guid") || link), url: link, title: clip(title, 300), body: clip(body, 4000), publishedAt: Number.isNaN(pub) ? new Date() : new Date(pub), media: media.slice(0, 6) });
   }
   return out;
 }
@@ -41,7 +46,13 @@ export function parseTelegram(html: string, username: string): Item[] {
     const a = post.querySelector(".tgme_widget_message_date");
     const link = a?.getAttribute("href") || `https://t.me/${username}`;
     const dt = Date.parse(post.querySelector(".tgme_widget_message_date time")?.getAttribute("datetime") ?? "");
-    out.push({ extId: sha(link), url: link, title: clip(text, 140), body: clip(text, 4000), publishedAt: Number.isNaN(dt) ? new Date() : new Date(dt) });
+    // фото поста: адрес в стиле background-image:url('…') у блоков .tgme_widget_message_photo_wrap
+    const media: Media[] = [];
+    for (const ph of post.querySelectorAll(".tgme_widget_message_photo_wrap")) {
+      const u = (ph.getAttribute("style") ?? "").match(/url\(['"]?([^'")]+)['"]?\)/i)?.[1];
+      if (u && /^https?:\/\//i.test(u) && !media.some((m) => m.url === u)) media.push({ type: "image", url: u });
+    }
+    out.push({ extId: sha(link), url: link, title: clip(text, 140), body: clip(text, 4000), publishedAt: Number.isNaN(dt) ? new Date() : new Date(dt), media: media.slice(0, 6) });
   }
   return out;
 }

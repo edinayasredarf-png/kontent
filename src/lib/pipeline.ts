@@ -9,6 +9,7 @@ import { cleanAngles, htmlTitle, htmlToText, MAX_SOURCE, MIN_SOURCE } from "./re
 import { safeFetchText } from "./safefetch";
 import { collectComments, collectMembers, collectStats } from "./engage";
 import { collectCompetitors } from "./competitors";
+import { runFlows } from "./flows/run";
 import { genSeoArticle } from "./seo";
 import { learnings } from "./engage";
 import { prepareLinks } from "./links";
@@ -281,7 +282,9 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
 /** Ставит материал в очередь на все каналы завода. Повтор для упавшей публикации — переводит её обратно в queued. */
 export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
-    `select i.factory_id,f.channel_ids,i.body,i.status,i.kind from kz_content_items i join kz_factories f on f.id=i.factory_id
+    // материалы автоленты не принадлежат заводу: каналы лежат в meta.channelIds
+    `select i.factory_id,coalesce(f.channel_ids, array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid)) channel_ids,i.body,i.status,i.kind
+       from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
   if (row.kind === "email" || row.kind === "guide") return { ok: false, error: row.kind === "email" ? "Рассылку нельзя опубликовать в соцсети: скачайте письмо или скопируйте HTML и отправьте через свой сервис рассылок." : "Гайд не публикуется в соцсети: скачайте его и отдавайте как лид-магнит, а в соцсетях сделайте пост-анонс." };
@@ -340,7 +343,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
       // ссылки на сайт из настроек завода получают UTM-метки или короткий адрес со счётчиком; SEO-статьи не трогаем
-      const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
+      const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
       const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
@@ -473,6 +476,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
 
   // 4.5) мониторинг: опрос источников, давно не обновлявшихся
   try { const p = await pollDue(8); rep.sources = p.polled; rep.fetched = p.added; } catch (e) { rep.errors.push(`monitor: ${(e as Error).message}`); }
+  try { const fl = await runFlows(Math.max(20_000, budgetMs - (Date.now() - t0) - 60_000)); rep.errors.push(...fl.errors.slice(0, 2)); } catch (e) { rep.errors.push(`flows: ${(e as Error).message}`); }
 
   // статистика опубликованных постов и новые комментарии (сбой площадки не должен ронять остальной проход)
   try { const cc = await collectCompetitors(4); rep.errors.push(...cc.errors.slice(0, 2)); } catch (e) { rep.errors.push(`competitors: ${(e as Error).message}`); }
