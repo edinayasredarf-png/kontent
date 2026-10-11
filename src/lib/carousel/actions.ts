@@ -74,3 +74,13 @@ export async function savePollAction(f: FormData) {
   const r = await q("update kz_content_items set meta = meta || jsonb_build_object('poll', $3::jsonb), updated_at=now() where id=$1 and org_id=$2 and kind='poll' and status in ('idea','approved','ready','failed') returning id", [id, c.org.id, JSON.stringify({ question, options })]);
   back(fid, id, r.length ? undefined : "Этот опрос сейчас нельзя изменить");
 }
+
+/** Вернуть слайд, отредактированный вручную, к автоматическому оформлению (по тексту и стилю). */
+export async function resetSlideAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id"), fid = s(f, "factory"), pos = Number(s(f, "pos"));
+  const it = await one<{ status: string; meta: { carousel?: { slides: { title: string; body: string }[]; style: keyof typeof CAROUSEL_STYLES } } }>("select status,meta from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
+  if (!it?.meta.carousel || !["idea", "approved", "ready", "failed"].includes(it.status)) return back(fid, id, "Эту карусель сейчас нельзя изменить");
+  try { await renderForItem(c.org.id, id, it.meta.carousel.slides, it.meta.carousel.style, undefined, [pos]); } catch (e) { return back(fid, id, `Не удалось: ${(e as Error).message}`); }
+  back(fid, id);
+}

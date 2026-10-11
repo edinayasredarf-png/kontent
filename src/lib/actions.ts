@@ -205,7 +205,7 @@ export async function saveBody(f: FormData) {
   const c = await writer();
   // у SEO-статей тело — HTML для сайта: чистим при каждом сохранении
   const it = await one<{ kind: string }>("select kind from kz_content_items where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
-  await q("update kz_content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, it?.kind === "seo" ? cleanHtml(String(f.get("body") ?? "")) : s(f, "body")]);
+  await q("update kz_content_items set body=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, ["seo", "email", "guide"].includes(it?.kind ?? "") ? cleanHtml(String(f.get("body") ?? "")) : s(f, "body")]);
   revalidatePath("/app", "layout");
 }
 

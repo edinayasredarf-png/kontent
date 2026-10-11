@@ -14,6 +14,7 @@ import { learnings } from "./engage";
 import { prepareLinks } from "./links";
 import { textForChannel } from "./growth-lite";
 import { strategyOf } from "./strategy";
+import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
@@ -34,7 +35,7 @@ export const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, descr
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>
-  kind === "carousel" ? PRICES.carousel + (cleanSettings(brief).carouselCover === "ai" ? PRICES.image : 0) : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : kind === "infographic" ? PRICES.infographic : PRICES.post;
+  kind === "carousel" ? PRICES.carousel + (cleanSettings(brief).carouselCover === "ai" ? PRICES.image : 0) : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : kind === "infographic" ? PRICES.infographic : kind === "email" ? PRICES.email : kind === "guide" ? PRICES.guide : PRICES.post;
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -190,6 +191,12 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
     } else if (item.kind === "poll") {
       const poll = await genPoll(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options })]);
+    } else if (item.kind === "email") {
+      const em = await genEmail(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
+      await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('email',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, em.html, JSON.stringify(em.meta)]);
+    } else if (item.kind === "guide") {
+      const g = await genGuide(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
+      await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('guide',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, g.html, JSON.stringify(g.meta)]);
     } else if (item.kind === "infographic") {
       const st = await settingsFor(orgId, fac, item.meta?.rubric);
       const g = await genInfographic(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st, item.meta?.source);
@@ -200,7 +207,7 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
-    if (fac.brief?.images && !["carousel", "infographic", "poll"].includes(item.kind)) {
+    if (fac.brief?.images && !["carousel", "infographic", "poll", "email", "guide"].includes(item.kind)) {
       const im = await buildImage(orgId, item.id);
       if (!im.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, im.error]);
     }
@@ -277,6 +284,7 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
     `select i.factory_id,f.channel_ids,i.body,i.status,i.kind from kz_content_items i join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
+  if (row.kind === "email" || row.kind === "guide") return { ok: false, error: row.kind === "email" ? "Рассылку нельзя опубликовать в соцсети: скачайте письмо или скопируйте HTML и отправьте через свой сервис рассылок." : "Гайд не публикуется в соцсети: скачайте его и отдавайте как лид-магнит, а в соцсетях сделайте пост-анонс." };
   if (row.kind === "reels") return { ok: false, error: "Сценарий ролика нельзя опубликовать как пост: снимите видео по сценарию и выложите его сами. Видео сервис пока не создаёт." };
   if (!row.body.trim() && row.kind !== "poll") return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
@@ -439,8 +447,8 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const todo = await q<{ id: string; org_id: string }>(
     `select i.id,i.org_id from kz_content_items i join kz_factories f on f.id=i.factory_id join kz_orgs o on o.id=i.org_id
       where f.status='active' and not o.suspended and i.status='approved' and i.planned_for <= current_date + 1
-        and (o.unlimited or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int else $4::int end)
-      order by i.planned_for limit 4`, [PRICES.carousel + PRICES.image, PRICES.article, PRICES.reels, PRICES.post]);
+        and (o.unlimited or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int when 'guide' then $5::int else $4::int end)
+      order by i.planned_for limit 4`, [PRICES.carousel + PRICES.image, PRICES.article, PRICES.reels, PRICES.post, PRICES.guide]);
   for (const it of todo) {
     if (Date.now() - t0 > budgetMs - 60_000) break;
     const r = await buildItem(it.org_id, it.id);
@@ -459,7 +467,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
       "select count(*) c from kz_content_items where factory_id=$1 and scheduled_at is not null and (scheduled_at at time zone $2)::date = $3::date", [f.id, tz, n.date]))!.c);
     const slots = passed - done;
     if (slots <= 0) continue;
-    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and kind <> 'reels' and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
+    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and kind not in ('reels','email','guide') and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
     for (const r of ready) { const e = await enqueue(f.org_id, r.id); if (e.ok) rep.queued++; else rep.errors.push(`enqueue ${r.id}: ${e.error}`); }
   }
 

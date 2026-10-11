@@ -86,3 +86,12 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 
 /* Лендинг всегда светлый: пастельная палитра из цветов логотипа (как у референсов), независимо от темы кабинета */
 .lt-light { color-scheme: light; --bg: #ffffff; --surface: #ffffff; --tile: #f3f8ec; --tile2: #e9f1de; --ink: #17191d; --ink2: #5d6570; --ink3: #8d95a0; --line: #e8ecdf; --accent: #029cda; --accent-ink: #0480b1; --accent-soft: #e3f6fe; --good: #2e8b4e; --good-soft: #e6f4e8; --bad: #d8453c; --bad-soft: #fcecea; --pastel-cyan: #e3f6fe; --pastel-lime: #f6ffc7; --pastel-green: #e9f3e4; }
+
+/* Печать и PDF: отчёт клиента и гайды */
+@page { size: A4; margin: 14mm; }
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: #fff !important; color: #111 !important; }
+  .print-avoid { break-inside: avoid; page-break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+}

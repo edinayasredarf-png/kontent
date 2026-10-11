@@ -1,12 +1,12 @@
 import { Link2, Trash2 } from "lucide-react";
-import { createShareLinkAction, revokeShareLinkAction } from "@/lib/share-actions";
+import { createShareLinkAction, revokeShareLinkAction, saveWhiteLabelAction } from "@/lib/share-actions";
 import type { ShareLink } from "@/lib/share";
 import { CopyField } from "./CopyField";
 
 const when = (d: string | null) => (d ? new Date(d).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—");
 
 /** Ссылки для клиента: согласование материалов и отчёт без регистрации. */
-export function ShareCard({ brandId, links, canEdit }: { brandId: string; links: ShareLink[]; canEdit: boolean }) {
+export function ShareCard({ brandId, links, canEdit, wl }: { brandId: string; links: ShareLink[]; canEdit: boolean; wl: { name: string; footer: string; hide: boolean } }) {
   const active = links.filter((l) => !l.revoked);
   return (
     <section className="card p-5">
@@ -37,6 +37,19 @@ export function ShareCard({ brandId, links, canEdit }: { brandId: string; links:
             <label className="flex items-center gap-2 text-xs">Срок действия, дней
               <input name="days" type="number" min={0} max={365} defaultValue={0} className="input !w-20 !py-1" /><span className="text-ink3">0 — без срока</span></label>
             <button className="btn">Создать ссылку</button>
+          </form>
+        </details>
+      )}
+      {canEdit && (
+        <details className="mt-3 rounded-xl border border-line p-3">
+          <summary className="cursor-pointer text-xs font-medium text-ink2">Оформление от имени агентства (белая метка)</summary>
+          <form action={saveWhiteLabelAction} className="mt-3 space-y-2.5">
+            <input type="hidden" name="brand" value={brandId} />
+            <input name="name" defaultValue={wl.name} maxLength={80} placeholder="Название агентства (покажем: «Подготовлено: …»)" className="input" />
+            <textarea name="footer" defaultValue={wl.footer} rows={2} maxLength={400} placeholder="Подпись внизу: контакты, сайт, менеджер" className="input text-sm" />
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="hide" defaultChecked={wl.hide} />Не упоминать платформу «Контент-завод» на страницах клиента</label>
+            <button className="btn btn-ghost !py-1.5">Сохранить оформление</button>
+            <p className="text-xs text-ink3">Действует для всех ссылок организации. На страницах клиента показываются логотип и цвета бренда клиента, название агентства и ваша подпись. Меняют владелец и администратор.</p>
           </form>
         </details>
       )}

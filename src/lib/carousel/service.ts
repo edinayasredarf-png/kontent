@@ -28,9 +28,9 @@ export function cleanSlides(raw: unknown): Slide[] {
  * Рисует слайды и заменяет ими прежние файлы материала. Новые сохраняются до удаления старых — при сбое (например, лимит хранилища)
  * прежняя карусель остаётся целой. cover: undefined — оставить текущий фон обложки, null — убрать, Buffer — новый.
  */
-export async function renderForItem(orgId: string, itemId: string, slides: Slide[], style: CarouselStyle, cover?: Buffer | null): Promise<void> {
-  const it = await one<{ brand_id: string; brief: unknown; brand: string; kit: unknown }>(
-    `select i.brand_id,f.brief,b.name brand,b.kit from kz_content_items i join kz_brands b on b.id=i.brand_id left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
+export async function renderForItem(orgId: string, itemId: string, slides: Slide[], style: CarouselStyle, cover?: Buffer | null, reset: number[] = []): Promise<void> {
+  const it = await one<{ brand_id: string; brief: unknown; brand: string; kit: unknown; meta: { carousel?: { slides?: { title?: string }[]; custom?: number[] } } }>(
+    `select i.brand_id,i.meta,f.brief,b.name brand,b.kit from kz_content_items i join kz_brands b on b.id=i.brand_id left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) throw new Error("Материал не найден");
   const st = cleanSettings(it.brief), kit = cleanKit(it.kit);
   const logoRow = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
@@ -41,18 +41,28 @@ export async function renderForItem(orgId: string, itemId: string, slides: Slide
   else coverBuf = cover;
 
   const out = await renderCarousel({ slides, style, colors: kit.colors ?? [], brandName: it.brand, aspect: st.carouselFormat, logo, cover: coverBuf });
+  // слайды, отредактированные вручную в визуальном редакторе, не перерисовываем, пока их текст не изменился (иначе правка потеряется молча)
+  const oldTitles = it.meta?.carousel?.slides ?? [];
+  const wantKeep = (it.meta?.carousel?.custom ?? []).filter((pos) => !reset.includes(pos) && pos < slides.length && oldTitles[pos]?.title === slides[pos]?.title);
+  const existing = wantKeep.length ? await q<{ id: string; position: number }>("select id,position from kz_assets where item_id=$1 and position = any($2::int[])", [itemId, wantKeep]) : [];
+  const kept = new Map(existing.map((a) => [a.position, a.id]));
   const ids: string[] = [];
+  const created: string[] = [];
   try {
-    for (let i = 0; i < out.length; i++) ids.push(await saveAsset(orgId, it.brand_id, "generated", `slide-${i + 1}.jpg`, out[i], "", { itemId, position: i }));
+    for (let i = 0; i < out.length; i++) {
+      if (kept.has(i)) { ids.push(kept.get(i)!); continue; }
+      const nid = await saveAsset(orgId, it.brand_id, "generated", `slide-${i + 1}.jpg`, out[i], "", { itemId, position: i });
+      ids.push(nid); created.push(nid);
+    }
     let coverId: string | null = null;
     if (cover instanceof Buffer) coverId = await saveAsset(orgId, it.brand_id, "generated", "cover-bg.jpg", { data: cover, mime: "image/jpeg", width: 1080, height: slideHeight(st.carouselFormat) }, "", { itemId, position: -1 });
     const keep = [...ids, ...(coverId ? [coverId] : cover === undefined && oldCover ? [oldCover.id] : [])];
     await q("delete from kz_assets where item_id=$1 and org_id=$2 and id <> all($3::uuid[])", [itemId, orgId, keep]);
   } catch (e) {
-    if (ids.length) await q("delete from kz_assets where id = any($1::uuid[]) and org_id=$2", [ids, orgId]); // откатываем недозаписанное
+    if (created.length) await q("delete from kz_assets where id = any($1::uuid[]) and org_id=$2", [created, orgId]); // откатываем недозаписанное
     throw e;
   }
-  await q("update kz_content_items set meta = meta || jsonb_build_object('carousel', jsonb_build_object('slides',$3::jsonb,'style',$4::text)), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(slides), style]);
+  await q("update kz_content_items set meta = meta || jsonb_build_object('carousel', jsonb_build_object('slides',$3::jsonb,'style',$4::text,'custom',$5::jsonb)), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(slides), style, JSON.stringify([...kept.keys()])]);
 }
 
 /** Инфографика материала: один файл (position 0), прежний удаляется после сохранения нового. Параметры хранятся в meta.infographic для правки. */

@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { createLink, revokeLink, submitFeedback } from "./share";
+import { q } from "./db";
+import { canManageTeam } from "./team";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -27,6 +29,15 @@ export async function createShareLinkAction(f: FormData) {
 export async function revokeShareLinkAction(f: FormData) {
   const c = await requireWriter();
   await revokeLink(c.org.id, s(f, "id"));
+  revalidatePath(`/app/brands/${s(f, "brand")}`);
+  redirect(`/app/brands/${s(f, "brand")}`);
+}
+
+/** Белая метка организации: имя агентства, подпись и скрытие упоминания платформы на клиентских страницах. */
+export async function saveWhiteLabelAction(f: FormData) {
+  const c = await requireWriter();
+  if (!canManageTeam(c.org.role)) redirect(`/app/brands/${s(f, "brand")}?err=${encodeURIComponent("Оформление портала меняют владелец и администратор")}`);
+  await q("update kz_orgs set wl_name=$2, wl_footer=$3, wl_hide=$4 where id=$1", [c.org.id, s(f, "name").slice(0, 80), String(f.get("footer") ?? "").replace(/\r/g, "").trim().slice(0, 400), f.get("hide") === "on"]);
   revalidatePath(`/app/brands/${s(f, "brand")}`);
   redirect(`/app/brands/${s(f, "brand")}`);
 }

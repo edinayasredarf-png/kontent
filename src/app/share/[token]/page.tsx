@@ -5,8 +5,12 @@ import { feedbackAction } from "@/lib/share-actions";
 import { portalByToken, portalItems, portalReport } from "@/lib/share";
 import { cleanKit } from "@/lib/images";
 import { KIND } from "@/components/ui";
+import { PortalFooter, PortalHeader } from "@/components/PortalChrome";
 
-export const metadata: Metadata = { title: "Согласование и отчёт", robots: { index: false, follow: false } };
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const p = await portalByToken((await params).token);
+  return { title: { absolute: p ? `${p.brand.name}: согласование и отчёт` : "Страница недоступна" }, description: p ? `${p.brand.name}` : "", openGraph: { title: p?.brand.name ?? "", description: "", siteName: p?.wl.name || p?.brand.name || "" }, robots: { index: false, follow: false } };
+}
 export const dynamic = "force-dynamic";
 
 const VERDICT: Record<string, { t: string; cls: string }> = { approved: { t: "Одобрено", cls: "bg-good-soft text-good" }, changes: { t: "Нужны правки", cls: "bg-warn-soft text-warn" }, comment: { t: "Комментарий", cls: "bg-tile text-ink2" } };
@@ -26,19 +30,14 @@ export default async function SharePage({ params, searchParams }: { params: Prom
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      <header className="border-b border-line" style={{ borderTop: `4px solid ${accent}` }}>
-        <div className="mx-auto max-w-3xl px-5 py-6">
-          <p className="text-xs font-medium uppercase tracking-wider text-ink3">Согласование и отчёт</p>
-          <h1 className="mt-1 text-2xl font-bold">{p.brand.name}</h1>
-        </div>
-      </header>
+      <PortalHeader p={p} token={token} eyebrow="Согласование и отчёт" />
       <main className="mx-auto max-w-3xl space-y-10 px-5 py-8">
         {done && <p className="rounded-xl bg-good-soft px-4 py-3 text-sm text-good">Спасибо! Ответ отправлен команде.</p>}
         {err && <p className="rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
 
         {rep && (
           <section aria-labelledby="rep">
-            <h2 id="rep" className="mb-4 text-lg font-semibold">Результаты за 30 дней</h2>
+            <div className="mb-4 flex flex-wrap items-center gap-3"><h2 id="rep" className="flex-1 text-lg font-semibold">Результаты за 30 дней</h2><a href={`/share/${token}/report`} className="btn btn-ghost !py-1.5 text-sm">Отчёт для печати и PDF</a></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[["Публикаций", fmt(rep.posts)], ["Просмотров", fmt(rep.views)], ["Реакций", fmt(rep.reactions)], ["Вовлечённость", `${rep.er}%`]].map(([l, v]) => (
                 <div key={l} className="rounded-2xl bg-tile p-4"><div className="text-xs text-ink2">{l}</div><div className="mt-1 text-2xl font-semibold">{v}</div></div>
@@ -126,7 +125,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
           </div>
         </section>
       </main>
-      <footer className="mx-auto max-w-3xl px-5 pb-10 text-xs text-ink3">Страница доступна только по этой ссылке. Если вы получили её по ошибке, просто закройте вкладку.</footer>
+      <PortalFooter p={p} />
     </div>
   );
 }

@@ -31,17 +31,19 @@ export async function revokeLink(orgId: string, id: string) { await q("update kz
 
 export interface Portal {
   link: { id: string; org_id: string; brand_id: string; can_approve: boolean; show_report: boolean; auto_publish: boolean };
-  brand: { name: string; kit: unknown };
+  brand: { name: string; kit: unknown; logoId: string | null };
+  wl: { name: string; footer: string; hide: boolean };
 }
 /** Находит действующую ссылку по токену. Любая неточность (формат, отзыв, срок) — null, без подсказок, что именно не так. */
 export async function portalByToken(token: string): Promise<Portal | null> {
   if (!TOKEN_RE.test(token)) return null;
-  const r = await one<Portal["link"] & { name: string; kit: unknown }>(
-    `select l.id,l.org_id,l.brand_id,l.can_approve,l.show_report,l.auto_publish,b.name,b.kit from kz_share_links l join kz_brands b on b.id=l.brand_id join kz_orgs o on o.id=l.org_id
+  const r = await one<Portal["link"] & { name: string; kit: unknown; logo_id: string | null; wl_name: string; wl_footer: string; wl_hide: boolean }>(
+    `select l.id,l.org_id,l.brand_id,l.can_approve,l.show_report,l.auto_publish,b.name,b.kit,o.wl_name,o.wl_footer,o.wl_hide,
+            (select a.id from kz_assets a where a.org_id=l.org_id and a.brand_id=l.brand_id and a.kind='logo' order by a.created_at desc limit 1) logo_id from kz_share_links l join kz_brands b on b.id=l.brand_id join kz_orgs o on o.id=l.org_id
       where l.token_hash=$1 and not l.revoked and (l.expires_at is null or l.expires_at > now()) and not o.suspended`, [hash(token)]);
   if (!r) return null;
   q("update kz_share_links set last_seen_at=now() where id=$1", [r.id]).catch(() => {});
-  return { link: { id: r.id, org_id: r.org_id, brand_id: r.brand_id, can_approve: r.can_approve, show_report: r.show_report, auto_publish: r.auto_publish }, brand: { name: r.name, kit: r.kit } };
+  return { link: { id: r.id, org_id: r.org_id, brand_id: r.brand_id, can_approve: r.can_approve, show_report: r.show_report, auto_publish: r.auto_publish }, brand: { name: r.name, kit: r.kit, logoId: r.logo_id }, wl: { name: r.wl_name, footer: r.wl_footer, hide: r.wl_hide } };
 }
 
 export interface PortalItem { id: string; kind: string; topic: string; body: string; status: string; planned_for: string | null; slides: string[]; image: string | null; feedback: { author: string; verdict: string; comment: string; created_at: string }[] }
@@ -70,6 +72,7 @@ export async function portalAsset(p: Portal, assetId: string): Promise<boolean> 
 
 export interface Report { posts: number; views: number; reactions: number; er: string; top: { topic: string; kind: string; channel: string; views: number; reactions: number; url: string | null }[]; channels: { title: string; kind: string; members: number | null; growth: number | null }[]; byWeek: { week: string; posts: number; views: number }[] }
 export async function portalReport(p: Portal, days = 30): Promise<Report> {
+  days = [7, 30, 90].includes(days) ? days : 30; // значение подставляется в SQL как число: только из белого списка
   const base = `from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
                 where p.org_id=$1 and i.brand_id=$2 and p.status='published' and p.published_at >= now() - interval '${days} days'`;
   const [tot, top, weeks, chans] = await Promise.all([

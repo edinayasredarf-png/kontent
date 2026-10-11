@@ -77,7 +77,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="space-y-6">
-          <ShareCard brandId={id} links={await listLinks(c.org.id, id)} canEdit={canEdit} />
+          <ShareCard brandId={id} links={await listLinks(c.org.id, id)} canEdit={canEdit} wl={(await one<{ name: string; footer: string; hide: boolean }>("select wl_name as name, wl_footer as footer, wl_hide as hide from kz_orgs where id=$1", [c.org.id])) ?? { name: "", footer: "", hide: false }} />
           <section className="card p-5">
             <b className="text-sm">Логотип</b>
             <p className="mb-3 mt-1 text-xs text-ink2">PNG с прозрачным фоном. Накладывается на готовую картинку, а не рисуется нейросетью — так буквы не искажаются.</p>

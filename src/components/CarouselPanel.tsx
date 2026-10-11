@@ -1,14 +1,15 @@
 import { Download, ImageIcon, X } from "lucide-react";
 import { CAROUSEL_STYLES } from "@/lib/postsettings";
-import { carouselCoverAction } from "@/lib/carousel/actions";
+import { carouselCoverAction, resetSlideAction } from "@/lib/carousel/actions";
 import { CarouselEditor } from "./CarouselEditor";
+import { SlideEditor } from "./SlideEditor";
 import type { SlideLayout } from "@/lib/carousel/layouts";
 import { PRICES, rub } from "@/lib/wallet";
 
-export interface CarouselMeta { slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES }
+export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES }
 
 /** Слайды карусели у материала: превью, правка текстов с перерисовкой, обложка нейросетью, скачивание архивом. */
-export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean }) {
+export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [] }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[] }) {
   return (
     <div className="space-y-3 rounded-xl border border-line p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -21,6 +22,11 @@ export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free 
           <img key={a.id} src={`/api/assets/${a.id}`} alt={`Слайд ${i + 1}`} loading="lazy" className="h-56 w-auto shrink-0 rounded-lg border border-line" />
         ))}
       </div>
+      {editable && <SlideEditor itemId={itemId} targets={assets.map((a, i) => ({ key: `slide:${i}`, label: `Слайд ${i + 1}${meta.custom?.includes(i) ? " ✎" : ""}`, assetId: a.id }))} colors={colors} />}
+      {editable && (meta.custom?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink2">Слайды с ручной правкой не перерисовываются при смене текста:
+          {meta.custom!.map((n) => <form key={n} action={resetSlideAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="pos" value={n} /><button className="btn btn-ghost !px-2.5 !py-1 text-xs">Вернуть слайд {n + 1}</button></form>)}</div>
+      )}
       {editable && (<>
         <details className="rounded-xl bg-tile p-3">
           <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тексты слайдов и оформление</summary>

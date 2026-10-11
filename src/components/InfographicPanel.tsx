@@ -2,14 +2,16 @@ import { RefreshCw } from "lucide-react";
 import { CAROUSEL_STYLES } from "@/lib/postsettings";
 import { INFO_LAYOUTS, type Infographic } from "@/lib/carousel/infographic";
 import { saveInfographicAction } from "@/lib/carousel/actions";
+import { SlideEditor } from "./SlideEditor";
 
 /** Инфографика материала: превью и правка текстов с бесплатной перерисовкой. */
-export function InfographicPanel({ itemId, factoryId, info, style, assetId, editable }: { itemId: string; factoryId: string; info: Infographic; style: string; assetId?: string; editable: boolean }) {
+export function InfographicPanel({ itemId, factoryId, info, style, assetId, editable, colors = [] }: { itemId: string; factoryId: string; info: Infographic; style: string; assetId?: string; editable: boolean; colors?: string[] }) {
   return (
     <div className="space-y-3 rounded-xl border border-line p-3">
       <b className="text-sm">Инфографика</b>
       {assetId && (// eslint-disable-next-line @next/next/no-img-element
         <img src={`/api/assets/${assetId}`} alt="Инфографика" loading="lazy" className="max-h-[28rem] w-auto rounded-lg border border-line" />)}
+      {editable && assetId && <SlideEditor itemId={itemId} targets={[{ key: "info", label: "Править картинку", assetId }]} colors={colors} />}
       {editable && (
         <details className="rounded-xl bg-tile p-3">
           <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тексты и раскладку</summary>
