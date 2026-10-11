@@ -17,7 +17,7 @@ export async function genEmail(b: BrandCtx, product: string, niche: string, topi
   const raw = await chat("post",
     "Ты email-маркетолог. Пиши по-русски живо и по делу, без спам-триггеров (ВСЕ ЗАГЛАВНЫЕ, «!!!», «бесплатно» без условий), без выдуманных фактов, цифр и скидок.",
     `${brandBlock(b, product, niche)}\nТема письма: ${topic}\nХук: ${hook}\n` +
-    (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 2500)}\nФакты только оттуда.\n` : "") +
+    (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 4500)}\nФакты только оттуда.\n` : "") +
     `\nНапиши письмо-рассылку: одна главная мысль, короткие абзацы, 250–400 слов, один понятный призыв к действию.\n${st.cta ? `Призыв (близко к смыслу): «${st.cta}».\n` : ""}${st.link ? `Ссылка для кнопки: ${st.link}\n` : ""}Правила: ${styleBlock({ ...st, hashtags: "none" }, "email")}\n` +
     `ФОРМАТ строго такой:\nSUBJECT: тема письма до 55 знаков, без капса\nPREHEADER: прехедер до 90 знаков, дополняет тему\nHEADLINE: заголовок внутри письма до 70 знаков\nCTA: текст кнопки до 30 знаков\n---BODY---\n(HTML: только p, ul, ol, li, strong, em, h3, a)`,
     { maxTokens: 1800, temperature: 0.7, timeoutMs: 50_000 });
@@ -41,7 +41,7 @@ export interface GuideMeta { title: string; subtitle: string }
  * Короче 1000 слов — модель видит готовый текст и дописывает две главы перед заключением.
  */
 export async function genGuide(b: BrandCtx, product: string, niche: string, topic: string, hook: string, source?: SourceLike): Promise<{ meta: GuideMeta; html: string }> {
-  const ctx = `${brandBlock(b, product, niche)}\nТема гайда: ${topic}\nХук: ${hook}\n` + (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nФакты только оттуда.\n` : "");
+  const ctx = `${brandBlock(b, product, niche)}\nТема гайда: ${topic}\nХук: ${hook}\n` + (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 4500)}\nФакты только оттуда.\n` : "");
   const sys = "Ты автор практических гайдов. Пиши по-русски понятно и полезно, без воды, выдуманных фактов, цифр и ссылок. Каждая глава даёт конкретные шаги, примеры или проверки.";
   const raw = await chat("article", sys,
     `${ctx}\nНапиши гайд, который человек сохранит и применит: 1200–1800 слов. Структура: короткое введение (зачем и что получит читатель), 5–7 глав <h2> с шагами и примерами, в конце чек-лист <ul> из 7–10 пунктов, затем заключение с мягким призывом от бренда. Единая логика, одни и те же термины, плавные переходы. Без <h1>.\n` +

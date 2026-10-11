@@ -5,6 +5,7 @@ import { requireCtx, requireWriter } from "../auth";
 import { q } from "../db";
 import { addManual, addSource, digest, itemToPlan, pollSource, recompute } from "./service";
 import type { Kind } from "./fetchers";
+import { createFromNews, enrichItem, scoreNews, suggestKeywords, type KwSuggestion } from "./news";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const KINDS = ["site", "telegram", "vk", "news", "max"];
@@ -93,4 +94,35 @@ export async function digestAction(_: unknown) {
   const c = await requireCtx();
   if (c.org.role === "viewer") return { error: "Недостаточно прав" };
   return digest(c.org.id);
+}
+
+/** Загрузить полный текст новости по ссылке (кнопка «Прочитать полностью»). */
+export async function enrichItemAction(f: FormData) {
+  const c = await requireWriter();
+  const r = await enrichItem(c.org.id, s(f, "id"));
+  back();
+  redirect(r.ok ? `/app/monitor?note=${encodeURIComponent("Полный текст загружен")}` : `/app/monitor?err=${encodeURIComponent(r.note ?? "Не удалось загрузить текст")}`);
+}
+
+/** Подборка новостей под бренд: оценки сохраняются в ленте, дальше можно фильтровать «подходит мне». */
+export async function scoreNewsAction(_: unknown, f: FormData): Promise<{ ok?: string; error?: string }> {
+  const c = await requireWriter();
+  const r = await scoreNews(c.org.id, s(f, "brand"));
+  back();
+  return r.ok ? { ok: `Оценено новостей: ${r.scored}. Включите фильтр «Подходит мне», чтобы увидеть лучшие.` } : { error: r.error };
+}
+
+export async function suggestKeywordsAction(brand: string): Promise<{ ok: true; s: KwSuggestion } | { ok: false; error: string }> {
+  const c = await requireWriter();
+  return suggestKeywords(c.org.id, String(brand ?? ""));
+}
+
+/** Создать материалы из новости: типы выбираются, режим «сразу» или «в план». */
+export async function createFromNewsAction(f: FormData) {
+  const c = await requireWriter();
+  const factory = s(f, "factory");
+  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), s(f, "mode") !== "ideas");
+  back();
+  if (!r.ok) redirect(`/app/monitor?err=${encodeURIComponent(r.error)}`);
+  redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}${r.ids.length > 3 && s(f, "mode") !== "ideas" ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне.")}` : ""}#i-${r.ids[0]}`);
 }

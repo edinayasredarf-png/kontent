@@ -134,7 +134,7 @@ export async function genPost(b: BrandCtx, product: string, niche: string, topic
   return chat(task,
     "Ты редактор бренда. Пиши по-русски, без воды и клише, без эмодзи-спама. Не выдумывай факты, цифры и цены — если данных нет, пиши без них. Выведи только готовый текст, без вступлений вроде «Вот текст».",
     `${brandBlock(b, product, niche)}\nФормат: ${kind}, объём: ${len}\nТема: ${topic}\nХук: ${hook}\n` +
-      (source ? `\nМатериал-источник (${source.url}):\n«${source.title}»\n${source.body.slice(0, 3000)}\nИспользуй из него только факты, пиши своими словами и с позиции бренда, не копируй формулировки и не придумывай деталей, которых в источнике нет.\n` : "") +
+      (source ? `\nМатериал-источник (${source.url}):\n«${source.title}»\n${source.body.slice(0, 6000)}\nИспользуй из него только факты, пиши своими словами и с позиции бренда, не копируй формулировки и не придумывай деталей, которых в источнике нет.\n` : "") +
       (kind === "contest" ? "\nПриз, срок и условия бери только из темы и хука. Если чего-то там нет, не выдумывай и не ставь заглушки в квадратных скобках: напиши условия без этой детали (например, «подведём итоги в ближайшее время»).\n" : "") +
       (kind === "post" || kind === "story" || kind === "article" || kind === "contest" ? `\nПравила оформления:\n${styleBlock(st, kind, postType)}\n` : "") +
       `Напиши готовый текст.`,
@@ -189,7 +189,7 @@ export interface CarouselText { slides: { title: string; body: string; layout?: 
 export async function genCarousel(b: BrandCtx, product: string, niche: string, topic: string, hook: string, n: number, st: ContentSettings, source?: SourceNote, postType?: string): Promise<CarouselText> {
   const system = "Ты контент-стратег соцсетей. Пиши по-русски, коротко и конкретно, без воды и клише. Не выдумывай факты, цифры и цены. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
   const user = `${brandBlock(b, product, niche)}\nТема карусели: ${topic}\nХук: ${hook}\n` +
-    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nФакты бери только оттуда, формулировки не копируй.\n` : "") +
+    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 4500)}\nФакты бери только оттуда, формулировки не копируй.\n` : "") +
     `\nСделай карусель из ${n} слайдов:\n- слайд 1 — обложка: "title" до 60 знаков (цепляющий), "body" до 90 знаков (подзаголовок);\n- слайды 2–${n - 1}: "title" до 50 знаков, "body" до 200 знаков; одна мысль на слайд, конкретика и польза. Для разнообразия у части слайдов (не у всех подряд) укажи "layout": "stat" — когда есть цифра из источника (title = только цифра, например "73%", до 14 знаков, body — что она значит); "list" — перечисление (body = 2–5 коротких пунктов через " | "); "compare" — контраст (body = "Миф: … | Факт: …" или "Было: … | Стало: …"); "quote" — цитата или сильная фраза (title = фраза, body = кто сказал). Остальным слайдам layout не нужен. Цифры и цитаты — только из источника или темы, не выдумывай;\n- слайд ${n} — призыв к действию: "title" до 50 знаков, "body" до 160 знаков.\n` +
     `Кроме слайдов напиши "caption" — подпись к посту 300–700 знаков.\nПравила оформления подписи:\n${styleBlock(st, "carousel", postType)}\n` +
     `Формат: {"slides":[{"title":"...","body":"..."},{"title":"73%","body":"...","layout":"stat"}],"caption":"..."}`;
@@ -213,7 +213,7 @@ export interface PollText { question: string; options: string[]; caption: string
 export async function genPoll(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote): Promise<PollText> {
   const system = "Ты контент-стратег соцсетей. Пиши по-русски коротко и по делу. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
   const user = `${brandBlock(b, product, niche)}\nТема опроса: ${topic}\nХук: ${hook}\n` +
-    (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 1500)}\n` : "") +
+    (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 3000)}\n` : "") +
     `\nСделай опрос для аудитории: "question" — вопрос до 250 знаков, на который легко ответить одним нажатием; "options" — от 3 до 5 вариантов ответа до 80 знаков, не пересекающихся, без нумерации; "caption" — подводка к опросу 150–350 знаков (зачем мы спрашиваем и что сделаем с ответами).\n` +
     `Правила оформления подводки:\n${styleBlock(st, "poll")}\nФормат: {"question":"...","options":["...","..."],"caption":"..."}`;
   let o: Record<string, unknown> | null = null;
@@ -236,7 +236,7 @@ export interface InfographicText { title: string; subtitle: string; layout: Info
 export async function genInfographic(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote): Promise<InfographicText> {
   const system = "Ты контент-стратег и редактор инфографики. Пиши по-русски коротко и конкретно, не выдумывай цифры, факты и цены. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
   const user = `${brandBlock(b, product, niche)}\nТема инфографики: ${topic}\nХук: ${hook}\n` +
-    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nЦифры и факты бери только оттуда.\n` : "") +
+    (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 4500)}\nЦифры и факты бери только оттуда.\n` : "") +
     `\nСделай инфографику: "title" до 70 знаков, "subtitle" до 110 знаков, "layout": "steps" (последовательность шагов), "stats" (до 4 цифр: head — сама цифра до 12 знаков, text — что она значит) или "checklist" (список проверок); "blocks" — от 3 до 6 блоков (для stats от 2 до 4): "head" до 40 знаков, "text" до 120 знаков. "caption" — подпись к посту 250–600 знаков.\n` +
     `Правила оформления подписи:\n${styleBlock(st, "post")}\nФормат: {"title":"...","subtitle":"...","layout":"steps","blocks":[{"head":"...","text":"..."}],"caption":"..."}`;
   let o: Record<string, unknown> | null = null;

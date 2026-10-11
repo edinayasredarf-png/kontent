@@ -526,5 +526,14 @@ create table if not exists kz_flow_items (
 );
 create index if not exists kz_flow_items_flow on kz_flow_items(flow_id, status, created_at desc);
 
+-- 019_feed_fulltext_fit.sql
+-- Мониторинг: полный текст статьи (RSS обычно отдаёт только заголовок и анонс) и оценка «подходит ли это вам».
+alter table kz_feed_items add column if not exists full_text text;
+alter table kz_feed_items add column if not exists full_status text not null default '';   -- '', ok, short, failed, unsupported
+alter table kz_feed_items add column if not exists fit_score int;
+alter table kz_feed_items add column if not exists fit_reason text not null default '';
+alter table kz_feed_items add column if not exists fit_at timestamptz;
+create index if not exists kz_feed_items_fit on kz_feed_items(org_id, fit_score desc) where fit_score is not null;
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql') on conflict do nothing;

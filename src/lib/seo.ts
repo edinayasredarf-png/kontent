@@ -53,7 +53,7 @@ const context = (b: BrandCtx, product: string, niche: string, keyword: string, a
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт: ${product}\nНиша: ${niche}\n` +
   (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "") +
   `\nГлавный поисковый запрос: «${keyword}»\nУгол/намерение: ${angle || "информационное: ответить на вопрос исчерпывающе"}\n` +
-  (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 2500)}\nИспользуй только факты оттуда, своими словами.\n` : "");
+  (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 6000)}\nИспользуй только факты оттуда, своими словами.\n` : "");
 
 export interface Outline { title: string; description: string; slug: string; keywords: string; sections: { h: string; brief: string }[]; faq: string[] }
 

@@ -7,6 +7,7 @@ import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { loadFactory, buildItem, type Result } from "../pipeline";
 import { PLANS, type PlanKey } from "../plans";
 import { allocateDates } from "../plan";
+import { enrichRecent } from "./news";
 
 export const loadKeywords = (orgId: string) => q<Kw & { id: string }>("select id,word,kind from kz_keywords where org_id=$1 order by kind,word", [orgId]);
 
@@ -47,6 +48,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
   if (!s || s.kind === "manual") return { added: 0 };
   try {
     const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }));
+    if (s.kind === "site" || s.kind === "news") await enrichRecent(s.org_id, s.id, 3).catch(() => 0); // полные тексты свежих новостей (RSS отдаёт только анонс)
     await q("update kz_sources set last_fetched_at=now(), last_error=null where id=$1", [id]);
     return { added };
   } catch (e) {

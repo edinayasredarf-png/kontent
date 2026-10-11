@@ -8,6 +8,8 @@ import { addKeywordsAction, addManualAction, addSourceAction, deleteKeywordActio
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { PageHead } from "@/components/ui";
 import { AddSourceForm } from "@/components/AddSourceForm";
+import { SuggestKeywords } from "@/components/SuggestKeywords";
+import { PRICES, rub } from "@/lib/wallet";
 
 export const maxDuration = 60;
 
@@ -66,6 +68,8 @@ export default async function MonitorSettings() {
             <b className="mb-4 block text-sm">Добавить источник</b>
             <AddSourceForm vkOn={vkOn} maxChannels={await q<{ id: string; title: string }>("select id,title from kz_channels where org_id=$1 and kind='max' and status='active' order by created_at", [c.org.id])} />
           </section>
+
+          <SuggestKeywords brands={await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id])} priceLabel={c.org.unlimited ? "бесплатно для админа" : rub(PRICES.idea)} />
 
           <section className="card h-fit p-5">
             <b className="mb-4 block text-sm">Добавить ключевые слова</b>
