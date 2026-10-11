@@ -7,6 +7,7 @@ import { Form, Field } from "@/components/Form";
 import { addKeywordsAction, addManualAction, addSourceAction, deleteKeywordAction, deleteSourceAction, refreshSourceAction, toggleSourceAction } from "@/lib/monitor/actions";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { PageHead } from "@/components/ui";
+import { AddSourceForm } from "@/components/AddSourceForm";
 
 export const maxDuration = 60;
 
@@ -63,16 +64,7 @@ export default async function MonitorSettings() {
         <div className="space-y-6">
           <section className="card h-fit p-5">
             <b className="mb-4 block text-sm">Добавить источник</b>
-            <Form action={addSourceAction} submit="Проверить и добавить">
-              <Field label="Тип">
-                <select name="kind" className="input">
-                  <option value="site">Сайт или RSS-лента</option><option value="telegram">Telegram-канал (публичный)</option>
-                  <option value="vk" disabled={!vkOn}>Сообщество VK{vkOn ? "" : " — нужен VK_SERVICE_TOKEN"}</option><option value="news">Новости по запросу</option>
-                </select>
-              </Field>
-              <Field label="Адрес, @канал или запрос"><input name="value" required className="input" placeholder="example.ru · @channel · vk.com/name · «закупки 44-ФЗ»" /></Field>
-              <p className="text-xs text-ink3">Мы проверим, что источник читается. Сайты — через RSS, если её нет, берём заголовки с главной страницы. MAX и закрытые каналы читать нельзя — добавляйте посты вручную ниже.</p>
-            </Form>
+            <AddSourceForm vkOn={vkOn} maxChannels={await q<{ id: string; title: string }>("select id,title from kz_channels where org_id=$1 and kind='max' and status='active' order by created_at", [c.org.id])} />
           </section>
 
           <section className="card h-fit p-5">

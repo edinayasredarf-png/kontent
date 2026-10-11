@@ -7,7 +7,7 @@ import { addManual, addSource, digest, itemToPlan, pollSource, recompute } from 
 import type { Kind } from "./fetchers";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
-const KINDS = ["site", "telegram", "vk", "news"];
+const KINDS = ["site", "telegram", "vk", "news", "max"];
 const back = () => revalidatePath("/app/monitor", "layout");
 
 export async function addSourceAction(_: unknown, f: FormData) {

@@ -1,8 +1,11 @@
 import { safeFetchText } from "../safefetch";
+import { one } from "../db";
+import { open } from "../crypto";
+import { listPosts } from "../publishing/max";
 import { discoverFeeds, looksLikeFeed, pageTitle, parseFeed, parseTelegram, scrapeLinks, sha, type Item } from "./parse";
 
-export type Kind = "site" | "telegram" | "vk" | "news" | "manual";
-export const KIND_LABEL: Record<Kind, string> = { site: "Сайт / RSS", telegram: "Telegram", vk: "VK", news: "Новости по запросу", manual: "Вручную" };
+export type Kind = "site" | "telegram" | "vk" | "news" | "manual" | "max";
+export const KIND_LABEL: Record<Kind, string> = { site: "Сайт / RSS", telegram: "Telegram", vk: "VK", max: "MAX", news: "Новости по запросу", manual: "Вручную" };
 
 export interface Resolved { ref: string; title: string; config: Record<string, unknown> }
 
@@ -10,7 +13,7 @@ const TG = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
 const VKD = /^[A-Za-z0-9_.]{2,50}$/;
 
 /** Приводит ввод пользователя к каноническому виду и проверяет, что источник читается. */
-export async function resolveSource(kind: Kind, input: string): Promise<Resolved> {
+export async function resolveSource(kind: Kind, input: string, orgId = ""): Promise<Resolved> {
   const v = input.trim();
   if (!v) throw new Error("Укажите адрес или название");
   if (kind === "telegram") {
@@ -25,6 +28,12 @@ export async function resolveSource(kind: Kind, input: string): Promise<Resolved
     if (!VKD.test(d)) throw new Error("Нужна ссылка на сообщество: vk.com/name или vk.com/club123");
     await fetchItems("vk", d, {});
     return { ref: d.toLowerCase(), title: `VK ${d}`, config: {} };
+  }
+  if (kind === "max") {
+    // value — id подключённого канала MAX (kz_channels): токен бота и id чата берём оттуда, пользователь их заново не вводит
+    const ch = await one<{ id: string; title: string }>("select id,title from kz_channels where id::text=$1 and org_id::text=$2 and kind='max' and status='active'", [v, orgId]).catch(() => null);
+    if (!ch) throw new Error("Сначала подключите канал MAX на странице «Каналы», затем выберите его здесь");
+    return { ref: ch.id, title: `MAX: ${ch.title}`, config: { channelId: ch.id } };
   }
   if (kind === "news") {
     if (v.length < 3 || v.length > 120) throw new Error("Запрос — от 3 до 120 символов");
@@ -52,7 +61,19 @@ export async function resolveSource(kind: Kind, input: string): Promise<Resolved
   throw new Error("Неизвестный тип источника");
 }
 
+/** Посты канала MAX через GET /messages. Бот подключённого канала должен быть администратором с правом читать сообщения; media хранится для автоленты. */
+export async function fetchMaxItems(orgId: string, channelId: string): Promise<Item[]> {
+  const ch = await one<{ credentials: unknown }>("select credentials from kz_channels where id=$1 and org_id=$2 and kind='max'", [channelId, orgId]);
+  if (!ch) throw new Error("Канал MAX удалён или недоступен");
+  const c = open(ch.credentials);
+  const posts = await listPosts(c.token, (c.target ?? "").trim(), { count: 50 });
+  return posts.filter((p) => p.text).map((p) => ({
+    extId: p.mid, url: p.url ?? `max://channel/${(c.target ?? "").trim()}/${p.mid}`, title: p.text.length > 140 ? p.text.slice(0, 139) + "…" : p.text, body: p.text.slice(0, 4000), publishedAt: p.at, media: p.media,
+  }));
+}
+
 export async function fetchItems(kind: Kind, ref: string, config: Record<string, unknown>): Promise<Item[]> {
+  if (kind === "max") return fetchMaxItems(String(config.orgId ?? ""), String(config.channelId ?? ref));
   if (kind === "telegram") {
     const r = await safeFetchText(`https://t.me/s/${encodeURIComponent(ref)}`);
     return parseTelegram(r.text, ref).slice(-30).reverse();

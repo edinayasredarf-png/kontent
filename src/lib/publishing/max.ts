@@ -79,3 +79,55 @@ export const max: Provider = {
     return { externalId: first || String(Date.now()), url: null, warning };
   },
 };
+
+/* ───────── чтение постов канала ───────── */
+export interface MaxMedia { type: "image" | "video" | "audio" | "file"; url?: string; token?: string; name?: string }
+export interface MaxPost { mid: string; text: string; url: string | null; at: Date; views: number | null; media: MaxMedia[] }
+
+interface RawAtt { type?: string; payload?: { url?: string; token?: string; photo_id?: number | string }; filename?: string }
+interface RawMsg { timestamp?: number; url?: string; stat?: { views?: number }; body?: { mid?: string; text?: string | null; attachments?: RawAtt[] | null } }
+
+/** Привести ответ GET /messages к постам. Вложения: image/video/audio/file; прочие типы (клавиатуры, стикеры, геопозиция) пропускаем. */
+export function mapMessages(raw: unknown): MaxPost[] {
+  const arr: RawMsg[] = Array.isArray(raw) ? raw : Array.isArray((raw as { messages?: RawMsg[] })?.messages) ? (raw as { messages: RawMsg[] }).messages : [];
+  const out: MaxPost[] = [];
+  for (const m of arr) {
+    const mid = m.body?.mid;
+    if (!mid) continue;
+    const media: MaxMedia[] = [];
+    for (const a of m.body?.attachments ?? []) {
+      if (a.type === "image" || a.type === "video" || a.type === "audio" || a.type === "file") media.push({ type: a.type, url: a.payload?.url, token: a.payload?.token, name: a.filename });
+    }
+    out.push({ mid, text: (m.body?.text ?? "").trim(), url: m.url ?? null, at: new Date(m.timestamp ?? Date.now()), views: m.stat?.views ?? null, media });
+  }
+  return out;
+}
+
+/** Последние посты канала (бот должен быть администратором с правом читать все сообщения). from — время в миллисекундах: только новее. */
+export async function listPosts(token: string, chat: string, o: { from?: number; count?: number } = {}): Promise<MaxPost[]> {
+  const q = new URLSearchParams({ chat_id: chat, count: String(Math.min(100, Math.max(1, o.count ?? 50))) });
+  if (o.from) q.set("from", String(o.from));
+  try { return mapMessages(await call<unknown>(token, "GET", `/messages?${q}`)); }
+  catch (e) {
+    if (/MAX 403/.test((e as Error).message)) throw new PublishError("MAX не даёт читать посты: добавьте бота в канал администратором и включите право «читать все сообщения»");
+    throw e;
+  }
+}
+
+/** Каналы и чаты, где бот есть, по событиям (список каналов бота MAX отдельным методом не отдаёт). Нужно, чтобы бот недавно получил событие: добавление в канал или пост. */
+export async function discoverChats(token: string): Promise<{ id: string; title: string; channel: boolean }[]> {
+  const r = await call<{ updates?: { chat_id?: number | string; is_channel?: boolean; message?: { recipient?: { chat_id?: number | string; chat_type?: string } } }[] }>(token, "GET", "/updates?limit=100&timeout=0");
+  const seen = new Map<string, boolean>();
+  for (const u of r.updates ?? []) {
+    const id = u.chat_id ?? u.message?.recipient?.chat_id;
+    if (id == null || id === "") continue;
+    seen.set(String(id), (seen.get(String(id)) ?? false) || !!u.is_channel || u.message?.recipient?.chat_type === "channel");
+  }
+  const out: { id: string; title: string; channel: boolean }[] = [];
+  for (const [id, channel] of [...seen].slice(0, 20)) {
+    let title = id;
+    try { title = (await call<{ title?: string }>(token, "GET", `/chats/${encodeURIComponent(id)}`)).title || id; } catch { /* название необязательно */ }
+    out.push({ id, title, channel });
+  }
+  return out;
+}

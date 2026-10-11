@@ -1,13 +1,22 @@
 "use client";
 import { useState } from "react";
 import { Form, Field } from "./Form";
-import { saveChannel } from "@/lib/actions";
+import { discoverMaxAction, saveChannel } from "@/lib/actions";
 
 const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max: "MAX (бета)", wordpress: "WordPress (SEO-статьи)", webhook: "Webhook (сайты и любые соцсети через n8n/Make)" };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
 export function ChannelForm({ brands }: { brands: { id: string; name: string }[] }) {
   const [kind, setKind] = useState("telegram");
+  const [found, setFound] = useState<{ id: string; title: string; channel: boolean }[]>([]);
+  const [findMsg, setFindMsg] = useState("");
+  const find = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    const form = e.currentTarget.closest("form")!;
+    const token = (form.querySelector('input[name="token"]') as HTMLInputElement | null)?.value ?? "";
+    setFindMsg("Ищем…"); setFound([]);
+    const r = await discoverMaxAction(token);
+    if (r.ok) { setFound(r.chats); setFindMsg(""); } else setFindMsg(r.error);
+  };
   return (
     <Form action={saveChannel} submit="Проверить и подключить">
       <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
@@ -28,7 +37,12 @@ export function ChannelForm({ brands }: { brands: { id: string; name: string }[]
       {kind === "max" && (<>
         <Field label="Токен бота MAX"><input name="token" type="password" required autoComplete="off" className="input" /></Field>
         <Field label="id чата или канала"><input name="target" required className="input" /></Field>
-        <p className="text-xs text-ink3">Бот должен быть администратором канала. Интеграция в бете: проверена по документации, но не на живом канале; картинки пока не отправляются.</p>
+        <div className="space-y-2">
+          <button type="button" onClick={find} className="btn btn-ghost !py-1.5 text-xs">Найти каналы бота</button>
+          {findMsg && <p className="text-xs text-ink2">{findMsg}</p>}
+          <div className="flex flex-wrap gap-1.5">{found.map((c) => <button key={c.id} type="button" className="chip cursor-pointer" onClick={(ev) => { const f = ev.currentTarget.closest("form")!; (f.querySelector('input[name="target"]') as HTMLInputElement).value = c.id; }}>{c.channel ? "Канал" : "Чат"}: {c.title}</button>)}</div>
+        </div>
+        <p className="text-xs text-ink3">Бот создаётся в MAX для бизнеса. Добавьте его в канал администратором и включите права «писать» и «читать все сообщения»: первое нужно для публикации, второе для чтения постов канала. id канала можно найти кнопкой выше: он определяется по событиям бота (добавление в канал, новый пост). Публикация проверена по документации, на живом канале пока не опробована.</p>
       </>)}
       {(kind === "telegram" || kind === "vk") && (<>
         <Field label={kind === "telegram" ? "Токен бота" : "Ключ доступа сообщества"}><input name="token" type="password" required autoComplete="off" className="input" /></Field>

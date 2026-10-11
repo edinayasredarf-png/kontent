@@ -483,5 +483,12 @@ alter table kz_orgs add column if not exists wl_name text not null default '';
 alter table kz_orgs add column if not exists wl_footer text not null default '';
 alter table kz_orgs add column if not exists wl_hide boolean not null default false;
 
+-- 017_max_source.sql
+-- MAX как источник: чтение постов своего канала, где бот — администратор.
+alter table kz_sources drop constraint if exists kz_sources_kind_check;
+alter table kz_sources add constraint kz_sources_kind_check check (kind in ('site','telegram','vk','news','manual','max'));
+-- Вложения поста источника (картинки, видео, файлы) — для автоленты и показа в мониторинге.
+alter table kz_feed_items add column if not exists media jsonb not null default '[]'::jsonb;
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql') on conflict do nothing;

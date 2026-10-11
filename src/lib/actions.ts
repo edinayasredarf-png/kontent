@@ -229,6 +229,18 @@ export async function saveChannel(_: unknown, f: FormData) {
   revalidatePath("/app/channels");
   redirect("/app/channels");
 }
+/** Подсказка для подключения MAX: каналы и чаты, о которых боту приходили события. Токен вводится в форме, в базе не сохраняется. */
+export async function discoverMaxAction(token: string): Promise<{ ok: true; chats: { id: string; title: string; channel: boolean }[] } | { ok: false; error: string }> {
+  await writer();
+  const t = String(token ?? "").trim();
+  if (t.length < 10) return { ok: false, error: "Сначала вставьте токен бота" };
+  try {
+    const { discoverChats } = await import("./publishing/max");
+    const chats = await discoverChats(t);
+    return chats.length ? { ok: true, chats } : { ok: false, error: "Событий пока нет. Добавьте бота в канал администратором и опубликуйте в канале любой пост, затем нажмите снова." };
+  } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 160) }; }
+}
+
 export async function saveSignatureAction(f: FormData) {
   const c = await writer();
   await q("update kz_channels set signature=$3 where id=$1 and org_id=$2", [s(f, "id"), c.org.id, String(f.get("signature") ?? "").replace(/\r/g, "").trim().slice(0, 500)]);

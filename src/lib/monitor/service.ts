@@ -18,9 +18,9 @@ async function storeItems(orgId: string, sourceId: string, items: Item[]): Promi
   for (const it of items) {
     const m = matchItem(it.title, it.body, kws);
     const r = await q(
-      `insert into kz_feed_items(org_id,source_id,ext_id,url,title,body,published_at,matched,score,excluded)
-       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict(source_id,ext_id) do nothing returning id`,
-      [orgId, sourceId, it.extId, it.url, it.title, it.body, it.publishedAt, m.matched, m.score, m.excluded]);
+      `insert into kz_feed_items(org_id,source_id,ext_id,url,title,body,published_at,matched,score,excluded,media)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict(source_id,ext_id) do nothing returning id`,
+      [orgId, sourceId, it.extId, it.url, it.title, it.body, it.publishedAt, m.matched, m.score, m.excluded, JSON.stringify(it.media ?? [])]);
     added += r.length;
   }
   return added;
@@ -31,7 +31,8 @@ export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean
   const n = Number((await one<{ n: string }>("select count(*) n from kz_sources where org_id=$1 and kind<>'manual'", [orgId]))!.n);
   if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[plan].name}»: максимум источников — ${lim}. Повысьте тариф.` };
   let r;
-  try { r = await resolveSource(kind, input); } catch (e) { return { error: (e as Error).message }; }
+  try { r = await resolveSource(kind, input, orgId); } catch (e) { return { error: (e as Error).message }; }
+  if (kind === "max") { try { await fetchItems("max", r.ref, { ...r.config, orgId }); } catch (e) { return { error: (e as Error).message }; } } // сразу проверяем, что чтение разрешено
   const row = await one<{ id: string }>(
     `insert into kz_sources(org_id,kind,ref,title,config) values($1,$2,$3,$4,$5) on conflict(org_id,kind,ref) do nothing returning id`,
     [orgId, kind, r.ref, r.title, JSON.stringify(r.config)]);
@@ -45,7 +46,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
   const s = await one<{ id: string; org_id: string; kind: Kind; ref: string; config: Record<string, unknown> }>("select id,org_id,kind,ref,config from kz_sources where id=$1", [id]);
   if (!s || s.kind === "manual") return { added: 0 };
   try {
-    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, s.config));
+    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }));
     await q("update kz_sources set last_fetched_at=now(), last_error=null where id=$1", [id]);
     return { added };
   } catch (e) {
