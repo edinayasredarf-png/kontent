@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { CAROUSEL_STYLES } from "@/lib/postsettings";
 import { INFO_LAYOUTS, type Infographic } from "@/lib/carousel/infographic";
 import { saveInfographicAction } from "@/lib/carousel/actions";
@@ -8,7 +8,7 @@ import { SlideEditor } from "./SlideEditor";
 export function InfographicPanel({ itemId, factoryId, info, style, assetId, editable, colors = [] }: { itemId: string; factoryId: string; info: Infographic; style: string; assetId?: string; editable: boolean; colors?: string[] }) {
   return (
     <div className="space-y-3 rounded-xl border border-line p-3">
-      <b className="text-sm">Инфографика</b>
+      <div className="flex items-center gap-2"><b className="text-sm">Инфографика</b>{assetId && <a href={`/api/assets/${assetId}?dl=1`} download className="btn btn-ghost ml-auto !py-1.5"><Download size={14} />Скачать картинку</a>}</div>
       {assetId && (// eslint-disable-next-line @next/next/no-img-element
         <img src={`/api/assets/${assetId}`} alt="Инфографика" loading="lazy" className="max-h-[28rem] w-auto rounded-lg border border-line" />)}
       {editable && assetId && <SlideEditor itemId={itemId} targets={[{ key: "info", label: "Править картинку", assetId }]} colors={colors} />}

@@ -320,6 +320,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 <div className="flex flex-wrap items-start gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
+                  <a href={`/api/assets/${i.image_id}?dl=1`} download className="btn btn-ghost !py-1.5" title="Скачать картинку файлом"><Download size={14} />Скачать картинку</a>
                   <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><button className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</button></form>
                 </div>
               )}

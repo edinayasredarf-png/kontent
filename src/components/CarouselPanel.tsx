@@ -21,7 +21,7 @@ export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free,
       <div className="flex gap-2 overflow-x-auto pb-1">
         {assets.map((a, i) => (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={a.id} src={`/api/assets/${a.id}`} alt={`Слайд ${i + 1}`} loading="lazy" className="h-56 w-auto shrink-0 rounded-lg border border-line" />
+          <div key={a.id} className="group relative shrink-0"><img src={`/api/assets/${a.id}`} alt={`Слайд ${i + 1}`} loading="lazy" className="h-56 w-auto rounded-lg border border-line" /><a href={`/api/assets/${a.id}?dl=1`} download title={`Скачать слайд ${i + 1}`} aria-label={`Скачать слайд ${i + 1}`} className="absolute right-1.5 top-1.5 rounded-lg bg-surface/90 p-1.5 text-ink2 opacity-0 shadow transition hover:text-ink group-hover:opacity-100 focus:opacity-100"><Download size={14} /></a></div>
         ))}
       </div>
       {editable && <SlideEditor itemId={itemId} targets={assets.map((a, i) => ({ key: `slide:${i}`, label: `Слайд ${i + 1}${meta.custom?.includes(i) ? " ✎" : ""}`, assetId: a.id }))} colors={colors} />}
