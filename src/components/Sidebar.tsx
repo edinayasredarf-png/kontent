@@ -20,7 +20,7 @@ const NAV = [
   { href: "/app/inbox", label: "Входящие", icon: Inbox },
   { href: "/app/channels", label: "Каналы", icon: Radio },
   { href: "/app/assistant", label: "Лия", icon: Sparkles },
-  { href: "/app/studio", label: "Студия и агенты", icon: Wand2 },
+  { href: "/app/studio", label: "ИИ-ассистенты", icon: Wand2 },
   { href: "/app/billing", label: "Баланс и тариф", icon: Wallet },
   { href: "/app/team", label: "Команда", icon: UsersRound },
   { href: "/app/developers", label: "API и интеграции", icon: Plug },

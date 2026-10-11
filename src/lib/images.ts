@@ -62,6 +62,23 @@ export async function describeImage(a: { data: Buffer; mime: string }, what: "re
   return out.slice(0, 600);
 }
 
+/** Произвольный вопрос vision-модели о картинке (data:URL). Для «Текста по изображению» в студии. */
+export async function visionAsk(dataUrl: string, ask: string): Promise<string> {
+  const base = baseUrl();
+  const model = await modelFor("vision");
+  if (!base || !model) throw new Error("Не выбрана vision-модель в «Настройках ИИ»");
+  const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
+  const res = await fetch(`${base}/chat/completions`, {
+    method: "POST", headers: { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) }, signal: AbortSignal.timeout(55_000),
+    body: JSON.stringify({ model, max_tokens: 700, temperature: 0.3, messages: [{ role: "user", content: [{ type: "text", text: ask }, { type: "image_url", image_url: { url: dataUrl } }] }] }),
+  });
+  if (!res.ok) throw new Error(`Шлюз ${res.status} (vision ${model}): ${(await res.text().catch(() => "")).slice(0, 160)}`);
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const out = (j.choices?.[0]?.message?.content ?? "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
+  if (!out) throw new Error("Модель вернула пустой ответ");
+  return out;
+}
+
 export interface PromptInput { brandName: string; kit: Kit; topic: string; hook: string; body: string; notes: { kind: "reference" | "product"; text: string }[] }
 
 /** Текстовая модель собирает один связный промпт: тема поста + стиль бренда. Текст на картинке запрещаем — логотип накладываем сами. */

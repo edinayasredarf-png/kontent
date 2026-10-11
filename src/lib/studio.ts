@@ -1,35 +1,81 @@
 import { one, q } from "./db";
 import { aiReady, baseUrl, brandBlock, chat, modelFor, type BrandCtx } from "./ai";
-import { buildImagePrompt, cleanKit, finalizeImage, generateImage } from "./images";
+import { buildImagePrompt, cleanKit, finalizeImage, generateImage, visionAsk } from "./images";
 import { loadAsset, saveAsset } from "./assets";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
+import { CATALOG, LANG_PROMPT, STYLES, catalogByKey } from "./studio-catalog";
+import { randomInt } from "node:crypto";
 
-export interface Field { name: string; label: string; type: "text" | "textarea" | "select"; placeholder?: string; options?: [string, string][]; required?: boolean; max?: number; rows?: number }
-export interface Tool { key: string; title: string; agent: string; desc: string; kind: "text" | "image" | "audio"; price: (i: Record<string, string>) => number; priceLabel: string; fields: Field[] }
+export interface Field { name: string; label: string; type: "text" | "textarea" | "select" | "image"; placeholder?: string; options?: [string, string][]; required?: boolean; max?: number; rows?: number }
+export interface Tool { key: string; title: string; agent: string; desc: string; kind: "text" | "image" | "audio"; price: (i: Record<string, string>) => number; priceLabel: string; fields: Field[]; tags: string[] }
 
 const brandField: Field = { name: "brand", label: "Бренд (стиль и тон)", type: "select", options: [["", "Без бренда"]] };
 
 export const TOOLS: Tool[] = [
-  { key: "text", title: "Пост и подпись", agent: "SMM-менеджер", desc: "Пост, подпись, описание для соцсетей по вашему заданию.", kind: "text", price: () => PRICES.post, priceLabel: "20 ₽",
+  { key: "text", tags: ["Текст", "Посты"], title: "Пост и подпись", agent: "SMM-менеджер", desc: "Пост, подпись, описание для соцсетей по вашему заданию.", kind: "text", price: () => PRICES.post, priceLabel: "20 ₽",
     fields: [brandField, { name: "format", label: "Что написать", type: "select", options: [["post", "Пост"], ["caption", "Короткая подпись к картинке"], ["story", "Текст для сторис"], ["ad", "Рекламное объявление"]] },
       { name: "brief", label: "О чём писать", type: "textarea", required: true, max: 2000, rows: 4, placeholder: "Тема, главная мысль, что должен сделать читатель" }] },
-  { key: "hooks", title: "Хуки", agent: "Генератор хуков", desc: "10 цепляющих первых строк для поста или ролика с разными приёмами.", kind: "text", price: () => PRICES.idea, priceLabel: "3 ₽",
+  { key: "hooks", tags: ["Текст", "Идеи", "Посты"], title: "Хуки", agent: "Генератор хуков", desc: "10 цепляющих первых строк для поста или ролика с разными приёмами.", kind: "text", price: () => PRICES.idea, priceLabel: "3 ₽",
     fields: [brandField, { name: "topic", label: "Тема материала", type: "textarea", required: true, max: 600, rows: 3 }] },
-  { key: "script", title: "Сценарий ролика", agent: "Сценарист", desc: "Сценарий короткого видео: хук, кадры, закадровый текст, призыв.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
+  { key: "script", tags: ["Видео", "Планирование"], title: "Сценарий ролика", agent: "Сценарист", desc: "Сценарий короткого видео: хук, кадры, закадровый текст, призыв.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
     fields: [brandField, { name: "idea", label: "Идея ролика", type: "textarea", required: true, max: 1000, rows: 3 },
       { name: "length", label: "Длительность", type: "select", options: [["15", "15 секунд"], ["30", "30 секунд"], ["60", "60 секунд"]] },
       { name: "tone", label: "Тон", type: "select", options: [["engaging", "Вовлекающий"], ["expert", "Экспертный"], ["humor", "С юмором"], ["calm", "Спокойный"]] }] },
-  { key: "viral", title: "Вирусные идеи", agent: "Вирусный контент", desc: "10 идей с оценкой потенциала вирусности и объяснением, почему сработает.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
+  { key: "viral", tags: ["Идеи", "Видео"], title: "Вирусные идеи", agent: "Вирусный контент", desc: "10 идей с оценкой потенциала вирусности и объяснением, почему сработает.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
     fields: [brandField, { name: "product", label: "Продукт и его польза", type: "textarea", required: true, max: 1000, rows: 3 }, { name: "audience", label: "Кто аудитория", type: "textarea", max: 600, rows: 2 }] },
-  { key: "image", title: "Изображение", agent: "Дизайнер", desc: "Картинка по описанию в стиле вашего бренда, с логотипом в углу.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
+  { key: "image", tags: ["Изображения"], title: "Изображение", agent: "Дизайнер", desc: "Картинка по описанию в стиле вашего бренда, с логотипом в углу.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
     fields: [brandField, { name: "prompt", label: "Что нарисовать", type: "textarea", required: true, max: 1000, rows: 4, placeholder: "Сцена, объект, настроение. Текст на картинке модели рисуют плохо — лучше без него" },
       { name: "aspect", label: "Формат", type: "select", options: [["square", "Квадрат 1:1"], ["portrait", "Вертикальный"], ["landscape", "Горизонтальный"]] }] },
-  { key: "cover", title: "Обложка карусели", agent: "Обложки каруселей", desc: "Яркая обложка для карусели Instagram или VK: сильная композиция без текста.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
+  { key: "cover", tags: ["Изображения", "Посты"], title: "Обложка карусели", agent: "Обложки каруселей", desc: "Яркая обложка для карусели Instagram или VK: сильная композиция без текста.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
     fields: [brandField, { name: "prompt", label: "Тема карусели", type: "textarea", required: true, max: 600, rows: 3 }] },
-  { key: "voice", title: "Озвучка", agent: "Озвучка", desc: "Текст в аудио голосом модели шлюза. Файл сохраняется в библиотеке.", kind: "audio", price: (i) => Math.max(1, Math.ceil((i.text ?? "").length / 1000)) * PRICES.tts, priceLabel: "5 ₽ за 1000 знаков",
+  { key: "voice", tags: ["Видео", "Инструменты"], title: "Озвучка", agent: "Озвучка", desc: "Текст в аудио голосом модели шлюза. Файл сохраняется в библиотеке.", kind: "audio", price: (i) => Math.max(1, Math.ceil((i.text ?? "").length / 1000)) * PRICES.tts, priceLabel: "5 ₽ за 1000 знаков",
     fields: [{ name: "text", label: "Текст для озвучки", type: "textarea", required: true, max: 3000, rows: 6 },
       { name: "voice", label: "Голос", type: "select", options: [["alloy", "alloy"], ["echo", "echo"], ["fable", "fable"], ["onyx", "onyx"], ["nova", "nova"], ["shimmer", "shimmer"]] }] },
 ];
+/** Инструменты каталога (текстовые, на шаблонах заданий) и два особых: рандомайзер без нейросети и текст по картинке. */
+const priceLabel = (kop: number) => (kop === 0 ? "бесплатно" : `${kop / 100} ₽`.replace(".", ","));
+TOOLS.push(
+  ...CATALOG.map((c): Tool => ({ key: c.key, tags: c.tags, title: c.title, agent: c.agent, desc: c.desc, kind: "text", price: () => c.kop, priceLabel: priceLabel(c.kop), fields: c.fields })),
+  { key: "image2text", tags: ["Изображения", "Текст", "Посты"], title: "Текст по изображению", agent: "Копирайтер по фото", desc: "Создайте текст на основе изображения: пост, описание или объявление.", kind: "text", price: () => 2000, priceLabel: "20 ₽",
+    fields: [brandField, { name: "image", label: "Изображение", type: "image", required: true }, { name: "what", label: "Что написать", type: "select", options: [["post", "Пост для соцсетей"], ["caption", "Короткая подпись"], ["ad", "Рекламное объявление"], ["card", "Описание товара"]] },
+      { name: "extra", label: "Что важно учесть (необязательно)", type: "textarea", max: 600, rows: 3 },
+      { name: "style", label: "Стиль текста", type: "select", options: Object.entries(STYLES).map(([k, v]) => [k, v.label] as [string, string]) }, { name: "lang", label: "Язык", type: "select", options: Object.entries(LANG_PROMPT).map(([k, v]) => [k, v] as [string, string]) }] },
+  { key: "random", tags: ["Инструменты", "Посты"], title: "Рандомайзер для розыгрышей", agent: "Случайное число", desc: "Определите победителя честным случайным выбором из списка участников.", kind: "text", price: () => 0, priceLabel: "бесплатно",
+    fields: [{ name: "list", label: "Участники (по одному в строке)", type: "textarea", required: true, max: 8000, rows: 8, placeholder: "@ivan\n@maria\n@petr" }, { name: "count", label: "Сколько победителей", type: "select", options: [["1", "1"], ["2", "2"], ["3", "3"], ["5", "5"], ["10", "10"]] }] },
+);
+/** Общие требования к стилю и языку: добавляются к заданию инструментов каталога. */
+function styleLang(input: Record<string, string>, styled: boolean, langed: boolean): string {
+  const st = styled || input.style ? STYLES[input.style ?? "normal"] : undefined;
+  const lang = langed || input.lang ? LANG_PROMPT[input.lang ?? "ru"] ?? "русский" : "русский";
+  return `${st?.hint ? `\nСтиль текста: ${st.label} — ${st.hint}. Соблюдай стиль, но не меняй смысл и факты.` : ""}\nЯзык ответа: ${lang}.`;
+}
+
+async function catalogText(key: string, input: Record<string, string>, bb: string): Promise<string> {
+  if (key === "image2text") {
+    const url = input.image ?? "";
+    if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(url) || url.length > 1_300_000) throw new Error("Загрузите изображение JPG, PNG или WebP (до 1 МБ после сжатия)");
+    const seen = await visionAsk(url, "Опиши эту картинку подробно и точно: что изображено, детали, цвета, настроение, текст на ней если есть. Не додумывай того, чего не видно.");
+    const task = { post: "пост для соцсетей, 500–900 знаков, с цепляющим началом и вопросом в конце", caption: "короткую подпись до 300 знаков", ad: "рекламное объявление: заголовок, 2–3 предложения, призыв", card: "описание товара: название, 3–5 преимуществ, для кого подходит" }[input.what ?? "post"] ?? "пост";
+    return chat("post", SYS, `${bb}\nОписание картинки от наблюдателя:\n${seen}\n${input.extra ? `Что важно учесть: ${lim(input.extra, 600)}\n` : ""}Напиши ${task}. Опирайся только на описание картинки и пожелания, не выдумывай цен, фактов и характеристик.${styleLang(input, true, true)}`, { maxTokens: 1400, temperature: 0.7, timeoutMs: 55_000 });
+  }
+  const c = catalogByKey(key)!;
+  const clean: Record<string, string> = {};
+  for (const f of c.fields) clean[f.name] = lim(input[f.name], f.max ?? 4000);
+  return chat(c.task ?? "post", SYS, `${bb}\n${c.build(clean)}${styleLang(clean, !!c.styled, !!c.langed)}`, { maxTokens: c.maxTokens ?? 2200, temperature: 0.8, timeoutMs: 58_000 });
+}
+
+/** Розыгрыш: случайный выбор криптографическим генератором, без нейросети и бесплатно. Дубли и пустые строки убираются, @ и регистр не различаются. */
+function randomWinners(input: Record<string, string>): Out {
+  const seen = new Set<string>(), names: string[] = [];
+  for (const raw of (input.list ?? "").split("\n")) { const n = raw.trim().slice(0, 100); const k = n.toLowerCase().replace(/^@/, ""); if (n && !seen.has(k)) { seen.add(k); names.push(n); } }
+  if (names.length < 2) return { error: "Нужно хотя бы 2 разных участника, по одному в строке" };
+  const want = Math.min(Math.max(1, Number(input.count) || 1), names.length - 1 || 1, 10);
+  const pool = [...names], win: string[] = [];
+  for (let i = 0; i < want; i++) win.push(pool.splice(randomInt(pool.length), 1)[0]);
+  const when = new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+  return { text: `Победител${win.length > 1 ? "и" : "ь"}:\n${win.map((w, i) => `${i + 1}. ${w}`).join("\n")}\n\nУчастников: ${names.length}. Выбор выполнен случайно ${when} (МСК).` };
+}
+
 export const toolByKey = (k: string) => TOOLS.find((t) => t.key === k);
 
 export type Out = { text?: string; assetId?: string; mime?: string; error?: string };
@@ -62,6 +108,7 @@ async function speech(text: string, voice: string): Promise<Buffer> {
 export async function runTool(orgId: string, key: string, input: Record<string, string>): Promise<Out> {
   const tool = toolByKey(key);
   if (!tool) return { error: "Неизвестный инструмент" };
+  if (key === "random") return randomWinners(input);
   if (!aiReady()) return { error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   for (const f of tool.fields) if (f.required && !lim(input[f.name], 1).length) return { error: `Заполните поле «${f.label}»` };
   for (const f of tool.fields) if (f.max && (input[f.name] ?? "").length > f.max) return { error: `Поле «${f.label}» длиннее ${f.max} знаков` };
@@ -72,6 +119,7 @@ export async function runTool(orgId: string, key: string, input: Record<string, 
   catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
   try {
     const bb = bc ? brandBlock(bc.ctx, "", "") : "";
+    if (catalogByKey(key) || key === "image2text") return { text: await catalogText(key, input, bb) };
     if (tool.kind === "text") {
       let user = "";
       if (key === "text") user = `${bb}\nЗадание: ${{ post: "пост для соцсетей, 600–900 знаков", caption: "короткая подпись к картинке, до 300 знаков", story: "3–4 коротких экрана текста для сторис", ad: "рекламное объявление: заголовок, текст до 400 знаков, призыв" }[input.format ?? "post"] ?? "пост"}.\nО чём: ${lim(input.brief, 2000)}\nВыведи только готовый текст.`;

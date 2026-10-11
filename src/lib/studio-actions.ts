@@ -57,3 +57,19 @@ export async function deleteStudioAssetAction(f: FormData) {
   await q("delete from kz_assets where id=$1 and org_id=$2 and kind='studio'", [s(f, "id"), c.org.id]);
   revalidatePath("/app/studio/library");
 }
+
+const favKey = (uid: string) => `studio_fav:${uid}`;
+/** Избранные инструменты пользователя (сердечко в галерее). Хранится в kz_kv по id пользователя. */
+export async function favoriteTools(uid: string): Promise<string[]> {
+  const r = await one<{ value: unknown }>("select value from kz_kv where key=$1", [favKey(uid)]);
+  return Array.isArray(r?.value) ? (r!.value as unknown[]).map(String).filter((k) => TOOLS.some((t) => t.key === k)) : [];
+}
+export async function toggleFavoriteAction(f: FormData) {
+  const c = await requireWriter();
+  const key = s(f, "tool");
+  if (!TOOLS.some((t) => t.key === key)) return;
+  const cur = await favoriteTools(c.user.id);
+  const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+  await q("insert into kz_kv(key,value,updated_at) values($1,$2::jsonb,now()) on conflict(key) do update set value=excluded.value, updated_at=now()", [favKey(c.user.id), JSON.stringify(next)]);
+  revalidatePath("/app/studio");
+}
