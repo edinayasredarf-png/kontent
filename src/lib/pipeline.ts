@@ -277,6 +277,7 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
     `select i.factory_id,f.channel_ids,i.body,i.status,i.kind from kz_content_items i join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
+  if (row.kind === "reels") return { ok: false, error: "Сценарий ролика нельзя опубликовать как пост: снимите видео по сценарию и выложите его сами. Видео сервис пока не создаёт." };
   if (!row.body.trim() && row.kind !== "poll") return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
   // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
@@ -458,7 +459,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
       "select count(*) c from kz_content_items where factory_id=$1 and scheduled_at is not null and (scheduled_at at time zone $2)::date = $3::date", [f.id, tz, n.date]))!.c);
     const slots = passed - done;
     if (slots <= 0) continue;
-    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
+    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and kind <> 'reels' and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
     for (const r of ready) { const e = await enqueue(f.org_id, r.id); if (e.ok) rep.queued++; else rep.errors.push(`enqueue ${r.id}: ${e.error}`); }
   }
 

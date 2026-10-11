@@ -129,7 +129,7 @@ export interface SourceNote { title: string; body: string; url: string }
 
 export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
   const st = settings ?? cleanSettings({});
-  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : kind === "contest" ? "пост-конкурс, 500–900 знаков: что разыгрываем, условия участия по шагам, срок, как и когда объявим победителя" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
+  const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : kind === "story" ? "текст для сторис: одна мысль и призыв, до 250 знаков, без хештегов" : kind === "contest" ? "пост-конкурс, 500–900 знаков: что разыгрываем, условия участия по шагам, срок, как и когда объявим победителя" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
   const task: AiTask = kind === "article" ? "article" : kind === "carousel" ? "carousel" : kind === "reels" ? "reels" : "post";
   return chat(task,
     "Ты редактор бренда. Пиши по-русски, без воды и клише, без эмодзи-спама. Не выдумывай факты, цифры и цены — если данных нет, пиши без них. Выведи только готовый текст, без вступлений вроде «Вот текст».",
