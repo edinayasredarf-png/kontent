@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
-import { repurposeSource } from "./pipeline";
+import { buildItem, repurposeSource } from "./pipeline";
+import { one } from "./db";
 import { addIdeas, deleteIdea, moveItem, parseIdeaLines, TIMEZONES, updateIdea } from "./plan";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -74,4 +75,17 @@ export async function moveItemDateAction(id: string, date: string): Promise<{ ok
   const r = await moveItem(c.org.id, String(id), String(date));
   if (r.ok) revalidatePath("/app/calendar");
   return r.ok ? { ok: true } : { ok: false, error: r.error ?? "Не удалось перенести" };
+}
+
+/** SEO-статья сразу: создаём идею с запросом, одобряем и пишем без лишних шагов, затем открываем готовую статью. */
+export async function createSeoNowAction(f: FormData) {
+  const c = await requireWriter();
+  const fid = s(f, "factory"), keyword = s(f, "keyword").slice(0, 300), angle = s(f, "angle").slice(0, 300);
+  if (keyword.length < 3) return go(fid, { ok: false, error: "Введите поисковый запрос (минимум 3 символа)" });
+  const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [fid, c.org.id]);
+  if (!fac) return go(fid, { ok: false, error: "Завод не найден" });
+  const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,'seo',$4,$5,current_date,'approved','{\"manual\":true}') returning id", [c.org.id, fid, fac.brand_id, keyword, angle]);
+  const r = await buildItem(c.org.id, row!.id);
+  revalidatePath("/app", "layout");
+  redirect(`/app/factories/${fid}?view=list&open=${row!.id}${r.ok ? "" : `&err=${encodeURIComponent(r.error ?? "Не удалось написать статью")}`}#i-${row!.id}`);
 }

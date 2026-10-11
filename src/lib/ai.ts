@@ -138,7 +138,7 @@ export async function genPost(b: BrandCtx, product: string, niche: string, topic
       (kind === "contest" ? "\nПриз, срок и условия бери только из темы и хука. Если чего-то там нет, не выдумывай и не ставь заглушки в квадратных скобках: напиши условия без этой детали (например, «подведём итоги в ближайшее время»).\n" : "") +
       (kind === "post" || kind === "story" || kind === "article" || kind === "contest" ? `\nПравила оформления:\n${styleBlock(st, kind, postType)}\n` : "") +
       `Напиши готовый текст.`,
-    { maxTokens: kind === "article" ? 3500 : 1500, temperature: 0.7, timeoutMs: kind === "article" ? 55_000 : 45_000 });
+    { maxTokens: kind === "article" ? 4500 : 1500, temperature: 0.7, timeoutMs: kind === "article" ? 55_000 : 45_000 });
 }
 
 export async function saveRoute(task: AiTask | "default", model: string) {

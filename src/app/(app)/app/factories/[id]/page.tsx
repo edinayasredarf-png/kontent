@@ -6,7 +6,7 @@ import { one, q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { deleteFactory, generateImageAction, generateItemAction, generatePlanAction, publishNowAction, removeImageAction, saveBody, setFactoryChannels, setItemStatus, toggleFactory } from "@/lib/actions";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
-import { addIdeaAction, addIdeasBulkAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
+import { addIdeaAction, addIdeasBulkAction, createSeoNowAction, repurposeAction, setRepeatAction, deleteIdeaAction, saveScheduleAction, updateIdeaAction } from "@/lib/plan-actions";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { GrowthPanel } from "@/components/GrowthPanel";
@@ -115,6 +115,16 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <button className="btn btn-ghost">Сохранить расписание</button>
           </div>
           <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
+        </form>
+      </details>
+      <details className="card mb-4 p-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Sparkles size={15} />SEO-статья сразу по запросу</summary>
+        <form action={createSeoNowAction} className="mt-4 space-y-2">
+          <input type="hidden" name="factory" value={id} />
+          <p className="text-xs text-ink2">Введите поисковый запрос, который набирают люди. Сервис составит план и напишет статью на 1100+ слов с заголовком, описанием, адресом и блоком вопросов. Это займёт 1–2 минуты, затем статья откроется здесь.</p>
+          <input name="keyword" required minLength={3} maxLength={300} placeholder="Например: как выбрать зерновой кофе для кофемашины" className="input" />
+          <input name="angle" maxLength={300} placeholder="Угол или намерение (необязательно)" className="input" />
+          <button className="btn"><Sparkles size={14} />Написать статью{c.org.unlimited ? "" : ` · ${rub(PRICES.seo)}`}</button>
         </form>
       </details>
       <details className="card mb-4 p-4">
