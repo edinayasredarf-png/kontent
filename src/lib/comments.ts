@@ -1,3 +1,4 @@
+import { kbText } from "./kb/use";
 import { one, q } from "./db";
 import { brandBlock, chat, aiReady, type BrandCtx } from "./ai";
 import { InsufficientFunds, PRICES, charge, refund } from "./wallet";
@@ -41,8 +42,8 @@ const GUIDE: Record<Tone, string> = {
 /** Черновик ответа от ИИ: учитывает бренд, пост и тон комментария. Платно (мало), при сбое деньги возвращаются. */
 export async function suggestReply(orgId: string, commentId: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
-  const c = await one<{ id: string; body: string; author: string; tone: Tone | null; topic: string | null; post_body: string | null; name: string; description: string; audience: string; btone: string; rules: { forbidden?: string[] } | null; product: string | null; niche: string | null }>(
-    `select cm.id,cm.body,cm.author,cm.tone,i.topic,i.body post_body,b.name,b.description,b.audience,b.tone btone,b.rules,f.product,f.niche
+  const c = await one<{ id: string; body: string; author: string; tone: Tone | null; brand_id: string; topic: string | null; post_body: string | null; name: string; description: string; audience: string; btone: string; rules: { forbidden?: string[] } | null; product: string | null; niche: string | null }>(
+    `select cm.id,cm.body,cm.author,cm.tone,i.topic,i.body post_body,b.id brand_id,b.name,b.description,b.audience,b.tone btone,b.rules,f.product,f.niche
        from kz_comments cm join kz_channels ch on ch.id=cm.channel_id join kz_brands b on b.id=ch.brand_id
        left join kz_publications p on p.id=cm.publication_id left join kz_content_items i on i.id=p.item_id left join kz_factories f on f.id=i.factory_id
       where cm.id=$1 and cm.org_id=$2`, [commentId, orgId]);
@@ -51,7 +52,7 @@ export async function suggestReply(orgId: string, commentId: string): Promise<{ 
   if (tone === "spam") return { ok: false, error: "Это похоже на спам. Скройте комментарий, отвечать на него не нужно." };
   try { await charge(orgId, PRICES.reply, "Черновик ответа на комментарий", c.id); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
-  const brand: BrandCtx = { name: c.name, description: c.description, audience: c.audience, tone: c.btone, forbidden: c.rules?.forbidden ?? [] };
+  const brand: BrandCtx = { name: c.name, description: c.description, audience: c.audience, tone: c.btone, forbidden: c.rules?.forbidden ?? [], kb: (await kbText(orgId, c.brand_id, c.topic ?? c.body).catch(() => "")) || undefined };
   try {
     const text = (await chat("post",
       "Ты менеджер сообщества бренда. Отвечаешь на комментарии под постами от имени бренда. Пиши по-русски, тепло и коротко (до 350 знаков), без канцелярита. Не придумывай фактов, цен, сроков и контактов. Верни только текст ответа, без кавычек и пояснений.",

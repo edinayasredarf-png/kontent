@@ -1,3 +1,4 @@
+import { kbText } from "../kb/use";
 import { one, q, tx } from "../db";
 import { aiReady, brandBlock, chat, extractObject, extractArray, type BrandCtx } from "../ai";
 import { htmlTitle, htmlToText } from "../repurpose";
@@ -67,7 +68,7 @@ async function brandContext(orgId: string, brandId: string): Promise<Ctx | null>
   const b = await one<{ name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[] } | null }>("select name,description,audience,tone,rules from kz_brands where id=$1 and org_id=$2", [brandId, orgId]);
   if (!b) return null;
   const f = await q<{ name: string; product: string; niche: string }>("select name,product,niche from kz_factories where brand_id=$1 and org_id=$2 and status='active' order by created_at limit 5", [brandId, orgId]);
-  const brand: BrandCtx = { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [] };
+  const brand: BrandCtx = { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [], kb: (await kbText(orgId, brandId).catch(() => "")) || undefined };
   const product = f.map((x) => x.product).filter(Boolean).join("; "), niche = f.map((x) => x.niche).filter(Boolean).join("; ");
   return { brand, product, niche, text: brandBlock(brand, product, niche) };
 }

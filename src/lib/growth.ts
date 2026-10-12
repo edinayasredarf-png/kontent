@@ -30,7 +30,7 @@ export async function moreLikeThis(orgId: string, itemId: string, count: number)
     const st = await settingsFor(orgId, fac);
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 40", [it.factory_id])).map((x) => x.topic);
     const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown.";
-    const user = `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nУспешный материал${it.views ? ` (${it.views} просмотров)` : ""}:\nТема: ${it.topic}\nХук: ${it.hook}\n${it.body.slice(0, 1500)}\n\n` +
+    const user = `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nУспешный материал${it.views ? ` (${it.views} просмотров)` : ""}:\nТема: ${it.topic}\nХук: ${it.hook}\n${it.body.slice(0, 1500)}\n\n` +
       `Сначала пойми, почему он мог сработать (боль аудитории, формат, угол, интрига). Предложи ровно ${n} новых материалов в том же духе: та же причина успеха, но другие темы и углы, без повторов самого материала.\n` +
       `Допустимые форматы: ${kinds.join(", ")}; предпочитай формат "${kinds.includes(it.kind) ? it.kind : kinds[0]}".\n` +
       (used.length ? `Уже есть в плане, не повторять:\n- ${used.slice(0, 40).join("\n- ")}\n` : "") +
@@ -79,7 +79,7 @@ export async function createVariant(orgId: string, itemId: string): Promise<Resu
   try {
     const body = (await chat("post",
       "Ты редактор бренда. Перепиши пост так, чтобы получился вариант Б для A/B-теста: те же факты, смысл и призыв, но другой заход (иной первый абзац, другая интонация подачи) и другая структура. Не копируй формулировки варианта А. Не выдумывай новых фактов. Верни только текст поста.",
-      `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nВариант А:\n${it.body.slice(0, 3500)}\n\nНапиши вариант Б.`, { maxTokens: 1500, temperature: 0.85, timeoutMs: 45_000 })).trim();
+      `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nВариант А:\n${it.body.slice(0, 3500)}\n\nНапиши вариант Б.`, { maxTokens: 1500, temperature: 0.85, timeoutMs: 45_000 })).trim();
     if (body.length < 30) throw new Error("пустой ответ модели");
     const base = it.planned_for ? new Date(it.planned_for + "T12:00:00") : new Date();
     base.setDate(base.getDate() + 1);
@@ -142,7 +142,7 @@ export async function genVariants(orgId: string, itemId: string): Promise<Result
   try { await charge(orgId, PRICES.variants, `Версии под площадки: ${it.topic.slice(0, 50)}`, itemId); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   try {
-    const user = `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nИсходный пост:\n${it.body.slice(0, 3500)}\n\n` +
+    const user = `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nИсходный пост:\n${it.body.slice(0, 3500)}\n\n` +
       `Сделай версии этого поста под площадки, факты и призыв сохрани, ничего не выдумывай:\n- "telegram": живо, абзацы, можно 1–3 эмодзи, до 900 знаков;\n- "vk": чуть подробнее и дружелюбнее, до 1200 знаков;\n- "max": компактно, до 600 знаков;\n- "short": одна мысль до 280 знаков, для X/Threads/сторис;\n- "reels": сценарий ролика на 20 секунд: хук, 3 кадра с текстом на экране, призыв.\n` +
       `Ссылки и призыв из исходного поста сохрани. Формат: {"telegram":"...","vk":"...","max":"...","short":"...","reels":"..."}`;
     let o: Record<string, unknown> | null = null;

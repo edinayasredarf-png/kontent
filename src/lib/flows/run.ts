@@ -1,3 +1,4 @@
+import { kbText } from "../kb/use";
 import { one, q } from "../db";
 import { aiReady, type BrandCtx } from "../ai";
 import { InsufficientFunds, PRICES, charge, refund } from "../wallet";
@@ -16,7 +17,7 @@ const DUP_HARD = 0.6, DUP_SOFT = 0.22;
 
 async function brandOf(orgId: string, brandId: string): Promise<BrandCtx | null> {
   const b = await one<{ name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[] } | null }>("select name,description,audience,tone,rules from kz_brands where id=$1 and org_id=$2", [brandId, orgId]);
-  return b ? { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [] } : null;
+  return b ? { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [], kb: (await kbText(orgId, brandId).catch(() => "")) || undefined } : null;
 }
 
 async function setItem(orgId: string, flowId: string, feedId: string, status: string, o: { code?: string; note?: string; cls?: unknown; text?: string; cost?: number } = {}) {

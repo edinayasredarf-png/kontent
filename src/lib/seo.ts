@@ -51,7 +51,7 @@ export const SEO_TARGET_WORDS = 1100;
 
 const context = (b: BrandCtx, product: string, niche: string, keyword: string, angle: string, source?: SourceNote) =>
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт: ${product}\nНиша: ${niche}\n` +
-  (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "") +
+  (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "") + (b.kb ? `${b.kb}\n` : "") +
   `\nГлавный поисковый запрос: «${keyword}»\nУгол/намерение: ${angle || "информационное: ответить на вопрос исчерпывающе"}\n` +
   (source ? `\nМатериал-источник (${source.url}): «${source.title}»\n${source.body.slice(0, 6000)}\nИспользуй только факты оттуда, своими словами.\n` : "");
 

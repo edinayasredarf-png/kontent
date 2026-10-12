@@ -77,12 +77,12 @@ export async function chat(task: AiTask, system: string, user: string, opts: { m
   return out;
 }
 
-export interface BrandCtx { name: string; description: string; audience: string; tone: string; forbidden: string[] }
+export interface BrandCtx { name: string; description: string; audience: string; tone: string; forbidden: string[]; kb?: string }
 export interface PlanIdea { topic: string; hook: string; kind: string; type?: string; rubric?: string }
 
 export const brandBlock = (b: BrandCtx, product: string, niche: string) =>
   `Бренд: ${b.name}\nОписание: ${b.description}\nАудитория: ${b.audience}\nТон: ${b.tone}\nПродукт/направление: ${product}\nНиша: ${niche}\n` +
-  (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "");
+  (b.forbidden.length ? `НЕЛЬЗЯ упоминать: ${b.forbidden.join(", ")}\n` : "") + (b.kb ? `${b.kb}\n` : "");
 
 /** Первый сбалансированный JSON-массив в тексте (модели любят добавлять пояснения до/после). */
 export function extractArray(text: string): unknown[] | null {

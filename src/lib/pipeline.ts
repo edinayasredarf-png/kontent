@@ -1,3 +1,5 @@
+import { kbBlock } from "./kb/use";
+import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
 import { aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
@@ -24,15 +26,16 @@ import { loadAsset, processImage, saveAsset } from "./assets";
 export interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
   description: string; audience: string; tone: string; rules: { forbidden?: string[] }; brand_name: string;
-  brief: { images?: boolean }; kit: unknown;
+  brief: { images?: boolean }; kit: unknown; kb_profile?: unknown; kb_style?: unknown;
 }
 
 export async function loadFactory(orgId: string, id: string): Promise<FactoryRow | null> {
   return one<FactoryRow>(
-    `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name,f.brief,b.kit
-       from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2`, [id, orgId]);
+    `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name,f.brief,b.kit,k.profile kb_profile,k.style kb_style
+       from kz_factories f join kz_brands b on b.id=f.brand_id left join kz_brand_kb k on k.brand_id=b.id where f.id=$1 and f.org_id=$2`, [id, orgId]);
 }
-export const brandOf = (r: FactoryRow): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [] });
+/** Бренд для подсказки модели; с базой знаний (профиль и стиль), отобранной под тему. */
+export const brandOf = (r: FactoryRow, topic = ""): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [], kb: r.kb_profile || r.kb_style ? kbBlock(cleanProfile(r.kb_profile), cleanStyle(r.kb_style), topic) : undefined });
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>
@@ -110,7 +113,7 @@ export async function repurposeSource(orgId: string, factoryId: string, o: { url
     const st = await settingsFor(orgId, fac), types = st.postTypes;
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 40", [factoryId])).map((x) => x.topic);
     const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown.";
-    const user = `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nИсходный материал «${title}»:\n---\n${text.slice(0, 9000)}\n---\n` +
+    const user = `${brandBlock(brandOf(fac, title), fac.product, fac.niche)}\nИсходный материал «${title}»:\n---\n${text.slice(0, 9000)}\n---\n` +
       `Разбери его на ровно ${count} разных материалов для соцсетей. У каждого свой угол и своя мысль из исходника (факт, цифра, ошибка, совет, вывод, вопрос), без повторов между материалами. ` +
       `Не придумывай ничего, чего нет в исходнике.\nДопустимые форматы: ${kinds.join(", ")} (карусель — для списков и последовательностей; пост — для одной мысли).\n` +
       (used.length ? `Уже есть в плане, не повторять:\n- ${used.slice(0, 40).join("\n- ")}\n` : "") +
@@ -168,12 +171,12 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
   try {
     if (item.kind === "seo") {
       // тема идеи — поисковый запрос, хук — угол статьи; тело — готовый HTML, SEO-поля — в meta.seo
-      const art = await genSeoArticle(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
+      const art = await genSeoArticle(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
       await q("update kz_content_items set body=$2,meta = (meta-'client') || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
     } else if (item.kind === "carousel") {
       // тексты слайдов — структурой от нейросети, сами картинки набираем и рисуем у себя (кириллица на картинках нейросетей искажается)
       const st = await settingsFor(orgId, fac, item.meta?.rubric);
-      const car = await genCarousel(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st.slides, st, item.meta?.source, item.meta?.postType);
+      const car = await genCarousel(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, st.slides, st, item.meta?.source, item.meta?.postType);
       let cover: Buffer | null = null;
       if (st.carouselCover === "ai") {
         try {
@@ -190,21 +193,21 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
     } else if (item.kind === "poll") {
-      const poll = await genPoll(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
+      const poll = await genPoll(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options })]);
     } else if (item.kind === "email") {
-      const em = await genEmail(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
+      const em = await genEmail(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('email',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, em.html, JSON.stringify(em.meta)]);
     } else if (item.kind === "guide") {
-      const g = await genGuide(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
+      const g = await genGuide(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('guide',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, g.html, JSON.stringify(g.meta)]);
     } else if (item.kind === "infographic") {
       const st = await settingsFor(orgId, fac, item.meta?.rubric);
-      const g = await genInfographic(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, st, item.meta?.source);
+      const g = await genInfographic(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, st, item.meta?.source);
       await renderInfographicForItem(orgId, item.id, { title: g.title, subtitle: g.subtitle, layout: g.layout, blocks: g.blocks }, st.carouselStyle);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, g.caption]);
     } else {
-      const body = await genPost(brandOf(fac), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.postType);
+      const body = await genPost(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.postType);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)

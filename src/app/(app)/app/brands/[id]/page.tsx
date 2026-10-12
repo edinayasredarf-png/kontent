@@ -34,6 +34,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
     <>
       <Link href="/app/brands" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все бренды</Link>
       <PageHead title={b.name} sub="Профиль и брендбук: по ним пишутся тексты и рисуются картинки." />
+      <Link href={`/app/brands/${id}/knowledge`} className="card mb-6 flex flex-wrap items-center justify-between gap-3 p-5 transition hover:border-accent/40"><span><span className="block text-sm font-semibold">База знаний бренда</span><span className="block text-xs text-ink2">Статьи, документы, сравнение с конкурентами: нейросеть разберёт их и будет писать в вашем стиле и по вашим фактам.</span></span><span className="btn btn-ghost">Открыть</span></Link>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="card p-6">
           <Form action={saveBrand} submit="Сохранить">

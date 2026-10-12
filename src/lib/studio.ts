@@ -1,3 +1,4 @@
+import { kbText } from "./kb/use";
 import { one, q } from "./db";
 import { aiReady, baseUrl, brandBlock, chat, modelFor, type BrandCtx } from "./ai";
 import { buildImagePrompt, cleanKit, finalizeImage, generateImage, visionAsk } from "./images";
@@ -84,7 +85,7 @@ async function brandCtx(orgId: string, id: string) {
   if (!id) return null;
   const b = await one<{ id: string; name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[] }; kit: unknown }>(
     "select id,name,description,audience,tone,rules,kit from kz_brands where id=$1 and org_id=$2", [id, orgId]);
-  return b ? { b, ctx: { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [] } as BrandCtx } : null;
+  return b ? { b, ctx: { name: b.name, description: b.description, audience: b.audience, tone: b.tone, forbidden: b.rules?.forbidden ?? [], kb: (await kbText(orgId, id).catch(() => "")) || undefined } as BrandCtx } : null;
 }
 
 const SYS = "Ты опытный маркетолог и редактор. Пиши по-русски, конкретно, без воды и клише. Не выдумывай факты, цифры и цены.";
