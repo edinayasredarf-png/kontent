@@ -115,7 +115,7 @@ alter table kz_factories add column if not exists channel_ids uuid[] not null de
 alter table kz_content_items add column if not exists updated_at timestamptz not null default now();
 
 alter table kz_publications drop constraint if exists kz_publications_status_check;
-alter table kz_publications add constraint kz_publications_status_check check (status in ('queued','sending','published','failed'));
+alter table kz_publications add constraint kz_publications_status_check check (status in ('queued','sending','published','failed')) not valid;
 alter table kz_publications add column if not exists attempts int not null default 0;
 alter table kz_publications add column if not exists next_attempt_at timestamptz not null default now();
 alter table kz_publications add column if not exists updated_at timestamptz not null default now();
@@ -275,16 +275,16 @@ create index if not exists kz_comments_org on kz_comments(org_id, status, posted
 -- 008_seo.sql
 -- SEO-статьи для сайтов; каналы WordPress и webhook.
 alter table kz_content_items drop constraint if exists kz_content_items_kind_check;
-alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo'));
+alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo')) not valid;
 alter table kz_channels drop constraint if exists kz_channels_kind_check;
-alter table kz_channels add constraint kz_channels_kind_check check (kind in ('telegram','vk','dzen','site','webhook','wordpress'));
+alter table kz_channels add constraint kz_channels_kind_check check (kind in ('telegram','vk','dzen','site','webhook','wordpress')) not valid;
 
 -- 009_studio_max_security.sql
 -- Студия (файлы вне заводов), банк идей, канал MAX, защита входа от перебора.
 alter table kz_assets drop constraint if exists kz_assets_kind_check;
-alter table kz_assets add constraint kz_assets_kind_check check (kind in ('logo','product','reference','generated','studio'));
+alter table kz_assets add constraint kz_assets_kind_check check (kind in ('logo','product','reference','generated','studio')) not valid;
 alter table kz_channels drop constraint if exists kz_channels_kind_check;
-alter table kz_channels add constraint kz_channels_kind_check check (kind in ('telegram','vk','dzen','site','webhook','wordpress','max'));
+alter table kz_channels add constraint kz_channels_kind_check check (kind in ('telegram','vk','dzen','site','webhook','wordpress','max')) not valid;
 
 create table if not exists kz_bank (
   id uuid primary key default gen_random_uuid(),
@@ -345,13 +345,13 @@ create table if not exists kz_kv (
 );
 
 alter table kz_auth_attempts drop constraint if exists kz_auth_attempts_kind_check;
-alter table kz_auth_attempts add constraint kz_auth_attempts_kind_check check (kind in ('login','register','reset'));
+alter table kz_auth_attempts add constraint kz_auth_attempts_kind_check check (kind in ('login','register','reset')) not valid;
 
 -- 011_theme.sql
 -- Тема оформления пользователя: светлая, тёмная или как в системе.
 alter table kz_users add column if not exists theme text not null default 'system';
 alter table kz_users drop constraint if exists kz_users_theme_check;
-alter table kz_users add constraint kz_users_theme_check check (theme in ('light','dark','system'));
+alter table kz_users add constraint kz_users_theme_check check (theme in ('light','dark','system')) not valid;
 
 -- 012_carousel_assets.sql
 -- Карусели картинками: слайды хранятся как файлы, привязанные к материалу (удаляются вместе с ним).
@@ -425,7 +425,7 @@ create index if not exists kz_api_keys_org on kz_api_keys(org_id);
 -- 015_formats_comments_links_competitors.sql
 -- Новые форматы: опрос, конкурс, инфографика.
 alter table kz_content_items drop constraint if exists kz_content_items_kind_check;
-alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo','poll','contest','infographic'));
+alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo','poll','contest','infographic')) not valid;
 
 -- Входящие: тон комментария (определяется при сборе) и черновик ответа от ИИ.
 alter table kz_comments add column if not exists tone text check (tone in ('neutral','positive','question','negative','spam'));
@@ -476,7 +476,7 @@ create index if not exists kz_competitor_posts_time on kz_competitor_posts(compe
 -- 016_whitelabel_email_guide.sql
 -- Новые форматы: рассылка и гайд.
 alter table kz_content_items drop constraint if exists kz_content_items_kind_check;
-alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo','poll','contest','infographic','email','guide'));
+alter table kz_content_items add constraint kz_content_items_kind_check check (kind in ('post','carousel','reels','article','story','seo','poll','contest','infographic','email','guide')) not valid;
 
 -- Белая метка: оформление клиентского портала и отчёта от имени агентства.
 alter table kz_orgs add column if not exists wl_name text not null default '';
@@ -486,7 +486,7 @@ alter table kz_orgs add column if not exists wl_hide boolean not null default fa
 -- 017_max_source.sql
 -- MAX как источник: чтение постов своего канала, где бот — администратор.
 alter table kz_sources drop constraint if exists kz_sources_kind_check;
-alter table kz_sources add constraint kz_sources_kind_check check (kind in ('site','telegram','vk','news','manual','max'));
+alter table kz_sources add constraint kz_sources_kind_check check (kind in ('site','telegram','vk','news','manual','max')) not valid;
 -- Вложения поста источника (картинки, видео, файлы) — для автоленты и показа в мониторинге.
 alter table kz_feed_items add column if not exists media jsonb not null default '[]'::jsonb;
 
