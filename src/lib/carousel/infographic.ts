@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { cleanText, fit, paths, widthOf } from "./text";
-import { decor, inkOn, lum, M, palette, prepLogo, W, type CarouselStyle, type Pal } from "./render";
+import { decor, inkOn, lum, M, palette, plateFor, prepLogo, W, type CarouselStyle, type Pal } from "./render";
 
 export type InfoLayout = "steps" | "stats" | "checklist";
 export interface Infographic { title: string; subtitle: string; layout: InfoLayout; blocks: { head: string; text: string }[] }
@@ -81,7 +81,7 @@ export async function renderInfographic(o: { info: Infographic; style: CarouselS
   g += body(o.info, p, ink, top + 20, H - 190);
   const name = cleanText(o.brandName).slice(0, 30);
   if (name) g += `<g opacity=".6">${paths([name], M, H - 84, 30, 36, 500, ink)}</g>`;
-  if (logo) { const lx = W - M - logo.w, ly = H - M - logo.h; if (lum(p.bg) < 0.3) g += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${p.chip}" fill-opacity=".94"/>`; g += `<image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
+  if (logo) { const lx = W - M - logo.w, ly = H - M - logo.h; const plate = plateFor(logo, lum(p.bg)); if (plate) g += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${plate}" fill-opacity=".94"/>`; g += `<image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
   void widthOf;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${p.bg}"/>${g}</svg>`;
   const { data, info } = await sharp(Buffer.from(svg)).flatten({ background: "#ffffff" }).jpeg({ quality: 88, mozjpeg: true }).toBuffer({ resolveWithObject: true });

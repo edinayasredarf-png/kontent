@@ -34,11 +34,25 @@ export function palette(style: CarouselStyle, colors: { hex: string }[]): Pal {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const dataUri = (b: Buffer, mime: string) => `data:${mime};base64,${b.toString("base64")}`;
 
+const lin = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 /* ───────── слайды ───────── */
 export async function prepLogo(logo: Buffer | null | undefined) {
   if (!logo) return null;
-  try { const { data, info } = await sharp(logo).resize({ height: 64, width: 280, fit: "inside" }).png().toBuffer({ resolveWithObject: true }); return { uri: dataUri(data, "image/png"), w: info.width, h: info.height }; }
+  try {
+    const { data, info } = await sharp(logo).resize({ height: 64, width: 280, fit: "inside" }).png().toBuffer({ resolveWithObject: true });
+    // средняя яркость видимых пикселей: по ней решаем, нужна ли подложка
+    const raw = await sharp(data).ensureAlpha().raw().toBuffer();
+    let sum = 0, cnt = 0;
+    for (let k = 0; k + 3 < raw.length; k += 4) if (raw[k + 3] > 128) { sum += 0.2126 * lin(raw[k]) + 0.7152 * lin(raw[k + 1]) + 0.0722 * lin(raw[k + 2]); cnt++; }
+    return { uri: dataUri(data, "image/png"), w: info.width, h: info.height, lum: cnt ? sum / cnt : 0.5 };
+  }
   catch { return null; } // битый логотип не должен ронять всю карусель
+}
+
+/** Подложка под логотип только если он плохо виден на фоне (близкая яркость); белый логотип на светлом фоне получает тёмную. */
+export function plateFor(logo: { lum: number }, bgLum: number): string | null {
+  if (Math.abs(logo.lum - bgLum) >= 0.38) return null;
+  return logo.lum > 0.5 ? "#14161a" : "#ffffff";
 }
 
 export function decor(p: Pal, H: number, i: number): string {
@@ -47,12 +61,13 @@ export function decor(p: Pal, H: number, i: number): string {
   return `<circle cx="${x}" cy="${i % 2 ? 220 : 160}" r="360" fill="${a}" fill-opacity=".10"/><circle cx="${i % 2 ? W + 40 : -40}" cy="${H - 120}" r="190" fill="${a}" fill-opacity=".08"/>`;
 }
 
-function footer(p: Pal, H: number, label: string, ink: string, logo: Awaited<ReturnType<typeof prepLogo>>, chipLogo: boolean): string {
+function footer(p: Pal, H: number, label: string, ink: string, logo: Awaited<ReturnType<typeof prepLogo>>, bgLum: number): string {
   const y = H - 84;
   let out = `<g opacity=".6">${paths([label], M, y, 30, 36, 500, ink)}</g>`;
   if (logo) {
     const lx = W - M - logo.w, ly = H - M - logo.h;
-    if (chipLogo) out += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${p.chip}" fill-opacity=".94"/>`;
+    const plate = plateFor(logo, bgLum);
+    if (plate) out += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${plate}" fill-opacity=".94"/>`;
     out += `<image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`;
   }
   return out;
@@ -125,7 +140,7 @@ async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<Retur
     // подсказка «листайте» со стрелкой
     const ay = H - 84, ax = M;
     g += `<g opacity=".75">${paths(["Листайте"], ax, ay, 32, 38, 500, ink)}<path d="M${ax + widthOf("Листайте", 32, 500) + 18} ${ay - 12} h34 m-12 -12 l12 12 l-12 12" fill="none" stroke="${ink}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>`;
-    if (logo) { const lx = W - M - logo.w, ly = H - M - logo.h; g += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${p.chip}" fill-opacity=".94"/><image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
+    if (logo) { const lx = W - M - logo.w, ly = H - M - logo.h, plate = plateFor(logo, o.cover ? 0.1 : lum(bg)); if (plate) g += `<rect x="${lx - 18}" y="${ly - 14}" width="${logo.w + 36}" height="${logo.h + 28}" rx="20" fill="${plate}" fill-opacity=".94"/>`; g += `<image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
   } else if (isLast) {
     g += decor({ ...p, accent: p.ctaInk }, H, i);
     const t = fit(title, 800, { maxWidth: innerW, maxHeight: 420, maxSize: 92, minSize: 48, maxLines: 6, lh: 1.1 });
@@ -134,12 +149,12 @@ async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<Retur
     const top = (H - 220 - total) / 2 + 40;
     g += paths(t.lines, W / 2, top + t.size * 0.92, t.size, t.lineHeight, 800, ink, "middle");
     if (bd) g += `<g opacity=".85">${paths(bd.lines, W / 2, top + t.lines.length * t.lineHeight + 48 + bd.size * 0.9, bd.size, bd.lineHeight, 500, ink, "middle")}</g>`;
-    if (logo) { const lx = (W - logo.w) / 2, ly = H - M - logo.h; g += `<rect x="${lx - 22}" y="${ly - 16}" width="${logo.w + 44}" height="${logo.h + 32}" rx="22" fill="${p.chip}" fill-opacity=".95"/><image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
+    if (logo) { const lx = (W - logo.w) / 2, ly = H - M - logo.h, plate = plateFor(logo, lum(bg)); if (plate) g += `<rect x="${lx - 22}" y="${ly - 16}" width="${logo.w + 44}" height="${logo.h + 32}" rx="22" fill="${plate}" fill-opacity=".95"/>`; g += `<image href="${logo.uri}" x="${lx}" y="${ly}" width="${logo.w}" height="${logo.h}"/>`; }
     else { const nm = cleanText(o.brandName).slice(0, 30); if (nm) g += `<g opacity=".8">${paths([nm], W / 2, H - 100, 36, 42, 800, ink, "middle")}</g>`; }
   } else if (fixLayout(s.layout, title, body, true) !== "text") {
     g += decor(p, H, i);
     g += specialSlide(fixLayout(s.layout, title, body, true), title, body, p, ink, H, bg);
-    g += footer(p, H, `${i + 1} / ${n}`, ink, logo, lum(bg) < 0.3);
+    g += footer(p, H, `${i + 1} / ${n}`, ink, logo, lum(bg));
   } else {
     g += decor(p, H, i);
     g += `<g opacity=".95">${paths([String(i).padStart(2, "0")], M, 250, 150, 150, 800, p.accent)}</g>`;
@@ -151,7 +166,7 @@ async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<Retur
     const top = 330 + free * 0.33;
     g += paths(t.lines, M, top + t.size * 0.9, t.size, t.lineHeight, 800, ink);
     if (bd) g += `<g opacity=".88">${paths(bd.lines, M, top + titleH + 44 + bd.size * 0.9, bd.size, bd.lineHeight, 500, ink)}</g>`;
-    g += footer(p, H, `${i + 1} / ${n}`, ink, logo, lum(bg) < 0.3);
+    g += footer(p, H, `${i + 1} / ${n}`, ink, logo, lum(bg));
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset=".25" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".78"/></linearGradient></defs><rect width="${W}" height="${H}" fill="${bg}"/>${g}</svg>`;
 }
