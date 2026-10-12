@@ -297,7 +297,7 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
   // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
   const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and (case when $4::boolean then kind = any($3::text[]) else not (kind = any($5::text[])) end)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo", ARTICLE_ONLY]);
-  if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации (для постов — Telegram, VK, MAX или Webhook)" };
+  if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации. На странице завода в блоке «Публикация» нажмите на нужный канал (он сохраняется сразу). Для постов подходят Telegram, VK, MAX и Webhook" };
   await tx(async (run) => {
     for (const ch of chans) {
       await run(`insert into kz_publications(org_id,item_id,channel_id) values($1,$2,$3)

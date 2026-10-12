@@ -11,6 +11,7 @@ import { cleanKit } from "@/lib/images";
 import { planRunway, KINDS, TIMEZONES } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { SlideEditor } from "@/components/SlideEditor";
+import { ChannelChip } from "@/components/ChannelChip";
 import { CopyText } from "@/components/CopyText";
 import { ExportMenu } from "@/components/ExportMenu";
 import { plainOf, type ExportItem } from "@/lib/exporter";
@@ -94,7 +95,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <div className="flex flex-wrap items-center gap-2"><b className="mr-2 text-sm">Публикация</b>
           {chans.length === 0 && <span className="text-sm text-ink2">У бренда нет каналов — подключите в разделе «Каналы».</span>}
           {chans.map((ch) => (
-            <label key={ch.id} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="channels" value={ch.id} defaultChecked={ch.on} className="hidden" />{SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: {ch.title}</label>
+            <ChannelChip key={ch.id} id={ch.id} on={ch.on} label={`${SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: ${ch.title}`} />
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
