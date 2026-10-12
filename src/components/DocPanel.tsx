@@ -3,6 +3,7 @@ import { saveEmailMetaAction, sendTestEmailAction } from "@/lib/docs-actions";
 import type { EmailMeta, GuideMeta } from "@/lib/docs";
 import { CopyHtml } from "./CopyHtml";
 
+import { SubmitButton } from "@/components/SubmitButton";
 /** Рассылка и гайд: просмотр, скачивание, для письма — правка темы и кнопки и тестовая отправка себе. */
 export function DocPanel({ itemId, factoryId, kind, email, guide, html, editable }: { itemId: string; factoryId: string; kind: "email" | "guide"; email: EmailMeta | null; guide: GuideMeta | null; html: string; editable: boolean }) {
   const view = `/api/export/${itemId}/doc`;
@@ -33,13 +34,13 @@ export function DocPanel({ itemId, factoryId, kind, email, guide, html, editable
               <input name="cta" defaultValue={email.cta} maxLength={40} placeholder="Текст кнопки" className="input !bg-surface" />
               <input name="ctaUrl" defaultValue={email.ctaUrl} placeholder="https://… ссылка кнопки" className="input !bg-surface" />
             </div>
-            <button className="btn btn-ghost !py-1.5">Сохранить</button>
+            <SubmitButton className="btn btn-ghost !py-1.5">Сохранить</SubmitButton>
           </form>
         </details>
       )}
       {kind === "email" && (
         <form action={sendTestEmailAction} className="flex flex-wrap items-center gap-2"><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} />
-          <button className="btn btn-ghost !py-1.5"><Mail size={14} />Отправить тест себе</button>
+          <SubmitButton className="btn btn-ghost !py-1.5"><Mail size={14} />Отправить тест себе</SubmitButton>
           <span className="text-xs text-ink3">Подписчикам ничего не уходит: письмо скачайте и отправьте через свой сервис рассылок. В HTML есть подстановка {"{{unsubscribe_url}}"} для ссылки отписки.</span></form>
       )}
       {html === "" && <p className="text-xs text-warn">Текст пока пуст.</p>}

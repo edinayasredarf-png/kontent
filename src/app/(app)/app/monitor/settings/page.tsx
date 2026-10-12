@@ -11,6 +11,7 @@ import { AddSourceForm } from "@/components/AddSourceForm";
 import { SuggestKeywords } from "@/components/SuggestKeywords";
 import { PRICES, rub } from "@/lib/wallet";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export const maxDuration = 60;
 
 export default async function MonitorSettings() {
@@ -44,10 +45,10 @@ export default async function MonitorSettings() {
                   {s.status === "paused" && <span className="chip">пауза</span>}
                   <span className="text-xs text-ink3">постов: {s.items}</span>
                   {s.kind !== "manual" && (<>
-                    <form action={refreshSourceAction}><input type="hidden" name="id" value={s.id} /><button className="text-ink3 hover:text-ink" title="Обновить сейчас"><RefreshCw size={15} /></button></form>
-                    <form action={toggleSourceAction}><input type="hidden" name="id" value={s.id} /><button className="text-ink3 hover:text-ink" title={s.status === "active" ? "Пауза" : "Возобновить"}>{s.status === "active" ? <Pause size={15} /> : <Play size={15} />}</button></form>
+                    <form action={refreshSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-ink" title="Обновить сейчас"><RefreshCw size={15} /></SubmitButton></form>
+                    <form action={toggleSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-ink" title={s.status === "active" ? "Пауза" : "Возобновить"}>{s.status === "active" ? <Pause size={15} /> : <Play size={15} />}</SubmitButton></form>
                   </>)}
-                  <form action={deleteSourceAction}><input type="hidden" name="id" value={s.id} /><button className="text-ink3 hover:text-bad" title="Удалить вместе с постами"><Trash2 size={15} /></button></form>
+                  <form action={deleteSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить вместе с постами"><Trash2 size={15} /></SubmitButton></form>
                 </div>
                 <p className="mt-0.5 truncate text-xs text-ink3">{s.kind === "site" ? `${s.ref} · ` : ""}{s.last_fetched_at ? `обновлено ${new Date(s.last_fetched_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : s.kind === "manual" ? "добавлено вручную" : "ещё не обновлялся"}</p>
                 {s.last_error && <p className="mt-1 flex items-start gap-1.5 text-xs text-bad"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{s.last_error}</p>}
@@ -103,7 +104,7 @@ function KwList({ title, items, danger }: { title: string; items: { id: string; 
         {items.map((k) => (
           <form key={k.id} action={deleteKeywordAction} className={`chip !pr-1 ${danger ? "!bg-bad-soft !text-bad" : "!bg-accent-soft !text-accent-ink"}`}>
             <input type="hidden" name="id" value={k.id} />{k.word}
-            <button className="grid size-5 place-items-center rounded-full hover:bg-ink/10" title="Удалить" aria-label={`Удалить «${k.word}»`}><X size={12} /></button>
+            <SubmitButton className="grid size-5 place-items-center rounded-full hover:bg-ink/10" title="Удалить" aria-label={`Удалить «${k.word}»`}><X size={12} /></SubmitButton>
           </form>
         ))}
       </div>

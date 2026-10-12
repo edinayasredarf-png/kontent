@@ -3,6 +3,7 @@ import { createShareLinkAction, revokeShareLinkAction, saveWhiteLabelAction } fr
 import type { ShareLink } from "@/lib/share";
 import { CopyField } from "./CopyField";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const when = (d: string | null) => (d ? new Date(d).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—");
 
 /** Ссылки для клиента: согласование материалов и отчёт без регистрации. */
@@ -21,7 +22,7 @@ export function ShareCard({ brandId, links, canEdit, wl }: { brandId: string; li
           {l.url ? <CopyField value={l.url} /> : <p className="text-xs text-warn">Адрес недоступен: сменился ключ шифрования. Отзовите ссылку и создайте новую.</p>}
           <div className="mt-2 flex items-center justify-between text-xs text-ink3">
             <span>{l.expires_at ? `до ${when(l.expires_at)}` : "бессрочно"} · открывали: {when(l.last_seen_at)}</span>
-            {canEdit && <form action={revokeShareLinkAction}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="brand" value={brandId} /><button className="inline-flex items-center gap-1 text-bad hover:underline"><Trash2 size={12} />Отозвать</button></form>}
+            {canEdit && <form action={revokeShareLinkAction}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="brand" value={brandId} /><SubmitButton className="inline-flex items-center gap-1 text-bad hover:underline"><Trash2 size={12} />Отозвать</SubmitButton></form>}
           </div>
         </div>
       ))}
@@ -36,7 +37,7 @@ export function ShareCard({ brandId, links, canEdit, wl }: { brandId: string; li
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="auto" />Публиковать сразу после одобрения клиентом</label>
             <label className="flex items-center gap-2 text-xs">Срок действия, дней
               <input name="days" type="number" min={0} max={365} defaultValue={0} className="input !w-20 !py-1" /><span className="text-ink3">0 — без срока</span></label>
-            <button className="btn">Создать ссылку</button>
+            <SubmitButton className="btn">Создать ссылку</SubmitButton>
           </form>
         </details>
       )}
@@ -48,7 +49,7 @@ export function ShareCard({ brandId, links, canEdit, wl }: { brandId: string; li
             <input name="name" defaultValue={wl.name} maxLength={80} placeholder="Название агентства (покажем: «Подготовлено: …»)" className="input" />
             <textarea name="footer" defaultValue={wl.footer} rows={2} maxLength={400} placeholder="Подпись внизу: контакты, сайт, менеджер" className="input text-sm" />
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="hide" defaultChecked={wl.hide} />Не упоминать платформу «Контент-завод» на страницах клиента</label>
-            <button className="btn btn-ghost !py-1.5">Сохранить оформление</button>
+            <SubmitButton className="btn btn-ghost !py-1.5">Сохранить оформление</SubmitButton>
             <p className="text-xs text-ink3">Действует для всех ссылок организации. На страницах клиента показываются логотип и цвета бренда клиента, название агентства и ваша подпись. Меняют владелец и администратор.</p>
           </form>
         </details>

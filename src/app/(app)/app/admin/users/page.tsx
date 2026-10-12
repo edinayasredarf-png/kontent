@@ -5,6 +5,7 @@ import { disableUserAction, logoutUserAction, resetLinkAction } from "@/lib/admi
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Users({ searchParams }: { searchParams: Promise<{ q?: string; p?: string }> }) {
   const { q: query = "", p } = await searchParams;
   await requireAdmin();
@@ -15,7 +16,7 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
     <>
       <PageHead title="Пользователи" sub="Поиск по email и имени." />
       <AdminNav active="/app/admin/users" />
-      <form className="card mb-4 flex gap-2 p-3"><input name="q" defaultValue={query} placeholder="Email или имя" className="input" /><button className="btn">Найти</button></form>
+      <form className="card mb-4 flex gap-2 p-3"><input name="q" defaultValue={query} placeholder="Email или имя" className="input" /><SubmitButton className="btn">Найти</SubmitButton></form>
       <div className="card">
         {rows.map((u) => (
           <div key={u.id} className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3 last:border-0">

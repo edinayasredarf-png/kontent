@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Loader2, Plus, RefreshCw, Trash2, Upload } from "lu
 import { saveCarouselAction } from "@/lib/carousel/actions";
 import { LAYOUTS, LAYOUT_HINTS, type SlideLayout } from "@/lib/carousel/layouts";
 
+import { SubmitButton } from "@/components/SubmitButton";
 interface Slide { title: string; body: string; layout?: SlideLayout; k: number }
 const MAX = 10, MIN = 2;
 
@@ -62,7 +63,7 @@ export function CarouselEditor({ itemId, factoryId, slides: initial, style, styl
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={add} disabled={slides.length >= MAX} className="btn btn-ghost !py-1.5"><Plus size={14} />Добавить слайд</button>
           <select name="style" defaultValue={style} className="input !w-auto">{Object.entries(styles).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-          <button className="btn"><RefreshCw size={14} />Сохранить и перерисовать</button>
+          <SubmitButton className="btn"><RefreshCw size={14} />Сохранить и перерисовать</SubmitButton>
           <span className="text-xs text-ink3">бесплатно</span>
         </div>
       </form>

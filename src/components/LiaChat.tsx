@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
 import { askLiaAction } from "@/lib/lia-actions";
 
+import { SubmitButton } from "@/components/SubmitButton";
 interface Msg { role: "user" | "assistant"; content: string }
 const HINTS = ["С чего начать?", "Как подключить Telegram-канал?", "Как сделать картинки к постам?", "Чем отличается завод от студии?"];
 
@@ -32,7 +33,7 @@ export function LiaChat({ free }: { free: boolean }) {
       {msgs.length === 1 && <div className="flex flex-wrap gap-2 px-4 pb-2">{HINTS.map((h) => <button key={h} onClick={() => send(h)} className="chip !px-3 !py-1.5 hover:!bg-accent-soft hover:!text-accent-ink">{h}</button>)}</div>}
       <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex gap-2 border-t border-line p-3">
         <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1500} placeholder={`Спросите Лию${free ? "" : " · 3 ₽ за ответ"}`} className="input" />
-        <button className="btn btn-accent" disabled={pending || !text.trim()} aria-label="Отправить"><Send size={15} /></button>
+        <SubmitButton className="btn btn-accent" disabled={pending || !text.trim()} aria-label="Отправить"><Send size={15} /></SubmitButton>
       </form>
     </div>
   );

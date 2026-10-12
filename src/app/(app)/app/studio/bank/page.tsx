@@ -7,6 +7,7 @@ import { addBankAction, bankToPlanAction, deleteBankAction } from "@/lib/studio-
 import { Form, Field } from "@/components/Form";
 import { Empty, KIND, PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Bank({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
   const { err } = await searchParams;
   const c = await requireCtx();
@@ -25,14 +26,14 @@ export default async function Bank({ searchParams }: { searchParams: Promise<{ e
           {rows.map((r) => (
             <article key={r.id} className="card p-4">
               <div className="mb-1 flex items-start gap-2"><b className="flex-1 text-sm">{r.title}</b>{r.source && <span className="chip">{r.source}</span>}
-                <form action={deleteBankAction}><input type="hidden" name="id" value={r.id} /><button className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={15} /></button></form></div>
+                <form action={deleteBankAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={15} /></SubmitButton></form></div>
               {r.body && r.body !== r.title && <p className="line-clamp-4 whitespace-pre-wrap text-sm text-ink2">{r.body}</p>}
               {factories.length > 0 && (
                 <form action={bankToPlanAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <input type="hidden" name="id" value={r.id} />
                   <select name="factory" className="input !w-auto !py-1.5 text-xs">{factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
                   <select name="kind" className="input !w-auto !py-1.5 text-xs">{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
-                  <button className="btn btn-ghost !py-1.5 text-xs">В план завода</button>
+                  <SubmitButton className="btn btn-ghost !py-1.5 text-xs">В план завода</SubmitButton>
                 </form>
               )}
             </article>))}

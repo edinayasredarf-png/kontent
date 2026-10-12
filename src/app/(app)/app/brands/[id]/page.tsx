@@ -12,6 +12,7 @@ import { PageHead } from "@/components/ui";
 import { ShareCard } from "@/components/ShareCard";
 import { listLinks } from "@/lib/share";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const TONES: Record<string, string> = { professional: "Профессиональный", friendly: "Дружелюбный", humor: "Юмористический", serious: "Серьёзный", inspiring: "Вдохновляющий" };
 const ASPECT: Record<string, string> = { square: "Квадрат 1:1", portrait: "Вертикальный 2:3", landscape: "Горизонтальный 3:2" };
 const POS: Record<string, string> = { br: "Справа внизу", bl: "Слева внизу", tr: "Справа вверху", tl: "Слева вверху", none: "Не накладывать" };
@@ -60,9 +61,9 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
 
             <h2 className="border-t border-line pt-5 text-sm font-semibold">Стиль изображений</h2>
             <div className="flex flex-wrap gap-2">
-              <label className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="radio" name="style" value="" defaultChecked={!kit.style} className="hidden" />Не задан</label>
+              <label className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="radio" name="style" value="" defaultChecked={!kit.style} className="hidden" />Не задан</label>
               {Object.entries(STYLES).map(([k, v]) => (
-                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="radio" name="style" value={k} defaultChecked={kit.style === k} className="hidden" />{v.label}</label>
+                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="radio" name="style" value={k} defaultChecked={kit.style === k} className="hidden" />{v.label}</label>
               ))}
             </div>
             <Field label="Свой стиль словами"><textarea name="styleNotes" rows={2} defaultValue={kit.styleNotes} className="input" placeholder="Тёплый свет, живые люди, городская среда, без стока" /></Field>
@@ -84,7 +85,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
             {logo && (
               <div className="mb-3 flex items-center gap-3">
                 <div className="grid size-20 place-items-center rounded-xl border border-line bg-[repeating-conic-gradient(#f1f2f4_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={`/api/assets/${logo.id}`} alt="Логотип" className="max-h-full max-w-full object-contain" /></div>
-                {canEdit && <form action={deleteAssetAction}><input type="hidden" name="id" value={logo.id} /><button className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={16} /></button></form>}
+                {canEdit && <form action={deleteAssetAction}><input type="hidden" name="id" value={logo.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={16} /></SubmitButton></form>}
               </div>
             )}
             <AssetUploader brandId={id} kind="logo" label={logo ? "Заменить логотип" : "Загрузить логотип"} disabled={!canEdit} />
@@ -111,8 +112,8 @@ function Gallery({ title, hint, items, brandId, kind, max, canEdit }: { title: s
               {!a.note && <span className="absolute left-1 top-1 rounded-md bg-warn-soft p-0.5 text-warn" title="Описание не получено"><AlertTriangle size={12} /></span>}
               {canEdit && (
                 <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-                  {!a.note && <form action={redescribeAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-surface/90 p-1 text-ink2 shadow" title="Описать заново"><RefreshCw size={12} /></button></form>}
-                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><button className="rounded-md bg-surface/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></button></form>
+                  {!a.note && <form action={redescribeAssetAction}><input type="hidden" name="id" value={a.id} /><SubmitButton className="rounded-md bg-surface/90 p-1 text-ink2 shadow" title="Описать заново"><RefreshCw size={12} /></SubmitButton></form>}
+                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><SubmitButton className="rounded-md bg-surface/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></SubmitButton></form>
                 </div>
               )}
             </div>

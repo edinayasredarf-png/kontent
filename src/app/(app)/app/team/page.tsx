@@ -6,6 +6,7 @@ import { Form, Field } from "@/components/Form";
 import { inviteAction, removeMemberAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Team() {
   const c = await requireCtx();
   const { members, invites } = await listTeam(c.org.id);
@@ -25,10 +26,10 @@ export default async function Team() {
                 {editable ? (
                   <form action={setRoleAction} className="flex items-center gap-2"><input type="hidden" name="user" value={m.user_id} />
                     <select name="role" defaultValue={m.role} className="input !w-auto !py-1.5 text-xs">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}{!roles.includes(m.role) && <option value={m.role}>{ROLE_LABEL[m.role]}</option>}</select>
-                    <button className="btn btn-ghost !py-1.5 text-xs">Сохранить</button></form>
+                    <SubmitButton className="btn btn-ghost !py-1.5 text-xs">Сохранить</SubmitButton></form>
                 ) : <span className="chip">{ROLE_LABEL[m.role]}</span>}
                 {(editable || (m.user_id === c.user.id && m.role !== "owner")) && (
-                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><button className="text-ink3 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={15} /></button></form>
+                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><SubmitButton className="text-ink3 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={15} /></SubmitButton></form>
                 )}
               </div>
             );
@@ -39,7 +40,7 @@ export default async function Team() {
               <div className="min-w-0 flex-1 truncate text-sm">{i.email ?? "Любой, у кого есть ссылка"}</div>
               <span className="chip">{ROLE_LABEL[i.role]}</span>
               <span className="text-xs text-ink3">до {new Date(i.expires_at).toLocaleDateString("ru-RU")}</span>
-              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><button className="text-ink3 hover:text-bad" title="Отозвать"><X size={15} /></button></form>}
+              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Отозвать"><X size={15} /></SubmitButton></form>}
             </div>
           ))}
         </section>

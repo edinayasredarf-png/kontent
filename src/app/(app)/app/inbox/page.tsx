@@ -8,6 +8,7 @@ import { PRICES, rub } from "@/lib/wallet";
 import { Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const TABS: [string, string][] = [["new", "Новые"], ["done", "Обработанные"], ["hidden", "Скрытые"]];
 
 const TONES: [string, string][] = [["", "Все"], ["negative", "Негатив"], ["question", "Вопросы"], ["spam", "Спам"], ["positive", "Позитив"]];
@@ -38,7 +39,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
       <div className="mb-4 flex gap-1 text-sm">{TABS.map(([k, l]) => <Link key={k} href={`/app/inbox?s=${k}`} className={`rounded-lg px-3 py-1.5 ${st === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{cnt[k] ? <span className="ml-1.5 text-xs text-ink3">{cnt[k]}</span> : null}</Link>)}</div>
       <div className="mb-4 flex flex-wrap items-center gap-1 text-xs">
         {TONES.map(([k, l]) => <Link key={k || "all"} href={`/app/inbox?s=${st}${k ? `&t=${k}` : ""}`} className={`rounded-full px-3 py-1 ${tone === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{k && st === "new" && tc[k] ? <span className="ml-1 text-ink3">{tc[k]}</span> : null}</Link>)}
-        {write && st === "new" && tc.spam > 0 && <form action={hideSpamAction} className="ml-auto"><button className="btn btn-ghost !px-3 !py-1"><EyeOff size={13} />Скрыть весь спам ({tc.spam})</button></form>}
+        {write && st === "new" && tc.spam > 0 && <form action={hideSpamAction} className="ml-auto"><SubmitButton className="btn btn-ghost !px-3 !py-1"><EyeOff size={13} />Скрыть весь спам ({tc.spam})</SubmitButton></form>}
       </div>
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
       {hasTg && <p className="mb-4 rounded-xl bg-tile px-4 py-3 text-xs text-ink2">VK: комментарии собираются и на них можно отвечать отсюда. Telegram: Bot API не отдаёт комментарии каналов, поэтому здесь они не появятся — читайте их в группе обсуждения канала.</p>}
@@ -61,12 +62,12 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
                   </Form>
                 )}
                 {!r.reply && r.tone !== "spam" && (
-                  <form action={suggestReplyAction}><input type="hidden" name="id" value={r.id} /><button className="btn btn-ghost !py-1.5" title="ИИ предложит ответ, вы сможете его поправить"><Sparkles size={14} />{r.draft ? "Другой ответ" : "Ответ от ИИ"}{c.org.unlimited ? "" : ` · ${rub(PRICES.reply)}`}</button></form>
+                  <form action={suggestReplyAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !py-1.5" title="ИИ предложит ответ, вы сможете его поправить"><Sparkles size={14} />{r.draft ? "Другой ответ" : "Ответ от ИИ"}{c.org.unlimited ? "" : ` · ${rub(PRICES.reply)}`}</SubmitButton></form>
                 )}
                 <div className="ml-auto flex gap-1">
-                  {r.status !== "done" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="done" /><button className="btn btn-ghost !px-2.5 !py-1.5" title="Обработано"><Check size={14} /></button></form>}
-                  {r.status !== "hidden" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="hidden" /><button className="btn btn-ghost !px-2.5 !py-1.5" title="Скрыть"><EyeOff size={14} /></button></form>}
-                  {r.status !== "new" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="new" /><button className="btn btn-ghost !px-2.5 !py-1.5" title="Вернуть в новые"><RotateCcw size={14} /></button></form>}
+                  {r.status !== "done" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="done" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Обработано"><Check size={14} /></SubmitButton></form>}
+                  {r.status !== "hidden" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="hidden" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>}
+                  {r.status !== "new" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="new" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Вернуть в новые"><RotateCcw size={14} /></SubmitButton></form>}
                 </div>
               </div>
             )}

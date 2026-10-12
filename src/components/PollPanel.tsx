@@ -1,5 +1,6 @@
 import { savePollAction } from "@/lib/carousel/actions";
 
+import { SubmitButton } from "@/components/SubmitButton";
 /** Опрос материала: вопрос и варианты. В Telegram выйдет встроенным опросом, в остальных площадках текстом с цифрами. */
 export function PollPanel({ itemId, factoryId, poll, editable }: { itemId: string; factoryId: string; poll: { question: string; options: string[] }; editable: boolean }) {
   return (
@@ -14,7 +15,7 @@ export function PollPanel({ itemId, factoryId, poll, editable }: { itemId: strin
             <input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} />
             <input name="question" defaultValue={poll.question} maxLength={280} className="input font-medium" />
             <textarea name="options" defaultValue={poll.options.join("\n")} rows={5} className="input" placeholder="Каждый вариант с новой строки (2–10)" />
-            <button className="btn">Сохранить опрос</button>
+            <SubmitButton className="btn">Сохранить опрос</SubmitButton>
           </form>
         </details>
       )}

@@ -9,6 +9,7 @@ import { AiPanel } from "@/components/AiPanel";
 import { Empty, KIND, PageHead } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
   const { d } = await searchParams;
   const days: Period = d === "7" ? 7 : d === "all" ? 0 : 30;
@@ -22,7 +23,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHead title="Аналитика" sub="Просмотры и реакции опубликованных постов. Данные обновляются сами." action={
-        <form action={refreshStatsAction}><button className="btn btn-ghost"><RefreshCw size={15} />Обновить</button></form>} />
+        <form action={refreshStatsAction}><SubmitButton className="btn btn-ghost"><RefreshCw size={15} />Обновить</SubmitButton></form>} />
       <div className="mb-4 flex gap-1 text-sm">{periods.map(([v, l]) => <Link key={v} href={`/app/analytics?d=${v}`} className={`rounded-lg px-3 py-1.5 ${(days === 0 ? "all" : String(days)) === v ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}</Link>)}</div>
       {posts === 0 ? (
         <Empty icon={<BarChart3 />} title="Пока нет данных" text="Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)." />

@@ -29,11 +29,11 @@ export default async function NewFactory() {
           <Field label="Продукт / направление"><textarea name="product" rows={3} className="input" /></Field>
           <div><span className="label">Форматы</span><div className="flex flex-wrap gap-2">
             {["post", "carousel", "infographic", "poll", "contest", "article", "reels", "seo"].map((k, i) => (
-              <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="formats" value={k} defaultChecked={i === 0} className="hidden" />{KIND[k]}</label>
+              <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="formats" value={k} defaultChecked={i === 0} className="hidden" />{KIND[k]}</label>
             ))}</div></div>
           <div><span className="label">Дни публикации</span><div className="flex flex-wrap gap-2">
             {DAYS.map(([v, l]) => (
-              <label key={v} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="days" value={v} defaultChecked={v !== "0" && v !== "6"} className="hidden" />{l}</label>
+              <label key={v} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="days" value={v} defaultChecked={v !== "0" && v !== "6"} className="hidden" />{l}</label>
             ))}</div></div>
           <Field label="Время публикации (МСК, через запятую)"><input name="times" defaultValue="10:00" className="input" /></Field>
           <Field label="Одобрение"><select name="approval" className="input"><option value="manual">Вручную — каждую идею подтверждаю я</option><option value="auto">Автоматически</option></select></Field>

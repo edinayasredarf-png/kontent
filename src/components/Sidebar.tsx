@@ -7,6 +7,7 @@ import { Logo } from "./Logo";
 import { LegalLinks } from "./LegalLinks";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const NAV = [
   { href: "/app", label: "Обзор", icon: LayoutDashboard, exact: true },
   { href: "/app/factories", label: "Заводы", icon: Factory },
@@ -54,7 +55,7 @@ export function Sidebar({ orgs, orgId, user, isAdmin }: { orgs: { id: string; na
       <div className="hidden px-5 pb-2 md:block"><LegalLinks className="!gap-x-3" /></div>
       <form action={logoutAction} className="hidden items-center justify-between border-t border-line px-5 py-3 md:flex">
         <Link href="/app/profile" className="truncate text-xs text-ink2 hover:text-ink" title="Профиль и безопасность">{user}</Link>
-        <button title="Выйти" className="text-ink3 hover:text-ink"><LogOut size={16} /></button>
+        <SubmitButton title="Выйти" className="text-ink3 hover:text-ink"><LogOut size={16} /></SubmitButton>
       </form>
     </aside>
   );

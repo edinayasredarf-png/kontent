@@ -10,6 +10,7 @@ import { PRICES, rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 const TABS: [string, string][] = [["pending", "Очередь"], ["queued", "Опубликовано"], ["rejected", "Отбракованные"], ["settings", "Настройки"], ["cost", "Расход"]];
@@ -32,8 +33,8 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
       <Link href="/app/flows" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все потоки</Link>
       <PageHead title={flow.name} sub={`${flow.brand} · ${st.mode === "auto" ? "публикует автоматически" : "каждая новость ждёт вашего одобрения"}`} action={write && (
         <div className="flex gap-2">
-          <form action={toggleFlowAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="tab" value={tab} /><button className="btn">{flow.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Включить</>}</button></form>
-          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><button className="btn btn-danger" title="Удалить поток"><Trash2 size={15} /></button></form>
+          <form action={toggleFlowAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="tab" value={tab} /><SubmitButton className="btn">{flow.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Включить</>}</SubmitButton></form>
+          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton className="btn btn-danger" title="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
         </div>)} />
       {sp.err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
       {sp.note && <p className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
@@ -69,15 +70,15 @@ async function Pending({ flowId, write, hid, unlimited }: { flowId: string; writ
           <form action={approveFlowItemAction} className="space-y-2">
             {hid(r.id)}
             <textarea name="text" defaultValue={r.text} rows={6} className="input text-sm" />
-            <div className="flex flex-wrap items-center gap-2"><button className="btn">Опубликовать</button><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
+            <div className="flex flex-wrap items-center gap-2"><SubmitButton className="btn">Опубликовать</SubmitButton><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
           </form>
         ) : <p className="whitespace-pre-wrap text-sm">{r.text}</p>}
         {write && (
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
             <form action={rewriteFlowItemAction} className="flex flex-wrap items-center gap-2">{hid(r.id)}
               <input name="note" maxLength={300} placeholder="Пожелание (необязательно): короче, с юмором…" className="input !w-56 !py-1.5 text-xs" />
-              <button className="btn btn-ghost !py-1.5"><RefreshCw size={14} />Переписать ещё раз{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</button></form>
-            <form action={rejectFlowItemAction} className="ml-auto">{hid(r.id)}<button className="btn btn-ghost !py-1.5 !text-bad">Отклонить</button></form>
+              <SubmitButton className="btn btn-ghost !py-1.5"><RefreshCw size={14} />Переписать ещё раз{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</SubmitButton></form>
+            <form action={rejectFlowItemAction} className="ml-auto">{hid(r.id)}<SubmitButton className="btn btn-ghost !py-1.5 !text-bad">Отклонить</SubmitButton></form>
           </div>
         )}
       </article>
@@ -119,7 +120,7 @@ async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; wri
             <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span>{r.note}</span>}<span>{r.source} · {when(r.created_at)}</span></div>
             <p className="line-clamp-2 text-sm">{r.title}</p>
           </div>
-          {write && <form action={rescueFlowItemAction}>{hid(r.id)}<button className="btn btn-ghost !py-1.5" title="Пересказать и вернуть в очередь на одобрение">Это нам надо{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</button></form>}
+          {write && <form action={rescueFlowItemAction}>{hid(r.id)}<SubmitButton className="btn btn-ghost !py-1.5" title="Пересказать и вернуть в очередь на одобрение">Это нам надо{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</SubmitButton></form>}
         </div>))}</div>
     </>
   );
@@ -143,7 +144,7 @@ async function Settings({ flowId, name, st, sourceIds, channelIds, orgId, write 
     q<{ id: string; title: string; kind: Kind }>("select id,title,kind from kz_sources where org_id=$1 and kind<>'manual' order by created_at", [orgId]),
     q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 and status='active' and kind<>'wordpress' order by created_at", [orgId]),
   ]);
-  const chip = "chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink";
+  const chip = "chip cursor-pointer !px-3 !py-1.5 chip-toggle";
   return (
     <form action={saveFlowSettingsAction} className="card max-w-3xl space-y-6 p-5">
       <input type="hidden" name="id" value={flowId} />
@@ -186,7 +187,7 @@ async function Settings({ flowId, name, st, sourceIds, channelIds, orgId, write 
           <div><label className="label">до (МСК)</label><input name="quietTo" type="number" min={0} max={23} defaultValue={st.quietTo} className="input" /></div>
         </div>
         <p className="text-xs text-ink3">Лимит, паузы и тихие часы применяются в автоматическом режиме. При ручном одобрении вы сами решаете, когда публиковать.</p>
-        {write && <button className="btn">Сохранить настройки</button>}
+        {write && <SubmitButton className="btn">Сохранить настройки</SubmitButton>}
       </fieldset>
     </form>
   );

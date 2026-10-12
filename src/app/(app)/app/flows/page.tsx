@@ -7,6 +7,7 @@ import { Empty, PageHead } from "@/components/ui";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export const dynamic = "force-dynamic";
 
 export default async function Flows({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
@@ -56,7 +57,7 @@ export default async function Flows({ searchParams }: { searchParams: Promise<{ 
                 {channels.length === 0 ? <p className="text-xs text-ink3">Каналов нет. Подключите их на странице <Link href="/app/channels" className="text-accent-ink">«Каналы»</Link>.</p> :
                   <div className="space-y-1">{channels.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="channels" value={s.id} /><span className="chip">{SUPPORTED_CHANNELS[s.kind] ?? s.kind}</span><span className="truncate">{s.title}</span></label>)}</div>}
               </div>
-              <button className="btn w-full justify-center">Создать поток</button>
+              <SubmitButton className="btn w-full justify-center">Создать поток</SubmitButton>
               <p className="text-xs text-ink3">Поток создаётся на паузе. Настройте фильтры, стиль и картинки, затем включите.</p>
             </form>
           )}

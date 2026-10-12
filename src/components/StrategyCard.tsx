@@ -3,6 +3,7 @@ import { genStrategyAction, saveStrategyAction } from "@/lib/growth-actions";
 import type { Strategy } from "@/lib/strategy";
 import { PRICES, rub } from "@/lib/wallet";
 
+import { SubmitButton } from "@/components/SubmitButton";
 interface Matrix { weeks: string[]; rows: { name: string; counts: number[]; total: number }[]; untagged: number[] }
 
 /** Контент-стратегия завода: позиционирование, боли аудитории, рубрики с долями и матрица плана на 4 недели. */
@@ -15,7 +16,7 @@ export function StrategyCard({ factoryId, strategy, matrix, free }: { factoryId:
       <div className="mt-4 space-y-5">
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tile p-3">
           <p className="min-w-[14rem] flex-1 text-xs text-ink2">ИИ составит рубрики и доли по описанию бренда, лучшим вашим постам и тому, что заходит у конкурентов. План и тексты будут опираться на рубрики.</p>
-          <form action={genStrategyAction}><input type="hidden" name="factory" value={factoryId} /><button className="btn"><Sparkles size={14} />{strategy ? "Составить заново" : "Составить стратегию"}{free ? "" : ` · ${rub(PRICES.strategy)}`}</button></form>
+          <form action={genStrategyAction}><input type="hidden" name="factory" value={factoryId} /><SubmitButton className="btn"><Sparkles size={14} />{strategy ? "Составить заново" : "Составить стратегию"}{free ? "" : ` · ${rub(PRICES.strategy)}`}</SubmitButton></form>
         </div>
         {strategy && (
           <div className="grid gap-4 md:grid-cols-2">
@@ -57,7 +58,7 @@ export function StrategyCard({ factoryId, strategy, matrix, free }: { factoryId:
                 <input name={`rdesc_${i}`} defaultValue={r.desc} maxLength={200} placeholder="О чём рубрика" className="input !bg-surface text-sm" />
               </div>
             ))}
-            <div className="flex items-center gap-3"><button className="btn">Сохранить</button><span className="text-xs text-ink3">Доли приводятся к 100%. Пустая рубрика удаляется.</span></div>
+            <div className="flex items-center gap-3"><SubmitButton className="btn">Сохранить</SubmitButton><span className="text-xs text-ink3">Доли приводятся к 100%. Пустая рубрика удаляется.</span></div>
           </form>
         </details>
       </div>

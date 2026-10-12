@@ -5,6 +5,7 @@ import { rub } from "@/lib/wallet";
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Orgs({ searchParams }: { searchParams: Promise<{ q?: string; p?: string }> }) {
   const { q: query = "", p } = await searchParams;
   await requireAdmin();
@@ -15,7 +16,7 @@ export default async function Orgs({ searchParams }: { searchParams: Promise<{ q
     <>
       <PageHead title="Организации" sub="Клиенты платформы. Поиск по названию и email участника." />
       <AdminNav active="/app/admin/orgs" />
-      <form className="card mb-4 flex gap-2 p-3"><input name="q" defaultValue={query} placeholder="Название или email" className="input" /><button className="btn">Найти</button></form>
+      <form className="card mb-4 flex gap-2 p-3"><input name="q" defaultValue={query} placeholder="Название или email" className="input" /><SubmitButton className="btn">Найти</SubmitButton></form>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead><tr className="border-b border-line text-left text-xs text-ink3"><th className="px-4 py-2 font-normal">Организация</th><th className="px-2 font-normal">Владелец</th><th className="px-2 font-normal">Тариф</th><th className="px-2 text-right font-normal">Баланс</th><th className="px-2 text-right font-normal">Бр/Зав</th><th className="px-4 font-normal">Создана</th></tr></thead>

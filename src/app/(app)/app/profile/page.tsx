@@ -6,6 +6,7 @@ import { changeEmailAction, changePasswordAction, logoutEverywhereAction, update
 import { PageHead } from "@/components/ui";
 import { ThemePicker } from "@/components/ThemePicker";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Profile() {
   const c = await requireCtx();
   return (
@@ -40,7 +41,7 @@ export default async function Profile() {
         <section className="card p-6">
           <b className="mb-1 block text-sm">Сессии</b>
           <p className="mb-3 text-xs text-ink2">Выйдет из аккаунта на всех устройствах, включая это. Пригодится, если потеряли телефон или вошли с чужого компьютера.</p>
-          <form action={logoutEverywhereAction}><button className="btn btn-danger"><LogOut size={15} />Выйти везде</button></form>
+          <form action={logoutEverywhereAction}><SubmitButton className="btn btn-danger"><LogOut size={15} />Выйти везде</SubmitButton></form>
         </section>
       </div>
     </>

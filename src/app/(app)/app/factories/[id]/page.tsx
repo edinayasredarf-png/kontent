@@ -32,6 +32,7 @@ import { updateSeoMetaAction } from "@/lib/actions";
 export const maxDuration = 300;
 import { PageHead, Status, KIND, STATUS } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 interface Pub { item_id: string; status: string; error: string | null; external_url: string | null; channel: string; kind: string }
 const shiftMonth = (month: string, n: number) => { const [y, m] = month.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
@@ -83,8 +84,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
     <>
       <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} action={
         <div className="flex gap-2">
-          <form action={toggleFactory}>{hid}<button className="btn btn-ghost">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</button></form>
-          <form action={deleteFactory}>{hid}<button className="btn btn-danger" title="Удалить завод"><Trash2 size={15} /></button></form>
+          <form action={toggleFactory}>{hid}<SubmitButton className="btn btn-ghost">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
+          <form action={deleteFactory}>{hid}<SubmitButton className="btn btn-danger" title="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
         </div>} />
       {note && <div className="mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {err && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
@@ -93,14 +94,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <div className="flex flex-wrap items-center gap-2"><b className="mr-2 text-sm">Публикация</b>
           {chans.length === 0 && <span className="text-sm text-ink2">У бренда нет каналов — подключите в разделе «Каналы».</span>}
           {chans.map((ch) => (
-            <label key={ch.id} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="channels" value={ch.id} defaultChecked={ch.on} className="hidden" />{SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: {ch.title}</label>
+            <label key={ch.id} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="channels" value={ch.id} defaultChecked={ch.on} className="hidden" />{SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: {ch.title}</label>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="autopublish" defaultChecked={set?.autopublish} />Автопубликация по расписанию</label>
           <label className="flex items-center gap-2"><input type="checkbox" name="images" defaultChecked={set?.images} />Картинки к материалам{c.org.unlimited ? "" : ` (+${rub(PRICES.image)})`}</label>
           <label className="flex items-center gap-2">Идеи:<select name="approval" defaultValue={set?.approval} className="input !w-auto !py-1.5"><option value="manual">одобряю вручную</option><option value="auto">одобряются сами (полный автомат, план пополняется с баланса)</option></select></label>
-          <button className="btn btn-ghost ml-auto">Сохранить</button>
+          <SubmitButton className="btn btn-ghost ml-auto">Сохранить</SubmitButton>
         </div>
       </form>
       {(runway === null || runway < 3) && (
@@ -116,13 +117,13 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <input type="hidden" name="factory" value={id} />
           <div className="flex flex-wrap gap-2">
             {[["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", "Пт"], ["6", "Сб"], ["0", "Вс"]].map(([v, l]) => (
-              <label key={v} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="days" value={v} defaultChecked={sched?.schedule.days.includes(Number(v))} className="hidden" />{l}</label>
+              <label key={v} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="days" value={v} defaultChecked={sched?.schedule.days.includes(Number(v))} className="hidden" />{l}</label>
             ))}
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div><label className="label">Время (через запятую)</label><input name="times" defaultValue={sched?.schedule.times.join(", ")} className="input !w-56" /></div>
             <div><label className="label">Часовой пояс</label><select name="tz" defaultValue={sched?.schedule.tz} className="input !w-auto">{Object.entries(TIMEZONES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <button className="btn btn-ghost">Сохранить расписание</button>
+            <SubmitButton className="btn btn-ghost">Сохранить расписание</SubmitButton>
           </div>
           <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
         </form>
@@ -137,14 +138,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <span className="label">Какие материалы создать по этой теме</span>
             <div className="flex flex-wrap gap-2">
               {KINDS.map((k) => (
-                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="kinds" value={k} defaultChecked={k === (sched?.formats?.[0] ?? "post")} className="hidden" />{KIND[k]}</label>
+                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === (sched?.formats?.[0] ?? "post")} className="hidden" />{KIND[k]}</label>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <select name="mode" className="input !w-auto"><option value="now">Создать сразу (без карточек-идей)</option><option value="ideas">Только добавить идеи в план</option></select>
             <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — сегодня)" />
-            <button className="btn ml-auto"><Sparkles size={14} />Создать</button>
+            <SubmitButton className="btn ml-auto"><Sparkles size={14} />Создать</SubmitButton>
           </div>
           <p className="text-xs text-ink3">Каждый выбранный тип стоит как обычно (пост {rub(PRICES.post)}, карусель {rub(PRICES.carousel)}, SEO-статья {rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.</p>
         </form>
@@ -159,7 +160,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm">Сколько материалов
               <select name="count" defaultValue="5" className="input !w-auto">{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-            <button className="btn ml-auto"><Layers size={15} />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</button>
+            <SubmitButton className="btn ml-auto"><Layers size={15} />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</SubmitButton>
           </div>
           <p className="text-xs text-ink3">Идеи появятся в плане на ближайшие свободные дни. Создание самих постов и каруселей оплачивается как обычно.</p>
         </form>
@@ -174,7 +175,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
             <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — ближайший свободный день)" />
             <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
-            <button className="btn btn-ghost ml-auto"><Plus size={15} />Добавить</button>
+            <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить</SubmitButton>
           </div>
         </form>
         <form action={addIdeasBulkAction} className="space-y-2">
@@ -184,7 +185,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <div className="flex flex-wrap items-center gap-2">
             <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
             <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
-            <button className="btn btn-ghost ml-auto"><Plus size={15} />Добавить список</button>
+            <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить список</SubmitButton>
           </div>
         </form>
       </div>
@@ -192,7 +193,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         {hid}
         <div className="mr-auto"><b className="text-sm">Продлить план с помощью ИИ</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p></div>
         <select name="days" defaultValue="7" className="input !w-auto">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней{c.org.unlimited ? "" : ` — ${rub(d * PRICES.plan_day)}`}</option>)}</select>
-        <button className="btn btn-accent"><Sparkles size={15} />Продлить</button>
+        <SubmitButton className="btn btn-accent"><Sparkles size={15} />Продлить</SubmitButton>
       </form>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -204,7 +205,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <input type="hidden" name="view" value={view} /><input type="hidden" name="m" value={month} />
           <select name="kind" defaultValue={kindF} className="input !w-auto !py-1.5"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
           <select name="status" defaultValue={statusF} className="input !w-auto !py-1.5"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-          <button className="btn btn-ghost !py-1.5">Применить</button>
+          <SubmitButton className="btn btn-ghost !py-1.5">Применить</SubmitButton>
         </form>
         <details className="relative">
           <summary className="btn btn-ghost !py-1.5 cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
@@ -213,7 +214,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
             <div className="grid grid-cols-2 gap-2"><div><label className="label">С даты</label><input type="date" name="from" className="input !py-1.5" /></div><div><label className="label">По дату</label><input type="date" name="to" className="input !py-1.5" /></div></div>
             <select name="format" className="input"><option value="csv">Таблица для Excel (.csv)</option><option value="zip">Архив: тексты и картинки (.zip)</option></select>
-            <button className="btn w-full justify-center">Скачать</button>
+            <SubmitButton className="btn w-full justify-center">Скачать</SubmitButton>
             <p className="text-xs text-ink3">CSV: до 300 материалов. ZIP: до 120 материалов и 40 МБ, папка на каждый.</p>
           </form>
         </details>
@@ -245,7 +246,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                     <div className="flex flex-wrap items-center gap-2">
                       <select name="kind" defaultValue={i.kind} className="input !w-auto !bg-surface">{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
                       <input name="date" type="date" defaultValue={i.planned_for ?? ""} className="input !w-auto !bg-surface" />
-                      <button className="btn btn-ghost !py-1.5">Сохранить</button>
+                      <SubmitButton className="btn btn-ghost !py-1.5">Сохранить</SubmitButton>
                     </div>
                   </form>
                 </details>
@@ -256,7 +257,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <b className="text-xs">Повторять материал</b>
                   <select name="days" defaultValue={String(i.repeat?.days ?? 0)} className="input !w-auto !bg-surface !py-1 text-xs"><option value="0">Не повторять</option><option value="30">Раз в 30 дней</option><option value="60">Раз в 60 дней</option><option value="90">Раз в 90 дней</option><option value="180">Раз в полгода</option></select>
                   <select name="times" defaultValue={String(Math.max(1, i.repeat?.left ?? 3))} className="input !w-auto !bg-surface !py-1 text-xs">{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} раз</option>)}</select>
-                  <button className="btn btn-ghost !py-1">Сохранить</button>
+                  <SubmitButton className="btn btn-ghost !py-1">Сохранить</SubmitButton>
                   <span className="text-xs text-ink3">{i.repeat ? `Осталось повторов: ${i.repeat.left}. ` : ""}Копия появится готовой к публикации.</span>
                 </form>
               )}
@@ -299,7 +300,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                       <div><label className="label">Title ({i.seo.title.length})</label><input name="title" defaultValue={i.seo.title} maxLength={90} className="input" /></div>
                       <div><label className="label">Description ({i.seo.description.length})</label><textarea name="description" defaultValue={i.seo.description} rows={2} maxLength={200} className="input" /></div>
                       <div><label className="label">Адрес (slug)</label><input name="slug" defaultValue={i.seo.slug} maxLength={70} className="input font-mono text-xs" /></div>
-                      <button className="btn btn-ghost !py-1.5">Сохранить SEO-поля</button>
+                      <SubmitButton className="btn btn-ghost !py-1.5">Сохранить SEO-поля</SubmitButton>
                     </form>
                     <details><summary className="cursor-pointer text-xs font-medium text-ink2">Предпросмотр статьи</summary>
                       <article className="article mt-3 rounded-xl p-4" dangerouslySetInnerHTML={{ __html: `<h1>${i.seo.title.replace(/[<>&]/g, "")}</h1>${cleanHtml(i.body)}` }} />
@@ -311,7 +312,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 <form action={saveBody} className="space-y-2">
                   <input type="hidden" name="id" value={i.id} />
                   <textarea name="body" defaultValue={i.body} rows={10} className="input font-mono !text-[13px]" />
-                  <button className="btn btn-ghost">{i.kind === "seo" ? "Сохранить HTML" : "Сохранить правки"}</button>
+                  <SubmitButton className="btn btn-ghost">{i.kind === "seo" ? "Сохранить HTML" : "Сохранить правки"}</SubmitButton>
                 </form>
               ) : null}
               {i.image_error && <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />Картинка: {i.image_error}</p>}
@@ -321,14 +322,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
                   <a href={`/api/assets/${i.image_id}?dl=1`} download className="btn btn-ghost !py-1.5" title="Скачать картинку файлом"><Download size={14} />Скачать картинку</a>
-                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><button className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</button></form>
+                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><SubmitButton className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</SubmitButton></form>
                 </div>
               )}
               {i.body && !["carousel", "infographic", "poll", "email", "guide", "reels"].includes(i.kind) && !["published", "scheduled", "generating"].includes(i.status) && (
                 <form action={generateImageAction} className="space-y-2 rounded-xl bg-tile p-3">
                   <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
                   <textarea name="prompt" rows={2} defaultValue="" placeholder={i.image_prompt ? `Прошлое описание: ${i.image_prompt.slice(0, 160)}…` : "Описание картинки (необязательно — иначе соберём из поста и брендбука)"} className="input !bg-surface text-xs" />
-                  <button className="btn btn-ghost !py-1.5">{i.image_id ? <RefreshCw size={14} /> : <ImageIcon size={14} />}{i.image_id ? "Создать заново" : "Создать картинку"}{c.org.unlimited ? "" : ` · ${rub(PRICES.image)}`}</button>
+                  <SubmitButton className="btn btn-ghost !py-1.5">{i.image_id ? <RefreshCw size={14} /> : <ImageIcon size={14} />}{i.image_id ? "Создать заново" : "Создать картинку"}{c.org.unlimited ? "" : ` · ${rub(PRICES.image)}`}</SubmitButton>
                 </form>
               )}
               {pubs.filter((p) => p.item_id === i.id).map((p, k) => (
@@ -340,13 +341,13 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 </p>
               ))}
               <div className="flex flex-wrap gap-2">
-                {["ready", "failed"].includes(i.status) && i.body && !["email", "guide", "reels"].includes(i.kind) && <form action={publishNowAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><button className="btn"><Send size={15} />Опубликовать сейчас</button></form>}
+                {["ready", "failed"].includes(i.status) && i.body && !["email", "guide", "reels"].includes(i.kind) && <form action={publishNowAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton className="btn"><Send size={15} />Опубликовать сейчас</SubmitButton></form>}
                 {["idea", "approved"].includes(i.status) && (<>
-                  {i.status === "idea" && <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="approved" /><button className="btn btn-ghost"><Check size={15} />Одобрить</button></form>}
-                  <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="rejected" /><button className="btn btn-ghost"><X size={15} />Отклонить</button></form>
+                  {i.status === "idea" && <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="approved" /><SubmitButton className="btn btn-ghost"><Check size={15} />Одобрить</SubmitButton></form>}
+                  <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="rejected" /><SubmitButton className="btn btn-ghost"><X size={15} />Отклонить</SubmitButton></form>
                 </>)}
-                {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && <form action={deleteIdeaAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><button className="btn btn-danger" title="Удалить из плана"><Trash2 size={15} />Удалить</button></form>}
-                {["idea", "approved", "failed"].includes(i.status) && <form action={generateItemAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><button className="btn btn-accent"><Sparkles size={15} />Написать</button></form>}
+                {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && <form action={deleteIdeaAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton className="btn btn-danger" title="Удалить из плана"><Trash2 size={15} />Удалить</SubmitButton></form>}
+                {["idea", "approved", "failed"].includes(i.status) && <form action={generateItemAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton className="btn btn-accent"><Sparkles size={15} />Написать</SubmitButton></form>}
               </div>
             </div>
           </details>

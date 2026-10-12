@@ -4,6 +4,7 @@ import { CAROUSEL_STYLES, EMOJI, HASHTAGS, LENGTHS, POST_TYPES, type ContentSett
 import { saveContentSettingsAction } from "@/lib/carousel/actions";
 import { PRICES, rub } from "@/lib/wallet";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const Sel = ({ name, value, opts }: { name: string; value: string | number; opts: Record<string, string> }) => (
   <select name={name} defaultValue={String(value)} className="input">{Object.entries(opts).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
 );
@@ -19,7 +20,7 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
           <span className="label">Типы постов (если выбрано несколько, план распределит их по идеям)</span>
           <div className="flex flex-wrap gap-2">
             {Object.entries(POST_TYPES).map(([k, v]) => (
-              <label key={k} className="chip cursor-pointer !px-3 !py-1.5 has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink"><input type="checkbox" name="postTypes" value={k} defaultChecked={st.postTypes.includes(k)} className="hidden" />{v}</label>
+              <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="postTypes" value={k} defaultChecked={st.postTypes.includes(k)} className="hidden" />{v}</label>
             ))}
           </div>
         </div>
@@ -52,7 +53,7 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
           </div>
           <p className="mt-2 text-xs text-ink3">Тексты на слайдах набираются шрифтом без искажений, цвета и логотип берутся из брендбука. Карусель стоит {free ? "бесплатно для админа" : rub(PRICES.carousel)}.</p>
         </div>
-        <button className="btn">Сохранить настройки</button>
+        <SubmitButton className="btn">Сохранить настройки</SubmitButton>
       </form>
     </details>
   );

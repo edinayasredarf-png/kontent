@@ -7,6 +7,7 @@ import { TOOLS } from "@/lib/studio";
 import { TAGS } from "@/lib/studio-catalog";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const ICON: Record<string, typeof Wand2> = { text: FileText, hooks: Lightbulb, script: Clapperboard, viral: Rocket, image: Img, cover: Layers, voice: Mic, random: Rocket, image2text: Img };
 
 const ICON_FALLBACK = Wand2;
@@ -48,7 +49,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
               <p className="mt-2 text-xs text-ink3">{t.priceLabel} · {t.agent}</p>
             </Link>
             <form action={toggleFavoriteAction} className="absolute right-3 top-3"><input type="hidden" name="tool" value={t.key} />
-              <button className={`rounded-lg p-1.5 hover:bg-tile ${fav ? "text-bad" : "text-ink3"}`} title={fav ? "Убрать из избранного" : "В избранное"} aria-label={fav ? "Убрать из избранного" : "В избранное"}><Heart size={17} fill={fav ? "currentColor" : "none"} /></button></form>
+              <SubmitButton className={`rounded-lg p-1.5 hover:bg-tile ${fav ? "text-bad" : "text-ink3"}`} title={fav ? "Убрать из избранного" : "В избранное"} aria-label={fav ? "Убрать из избранного" : "В избранное"}><Heart size={17} fill={fav ? "currentColor" : "none"} /></SubmitButton></form>
           </div>); })}
       </div>
       {!tag && !onlyFav && (

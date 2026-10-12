@@ -8,6 +8,7 @@ import { AiPanel } from "@/components/AiPanel";
 import { Field, Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("ru-RU"));
 
 export default async function Competitors() {
@@ -30,8 +31,8 @@ export default async function Competitors() {
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{s.title}</div><div className="text-xs text-ink3">{s.kind === "telegram" ? "Telegram" : "VK"} · {s.ref}</div></div>
                     {write && <div className="flex gap-1">
-                      <form action={refreshCompetitorAction}><input type="hidden" name="id" value={s.id} /><button className="text-ink3 hover:text-ink" title="Обновить"><RefreshCw size={15} /></button></form>
-                      <form action={deleteCompetitorAction}><input type="hidden" name="id" value={s.id} /><button className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={15} /></button></form></div>}
+                      <form action={refreshCompetitorAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-ink" title="Обновить"><RefreshCw size={15} /></SubmitButton></form>
+                      <form action={deleteCompetitorAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={15} /></SubmitButton></form></div>}
                   </div>
                   {s.last_error && <p className="mt-2 rounded-lg bg-bad-soft px-2 py-1 text-xs text-bad">{s.last_error}</p>}
                   <dl className="mt-3 grid grid-cols-3 gap-2 text-center">

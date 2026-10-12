@@ -1,11 +1,13 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { pendingStore } from "@/lib/pending-store";
 import { Loader2 } from "lucide-react";
 
 type Act = (prev: unknown, f: FormData) => Promise<{ error?: string; ok?: string } | void>;
 
 export function Form({ action, children, submit, className, variant, wide }: { wide?: boolean; action: Act; children: React.ReactNode; submit: string; className?: string; variant?: "ghost" | "danger" }) {
   const [state, run, pending] = useActionState(async (p: unknown, f: FormData) => (await action(p, f)) ?? {}, {} as { error?: string; ok?: string });
+  useEffect(() => { if (!pending) return; pendingStore.inc(); return () => pendingStore.dec(); }, [pending]);
   return (
     <form action={run} className={className ?? "space-y-4"}>
       {children}

@@ -4,6 +4,7 @@ import { VARIANT_LABEL, type AbResult } from "@/lib/growth";
 import { PRICES, rub } from "@/lib/wallet";
 import { CopyText } from "./CopyText";
 
+import { SubmitButton } from "@/components/SubmitButton";
 const TEXT_KINDS = ["post", "story", "contest"];
 
 /** Развитие материала: ещё идеи в том же духе, A/B-вариант, версии под площадки. */
@@ -21,9 +22,9 @@ export function GrowthPanel({ itemId, factoryId, kind, status, hasBody, ab, abRe
       <b className="text-sm">Развитие материала</b>
       <div className="flex flex-wrap items-center gap-2">
         <form action={moreLikeThisAction} className="flex items-center gap-1.5">{hid}<input type="hidden" name="count" value="5" />
-          <button className="btn btn-ghost !py-1.5" title="ИИ предложит новые темы в том же духе и поставит в план"><Repeat2 size={14} />Ещё 5 идей в духе этого{price(PRICES.idea * 5)}</button></form>
-        {text && live && !ab && <form action={createVariantAction}>{hid}<button className="btn btn-ghost !py-1.5" title="Второй вариант того же поста, выйдет на день позже"><FlaskConical size={14} />A/B-вариант{price(PRICES.post)}</button></form>}
-        {text && !variants && !["published", "generating"].includes(status) && <form action={genVariantsAction}>{hid}<button className="btn btn-ghost !py-1.5" title="Свой текст для Telegram, VK, MAX, короткая версия и сценарий ролика"><Languages size={14} />Версии под площадки{price(PRICES.variants)}</button></form>}
+          <SubmitButton className="btn btn-ghost !py-1.5" title="ИИ предложит новые темы в том же духе и поставит в план"><Repeat2 size={14} />Ещё 5 идей в духе этого{price(PRICES.idea * 5)}</SubmitButton></form>
+        {text && live && !ab && <form action={createVariantAction}>{hid}<SubmitButton className="btn btn-ghost !py-1.5" title="Второй вариант того же поста, выйдет на день позже"><FlaskConical size={14} />A/B-вариант{price(PRICES.post)}</SubmitButton></form>}
+        {text && !variants && !["published", "generating"].includes(status) && <form action={genVariantsAction}>{hid}<SubmitButton className="btn btn-ghost !py-1.5" title="Свой текст для Telegram, VK, MAX, короткая версия и сценарий ролика"><Languages size={14} />Версии под площадки{price(PRICES.variants)}</SubmitButton></form>}
       </div>
       {ab && (
         <div className="rounded-xl bg-tile p-3 text-sm">
@@ -43,7 +44,7 @@ export function GrowthPanel({ itemId, factoryId, kind, status, hasBody, ab, abRe
               <div key={k}><div className="mb-1 flex items-center justify-between gap-2"><label className="label !mb-0">{label}{["telegram", "vk", "max"].includes(k) ? " — уйдёт в каналы этой площадки" : " — для ручного использования"}</label>{variants[k] && <CopyText text={variants[k]} label="Копировать версию" />}</div>
                 <textarea name={`v_${k}`} defaultValue={variants[k] ?? ""} rows={k === "short" ? 2 : 4} className="input !bg-surface text-sm" /></div>
             ))}
-            <div className="flex items-center gap-3"><button className="btn btn-ghost !py-1.5">Сохранить версии</button><span className="text-xs text-ink3">Пустое поле — для площадки берётся основной текст.</span></div>
+            <div className="flex items-center gap-3"><SubmitButton className="btn btn-ghost !py-1.5">Сохранить версии</SubmitButton><span className="text-xs text-ink3">Пустое поле — для площадки берётся основной текст.</span></div>
           </form>
         </details>
       )}

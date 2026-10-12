@@ -6,6 +6,7 @@ import { rub } from "@/lib/wallet";
 import { setPlan } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Billing() {
   const c = await requireCtx();
   const tx = await q<{ id: string; amount_kop: string; reason: string; created_at: string }>(
@@ -25,7 +26,7 @@ export default async function Billing() {
                 {p.features.map((f) => <li key={f} className="flex gap-1.5"><Check size={14} className="mt-0.5 shrink-0 text-good" />{f}</li>)}
               </ul>
               {cur ? <span className="chip justify-center">Текущий</span> : (
-                <form action={setPlan}><input type="hidden" name="plan" value={p.key} /><button className="btn btn-ghost w-full justify-center" disabled={!free}>{free ? "Выбрать" : "Скоро"}</button></form>
+                <form action={setPlan}><input type="hidden" name="plan" value={p.key} /><SubmitButton className="btn btn-ghost w-full justify-center" disabled={!free}>{free ? "Выбрать" : "Скоро"}</SubmitButton></form>
               )}
             </div>
           );

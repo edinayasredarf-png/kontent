@@ -5,6 +5,7 @@ import type { Field, Out } from "@/lib/studio";
 import { runToolAction, saveToBankAction } from "@/lib/studio-actions";
 import { CopyText } from "./CopyText";
 
+import { SubmitButton } from "@/components/SubmitButton";
 /** Сжимаем картинку в браузере до ~1100 px и JPEG: она уходит в запросе строкой data:, поэтому должна быть небольшой. */
 async function toDataUrl(file: File): Promise<string> {
   const bmp = await createImageBitmap(file);
@@ -59,7 +60,7 @@ export function ToolRunner({ tool, fields, brands, priceLabel, free, kind }: { t
               : <select name={f.name} className="input">{(f.name === "brand" ? [["", "Без бренда"] as [string, string], ...brands.map((b) => [b.id, b.name] as [string, string])] : f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}
           </div>
         ))}
-        <button className="btn btn-accent" disabled={pending}>{pending && <Loader2 size={15} className="animate-spin" />}{kind === "text" && tool === "random" ? "Выбрать победителя" : "Создать"} · {price}</button>
+        <SubmitButton className="btn btn-accent" disabled={pending}>{pending && <Loader2 size={15} className="animate-spin" />}{kind === "text" && tool === "random" ? "Выбрать победителя" : "Создать"} · {price}</SubmitButton>
         {kind === "image" && <p className="text-xs text-ink3">Генерация занимает до минуты. Нужна модель изображений в «Настройках ИИ».</p>}
       </form>
       <div className="card min-h-40 p-5">
@@ -83,7 +84,7 @@ export function ToolRunner({ tool, fields, brands, priceLabel, free, kind }: { t
             {tool !== "random" && <button type="button" onClick={generate} disabled={pending} className="btn btn-ghost !py-1.5" title="Сгенерировать ещё один вариант с теми же данными"><Plus size={14} />Вариант{free ? "" : ` · ${priceLabel}`}</button>}
             <span className="ml-auto flex gap-2">
               <CopyText text={res.text} label="Копировать" />
-              <form action={saveToBankAction}><input type="hidden" name="body" value={res.text} /><input type="hidden" name="source" value={tool} /><button className="btn btn-ghost !py-1.5"><BookmarkPlus size={14} />Сохранить</button></form>
+              <form action={saveToBankAction}><input type="hidden" name="body" value={res.text} /><input type="hidden" name="source" value={tool} /><SubmitButton className="btn btn-ghost !py-1.5"><BookmarkPlus size={14} />Сохранить</SubmitButton></form>
             </span>
           </div>
         </>)}

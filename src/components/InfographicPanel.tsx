@@ -4,6 +4,7 @@ import { INFO_LAYOUTS, type Infographic } from "@/lib/carousel/infographic";
 import { saveInfographicAction } from "@/lib/carousel/actions";
 import { SlideEditor } from "./SlideEditor";
 
+import { SubmitButton } from "@/components/SubmitButton";
 /** Инфографика материала: превью и правка текстов с бесплатной перерисовкой. */
 export function InfographicPanel({ itemId, factoryId, info, style, assetId, editable, colors = [] }: { itemId: string; factoryId: string; info: Infographic; style: string; assetId?: string; editable: boolean; colors?: string[] }) {
   return (
@@ -29,7 +30,7 @@ export function InfographicPanel({ itemId, factoryId, info, style, assetId, edit
                 <input name={`text_${i}`} defaultValue={b.text} maxLength={160} placeholder="Пояснение" className="input !bg-tile text-sm" />
               </div>
             ))}
-            <div className="flex items-center gap-2"><button className="btn"><RefreshCw size={14} />Сохранить и перерисовать</button><span className="text-xs text-ink3">бесплатно; пустые блоки пропускаются</span></div>
+            <div className="flex items-center gap-2"><SubmitButton className="btn"><RefreshCw size={14} />Сохранить и перерисовать</SubmitButton><span className="text-xs text-ink3">бесплатно; пустые блоки пропускаются</span></div>
           </form>
         </details>
       )}

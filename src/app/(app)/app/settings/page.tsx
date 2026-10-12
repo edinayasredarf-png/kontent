@@ -6,6 +6,7 @@ import { q } from "@/lib/db";
 import { saveAiRoutes } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
 
+import { SubmitButton } from "@/components/SubmitButton";
 export default async function Settings() {
   const c = await requireCtx();
   if (!c.isAdmin) redirect("/app");
@@ -31,7 +32,7 @@ export default async function Settings() {
           </div>
         ))}
         <p className="text-xs text-ink3">Пустое поле — берётся модель по умолчанию, а если и она пуста — переменная SELFHOSTED_LLM_MODEL. Для изображений и видео общая модель не подходит: выбирайте их отдельно.</p>
-        <button className="btn">Сохранить</button>
+        <SubmitButton className="btn">Сохранить</SubmitButton>
       </form>
     </>
   );
