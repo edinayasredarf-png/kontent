@@ -12,7 +12,7 @@ import { buildImage, buildItem, buildPlan, enqueue, processQueue } from "./pipel
 import { cleanKit, describeImage } from "./images";
 import { loadAsset } from "./assets";
 import { cleanHtml, slugify } from "./seo";
-import { seal } from "./crypto";
+import { open, seal } from "./crypto";
 import { NICHES } from "./niches";
 import { cleanSettings } from "./postsettings";
 import { providerFor } from "./publishing";
@@ -210,18 +210,44 @@ export async function saveBody(f: FormData) {
 }
 
 // ---------- channels ----------
-export async function saveChannel(_: unknown, f: FormData) {
-  const c = await writer();
-  if (!(await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
+function channelCred(f: FormData): { kind: string; cred: Record<string, string> } {
   const kind = s(f, "kind");
-  const prov = providerFor(kind);
-  if (!prov) return { error: "Этот тип канала пока не поддерживается" };
   const cred: Record<string, string> = { token: s(f, "token"), target: s(f, "target") };
   if (kind === "wordpress") {
-    if (!s(f, "wp_user")) return { error: "Укажите логин WordPress" };
     cred.token = `${s(f, "wp_user")}:${s(f, "token").replace(/\s+/g, " ")}`;
     cred.status = s(f, "wp_status") === "publish" ? "publish" : "draft";
   }
+  return { kind, cred };
+}
+
+/** Проверка введённых данных без сохранения: токен рабочий, бот — админ канала, сообщество существует. */
+export async function checkChannelAction(f: FormData): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  await writer();
+  const { kind, cred } = channelCred(f);
+  const prov = providerFor(kind);
+  if (!prov) return { ok: false, error: "Этот тип канала пока не поддерживается" };
+  if (kind === "wordpress" && !s(f, "wp_user")) return { ok: false, error: "Укажите логин WordPress" };
+  if (!cred.target && kind !== "wordpress") return { ok: false, error: "Укажите канал (адрес или id)" };
+  try { return { ok: true, name: await prov.verify(cred) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+}
+
+/** Повторная проверка уже подключённого канала: не отозван ли токен, не убрали ли бота из администраторов. */
+export async function checkSavedChannelAction(id: string): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const c = await writer();
+  const r = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
+  if (!r) return { ok: false, error: "Канал не найден" };
+  const prov = providerFor(r.kind);
+  if (!prov) return { ok: false, error: "Тип канала не поддерживается" };
+  try { return { ok: true, name: await prov.verify(open(r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+}
+
+export async function saveChannel(_: unknown, f: FormData) {
+  const c = await writer();
+  if (!(await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
+  const { kind, cred } = channelCred(f);
+  const prov = providerFor(kind);
+  if (!prov) return { error: "Этот тип канала пока не поддерживается" };
+  if (kind === "wordpress" && !s(f, "wp_user")) return { error: "Укажите логин WordPress" };
   // Проверяем до сохранения: токен рабочий, бот — админ, сообщество существует.
   let name: string;
   try { name = await prov.verify(cred); } catch (e) { return { error: (e as Error).message }; }

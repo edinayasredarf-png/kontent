@@ -1,6 +1,7 @@
 import { Radio, Trash2 } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
+import { ChannelCheck } from "@/components/ChannelCheck";
 import { ChannelForm } from "@/components/ChannelForm";
 import { deleteChannel, saveSignatureAction } from "@/lib/actions";
 import { PageHead, Empty } from "@/components/ui";
@@ -21,8 +22,9 @@ export default async function Channels() {
           {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество справа." /> : (
             <div className="card">{rows.map((r) => (
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="chip">{KINDS[r.kind] ?? r.kind}</span><span className="flex-1 text-sm">{r.title}</span><span className="text-xs text-ink3">{r.brand}</span>
+                  <ChannelCheck id={r.id} />
                   <form action={deleteChannel}><input type="hidden" name="id" value={r.id} /><SubmitButton className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
                 </div>
                 {!["wordpress", "webhook"].includes(r.kind) && (
