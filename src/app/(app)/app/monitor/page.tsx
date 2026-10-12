@@ -5,6 +5,8 @@ import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
 import { createFromNewsAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KINDS } from "@/lib/plan";
+import { POST_TYPES } from "@/lib/postsettings";
+import { ANGLES } from "@/lib/monitor/angles";
 import { KIND } from "@/components/ui";
 import { Form } from "@/components/Form";
 import { bestText } from "@/lib/monitor/news";
@@ -135,11 +137,15 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                         <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}</select></div>
                         <div><span className="label">Какие материалы создать по этой новости</span>
                           <div className="flex flex-wrap gap-2">{MAKE.map((k) => <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === "post"} className="hidden" />{KIND[k]}</label>)}</div></div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div><label className="label">Как подать новость</label><select name="angle" defaultValue="retell" className="input !bg-surface">{Object.entries(ANGLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+                          <div><label className="label">Стиль написания</label><select name="postType" defaultValue="" className="input !bg-surface"><option value="">По настройкам завода</option>{Object.entries(POST_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                        </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <select name="mode" className="input !w-auto !bg-surface"><option value="now">Создать сразу</option><option value="ideas">Только в контент-план (идеи)</option></select>
                           <SubmitButton className="btn !py-1.5">Создать</SubmitButton>
                         </div>
-                        <p className="text-xs text-ink3">Тексты пишутся по {r.full_text ? "полному тексту статьи" : "тексту новости из ленты (для сайтов загрузите полный текст кнопкой выше)"}, факты берутся оттуда. Цена за каждый тип как обычно.</p>
+                        <p className="text-xs text-ink3">Тексты пишутся по {r.full_text ? "полному тексту статьи" : "тексту новости из ленты (для сайтов загрузите полный текст кнопкой выше)"}, факты берутся оттуда, манера письма и факты о компании берутся из базы знаний бренда. Цена за каждый тип как обычно.</p>
                       </form>
                     </details>
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}

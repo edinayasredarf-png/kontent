@@ -81,6 +81,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
   const set = await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
   const hid = <input type="hidden" name="id" value={id} />;
+  // обычный пост — основной формат, поэтому он первый и выбран по умолчанию
+  const planFormats = [...(sched?.formats?.length ? sched.formats : [...KINDS])].sort((a, b) => (a === "post" ? -1 : b === "post" ? 1 : 0));
   return (
     <>
       <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} action={
@@ -169,11 +171,12 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <div className="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
         <form action={addIdeaAction} className="space-y-2">
           <input type="hidden" name="factory" value={id} />
-          <b className="text-sm">Идея-карточка в план</b>
+          <b className="text-sm">Добавить свою идею в план</b>
+          <p className="text-xs text-ink2">Одна тема на один материал. Идея встаёт в план на выбранный день (или на ближайший свободный), а текст пишется после одобрения. Формат любой: пост, статья, карусель, опрос и другие.</p>
           <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала" className="input" />
           <input name="hook" maxLength={300} placeholder="Хук — первая строка (необязательно)" className="input" />
           <div className="flex flex-wrap items-center gap-2">
-            <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+            <select name="kind" defaultValue={planFormats.includes("post") ? "post" : planFormats[0]} className="input !w-auto">{planFormats.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
             <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — ближайший свободный день)" />
             <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
             <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить</SubmitButton>
@@ -181,10 +184,11 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </form>
         <form action={addIdeasBulkAction} className="space-y-2">
           <input type="hidden" name="factory" value={id} />
-          <b className="text-sm">Список идей</b>
+          <b className="text-sm">Добавить несколько идей списком</b>
+          <p className="text-xs text-ink2">Быстрый способ завести много тем сразу: каждая строка становится отдельной идеей в плане, дни подбираются сами.</p>
           <textarea name="list" rows={4} required placeholder={"По одной идее в строке. Можно с хуком через «|»:\n5 ошибок при планировании бюджета | Вы тоже так делаете?\nКак читать выписку из ЕГРН"} className="input text-xs" />
           <div className="flex flex-wrap items-center gap-2">
-            <select name="kind" className="input !w-auto">{(sched?.formats?.length ? sched.formats : [...KINDS]).map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
+            <select name="kind" defaultValue={planFormats.includes("post") ? "post" : planFormats[0]} className="input !w-auto">{planFormats.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
             <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="approve" />сразу одобрить</label>
             <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить список</SubmitButton>
           </div>

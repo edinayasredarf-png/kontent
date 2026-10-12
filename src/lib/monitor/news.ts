@@ -1,3 +1,5 @@
+import { angleTask } from "./angles";
+import { POST_TYPES } from "../postsettings";
 import { kbText } from "../kb/use";
 import { one, q, tx } from "../db";
 import { aiReady, brandBlock, chat, extractObject, extractArray, type BrandCtx } from "../ai";
@@ -136,7 +138,7 @@ const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonly strin
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей
  * (первые три в этом запросе, остальные уйдут в очередь воркера), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
  */
-export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
+export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
   const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; status: string; source: string }>(
@@ -147,13 +149,13 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
   if (!it.full_text) await enrichItem(orgId, itemId); // не получилось — работаем с анонсом
   const full = (await one<{ full_text: string | null }>("select full_text from kz_feed_items where id=$1", [itemId]))?.full_text ?? null;
   const text = bestText({ title: it.title, body: it.body, full_text: full });
-  const source = { title: it.title, url: it.url, name: it.source, body: text.slice(0, 8000) };
+  const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + text.slice(0, 8000) };
   const dates = await allocateDates(factoryId, ks.length);
   const ids = await tx(async (run) => {
     const out: string[] = [];
     for (let i = 0; i < ks.length; i++) {
       const [c] = await run<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,'',$6,$7,$8) returning id",
-        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true })]);
+        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true, ...(opts.postType && opts.postType in POST_TYPES ? { postType: opts.postType } : {}) })]);
       out.push(c.id);
     }
     await run("update kz_feed_items set status='used', content_item_id=$2 where id=$1", [itemId, out[0]]);
