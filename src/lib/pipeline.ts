@@ -52,8 +52,9 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
   try { await charge(orgId, cost, `Контент-план на ${days} дн.`, factoryId); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   try {
-    const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 60", [factoryId])).map((x) => x.topic);
-    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, await settingsFor(orgId, fac));
+    const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 80", [factoryId])).map((x) => x.topic);
+    const offset = Number((await one<{ n: string }>("select count(*) n from kz_content_items where factory_id=$1", [factoryId]))!.n);
+    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, await settingsFor(orgId, fac), offset);
     // продолжаем с дня после последнего запланированного и только в дни публикации завода
     const dates = await allocateDates(factoryId, ideas.length);
     await tx(async (run) => {

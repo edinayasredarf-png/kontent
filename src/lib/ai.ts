@@ -103,14 +103,14 @@ export function extractArray(text: string): unknown[] | null {
 }
 
 /** Контент-план. Уже использованные темы передаём в промпт — так план не повторяется между запусками. */
-export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[], st?: ContentSettings): Promise<PlanIdea[]> {
+export async function genPlan(b: BrandCtx, product: string, niche: string, kinds: string[], days: number, used: string[], st?: ContentSettings, offset = 0): Promise<PlanIdea[]> {
   const seoOnly = kinds.length === 1 && kinds[0] === "seo";
   const types = st?.postTypes ?? [];
   const rubrics = st?.strategy?.rubrics ?? [];
   const system = "Ты контент-стратег. Отвечай ТОЛЬКО валидным JSON-массивом, без пояснений и без markdown." +
     (seoOnly ? " Это план SEO-статей для сайта: topic — реальный поисковый запрос так, как его вводит человек (без кавычек и «топ-10»), hook — намерение и угол статьи одной фразой. Запросы не должны дублировать друг друга." : "");
-  const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ровно ${days} идей, по одной на день. Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
-    (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 60).join("\n- ")}\n` : "") +
+  const user = `${brandBlock(b, product, niche)}\nФорматы: ${kinds.join(", ")}\nСделай ${days + Math.ceil(days / 4)} идей, по одной на день, все про РАЗНЫЕ темы (форматы за тебя распределит система). Углы подачи должны различаться (польза, кейс, миф, вопрос, новость).\n` +
+    (used.length ? `Уже были, не повторять:\n- ${used.slice(0, 80).join("\n- ")}\n` : "") +
     (st?.learnings ? `${st.learnings}\nПредлагай идеи в духе того, что сработало лучше, но с новыми углами.\n` : "") +
     (rubrics.length ? `Контент-стратегия: ${st!.strategy!.positioning ? st!.strategy!.positioning + " " : ""}${st!.strategy!.pains.length ? "Боли аудитории: " + st!.strategy!.pains.join("; ") + ". " : ""}\nРубрики и доли в плане: ${rubrics.map((r) => `«${r.name}» ${r.share}% (${r.desc})`).join("; ")}. Распредели идеи по рубрикам согласно долям и укажи в поле "rubric" точное название рубрики.\n` : "") +
     (types.length > 1 ? `Типы постов: ${types.map((t) => `${t} — ${POST_TYPES[t].toLowerCase()}`).join("; ")}. Распредели их по идеям равномерно и укажи в поле "type" (одно из: ${types.join(", ")}).\n` : "") +
@@ -120,8 +120,18 @@ export async function genPlan(b: BrandCtx, product: string, niche: string, kinds
     arr = extractArray(await chat("plan", system, attempt ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-массив." : user, { maxTokens: 4000, temperature: 0.7 }));
   }
   if (!arr) throw new Error("Модель не вернула валидный план");
-  const ideas = (arr as Partial<PlanIdea>[]).filter((x) => x && x.topic).map((x) => ({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds.includes(String(x.kind)) ? String(x.kind) : kinds[0], type: x.type && types.includes(String(x.type)) ? String(x.type) : undefined, rubric: rubrics.find((r) => r.name === String(x.rubric))?.name }));
-  if (!ideas.length) throw new Error("Модель вернула пустой план");
+  // Формат назначаем по кругу сами: модель склонна выбирать один и тот же (например, одни карусели). Повторы тем отбрасываем.
+  const stem = (t: string) => new Set(t.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9\s]/g, " ").split(/\s+/).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)));
+  const same = (a: Set<string>, b: Set<string>) => { if (!a.size || !b.size) return false; let n = 0; for (const w of a) if (b.has(w)) n++; return n / Math.min(a.size, b.size) >= 0.7; };
+  const seen = used.map(stem);
+  const ideas: PlanIdea[] = [];
+  for (const x of (arr as Partial<PlanIdea>[]).filter((y) => y && y.topic)) {
+    const t = stem(String(x.topic));
+    if (seen.some((u) => same(t, u))) continue;
+    seen.push(t);
+    ideas.push({ topic: String(x.topic), hook: String(x.hook ?? ""), kind: kinds[(offset + ideas.length) % kinds.length], type: x.type && types.includes(String(x.type)) ? String(x.type) : undefined, rubric: rubrics.find((r) => r.name === String(x.rubric))?.name });
+  }
+  if (!ideas.length) throw new Error("Модель вернула пустой план или одни повторы уже созданных тем");
   return ideas.slice(0, days);
 }
 
