@@ -8,9 +8,9 @@ const PRESETS = Object.entries(NICHES).map(([key, n]) => ({ key, name: n.name, v
 
 export default function NewBrand() {
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Новый бренд" sub="Чем точнее профиль, тем меньше правок после генерации." />
-      <div className="card max-w-2xl p-6">
+      <div className="card p-6">
         <Form action={saveBrand} submit="Сохранить бренд">
           <NichePicker presets={PRESETS} hint="Подставит описание, аудиторию, тон и запреты для вашей сферы. Название и детали впишите свои." />
           <Field label="Название"><input name="name" required className="input" /></Field>
@@ -23,6 +23,6 @@ export default function NewBrand() {
           <Field label="Конкуренты (не упоминать)"><input name="competitors" className="input" /></Field>
         </Form>
       </div>
-    </>
+    </div>
   );
 }

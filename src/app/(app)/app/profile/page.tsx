@@ -10,9 +10,9 @@ import { SubmitButton } from "@/components/SubmitButton";
 export default async function Profile() {
   const c = await requireCtx();
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Профиль и настройки" sub={c.user.email} />
-      <div className="grid max-w-3xl gap-6">
+      <div className="grid gap-6">
         <section className="card p-6">
           <b className="mb-1 block text-sm">Тема оформления</b>
           <p className="mb-4 text-xs text-ink2">Сохраняется в аккаунте и одинакова на всех ваших устройствах.</p>
@@ -44,6 +44,6 @@ export default async function Profile() {
           <form action={logoutEverywhereAction}><SubmitButton className="btn btn-danger"><LogOut size={15} />Выйти везде</SubmitButton></form>
         </section>
       </div>
-    </>
+    </div>
   );
 }
