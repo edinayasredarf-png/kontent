@@ -1,9 +1,8 @@
-import Link from "next/link";
-import { Coins } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
+import { one } from "@/lib/db";
 import { rub } from "@/lib/wallet";
 import { PLANS } from "@/lib/plans";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/shell/AppShell";
 import { ThemeSync } from "@/components/ThemeSync";
 import { PendingBar } from "@/components/PendingBar";
 import { NavProgress } from "@/components/NavProgress";
@@ -13,18 +12,19 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const c = await requireCtx();
+  // число «горящих» дел для колокольчика: ошибки публикации, идеи на одобрении, новые комментарии
+  const a = await one<{ n: string }>(
+    `select ((select count(*) from kz_publications where org_id=$1 and status='failed' and created_at > now() - interval '7 days')
+           + (select count(*) from kz_content_items i join kz_factories f on f.id=i.factory_id where i.org_id=$1 and i.status='idea' and f.approval='manual')
+           + (select count(*) from kz_comments where org_id=$1 and status='new')) n`, [c.org.id]).catch(() => null);
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <>
       <ThemeSync theme={c.user.theme} />
       <PendingBar /><Suspense fallback={null}><NavProgress /></Suspense>
-      <Sidebar orgs={c.orgs} orgId={c.org.id} user={c.user.email} isAdmin={c.isAdmin} />
-      <div className="min-w-0 flex-1">
-        <header className="flex items-center justify-end gap-3 border-b border-line px-5 py-3 md:px-8">
-          <span className="chip">{c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name}</span>
-          <Link href="/app/billing" className="btn btn-ghost !py-1.5"><Coins size={15} className="text-warn" />{c.org.unlimited ? "∞" : rub(c.org.balance_kop)}</Link>
-        </header>
-        <main className="mx-auto max-w-6xl px-5 py-6 md:px-8">{children}</main>
-      </div>
-    </div>
+      <AppShell orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited}
+        balance={rub(c.org.balance_kop)} unlimited={c.org.unlimited} planName={c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name} alerts={Number(a?.n ?? 0)}>
+        {children}
+      </AppShell>
+    </>
   );
 }

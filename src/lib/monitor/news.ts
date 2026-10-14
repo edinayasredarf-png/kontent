@@ -132,7 +132,7 @@ export async function suggestKeywords(orgId: string, brandId: string): Promise<{
 }
 
 /* ───────── материал из новости ───────── */
-const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonly string[];
+export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonly string[];
 
 /**
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей

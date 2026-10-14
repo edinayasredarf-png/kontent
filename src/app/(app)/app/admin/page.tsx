@@ -15,7 +15,7 @@ export default async function AdminHome() {
   const n = (k: string) => Number(o.stats[k] ?? 0);
   const tickAge = o.tick ? Math.round((Date.now() - new Date(o.tick.updated_at).getTime()) / 60000) : null;
   const checks: { ok: boolean; text: string; href?: string }[] = [
-    { ok: aiReady(), text: aiReady() ? "AI Gateway подключён" : "AI Gateway не настроен (SELFHOSTED_LLM_URL)", href: "/app/settings" },
+    { ok: aiReady(), text: aiReady() ? "AI Gateway подключён" : "AI Gateway не настроен (SELFHOSTED_LLM_URL)", href: "/app/settings/ai" },
     { ok: mailConfigured(), text: mailConfigured() ? "Почта (SMTP) настроена" : "Почта не настроена: сброс пароля по email не работает (SMTP_HOST, SMTP_USER, SMTP_PASS)" },
     { ok: operatorFilled(), text: operatorFilled() ? "Реквизиты оператора заполнены" : "Реквизиты оператора не заполнены (LEGAL_NAME, LEGAL_INN, LEGAL_ADDRESS, LEGAL_EMAIL) — в юридических документах стоят пометки", href: "/legal/privacy" },
     { ok: tickAge !== null && tickAge < 15, text: tickAge === null ? "Воркер ещё ни разу не запускался: проверьте задание в cron-job.org" : tickAge < 15 ? `Воркер работает: последний проход ${tickAge} мин назад` : `Воркер не запускался ${tickAge} мин — проверьте cron-job.org и CRON_SECRET` },
