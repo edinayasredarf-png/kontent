@@ -62,7 +62,7 @@ function Actions({ m }: { m: ChatMsg }) {
 
 type SR = { start(): void; stop(): void; lang: string; interimResults: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 
-export function Chat({ initial, name, free }: { initial: ChatMsg[]; name: string; free: boolean }) {
+export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<ChatMsg[]>(initial);
   const [text, setText] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
@@ -90,6 +90,9 @@ export function Chat({ initial, name, free }: { initial: ChatMsg[]; name: string
     r.onend = () => setRec(false); r.onerror = () => { setRec(false); setErr("Не удалось распознать речь. Проверьте доступ к микрофону."); };
     setRec(true); setErr(""); r.start();
   }
+  // вопрос, пришедший из другого раздела (например, «Мониторинг»): отправляем один раз и очищаем адрес
+  const asked = useRef(false);
+  useEffect(() => { if (autoAsk && !asked.current) { asked.current = true; router.replace("/app"); send(autoAsk); } }, [autoAsk]); // eslint-disable-line react-hooks/exhaustive-deps
   const empty = msgs.length === 0;
 
   const composer = (
