@@ -15,12 +15,12 @@ export default async function NewFactory() {
   const c = await requireCtx();
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
   if (!brands.length) return (
-    <><PageHead title="Новый завод" /><div className="card p-6 text-sm">Сначала создайте бренд. <Link className="text-accent-ink" href="/app/brands/new">Добавить бренд →</Link></div></>
+    <div className="mx-auto w-full max-w-3xl"><PageHead title="Новый завод" /><div className="card p-6 text-sm">Сначала создайте бренд. <Link className="text-accent-ink" href="/app/brands/new">Добавить бренд →</Link></div></div>
   );
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Новый завод" sub="Один завод — один продукт или направление. Не смешивайте темы." />
-      <div className="card max-w-2xl p-6">
+      <div className="card p-6">
         <Form action={saveFactory} submit="Создать завод">
           <NichePicker presets={PRESETS} hint="Подставит нишу, продукт, форматы, а также типы постов, длину, эмодзи, хештеги и призыв к действию завода." />
           <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
@@ -40,6 +40,6 @@ export default async function NewFactory() {
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="autopublish" /> Публиковать автоматически</label>
         </Form>
       </div>
-    </>
+    </div>
   );
 }

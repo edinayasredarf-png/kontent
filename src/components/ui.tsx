@@ -1,8 +1,8 @@
 import clsx from "clsx";
 
 export const PageHead = ({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) => (
-  <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-    <div><h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{sub && <p className="mt-1 text-sm text-ink2">{sub}</p>}</div>
+  <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+    <div><h1 className="text-[28px] font-semibold leading-8 tracking-tight md:text-3xl">{title}</h1>{sub && <p className="mt-2 text-sm text-ink2">{sub}</p>}</div>
     {action}
   </div>
 );

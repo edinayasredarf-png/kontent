@@ -16,14 +16,14 @@ export default async function Settings() {
   const saved = Object.fromEntries((await q<{ task: string; model: string }>("select task,model from kz_ai_routes")).map((r) => [r.task, r.model]));
   const fields = [{ key: "default", label: "Модель по умолчанию", hint: "Для всех задач ниже, где не выбрана своя" }, ...AI_TASKS];
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Настройки ИИ" sub="Какая нейросеть AI Gateway Timeweb какую задачу выполняет. Действует для всех организаций платформы." />
       <div className={`mb-6 rounded-xl px-4 py-3 text-sm ${err ? "bg-bad-soft text-bad" : "bg-good-soft text-good"}`}>
         <div className="flex items-center gap-2">{err ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{err ? "Каталог моделей недоступен" : `Шлюз подключён. Каталог: ${models.length} моделей — начните печатать, появятся подсказки.`}</div>
         {err && <p className="mt-1 text-xs">{err}. Id модели можно вписать вручную — это API id со страницы шлюза, а не отображаемое имя.</p>}
       </div>
       <datalist id="gateway-models">{models.map((m) => <option key={m} value={m} />)}</datalist>
-      <form action={saveAiRoutes} className="card max-w-2xl space-y-4 p-6">
+      <form action={saveAiRoutes} className="card space-y-4 p-6">
         {fields.map((t) => (
           <div key={t.key}>
             <label className="label">{t.label} <span className="font-normal text-ink3">— {t.hint}</span></label>
@@ -34,6 +34,6 @@ export default async function Settings() {
         <p className="text-xs text-ink3">Пустое поле — берётся модель по умолчанию, а если и она пуста — переменная SELFHOSTED_LLM_MODEL. Для изображений и видео общая модель не подходит: выбирайте их отдельно.</p>
         <SubmitButton className="btn">Сохранить</SubmitButton>
       </form>
-    </>
+    </div>
   );
 }
