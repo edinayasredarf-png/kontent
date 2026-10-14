@@ -1,8 +1,9 @@
 import type { Kind } from "./fetchers";
 
 /** Как показать источник в карточке новости: название и адрес, как у поста в Telegram. */
-export function sourceView(kind: Kind, title: string, ref: string): { name: string; address: string; href: string | null } {
-  const clean = title.replace(/^(Telegram|VK|MAX:|Новости:)\s*/i, "").trim() || title;
+export function sourceView(kind: Kind, title: string, ref: string, config: Record<string, unknown> = {}): { name: string; address: string; href: string | null } {
+  const real = typeof config.channelTitle === "string" ? config.channelTitle : "";
+  const clean = real || title.replace(/^(Telegram|VK|MAX:|Новости:)\s*/i, "").trim() || title;
   if (kind === "telegram") return { name: clean, address: `t.me/${ref}`, href: `https://t.me/${ref}` };
   if (kind === "vk") return { name: clean, address: `vk.com/${ref}`, href: `https://vk.com/${ref}` };
   if (kind === "site") {

@@ -57,6 +57,24 @@ export function parseTelegram(html: string, username: string): Item[] {
   return out;
 }
 
+/** Название и адрес аватарки публичного Telegram-канала со страницы t.me/s/<имя>. */
+export function parseTelegramInfo(html: string): { title: string; photo: string } {
+  const root = parseHtml(html);
+  const title = root.querySelector(".tgme_channel_info_header_title")?.text.replace(/\s+/g, " ").trim() ?? "";
+  const photo = root.querySelector(".tgme_page_photo_image img")?.getAttribute("src") ?? "";
+  return { title: clip(title, 80), photo: /^https?:\/\//i.test(photo) ? photo : "" };
+}
+
+/** Иконка сайта со страницы: apple-touch-icon, png/svg-иконка. Формат .ico не читаем. */
+export function pageIcon(html: string, baseUrl: string): string {
+  const root = parseHtml(html);
+  const cands = root.querySelectorAll("link[rel]").map((l) => ({ rel: (l.getAttribute("rel") ?? "").toLowerCase(), href: l.getAttribute("href") ?? "", type: (l.getAttribute("type") ?? "").toLowerCase() }))
+    .filter((l) => l.href && /icon/.test(l.rel) && !/\.ico(\?|$)/i.test(l.href) && !l.type.includes("icon"));
+  const pick = cands.find((l) => l.rel.includes("apple-touch")) ?? cands[0];
+  if (!pick) return "";
+  try { return new URL(pick.href, baseUrl).toString(); } catch { return ""; }
+}
+
 /** Адреса лент, объявленные на странице (<link rel="alternate" type="application/rss+xml">). */
 export function discoverFeeds(html: string, baseUrl: string): string[] {
   const out: string[] = [];
