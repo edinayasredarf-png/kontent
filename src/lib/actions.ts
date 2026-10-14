@@ -198,7 +198,7 @@ export async function saveAiRoutes(f: FormData) {
     if (m.length > 200 || /\s/.test(m)) continue; // id модели — одна строка без пробелов
     await saveRoute(k, m);
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings/ai");
 }
 
 export async function saveBody(f: FormData) {
