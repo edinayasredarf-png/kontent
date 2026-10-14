@@ -116,3 +116,7 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 @keyframes lt-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 .lt-bar::before { content: ""; position: absolute; inset: 0; width: 30%; background: var(--accent); border-radius: 999px; animation: lt-bar 1.1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } .lt-bar::before { animation: none; width: 100%; opacity: .6; } }
+
+/* Лента карточек на лендинге без полосы прокрутки */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

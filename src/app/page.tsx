@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight, BarChart3, Bot, Check, CalendarDays, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone, Palette, Plus,
-  Radar, Send, ShieldCheck, Sparkles, Users, Wallet, X, Zap, Clock, Building2, Store, UserRound, Briefcase,
-} from "lucide-react";
+import { Check, Plus, X, Sparkles, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { LegalLinks } from "@/components/LegalLinks";
+import { Rail } from "@/components/landing/Rail";
+import { Audience } from "@/components/landing/Audience";
+import { hasMedia } from "@/lib/landing-media";
 import { SITE } from "@/lib/site";
 
 const TITLE = "Контент-завод — ИИ-контент для соцсетей и сайта на автопилоте";
@@ -21,19 +20,6 @@ export const metadata: Metadata = {
   openGraph: { type: "website", url: SITE, siteName: "Контент-завод", locale: "ru_RU", title: TITLE, description: DESC, images: [{ url: "/demo/b1.jpg", width: 1080, height: 1350, alt: "Пример карусели, созданной Контент-заводом" }] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESC, images: ["/demo/b1.jpg"] },
 };
-
-/** Декор из трёх форм логотипа: голубая, лаймовая, зелёная «капли». Мягкая замена 3D-иллюстрациям. */
-function Blobs({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg aria-hidden viewBox="0 0 100 100" className={className} style={style} fill="none">
-      <path d="M58.3 67.9a15 15 0 0 0 6.3-5.3l4.7-8c6.4-10.8 23-6.3 23 6.3v19.1c0 6.8-5.5 12.4-12.4 12.4H61.2c-13.7 0-17.2-19-4.4-23.9l1.5-.6Z" fill="#8EC180" />
-      <path d="M36.3 51.7c-.2 2.8.6 5.6 2.2 7.9l5.3 7.6c7.2 10.3-3.8 23.6-15.3 18.3L11.1 77.6C4.9 74.8 2.2 67.5 5 61.2l7.8-17c5.7-12.5 24.5-7.8 23.6 5.9l-.1 1.6Z" fill="#00BEFD" />
-      <path d="M59.6 43.6a15 15 0 0 0-7.7-2.8l-9.3-.1c-12.6-.1-17-16.8-6.1-23.1L53 8.1c5.9-3.4 13.5-1.4 16.9 4.5l9.4 16.2c6.9 11.9-7.8 24.5-18.5 15.8l-1.2-1Z" fill="#D5FF00" />
-    </svg>
-  );
-}
-
-const LIME = "#D5FF00", CYAN = "#00BEFD", GREEN = "#8EC180";
 
 const FAQ: { q: string; a: string }[] = [
   { q: "Что такое Контент-завод и чем он отличается от обычных нейросетей?", a: "Это готовая система, а не чат. Вы один раз описываете бренд: чем занимаетесь, для кого, каким тоном говорите, какие цвета и логотип. Дальше сервис сам придумывает темы, пишет тексты в голосе бренда, оформляет карусели и картинки в ваших цветах, ставит всё в расписание и публикует. В чате с нейросетью вы каждый раз пишете запрос, копируете текст и вручную выкладываете." },
@@ -56,346 +42,276 @@ const jsonLd = {
   ],
 };
 
-const btnPrimary = "inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-[15px] font-semibold text-[#14161a] shadow-[0_8px_30px_-8px_rgba(213,255,0,.7)] transition hover:-translate-y-0.5 hover:brightness-95";
-const btnGhost = "inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-6 text-[15px] font-semibold text-ink transition hover:bg-tile";
-const wrap = "mx-auto w-full max-w-6xl px-5";
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent-ink">{children}</p>;
+const wrap = "mx-auto w-full max-w-[1360px] px-5";
+const h2 = "text-balance text-center text-3xl font-semibold leading-tight md:text-5xl md:leading-[48px]";
+const BLUE = "#1734fc";
+
+const BAD = ["Часами ищете темы и придумываете заголовки", "Тексты получаются то сухими, то не в стиле бренда", "Картинки и карусели делаете в редакторе вручную", "Канал замолкает, как только появляются срочные дела", "SMM-специалист или агентство стоят десятки тысяч в месяц"];
+const GOOD = ["План публикаций на месяц собирается за минуту", "Каждый текст написан тоном вашего бренда", "Карусели и картинки оформлены в ваших цветах и с логотипом", "Контент выходит по расписанию, даже когда вы заняты", "Месяц постов и каруселей стоит как обед, а не как зарплата"];
+
+const STEPS = [
+  { t: "Регистрируйтесь в сервисе и опишите бренд", d: "Название, продукт, аудитория, тон общения, цвета и логотип. Это делается один раз и занимает пять минут." },
+  { t: "Получите контент-план", d: "Сервис предложит темы и форматы на неделю или месяц. Лишнее уберите, нужное оставьте." },
+  { t: "Одобрите материалы", d: "Тексты, карусели и картинки готовы. Правьте любую деталь, а правки слайдов бесплатны." },
+  { t: "Публикуйте по расписанию", d: "Посты выходят в Telegram, VK и MAX в лучшее время. Если что-то пошло не так, деньги возвращаются." },
+];
+
+const AUDIENCE = [
+  { title: "Малый бизнес и магазины", text: "Регулярные посты о товарах, акциях и пользе, без найма SMM-специалиста." },
+  { title: "Эксперты и блогеры", text: "Ваш голос и ваши идеи, а рутину оформления и публикации берёт на себя сервис." },
+  { title: "Компании и команды", text: "Единый стиль всех каналов, роли для сотрудников и контроль каждого материала." },
+  { title: "Агентства и фрилансеры", text: "Ведите десятки клиентов в одном окне и берите больше проектов без роста штата." },
+];
+
+type Tone = "plain" | "blue" | "liquid";
+const FEATURES: { key: string; t: string; d: string; tone: Tone; chips?: string[]; time?: [string, string] }[] = [
+  { key: "plan", t: "Контент-план на месяц", d: "Идеи с учётом ниши, типов постов и дат. Календарь публикаций и подбор лучшего времени выхода.", tone: "plain", time: ["≈ 4 часа", "≈ 5 минут"] },
+  { key: "carousel", t: "Карусели, которые листают до конца", d: "Сервис придумывает структуру, пишет текст каждого слайда и сразу собирает готовые картинки: обложка, нумерованные шаги, финальный призыв. Три стиля, ваши цвета, логотип. 35 ₽ за карусель.", tone: "blue", chips: ["4–10 слайдов", "Квадрат и 4:5", "Обложка от нейросети", "Скачать архивом"], time: ["≈ 5 часов", "≈ 1 час"] },
+  { key: "posts", t: "Посты в голосе бренда", d: "Новости, экспертные, продающие, юмор: выбираете тип, длину, эмодзи, хештеги и добавляете примеры своего стиля.", tone: "liquid" },
+  { key: "images", t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — 15 ₽.", tone: "plain" },
+  { key: "seo", t: "SEO-статьи для сайта", d: "Структурированные статьи с заголовками и метаданными, публикация прямо в WordPress.", tone: "blue" },
+  { key: "monitor", t: "Мониторинг и идеи", d: "Следим за новостями, каналами VK и Telegram, сайтами и ключевыми словами. Находки превращаются в темы.", tone: "liquid" },
+  { key: "analytics", t: "Аналитика", d: "Что вышло, что сработало, в какое время лучше публиковать. Решения на данных, а не на ощущениях.", tone: "plain" },
+  { key: "autopilot", t: "Автопилот и помощник в чате", d: "Автопилот сам собирает идеи и пишет черновики. Ассистент в чате отвечает на вопросы, обновляет новости и подсказывает, где что включить.", tone: "blue" },
+  { key: "teams", t: "Много брендов, команда и роли", d: "Любое число брендов и контент-заводов в одной организации, у каждого свой стиль и каналы. Приглашайте сотрудников и клиентов с ролями «администратор», «редактор», «наблюдатель».", tone: "liquid" },
+];
+
+const PRICES: { i: typeof FileText; n: string; p: string }[] = [
+  { i: FileText, n: "Пост для соцсетей", p: "20 ₽" }, { i: GalleryHorizontal, n: "Карусель-картинки (4–10 слайдов)", p: "35 ₽" }, { i: ImageIcon, n: "Картинка к посту", p: "15 ₽" },
+  { i: Layers, n: "SEO-статья для сайта", p: "40 ₽" }, { i: Sparkles, n: "Идея для контент-плана", p: "3 ₽" }, { i: Megaphone, n: "Правка слайдов карусели", p: "бесплатно" },
+];
+
+const COMPARE: [string, boolean | string, boolean | string, boolean | string][] = [
+  ["Контент-план на месяц", true, false, true],
+  ["Тон и стиль вашего бренда в каждом тексте", true, "нужно каждый раз объяснять", true],
+  ["Готовые карусели и картинки в цветах бренда", true, false, "зависит от дизайнера"],
+  ["Автоматическая публикация по расписанию", true, false, "вручную"],
+  ["Мониторинг новостей и идей из источников", true, false, "частично"],
+  ["Скорость", "минуты", "минуты, но всё вручную", "дни"],
+  ["Стоимость месяца контента", "около 900 ₽", "подписка + ваше время", "от десятков тысяч ₽"],
+];
+
+const GUARANTEES = [
+  { t: "Публикация только с вашего «да»", d: "Автопилот собирает идеи и пишет черновики, а выходит в канал только то, что вы одобрили." },
+  { t: "Платите за результат", d: "Нет абонемента. Если генерация не удалась, списанные деньги автоматически возвращаются на счёт." },
+  { t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
+];
+
+/** Правая «экранная» часть карточки возможностей: сюда кладётся GIF или видео (public/landing/gif/<ключ>.gif|.webp|.mp4). Пока файла нет, чёрный блок как в макете. */
+function Screen({ k }: { k: string }) {
+  const base = `/landing/gif/${k}`;
+  const mp4 = hasMedia(`landing/gif/${k}.mp4`), img = ["gif", "webp"].map((e) => `${base}.${e}`).find((p) => hasMedia(p.slice(1)));
+  return (
+    <div className="relative aspect-[516/384] w-full overflow-hidden rounded-3xl bg-black">
+      {mp4 ? <video className="size-full object-cover" src={`${base}.mp4`} autoPlay muted loop playsInline preload="metadata" aria-hidden />
+        : img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="" className="size-full object-cover" loading="lazy" /> : null}
+    </div>
+  );
 }
-function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="max-w-3xl text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-[2.6rem]">{children}</h2>;
+
+function HeroMedia() {
+  const mp4 = hasMedia("landing/hero.mp4"), webm = hasMedia("landing/hero.webm");
+  return (
+    <div className="relative mx-auto mt-10 aspect-[1360/560] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14">
+      {mp4 || webm ? (
+        <video className="absolute inset-0 size-full object-cover" poster="/landing/hero.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden>
+          {webm && <source src="/landing/hero.webm" type="video/webm" />}{mp4 && <source src="/landing/hero.mp4" type="video/mp4" />}
+        </video>
+      ) : <Image src="/landing/hero.webp" alt="" width={1360} height={560} priority className="size-full object-cover" />}
+    </div>
+  );
 }
+
+const Mark = ({ ok }: { ok: boolean | string }) => ok === true ? <Check size={19} className="text-green-700" /> : ok === false ? <X size={19} className="text-red-500/70" /> : <>{ok}</>;
 
 export default function Landing() {
   return (
-    <div className="lt-light overflow-x-clip bg-[var(--bg)] text-[var(--ink)]">
+    <div className="lt-light overflow-x-clip bg-white text-black">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* Шапка */}
-      <header className="sticky top-0 z-40 border-b border-line/70 bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl">
-        <div className={`${wrap} flex h-16 items-center justify-between gap-4`}>
-          <div className="w-28 shrink-0 sm:w-36"><Logo href="/" light className="[&_img]:h-8" /></div>
-          <nav aria-label="Разделы" className="hidden items-center gap-7 text-sm font-medium text-ink2 lg:flex">
-            <a href="#how" className="hover:text-ink">Как работает</a>
-            <a href="#features" className="hover:text-ink">Возможности</a>
-            <a href="#compare" className="hover:text-ink">Сравнение</a>
-            <a href="#pricing" className="hover:text-ink">Цены</a>
-            <a href="#faq" className="hover:text-ink">Вопросы</a>
-          </nav>
+      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-xl">
+        <div className={`${wrap} flex h-20 items-center justify-between`}>
+          <div className="w-32 sm:w-40"><Logo href="/" light h={40} /></div>
           <div className="flex items-center gap-2">
-            <Link href="/login" className="hidden h-10 items-center rounded-xl px-4 text-sm font-semibold text-ink hover:bg-tile sm:inline-flex">Войти</Link>
-            <Link href="/register" className="inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold text-[#14161a]" style={{ background: LIME }}>Начать бесплатно</Link>
+            <Link href="/login" className="hidden h-12 items-center rounded-full px-5 text-base font-semibold hover:bg-[#f5f5f5] sm:inline-flex">Войти</Link>
+            <Link href="/register" className="inline-flex h-12 items-center rounded-full bg-[#f5f5f5] px-7 text-base font-semibold hover:bg-[#ececec]">Бесплатно</Link>
           </div>
         </div>
       </header>
 
       <main>
         {/* Hero */}
-        <section className="relative mx-2 mt-2 overflow-hidden rounded-[2rem] sm:mx-3 sm:rounded-[2.5rem]" style={{ background: "linear-gradient(180deg, #f6ffc7 0%, #eefadf 55%, #e3f6fe 100%)" }}>
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <Blobs className="absolute -right-24 -top-16 h-[34rem] w-[34rem] rotate-12 opacity-[.16]" />
-            <Blobs className="absolute -bottom-32 -left-28 h-[26rem] w-[26rem] -rotate-12 opacity-[.12]" />
+        <section className={`${wrap} pt-10 md:pt-14`}>
+          <div className="mx-auto flex max-w-[620px] flex-col items-center gap-1 text-center text-[32px] font-semibold leading-[1.1] sm:text-4xl md:text-5xl md:leading-[52px]">
+            <h1 className="contents">
+              <span className="flex items-end justify-center gap-4 whitespace-nowrap">Контент для <Image src="/landing/icon-pink.png" alt="" width={45} height={45} className="mb-1 size-9 md:size-11" /></span>
+              <span className="flex items-center justify-center gap-2 whitespace-nowrap">соц. сетей <Image src="/landing/icon-star.png" alt="" width={50} height={50} className="size-8 md:size-12" /> и сайта</span>
+              <span>на автопилоте</span>
+            </h1>
           </div>
-          <div className={`${wrap} relative grid items-center gap-12 pb-10 pt-12 md:pt-20 lg:grid-cols-[1.05fr_.95fr]`}>
-            <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 text-xs font-semibold text-ink2 backdrop-blur">
-                <span className="h-2 w-2 rounded-full" style={{ background: GREEN }} />Автоматический контент для бизнеса
-              </span>
-              <h1 className="mt-5 text-balance text-[2.4rem] font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-                Контент для соцсетей и сайта — <span className="lt-grad-text">на автопилоте</span>
-              </h1>
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink2">
-                Опишите бренд один раз. Контент-завод сам придумает темы, напишет посты, соберёт карусели и картинки в ваших цветах и опубликует в Telegram, VK и MAX. Вам остаётся нажать «Одобрить».
-              </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link href="/register" className={btnPrimary} style={{ background: LIME }}>Начать бесплатно — 100 ₽ в подарок<ArrowRight size={18} /></Link>
-                <a href="#how" className={btnGhost}>Как это работает</a>
-              </div>
-              <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink2">
-                {["Без банковской карты", "Первый пост за 5 минут", "Посты от 20 ₽, без абонемента"].map((t) => (
-                  <li key={t} className="flex items-center gap-2"><Check size={16} className="text-good" />{t}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Визуал: веер каруселей и карточки статуса */}
-            <div className="relative mx-auto h-[30rem] w-full max-w-md sm:h-[34rem]" aria-hidden>
-              <div className="lt-float absolute left-0 top-10 w-[46%] overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/10" style={{ ["--r" as string]: "-7deg", animationDelay: "-2s" }}>
-                <Image src="/demo/b3.jpg" alt="" width={540} height={675} className="h-auto w-full" priority />
-              </div>
-              <div className="lt-float absolute right-0 top-0 w-[50%] overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/10" style={{ ["--r" as string]: "5deg" }}>
-                <Image src="/demo/b1.jpg" alt="" width={540} height={675} className="h-auto w-full" priority />
-              </div>
-              <div className="lt-float absolute bottom-6 left-[18%] w-[52%] overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/10" style={{ ["--r" as string]: "-2deg", animationDelay: "-4s" }}>
-                <Image src="/demo/b4.jpg" alt="" width={540} height={675} className="h-auto w-full" />
-              </div>
-              <div className="absolute -left-2 bottom-2 flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-xl sm:-left-6">
-                <span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: "#e6f4fb" }}><Send size={17} color="#029cda" /></span>
-                <div><p className="text-xs font-semibold">Опубликовано в Telegram</p><p className="text-[11px] text-ink2">Карусель · 6 слайдов · 10:00</p></div>
-              </div>
-              <div className="absolute -right-1 top-[46%] flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-xl sm:-right-4">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-good-soft"><CalendarDays size={17} className="text-good" /></span>
-                <div><p className="text-xs font-semibold">План на месяц готов</p><p className="text-[11px] text-ink2">30 идей за 1 минуту</p></div>
-              </div>
-            </div>
+          <p className="mx-auto mt-8 max-w-xs text-center text-lg font-semibold leading-5">Без VPN и с поддержкой российских банковских карт</p>
+          <div className="mt-6 flex justify-center">
+            <Link href="/register" className="inline-flex h-14 items-center rounded-xl bg-black px-10 text-lg font-semibold text-white transition hover:opacity-85">Начать бесплатно</Link>
           </div>
-          <div className={`${wrap} relative pb-10 md:pb-14`}>
-            <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {[
-                ["1 минута", "на контент-план месяца"],
-                ["от 20 ₽", "стоимость готового поста"],
-                ["4–10 слайдов", "карусель-картинки за 35 ₽"],
-                ["3 площадки", "Telegram, VK и MAX в один клик"],
-              ].map(([n, d]) => (
-                <li key={n} className="rounded-3xl p-5 text-[#14161a] shadow-[0_10px_30px_-18px_rgba(120,150,0,.6)]" style={{ background: LIME }}>
-                  <p className="text-2xl font-extrabold tracking-tight sm:text-3xl">{n}</p>
-                  <p className="mt-1.5 text-[13px] font-medium leading-snug opacity-80 sm:text-sm">{d}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <HeroMedia />
         </section>
 
         {/* Проблема → решение */}
-        <section className="py-20 md:py-28">
+        <section className="pt-24 md:pt-44">
           <div className={wrap}>
-            <Eyebrow>Знакомо?</Eyebrow>
-            <H2>Соцсети нужны каждый день, а времени на них нет</H2>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-line bg-tile/60 p-7">
-                <p className="mb-5 flex items-center gap-2 text-sm font-semibold text-bad"><X size={16} />Как обычно</p>
-                <ul className="space-y-3.5 text-[15px] text-ink2">
-                  {["Часами ищете темы и придумываете заголовки", "Тексты получаются то сухими, то не в стиле бренда", "Картинки и карусели делаете в редакторе вручную", "Канал замолкает, как только появляются срочные дела", "SMM-специалист или агентство стоят десятки тысяч в месяц"].map((t) => (
-                    <li key={t} className="flex gap-3"><X size={17} className="mt-0.5 shrink-0 text-bad/70" />{t}</li>
-                  ))}
-                </ul>
+            <h2 className={h2}>Соцсети нужны каждый день, <br className="hidden md:block" />а времени на них нет</h2>
+            <div className="mt-12 grid gap-5 md:mt-14 md:grid-cols-2 lg:mx-auto lg:max-w-[1168px]">
+              <div className="relative flex min-h-[642px] flex-col overflow-hidden rounded-[32px] bg-black px-6 pt-14 text-white sm:px-16">
+                <h3 className="text-center text-3xl font-semibold leading-8">Как обычно</h3>
+                <ul className="mt-8 space-y-3">{BAD.map((t) => <li key={t} className="rounded-3xl bg-zinc-800/70 px-6 py-5 text-center text-base font-semibold leading-5 backdrop-blur-[2px]">{t}</li>)}</ul>
+                <Image src="/landing/coins.png" alt="" width={374} height={92} className="pointer-events-none absolute bottom-0 left-1/2 h-auto w-80 -translate-x-1/2" />
               </div>
-              <div className="relative overflow-hidden rounded-3xl border border-line bg-surface p-7 shadow-sm">
-                <div aria-hidden className="absolute -right-16 -top-16 h-52 w-52 rounded-full opacity-30 blur-2xl" style={{ background: LIME }} />
-                <p className="relative mb-5 flex items-center gap-2 text-sm font-semibold text-good"><Sparkles size={16} />С Контент-заводом</p>
-                <ul className="relative space-y-3.5 text-[15px]">
-                  {["План публикаций на месяц собирается за минуту", "Каждый текст написан тоном вашего бренда", "Карусели и картинки оформлены в ваших цветах и с логотипом", "Контент выходит по расписанию, даже когда вы заняты", "Месяц постов и каруселей стоит как обед, а не как зарплата"].map((t) => (
-                    <li key={t} className="flex gap-3"><Check size={17} className="mt-0.5 shrink-0 text-good" />{t}</li>
-                  ))}
-                </ul>
+              <div className="relative flex min-h-[642px] flex-col overflow-hidden rounded-[32px] bg-lime-300 px-6 pt-14 text-black sm:px-16">
+                <h3 className="flex items-center justify-center gap-2.5 text-center text-3xl font-semibold leading-8"><Sparkles size={22} />С Контент-заводом</h3>
+                <ul className="mt-8 space-y-3">{GOOD.map((t) => <li key={t} className="rounded-3xl bg-neutral-100 px-6 py-5 text-center text-base font-semibold leading-5">{t}</li>)}</ul>
+                <Image src="/landing/percent.png" alt="" width={330} height={118} className="pointer-events-none absolute -left-6 bottom-0 h-auto w-72" />
               </div>
             </div>
           </div>
         </section>
 
         {/* Как работает */}
-        <section id="how" className="bg-tile/60 py-20 md:py-28">
-          <div className={wrap}>
-            <Eyebrow>Как это работает</Eyebrow>
-            <H2>От описания бренда до публикации — четыре шага</H2>
-            <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { i: Palette, t: "Опишите бренд", d: "Название, продукт, аудитория, тон общения, цвета и логотип. Это делается один раз и занимает пять минут." },
-                { i: CalendarDays, t: "Получите контент-план", d: "Сервис предложит темы и форматы на неделю или месяц. Лишнее уберите, нужное оставьте." },
-                { i: Sparkles, t: "Одобрите материалы", d: "Тексты, карусели и картинки готовы. Правьте любую деталь, а правки слайдов бесплатны." },
-                { i: Send, t: "Публикация по расписанию", d: "Посты выходят в Telegram, VK и MAX в лучшее время. Если что-то пошло не так, деньги возвращаются." },
-              ].map((s, n) => (
-                <li key={s.t} className="relative rounded-3xl p-6" style={{ background: ["var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)", "var(--pastel-cyan)"][n] }}>
-                  <span className="mb-5 flex items-center gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: [CYAN, LIME, GREEN, CYAN][n] }}><s.i size={21} /></span>
-                    <span className="text-3xl font-extrabold text-ink3/50">0{n + 1}</span>
-                  </span>
-                  <h3 className="text-lg font-bold">{s.t}</h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-ink2">{s.d}</p>
+        <section id="how" className="pt-24 md:pt-44">
+          <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_676px] lg:gap-12`}>
+            <div className="lg:sticky lg:top-28 lg:self-start">
+              <h2 className="text-balance text-3xl font-semibold leading-tight md:text-5xl md:leading-[48px]">От описания бренда<br />до публикации <Image src="/landing/icon-steps.png" alt="" width={54} height={40} className="inline-block h-9 w-auto align-middle md:h-10" /><br />всего четыре шага</h2>
+            </div>
+            <ol className="space-y-5">
+              {STEPS.map((s, n) => (
+                <li key={s.t} className="relative h-[384px] overflow-hidden rounded-[20px] bg-[#f5f5f5] p-8 sm:px-10 sm:pt-10">
+                  <h3 className="text-2xl font-semibold leading-7">{s.t}</h3>
+                  <p className="mt-3 max-w-md text-base font-semibold leading-5">{s.d}</p>
+                  <Image src="/landing/step.png" alt="" width={357} height={245} className="absolute bottom-0 right-6 h-auto w-[300px] sm:right-24" aria-hidden />
+                  <span className="sr-only">Шаг {n + 1}</span>
                 </li>
               ))}
             </ol>
-            <div className="mt-10 text-center"><Link href="/register" className={btnPrimary} style={{ background: LIME }}>Собрать первый контент-план<ArrowRight size={18} /></Link></div>
+          </div>
+        </section>
+
+        {/* Кому полезен */}
+        <section className="pt-24 md:pt-44">
+          <div className={wrap}>
+            <h2 className={`${h2} mb-14`}>Кому будет полезен сервис</h2>
+            <Audience items={AUDIENCE} />
           </div>
         </section>
 
         {/* Возможности */}
-        <section id="features" className="py-20 md:py-28">
+        <section id="features" className="pt-24 md:pt-44">
           <div className={wrap}>
-            <Eyebrow>Возможности</Eyebrow>
-            <H2>Всё, что нужно для регулярного контента, в одном окне</H2>
-            <div className="mt-12 grid gap-4 md:grid-cols-6">
-              {/* Карусели — крупная карточка */}
-              <article className="relative overflow-hidden rounded-3xl p-7 md:col-span-4" style={{ background: "var(--pastel-cyan)" }}>
-                <div className="grid items-center gap-6 sm:grid-cols-[1fr_auto]">
-                  <div>
-                    <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: CYAN }}><GalleryHorizontal size={21} /></span>
-                    <h3 className="text-2xl font-bold">Карусели, которые листают до конца</h3>
-                    <p className="mt-3 max-w-md text-[15px] leading-relaxed text-ink2">Сервис придумывает структуру, пишет текст каждого слайда и сразу собирает готовые картинки: обложка, нумерованные шаги, финальный призыв. Три стиля, ваши цвета, логотип. 35 ₽ за карусель.</p>
-                    <ul className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                      {["4–10 слайдов", "Квадрат и 4:5", "Обложка от нейросети", "Скачать архивом"].map((t) => <li key={t} className="rounded-full bg-tile px-3 py-1.5 text-ink2">{t}</li>)}
-                    </ul>
-                  </div>
-                  <div className="flex gap-3 sm:w-64">
-                    <Image src="/demo/b2.jpg" alt="Пример слайда карусели в фирменных цветах" width={270} height={338} className="w-1/2 rounded-2xl ring-1 ring-black/10 sm:w-32" loading="lazy" />
-                    <Image src="/demo/d3.jpg" alt="Пример слайда карусели в тёмном стиле" width={270} height={338} className="mt-6 w-1/2 rounded-2xl ring-1 ring-black/10 sm:w-32" loading="lazy" />
-                  </div>
-                </div>
-              </article>
+            <h2 className={`${h2} mx-auto mb-14 max-w-[820px]`}>Всё, что нужно для регулярного контента, в одном окне</h2>
+            <Rail label="Возможности">
+              {FEATURES.map((f) => {
+                const bg = f.tone === "blue" ? "/landing/banner-blue.webp" : f.tone === "liquid" ? "/landing/banner-liquid.webp" : null;
+                const light = f.tone !== "blue";
+                return (
+                  <article key={f.key} className={`relative w-[88vw] max-w-[1360px] shrink-0 snap-start overflow-hidden rounded-[20px] p-6 md:min-h-[510px] md:w-[min(1360px,calc(100vw-40px))] md:p-10 ${f.tone === "plain" ? "bg-[#f5f5f5]" : "bg-[#f5f5f5]"} ${light ? "text-black" : "text-white"}`}>
+                    {bg && <Image src={bg} alt="" fill sizes="1360px" className="object-cover" aria-hidden />}
+                    <div className="relative grid gap-8 md:grid-cols-[1fr_516px] md:gap-12 lg:grid-cols-[1fr_516px]">
+                      <div className="flex flex-col">
+                        <h3 className="text-2xl font-semibold leading-9 md:text-3xl">{f.t}</h3>
+                        <p className="mt-6 max-w-[592px] text-base font-semibold leading-6 md:mt-14">{f.d}</p>
+                        {f.chips && <ul className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">{f.chips.map((c) => <li key={c} className="rounded-full bg-white/20 px-3 py-1.5">{c}</li>)}</ul>}
+                        {f.time && (
+                          <div className="mt-8 flex flex-wrap gap-x-16 gap-y-4 md:mt-auto md:pt-10">
+                            <div className={light ? "text-zinc-400" : "text-white/60"}><p className="text-4xl font-semibold leading-10">{f.time[0]}</p><p className={`mt-3 text-base font-semibold ${light ? "text-black" : "text-white"}`}>без помощи ИИ</p></div>
+                            <div><p className="text-5xl font-semibold leading-[53px] text-orange-300">{f.time[1]}</p><p className="mt-3 text-base font-semibold">с помощью сервиса</p></div>
+                          </div>
+                        )}
+                      </div>
+                      <Screen k={f.key} />
+                    </div>
+                  </article>
+                );
+              })}
+            </Rail>
+          </div>
+        </section>
 
-              <article className="rounded-3xl p-7 md:col-span-2" style={{ background: "var(--pastel-lime)" }}>
-                <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: LIME }}><CalendarDays size={21} /></span>
-                <h3 className="text-xl font-bold">Контент-план на месяц</h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-ink2">Идеи с учётом ниши, типов постов и дат. Календарь публикаций и подбор лучшего времени выхода.</p>
-              </article>
-
-              {[
-                { i: FileText, c: GREEN, t: "Посты в голосе бренда", d: "Новости, экспертные, продающие, юмор: выбираете тип, длину, эмодзи, хештеги и добавляете примеры своего стиля." },
-                { i: ImageIcon, c: CYAN, t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — 15 ₽." },
-                { i: Layers, c: LIME, t: "SEO-статьи для сайта", d: "Структурированные статьи с заголовками и метаданными, публикация прямо в WordPress." },
-                { i: Radar, c: CYAN, t: "Мониторинг и идеи", d: "Следим за новостями, каналами VK и Telegram, сайтами и ключевыми словами. Находки превращаются в темы." },
-                { i: BarChart3, c: GREEN, t: "Аналитика", d: "Что вышло, что сработало, в какое время лучше публиковать. Решения на данных, а не на ощущениях." },
-                { i: Bot, c: LIME, t: "Автопилот и помощник Лия", d: "Автопилот сам собирает идеи и пишет черновики. Помощник отвечает на вопросы по сервису." },
-              ].map((f, n) => (
-                <article key={f.t} className="rounded-3xl p-7 md:col-span-2" style={{ background: ["var(--pastel-green)", "var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)"][n] }}>
-                  <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: f.c }}><f.i size={21} /></span>
-                  <h3 className="text-xl font-bold">{f.t}</h3>
-                  <p className="mt-3 text-[15px] leading-relaxed text-ink2">{f.d}</p>
-                </article>
-              ))}
-              <article className="relative overflow-hidden rounded-3xl p-7 md:col-span-6" style={{ background: "var(--pastel-green)" }}>
-                <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl text-[#14161a]" style={{ background: GREEN }}><Users size={21} /></span>
-                  <div><h3 className="text-xl font-bold">Много брендов, команда и роли</h3><p className="mt-1.5 max-w-2xl text-[15px] text-ink2">Любое число брендов и контент-заводов в одной организации, у каждого свой стиль и каналы. Приглашайте сотрудников и клиентов с ролями «администратор», «редактор», «наблюдатель».</p></div>
-                  <Link href="/register" className={btnGhost}>Попробовать</Link>
+        {/* Сравнение */}
+        <section id="compare" className="pt-24 md:pt-44">
+          <div className={wrap}>
+            <div className="rounded-3xl px-4 pb-10 pt-14 text-center text-white md:px-10 md:pb-16 md:pt-24" style={{ background: "linear-gradient(270deg, #a5b4fc, #4f46e5)" }}>
+              <h2 className="mx-auto max-w-[684px] text-balance text-3xl font-semibold leading-tight md:text-5xl md:leading-[48px]">Не текст «на выходе», а готовый процесс «от идеи до публикации»</h2>
+              <p className="mx-auto mt-8 max-w-[672px] text-lg font-semibold leading-7">Нейросеть в чате пишет текст. Контент-завод ведёт ваши соцсети: планирует, оформляет, публикует и считает результат.</p>
+              <div className="mx-auto mt-12 max-w-[1132px] rounded-[20px] bg-white p-2.5 text-left text-black md:mt-16">
+                <div className="overflow-x-auto rounded-3xl outline outline-1 -outline-offset-1 outline-stone-200">
+                  <table className="w-full min-w-[680px] border-collapse text-sm font-semibold">
+                    <thead><tr className="border-b border-stone-200">
+                      <th className="w-[34%] p-4" />
+                      <th className="bg-violet-50 p-4"><span className="inline-block rounded-lg bg-indigo-500 px-4 py-0.5 text-base text-white">Контент-завод</span></th>
+                      <th className="p-4 text-gray-500">Чат с нейросетью</th>
+                      <th className="p-4 text-gray-500">SMM-специалист</th>
+                    </tr></thead>
+                    <tbody>{COMPARE.map((r) => (
+                      <tr key={r[0]} className="border-b border-stone-200 last:border-0">
+                        <th scope="row" className="h-14 p-4 text-left text-zinc-900">{r[0]}</th>
+                        <td className="bg-violet-50 p-4 text-zinc-900"><Mark ok={r[1]} /></td>
+                        <td className="p-4 text-gray-500"><Mark ok={r[2]} /></td>
+                        <td className="p-4 text-gray-500"><Mark ok={r[3]} /></td>
+                      </tr>))}</tbody>
+                  </table>
                 </div>
-              </article>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Уникальность / сравнение */}
-        <section id="compare" className="bg-tile/60 py-20 md:py-28">
+        {/* Гарантии */}
+        <section className="pt-24 md:pt-44">
           <div className={wrap}>
-            <Eyebrow>Почему не просто чат с нейросетью</Eyebrow>
-            <H2>Не текст «на выходе», а готовый процесс «от идеи до публикации»</H2>
-            <p className="mt-4 max-w-2xl text-lg text-ink2">Нейросеть в чате пишет текст. Контент-завод ведёт ваши соцсети: планирует, оформляет, публикует и считает результат.</p>
-            <div className="mt-10 overflow-x-auto rounded-3xl border border-line bg-surface">
-              <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-line text-ink2">
-                    <th className="p-4 font-medium" />
-                    <th className="p-4 text-base font-bold text-ink"><span className="rounded-lg px-2.5 py-1 text-[#14161a]" style={{ background: LIME }}>Контент-завод</span></th>
-                    <th className="p-4 font-semibold">Чат с нейросетью</th>
-                    <th className="p-4 font-semibold">SMM-специалист</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {([
-                    ["Контент-план на месяц", true, false, true],
-                    ["Тон и стиль вашего бренда в каждом тексте", true, "нужно каждый раз объяснять", true],
-                    ["Готовые карусели и картинки в цветах бренда", true, false, "зависит от дизайнера"],
-                    ["Автоматическая публикация по расписанию", true, false, "вручную"],
-                    ["Мониторинг новостей и идей из источников", true, false, "частично"],
-                    ["Скорость", "минуты", "минуты, но всё вручную", "дни"],
-                    ["Стоимость месяца контента", "около 900 ₽", "подписка + ваше время", "от десятков тысяч ₽"],
-                  ] as [string, boolean | string, boolean | string, boolean | string][]).map((r) => (
-                    <tr key={r[0]} className="border-b border-line last:border-0">
-                      <th scope="row" className="p-4 font-medium">{r[0]}</th>
-                      {r.slice(1).map((v, i) => (
-                        <td key={i} className={`p-4 ${i === 0 ? "bg-accent-soft/50 font-semibold" : "text-ink2"}`}>
-                          {v === true ? <Check size={19} className="text-good" /> : v === false ? <X size={19} className="text-bad/70" /> : v}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        {/* Контроль и гарантии */}
-        <section className="py-20 md:py-28">
-          <div className={wrap}>
-            <Eyebrow>Вы всегда у руля</Eyebrow>
-            <H2>Автоматизация без потери контроля</H2>
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {[
-                { i: ShieldCheck, t: "Публикация только с вашего «да»", d: "Автопилот собирает идеи и пишет черновики, а выходит в канал только то, что вы одобрили." },
-                { i: Wallet, t: "Платите за результат", d: "Нет абонемента. Если генерация не удалась, списанные деньги автоматически возвращаются на счёт." },
-                { i: Zap, t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
-              ].map((b, n) => (
-                <div key={b.t} className="rounded-3xl p-7" style={{ background: ["var(--pastel-lime)", "var(--pastel-cyan)", "var(--pastel-green)"][n] }}>
-                  <b.i size={26} className="text-accent-ink" />
-                  <h3 className="mt-4 text-lg font-bold">{b.t}</h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-ink2">{b.d}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Для кого */}
-        <section className="bg-tile/60 py-20 md:py-28">
-          <div className={wrap}>
-            <Eyebrow>Для кого</Eyebrow>
-            <H2>Если у вас есть бизнес или экспертность, но нет времени на контент</H2>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { i: Store, t: "Малый бизнес и магазины", d: "Регулярные посты о товарах, акциях и пользе, без найма SMM-специалиста." },
-                { i: UserRound, t: "Эксперты и блогеры", d: "Ваш голос и ваши идеи, а рутину оформления и публикации берёт на себя сервис." },
-                { i: Briefcase, t: "Агентства и фрилансеры", d: "Ведите десятки клиентов в одном окне и берите больше проектов без роста штата." },
-                { i: Building2, t: "Компании и команды", d: "Единый стиль всех каналов, роли для сотрудников и контроль каждого материала." },
-              ].map((w, n) => (
-                <div key={w.t} className="rounded-3xl p-6" style={{ background: ["var(--pastel-cyan)", "var(--pastel-lime)", "var(--pastel-green)", "var(--pastel-cyan)"][n] }}>
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-accent-ink"><w.i size={21} /></span>
-                  <h3 className="mt-4 text-lg font-bold">{w.t}</h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-ink2">{w.d}</p>
-                </div>
-              ))}
-            </div>
+            <h2 className={`${h2} mb-12`}>Автоматизация без потери контроля</h2>
+            <div className="grid gap-5 md:grid-cols-3">{GUARANTEES.map((g) => (
+              <div key={g.t} className="rounded-[20px] bg-[#f5f5f5] p-8"><h3 className="text-2xl font-semibold leading-7">{g.t}</h3><p className="mt-3 text-base font-semibold leading-6 text-zinc-600">{g.d}</p></div>
+            ))}</div>
           </div>
         </section>
 
         {/* Цены */}
-        <section id="pricing" className="py-20 md:py-28">
+        <section id="pricing" className="pt-24 md:pt-44">
           <div className={wrap}>
-            <Eyebrow>Цены</Eyebrow>
-            <H2>Платите только за созданный контент</H2>
-            <p className="mt-4 max-w-2xl text-lg text-ink2">Без абонемента и скрытых платежей. При регистрации на счёте уже 100 ₽, этого хватит на первый контент.</p>
-            <div className="mt-10 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
-              <div className="rounded-3xl border border-line bg-surface p-3 sm:p-4">
-                <ul className="divide-y divide-line">
-                  {[
-                    { i: FileText, n: "Пост для соцсетей", p: "20 ₽" },
-                    { i: GalleryHorizontal, n: "Карусель-картинки (4–10 слайдов)", p: "35 ₽" },
-                    { i: ImageIcon, n: "Картинка к посту", p: "15 ₽" },
-                    { i: Layers, n: "SEO-статья для сайта", p: "40 ₽" },
-                    { i: Sparkles, n: "Идея для контент-плана", p: "3 ₽" },
-                    { i: Megaphone, n: "Правка слайдов карусели", p: "бесплатно" },
-                  ].map((r) => (
-                    <li key={r.n} className="flex items-center gap-4 px-3 py-3.5 sm:px-4">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-tile text-ink2"><r.i size={19} /></span>
-                      <span className="flex-1 text-[15px] font-medium">{r.n}</span>
-                      <span className="text-base font-bold">{r.p}</span>
+            <h2 className={`${h2} mb-14`}>Платите только за созданный контент</h2>
+            <div className="mx-auto grid max-w-[1170px] gap-5 lg:grid-cols-[599fr_558fr]">
+              <div className="rounded-3xl p-4 outline outline-1 -outline-offset-1 outline-zinc-200 sm:p-6" style={{ background: "linear-gradient(270deg, #ecfccb, #84cc16)" }}>
+                <ul className="rounded-3xl bg-white/95 p-2 sm:p-4">
+                  {PRICES.map((r) => (
+                    <li key={r.n} className="flex items-center gap-4 border-b border-stone-200 px-3 py-3.5 last:border-0 sm:px-4">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-stone-100 text-gray-500"><r.i size={19} /></span>
+                      <span className="flex-1 text-base font-semibold leading-6 text-zinc-900">{r.n}</span>
+                      <span className="text-base font-semibold text-zinc-900">{r.p}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="relative overflow-hidden rounded-3xl p-8 text-[#14161a]" style={{ background: `linear-gradient(145deg, ${CYAN}, ${GREEN} 60%, ${LIME})` }}>
-                <Blobs className="absolute -right-10 -top-10 h-44 w-44 rotate-12 opacity-40 [filter:saturate(.5)_brightness(1.5)]" /><p className="relative text-sm font-semibold opacity-80">Пример: контент на месяц</p>
-                <p className="mt-3 text-5xl font-extrabold tracking-tight">≈ 900 ₽</p>
-                <p className="mt-3 text-[15px] font-medium leading-relaxed">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста.</p>
-                <Link href="/register" className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#14161a] px-6 text-[15px] font-semibold text-white transition hover:opacity-90">Получить 100 ₽ и начать<ArrowRight size={18} /></Link>
-                <p className="mt-3 flex items-center justify-center gap-1.5 text-xs font-medium opacity-80"><Clock size={14} />Регистрация занимает минуту</p>
+              <div className="flex flex-col rounded-3xl bg-gradient-to-b from-stone-50 to-zinc-100 px-8 py-10 outline outline-1 -outline-offset-1 outline-zinc-200 sm:px-14">
+                <div className="w-40 pb-6"><Logo href="/" light h={44} /></div>
+                <p className="text-sm font-semibold leading-5 text-neutral-900/80">Пример: контент на месяц</p>
+                <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ 900 руб</p>
+                <p className="mt-6 text-base font-semibold leading-6 text-neutral-900">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста. При регистрации на счёте уже 100 ₽.</p>
+                <Link href="/register" className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-[10px] bg-[#1c1c1c] px-8 text-base font-medium text-white transition hover:opacity-85 lg:mt-8">Хочу также</Link>
               </div>
             </div>
           </div>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="bg-tile/60 py-20 md:py-28">
-          <div className={`${wrap} grid gap-10 lg:grid-cols-[.8fr_1.2fr]`}>
-            <div><Eyebrow>Вопросы</Eyebrow><H2>Частые вопросы</H2><p className="mt-4 text-ink2">Не нашли ответ? Зарегистрируйтесь: помощник Лия внутри сервиса подскажет по любому вопросу.</p></div>
-            <div className="space-y-3">
+        <section id="faq" className="pt-24 md:pt-44">
+          <div className={wrap}>
+            <h2 className={`${h2} mb-14`}>Часто задаваемые вопросы</h2>
+            <div className="mx-auto max-w-[1160px] overflow-hidden rounded-2xl">
               {FAQ.map((f) => (
-                <details key={f.q} className="lt-faq group rounded-2xl border border-line bg-surface px-5 py-4">
-                  <summary className="flex items-center justify-between gap-4 text-[15px] font-semibold">
-                    {f.q}<Plus size={20} className="lt-plus shrink-0 text-ink2 transition-transform" />
+                <details key={f.q} className="lt-faq group border-b border-white bg-[#f5f5f5] last:border-0">
+                  <summary className="flex min-h-20 items-center justify-between gap-4 px-6 py-5 text-base font-semibold leading-6 md:px-[30px] md:text-lg">
+                    {f.q}<span className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><Plus size={18} className="lt-plus transition-transform" /></span>
                   </summary>
-                  <p className="mt-3 text-[15px] leading-relaxed text-ink2">{f.a}</p>
+                  <p className="px-6 pb-6 text-base leading-relaxed text-zinc-600 md:px-[30px] md:pr-20">{f.a}</p>
                 </details>
               ))}
             </div>
@@ -403,33 +319,31 @@ export default function Landing() {
         </section>
 
         {/* Финальный призыв */}
-        <section className="px-5 py-16 md:py-24">
-          <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] px-6 py-14 text-center text-[#14161a] sm:px-12 md:py-20" style={{ background: `linear-gradient(120deg, ${CYAN} 0%, ${GREEN} 55%, ${LIME} 100%)` }}>
-            <Blobs className="absolute -right-16 -top-20 h-80 w-80 rotate-12 opacity-30 [filter:saturate(.4)_brightness(1.4)]" /><Blobs className="absolute -bottom-24 -left-16 h-72 w-72 -rotate-12 opacity-25 [filter:saturate(.4)_brightness(1.4)]" />
-            <h2 className="relative mx-auto max-w-3xl text-balance text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">Запустите контент-завод для своего бренда сегодня</h2>
-            <p className="relative mx-auto mt-4 max-w-xl text-lg font-medium">100 ₽ в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
-            <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href="/register" className="inline-flex h-13 items-center justify-center gap-2 rounded-2xl bg-[#14161a] px-8 py-3.5 text-base font-semibold text-white transition hover:-translate-y-0.5">Начать бесплатно<ArrowRight size={18} /></Link>
-              <Link href="/login" className="inline-flex items-center justify-center rounded-2xl px-6 py-3.5 text-base font-semibold underline-offset-4 hover:underline">У меня уже есть аккаунт</Link>
+        <section className="pt-24 md:pt-44">
+          <div className={wrap}>
+            <div className="rounded-3xl px-6 py-14 text-center text-white md:py-20" style={{ background: `linear-gradient(120deg, ${BLUE}, #4f46e5)` }}>
+              <h2 className="mx-auto max-w-3xl text-balance text-3xl font-semibold leading-tight md:text-5xl">Запустите контент-завод для своего бренда сегодня</h2>
+              <p className="mx-auto mt-4 max-w-xl text-lg font-semibold">100 ₽ в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link href="/register" className="inline-flex h-14 items-center rounded-xl bg-white px-10 text-lg font-semibold text-black transition hover:opacity-90">Начать бесплатно</Link>
+                <Link href="/login" className="inline-flex h-14 items-center px-6 text-base font-semibold underline-offset-4 hover:underline">У меня уже есть аккаунт</Link>
+              </div>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className={`${wrap} flex flex-col gap-6 py-10 md:flex-row md:items-start md:justify-between`}>
-          <div className="max-w-xs">
-            <div className="w-36"><Logo href="/" light className="[&_img]:h-8" /></div>
-            <p className="mt-3 text-sm text-ink2">Автоматический контент для соцсетей и сайта: план, тексты, карусели, публикация.</p>
+      <footer className="mt-24 bg-neutral-800 text-white md:mt-36">
+        <div className={`${wrap} grid gap-8 py-10 md:grid-cols-2`}>
+          <div className="space-y-3">
+            <nav aria-label="Документы" className="flex flex-col gap-2 text-sm font-semibold">
+              <Link href="/legal/privacy">Политика конфиденциальности</Link>
+              <Link href="/legal/terms" className="opacity-80 hover:opacity-100">Пользовательское соглашение</Link>
+              <Link href="/legal/cookies" className="opacity-80 hover:opacity-100">Cookie</Link>
+            </nav>
+            <p className="pt-2 text-xs font-semibold opacity-60">© Контент-завод, {new Date().getFullYear()}</p>
           </div>
-          <nav aria-label="Навигация" className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-ink2">
-            <a href="#how" className="hover:text-ink">Как работает</a><a href="#features" className="hover:text-ink">Возможности</a><a href="#pricing" className="hover:text-ink">Цены</a><a href="#faq" className="hover:text-ink">Вопросы</a>
-            <Link href="/login" className="hover:text-ink">Войти</Link><Link href="/register" className="hover:text-ink">Регистрация</Link>
-          </nav>
-        </div>
-        <div className={`${wrap} flex flex-col gap-3 border-t border-line py-6 md:flex-row md:items-center md:justify-between`}>
-          <LegalLinks />
-          <p className="text-xs text-ink3">© {new Date().getFullYear()} Контент-завод</p>
+          <p className="text-sm font-semibold leading-5 opacity-60 md:max-w-[566px]">Мы используем файлы cookie для персонализации сервисов и повышения удобства пользования сайтом. Если вы не согласны на их использование, поменяйте настройки браузера.</p>
         </div>
       </footer>
     </div>
