@@ -1,8 +1,9 @@
-import { safeFetchText } from "../safefetch";
+import sharp from "sharp";
+import { safeFetchBuffer, safeFetchText } from "../safefetch";
 import { one } from "../db";
 import { open } from "../crypto";
 import { listPosts } from "../publishing/max";
-import { discoverFeeds, looksLikeFeed, pageTitle, parseFeed, parseTelegram, scrapeLinks, sha, type Item } from "./parse";
+import { pageIcon, parseTelegramInfo, discoverFeeds, looksLikeFeed, pageTitle, parseFeed, parseTelegram, scrapeLinks, sha, type Item } from "./parse";
 
 export type Kind = "site" | "telegram" | "vk" | "news" | "manual" | "max";
 export const KIND_LABEL: Record<Kind, string> = { site: "Сайт / RSS", telegram: "Telegram", vk: "VK", max: "MAX", news: "Новости по запросу", manual: "Вручную" };
@@ -110,3 +111,26 @@ export async function fetchItems(kind: Kind, ref: string, config: Record<string,
   return [];
 }
 interface VkPost { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; attachments?: { type: string; photo?: { sizes?: { width: number; url: string }[] } }[] }
+
+/** Уменьшенная иконка в виде data-URI: хранится вместе с источником, чтобы не ходить за ней на сторонний сервер при каждом показе. */
+async function iconDataUri(url: string): Promise<string> {
+  const { data } = await safeFetchBuffer(url, 1_500_000);
+  const png = await sharp(data, { limitInputPixels: 20_000_000 }).resize(72, 72, { fit: "cover" }).png({ compressionLevel: 9 }).toBuffer();
+  return `data:image/png;base64,${png.toString("base64")}`;
+}
+
+/** Настоящее название и иконка источника: для публичного Telegram-канала и сайта. Недоступное просто не заполняется. */
+export async function fetchSourceMeta(kind: Kind, ref: string): Promise<{ title?: string; avatar?: string }> {
+  const out: { title?: string; avatar?: string } = {};
+  if (kind === "telegram") {
+    const r = await safeFetchText(`https://t.me/s/${encodeURIComponent(ref)}`);
+    const info = parseTelegramInfo(r.text);
+    if (info.title) out.title = info.title;
+    if (info.photo) out.avatar = await iconDataUri(info.photo).catch(() => undefined);
+  } else if (kind === "site") {
+    const r = await safeFetchText(/^https?:\/\//i.test(ref) ? new URL(ref).origin : `https://${ref}`);
+    const icon = pageIcon(r.text, r.url);
+    if (icon) out.avatar = await iconDataUri(icon).catch(() => undefined);
+  }
+  return out;
+}

@@ -22,7 +22,7 @@ export const maxDuration = 60;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
 
-interface Row { id: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
+interface Row { id: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; config: Record<string, unknown> | null; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
 
 const MAKE = KINDS.filter((k) => k !== "reels");
 
@@ -50,7 +50,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const sql = where.join(" and ");
 
   const [rows, sources, kws, factories, stat, brands] = await Promise.all([
-    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,i.full_text,i.full_status,i.fit_score,i.fit_reason
+    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
              order by ${fitOnly ? "i.fit_score desc nulls last," : ""} i.score desc, coalesce(i.fit_score,-1) desc, i.published_at desc limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
     q<{ id: string; title: string; last_error: string | null }>("select id,title,last_error from kz_sources where org_id=$1 order by title", [c.org.id]),
@@ -114,11 +114,11 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
         {list.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">Ничего не найдено. Измените фильтры или добавьте ключевые слова.</p>}
         <FadeList className="space-y-5">
           {list.map((r) => {
-            const sv = sourceView(r.kind, r.source, r.ref), text = bestText(r), when = new Date(r.published_at);
+            const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
             <article key={r.id} className="rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear]">
               <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
-                <SourceIcon kind={r.kind} />
+                <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold leading-5">{sv.name}</p>
                   {sv.href ? <a href={sv.href} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sv.address}</a> : <p className="truncate text-xs leading-4 text-ink2">{sv.address}</p>}

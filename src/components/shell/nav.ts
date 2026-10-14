@@ -6,7 +6,7 @@ export const NAV = [
   { href: "/app/factories", label: "Заводы", icon: Factory, pro: true },
   { href: "/app/brands", label: "Бренды", icon: Building2, pro: true },
   { href: "/app/calendar", label: "Календарь", icon: CalendarDays },
-  { href: "/app/monitor", label: "Мониторинг", icon: Radar },
+  { href: "/app/monitor", label: "Новости", icon: Radar },
   { href: "/app/flows", label: "Автолента", icon: Rss },
   { href: "/app/competitors", label: "Конкуренты", icon: Crosshair },
   { href: "/app/inbox", label: "Входящие", icon: Inbox },

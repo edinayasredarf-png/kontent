@@ -1,5 +1,5 @@
 import { one, q, tx } from "../db";
-import { fetchItems, resolveSource, type Kind } from "./fetchers";
+import { fetchItems, fetchSourceMeta, resolveSource, type Kind } from "./fetchers";
 import { matchItem, type Kw } from "./keywords";
 import { sha, type Item } from "./parse";
 import { aiReady, genDigest, genIdea } from "../ai";
@@ -42,6 +42,16 @@ export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean
   return {};
 }
 
+/** Подтягивает настоящее название канала и иконку: при первом опросе и затем раз в неделю. Метка попытки ставится всегда, чтобы не ходить зря. */
+async function refreshMeta(id: string, kind: Kind, ref: string, config: Record<string, unknown>) {
+  if (kind !== "telegram" && kind !== "site") return;
+  const last = Number(config.metaAt ?? 0);
+  if (last && Date.now() - last < 7 * 86_400_000) return;
+  let meta: { title?: string; avatar?: string } = {};
+  try { meta = await fetchSourceMeta(kind, ref); } catch { /* попробуем через неделю */ }
+  await q("update kz_sources set config = config || $2::jsonb where id=$1", [id, JSON.stringify({ metaAt: Date.now(), ...(meta.title ? { channelTitle: meta.title } : {}), ...(meta.avatar ? { avatar: meta.avatar } : {}) })]);
+}
+
 /** Опрос одного источника. Ошибка пишется в источник, а не пробрасывается: один сломанный сайт не должен ронять проход. */
 export async function pollSource(id: string): Promise<{ added: number; error?: string }> {
   const s = await one<{ id: string; org_id: string; kind: Kind; ref: string; config: Record<string, unknown> }>("select id,org_id,kind,ref,config from kz_sources where id=$1", [id]);
@@ -50,6 +60,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
     const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }));
     if (s.kind === "site" || s.kind === "news") await enrichRecent(s.org_id, s.id, 3).catch(() => 0); // полные тексты свежих новостей (RSS отдаёт только анонс)
     await q("update kz_sources set last_fetched_at=now(), last_error=null where id=$1", [id]);
+    await refreshMeta(s.id, s.kind, s.ref, s.config).catch(() => {}); // название и иконка не должны ломать опрос
     return { added };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
