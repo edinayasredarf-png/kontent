@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bookmark, EyeOff, ExternalLink, RefreshCw, Settings2, Sparkles, PenLine, AlertTriangle, Radar } from "lucide-react";
+import { Bookmark, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Radar, ArrowUp } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
@@ -12,13 +12,17 @@ import { Form } from "@/components/Form";
 import { bestText } from "@/lib/monitor/news";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { AiPanel } from "@/components/AiPanel";
-import { Empty, PageHead } from "@/components/ui";
+import { Empty } from "@/components/ui";
+import { SourceIcon } from "@/components/monitor/SourceIcon";
+import { FadeList } from "@/components/monitor/FadeList";
+import { sourceView } from "@/lib/monitor/display";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export const maxDuration = 60;
 const PAGE = 30;
+const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
 
-interface Row { id: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
+interface Row { id: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
 
 const MAKE = KINDS.filter((k) => k !== "reels");
 
@@ -46,7 +50,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const sql = where.join(" and ");
 
   const [rows, sources, kws, factories, stat, brands] = await Promise.all([
-    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.matched,i.score,i.status,s.title source,s.kind,i.full_text,i.full_status,i.fit_score,i.fit_reason
+    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
              order by ${fitOnly ? "i.fit_score desc nulls last," : ""} i.score desc, coalesce(i.fit_score,-1) desc, i.published_at desc limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
     q<{ id: string; title: string; last_error: string | null }>("select id,title,last_error from kz_sources where org_id=$1 order by title", [c.org.id]),
@@ -66,12 +70,14 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const write = c.org.role !== "viewer";
 
   return (
-    <>
-      <PageHead title="Мониторинг" sub="Посты и новости из ваших источников. Сортировка — по совпадению с ключевыми словами."
-        action={<div className="flex gap-2">
-          <form action={refreshAllAction}><SubmitButton className="btn btn-ghost"><RefreshCw size={15} />Обновить</SubmitButton></form>
-          <Link href="/app/monitor/settings" className="btn"><Settings2 size={15} />Источники и слова</Link>
-        </div>} />
+    <div className="mx-auto w-full max-w-[600px] pb-28">
+      <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
+        <h1 className="text-center text-2xl font-semibold leading-8 md:text-4xl">Мониторинг новостей</h1>
+        <div className="flex gap-1.5">
+          <form action={refreshAllAction}><SubmitButton title="Обновить ленту" aria-label="Обновить ленту" className={ICON}><RefreshCw size={15} /></SubmitButton></form>
+          <Link href="/app/monitor/settings" title="Источники и ключевые слова" aria-label="Источники и ключевые слова" className={ICON}><Settings2 size={15} /></Link>
+        </div>
+      </div>
       {sp.note && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</div>}
       {sp.err && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{sp.err}</div>}
       {Number(stat[0].err) > 0 && <p className="mb-4 text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Источники и слова».</p>}
@@ -80,6 +86,9 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу — лента заполнится сама."
           action={<Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link>} />
       ) : (<>
+        <details className="mb-6" open={!!(sp.q || sp.src || sp.kw || sp.m || sp.fit || sp.show || sp.d)}>
+          <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-2 rounded-full bg-accent-soft px-5 py-2 text-sm font-semibold"><SlidersHorizontal size={15} />Фильтры и анализ</summary>
+          <div className="mt-4">
         <AiPanel title="Анализ ленты" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Что в тренде" action={digestAction} />
         {write && brands.length > 0 && (
           <div className="card mb-4 p-4">
@@ -99,36 +108,42 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" name="fit" value="1" defaultChecked={fitOnly} />Подходит мне (оценка 6+)</label>
           <SubmitButton className="btn btn-ghost ml-auto">Применить</SubmitButton>
         </form>
+          </div>
+        </details>
 
         {list.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">Ничего не найдено. Измените фильтры или добавьте ключевые слова.</p>}
-        <div className="space-y-3">
-          {list.map((r) => (
-            <article key={r.id} className="card p-4">
-              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3">
-                <span className="chip">{KIND_LABEL[r.kind]}</span><span>{r.source}</span><span>·</span>
-                <span>{new Date(r.published_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                {r.status === "used" && <span className="chip !bg-good-soft !text-good">в плане</span>}
-                {r.status === "saved" && <span className="chip !bg-accent-soft !text-accent-ink">сохранено</span>}
-              </div>
-              <h3 className="mb-1 text-[15px] font-medium leading-snug">{r.title}</h3>
-              {r.fit_score != null && <p className="mb-1 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
-              {bestText(r) && bestText(r) !== r.title && <p className="mb-2 line-clamp-3 text-sm text-ink2">{bestText(r).slice(0, 600)}</p>}
-              {(r.kind === "site" || r.kind === "news") && (
-                r.full_text ? (
-                  <details className="mb-2 text-xs text-ink2"><summary className="cursor-pointer text-good">Полный текст загружен · {r.full_text.length.toLocaleString("ru-RU")} знаков</summary><p className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">{r.full_text}</p></details>
-                ) : (
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink3">
-                    <span>{r.full_status === "unsupported" ? "Текст статьи недоступен для этого источника" : r.full_status === "failed" || r.full_status === "short" ? "Не удалось получить полный текст" : "Только заголовок и анонс из ленты"}</span>
-                    {write && r.full_status !== "unsupported" && !r.url.startsWith("manual:") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Прочитать полностью</SubmitButton></form>}
-                  </div>
-                )
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                {r.matched.map((m) => <span key={m} className="chip !bg-warn-soft !text-warn">{m}</span>)}
-                {!r.url.startsWith("manual:") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-xs text-accent-ink">Открыть<ExternalLink size={12} /></a>}
+        <FadeList className="space-y-5">
+          {list.map((r) => {
+            const sv = sourceView(r.kind, r.source, r.ref), text = bestText(r), when = new Date(r.published_at);
+            return (
+            <article key={r.id} className="rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear]">
+              <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
+                <SourceIcon kind={r.kind} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold leading-5">{sv.name}</p>
+                  {sv.href ? <a href={sv.href} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sv.address}</a> : <p className="truncate text-xs leading-4 text-ink2">{sv.address}</p>}
+                </div>
+                <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs text-ink3">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+              </header>
+              <div className="px-2.5 pb-1 pt-3">
+                {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-accent-soft !text-accent-ink">сохранено</span>}</p>}
+                <h3 className="text-[15px] font-semibold leading-snug">{r.title}</h3>
+                {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
+                {text && text !== r.title && <p className="mt-2 line-clamp-6 whitespace-pre-line text-sm leading-6">{text.slice(0, 700)}</p>}
+                {(r.kind === "site" || r.kind === "news") && (
+                  r.full_text ? (
+                    <details className="mt-2 text-xs text-ink2"><summary className="cursor-pointer text-good">Полный текст загружен · {r.full_text.length.toLocaleString("ru-RU")} знаков</summary><p className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">{r.full_text}</p></details>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3">
+                      <span>{r.full_status === "unsupported" ? "Текст статьи недоступен для этого источника" : r.full_status === "failed" || r.full_status === "short" ? "Не удалось получить полный текст" : "Только заголовок и анонс из ленты"}</span>
+                      {write && r.full_status !== "unsupported" && !r.url.startsWith("manual:") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Прочитать полностью</SubmitButton></form>}
+                    </div>
+                  )
+                )}
+                {r.matched.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{r.matched.map((m) => <span key={m} className="chip !bg-warn-soft !text-warn">{m}</span>)}</div>}
               </div>
               {r.status !== "used" && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                <div className="mt-2 flex flex-wrap items-center gap-2 px-2.5 pb-2 pt-2">
                   {factories.length > 0 ? (
                     <details className="w-full sm:w-auto">
                       <summary className="btn btn-accent !py-1.5 cursor-pointer list-none"><PenLine size={14} />Создать материал из новости</summary>
@@ -149,15 +164,18 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                       </form>
                     </details>
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}
-                  <div className="ml-auto flex gap-1">
-                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title={r.status === "saved" ? "Убрать из сохранённых" : "Сохранить"}><Bookmark size={14} /></SubmitButton></form>
-                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="dismissed" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>
+                  <div className="ml-auto flex items-center gap-1">
+                    {!r.url.startsWith("manual:") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
+                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className="grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2" title={r.status === "saved" ? "Убрать из сохранённых" : "Сохранить"}><Bookmark size={14} /></SubmitButton></form>
+                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="dismissed" /><SubmitButton className="grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>
                   </div>
                 </div>
               )}
+              {r.status === "used" && !r.url.startsWith("manual:") && <div className="px-2.5 pb-2 pt-1"><a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть источник<ExternalLink size={12} /></a></div>}
             </article>
-          ))}
-        </div>
+            );
+          })}
+        </FadeList>
         {(page > 1 || hasMore) && (
           <div className="mt-4 flex justify-center gap-2">
             {page > 1 && <Link className="btn btn-ghost" href={href({ p: String(page - 1) })}>← Назад</Link>}
@@ -165,6 +183,14 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           </div>
         )}
       </>)}
-    </>
+      {!noSources && (
+        <form action="/app" className="fixed bottom-4 left-1/2 z-30 w-[min(92vw,640px)] -translate-x-1/2 md:left-[calc(50%+170px)]">
+          <div className="flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
+            <input name="q" required maxLength={1500} placeholder="Спросите по новостному фонду или попросите создать материал" aria-label="Вопрос ассистенту" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink3" />
+            <SubmitButton className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-white" aria-label="Отправить в чат"><ArrowUp size={18} /></SubmitButton>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
