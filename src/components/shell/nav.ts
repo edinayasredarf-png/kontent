@@ -1,11 +1,12 @@
-import { Sparkles, Factory, Building2, CalendarDays, Rss, Crosshair, Inbox, Send, BarChart3, Wand2 } from "lucide-react";
+import { Sparkles, Factory, Radar, Building2, CalendarDays, Rss, Crosshair, Inbox, Send, BarChart3, Wand2 } from "lucide-react";
 
-/** Главное меню. Всё остальное (каналы, мониторинг, баланс, команда, API, партнёрка, профиль, администрирование) живёт в «Настройках». */
+/** Главное меню. Всё остальное (каналы, баланс, команда, API, партнёрка, профиль, администрирование) живёт в «Настройках». */
 export const NAV = [
   { href: "/app", label: "Чат", icon: Sparkles, exact: true },
   { href: "/app/factories", label: "Заводы", icon: Factory, pro: true },
   { href: "/app/brands", label: "Бренды", icon: Building2, pro: true },
   { href: "/app/calendar", label: "Календарь", icon: CalendarDays },
+  { href: "/app/monitor", label: "Мониторинг", icon: Radar },
   { href: "/app/flows", label: "Автолента", icon: Rss },
   { href: "/app/competitors", label: "Конкуренты", icon: Crosshair },
   { href: "/app/inbox", label: "Входящие", icon: Inbox },

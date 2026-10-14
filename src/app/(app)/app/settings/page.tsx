@@ -12,7 +12,6 @@ export default async function Settings() {
   const groups: { title: string; sub?: string; rows: Row[] }[] = [
     { title: "Публикации и данные", rows: [
       { href: "/app/channels", title: "Каналы публикации", text: "Telegram, ВКонтакте, MAX, WordPress, Webhook: инструкция и проверка подключения", icon: Radio },
-      { href: "/app/monitor", title: "Мониторинг новостей", text: "Лента новостей из источников, подборка под бренд, создание материалов из новостей", icon: Radar },
       { href: "/app/monitor/settings", title: "Источники и ключевые слова", text: "Откуда собираем новости и по каким словам отбираем", icon: Radar },
       { href: "/app/brands", title: "База знаний брендов", text: "Статьи, документы и сравнения: ИИ учится писать в вашем стиле (внутри бренда)", icon: Building2 },
     ] },
