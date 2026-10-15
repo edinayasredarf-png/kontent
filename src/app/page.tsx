@@ -214,7 +214,7 @@ export default function Landing() {
                 const bg = f.tone === "blue" ? "/landing/banner-blue.webp" : f.tone === "liquid" ? "/landing/banner-liquid.webp" : null;
                 const light = f.tone !== "blue";
                 return (
-                  <article key={f.key} className={`relative w-[88vw] max-w-[1360px] shrink-0 snap-start overflow-hidden rounded-[20px] p-6 md:min-h-[510px] md:w-[min(1360px,calc(100vw-40px))] md:p-10 ${f.tone === "plain" ? "bg-[#f5f5f5]" : "bg-[#f5f5f5]"} ${light ? "text-black" : "text-white"}`}>
+                  <article key={f.key} className={`relative w-[88vw] max-w-[1360px] shrink-0 snap-start overflow-hidden rounded-[20px] p-6 md:min-h-[510px] md:w-full md:p-10 ${f.tone === "plain" ? "bg-[#f5f5f5]" : "bg-[#f5f5f5]"} ${light ? "text-black" : "text-white"}`}>
                     {bg && <Image src={bg} alt="" fill sizes="1360px" className="object-cover" aria-hidden />}
                     <div className="relative grid gap-8 md:grid-cols-[1fr_516px] md:gap-12 lg:grid-cols-[1fr_516px]">
                       <div className="flex flex-col">

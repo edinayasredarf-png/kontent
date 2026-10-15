@@ -33,7 +33,7 @@ const BEAN='<svg viewBox="0 0 24 24" width="100%" height="100%"><ellipse cx="12"
 const MARK='<svg viewBox="0 0 30 46" fill="#1734FC" width="100%" height="100%"><path d="M4.6596 11.6835C5.8944 12.9188 6.58808 14.5939 6.58808 16.3405C6.58808 18.0871 5.8944 19.7622 4.6596 20.9974L0 25.6518L4.6596 30.3114L13.9787 20.9974L4.6596 11.6835Z"/><path d="M20.6808 25.6622L25.3404 30.3166C24.1055 29.0814 23.4119 27.4063 23.4119 25.6596C23.4119 23.913 24.1055 22.2379 25.3404 21.0027L30 16.3431L25.3404 11.6835L16.0264 21.0027L20.6808 25.6622Z"/><path d="M5.68375 31.3403C6.919 30.1055 8.59407 29.4118 10.3407 29.4118C12.0873 29.4118 13.7624 30.1055 14.9976 31.3403L19.652 36L24.3116 31.3403L14.9976 22.0264L5.68375 31.3403Z"/><path d="M24.3168 10.6596C23.0816 11.8944 21.4064 12.5881 19.6599 12.5881C17.9132 12.5881 16.2382 11.8944 15.0029 10.6596L10.3433 6L5.68375 10.6596L15.0029 19.9788L24.3168 10.6596Z"/></svg>';
 const bean=(s)=>`<div class="ic" style="width:${s}px;height:${s}px;background:#f6ece3;padding:${s*.18}px">${BEAN}</div>`;
 const SC={};
-const L=7;
+const CFG={carousel:{L:12,sp:.58}};const key0=new URLSearchParams(location.search).get('s')||'plan';const L=(CFG[key0]||{L:7}).L,SPD=(CFG[key0]||{sp:1}).sp;window.LEN=L;
 /* ───────── plan ───────── */
 SC.plan=()=>{
   const head=mk(`<div style="display:flex;justify-content:space-between;align-items:center"><div class="h">Контент-план</div><div style="display:flex;gap:6px;align-items:center"><span class="chip on" style="margin:0">30 дней</span><span class="chip" style="margin:0;background:#e8f6ee;color:#1f9d57;font-weight:800" id="p_n">0 идей</span></div></div>`,'left:16px;top:14px;width:436px');
@@ -139,6 +139,6 @@ SC.teams=()=>{
 };
 const key=new URLSearchParams(location.search).get('s')||'plan';
 const R=SC[key]();
-window.render=function(t){const wi=seg(t,0,.55),wo=seg(t,L-.6,L),f=wi*(1-wo);P.style.opacity=clamp(f*1.7);P.style.transform=`translateY(${(1-eo(f))*26}px) scale(${.96+.04*eo(f)})`;R(t)};
+window.render=function(t){const wi=seg(t,0,.55),wo=seg(t,L-.6,L),f=wi*(1-wo);P.style.opacity=clamp(f*1.7);P.style.transform=`translateY(${(1-eo(f))*26}px) scale(${.96+.04*eo(f)})`;R(t*SPD)};
 render(0);
 </script></body></html>

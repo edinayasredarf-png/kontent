@@ -9,7 +9,11 @@ export function Rail({ children, label }: { children: React.ReactNode; label: st
     const el = box.current; if (!el) return;
     const card = el.firstElementChild as HTMLElement | null;
     const step = card ? card.getBoundingClientRect().width + 20 : el.clientWidth * 0.8;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
+    // по кругу: после последней карточки «вперёд» возвращает к первой, перед первой «назад» ведёт к последней
+    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 6, atStart = el.scrollLeft <= 6;
+    if (dir === 1 && atEnd) el.scrollTo({ left: 0, behavior: "smooth" });
+    else if (dir === -1 && atStart) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    else el.scrollBy({ left: dir * step, behavior: "smooth" });
   };
   return (
     <div>
