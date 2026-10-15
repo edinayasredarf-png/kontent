@@ -167,12 +167,12 @@ export default function Landing() {
               <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-black px-6 pt-14 text-white sm:px-16 md:min-h-[642px]">
                 <h3 className="text-center text-3xl font-semibold leading-8">Как обычно</h3>
                 <ul className="mt-8 space-y-3">{BAD.map((t) => <li key={t} className="rounded-3xl bg-zinc-800/70 px-6 py-5 text-center text-base font-semibold leading-5 backdrop-blur-[2px]">{t}</li>)}</ul>
-                <Image src="/landing/coins.png" alt="" width={374} height={92} className="pointer-events-none mx-auto mt-8 h-auto w-72 md:absolute md:bottom-0 md:left-1/2 md:mt-0 md:w-80 md:-translate-x-1/2" />
+                <Image src="/landing/pile.webp" alt="" width={1300} height={721} className="pointer-events-none -mx-6 mt-auto h-auto w-[calc(100%+3rem)] max-w-none pt-8 sm:-mx-16 sm:w-[calc(100%+8rem)]" />
               </div>
               <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-lime-300 px-6 pt-14 text-black sm:px-16 md:min-h-[642px]">
                 <h3 className="flex items-center justify-center gap-2.5 text-center text-3xl font-semibold leading-8"><Sparkles size={22} />С Контент-заводом</h3>
                 <ul className="mt-8 space-y-3">{GOOD.map((t) => <li key={t} className="rounded-3xl bg-neutral-100 px-6 py-5 text-center text-base font-semibold leading-5">{t}</li>)}</ul>
-                <Image src="/landing/percent.png" alt="" width={330} height={118} className="pointer-events-none -ml-6 mt-8 h-auto w-64 md:absolute md:bottom-0 md:left-[-24px] md:ml-0 md:mt-0 md:w-72" />
+                <Image src="/landing/order.webp" alt="" width={1100} height={905} className="pointer-events-none -ml-6 mt-auto h-auto w-[78%] max-w-none pt-8 sm:-ml-16" />
               </div>
             </div>
           </div>
