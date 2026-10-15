@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Check, Plus, X, Sparkles, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Rail } from "@/components/landing/Rail";
+import { CardVideo } from "@/components/landing/CardVideo";
+import { HeroVideo } from "@/components/landing/HeroVideo";
 import { Audience } from "@/components/landing/Audience";
 import { hasMedia } from "@/lib/landing-media";
 import { SITE } from "@/lib/site";
@@ -98,27 +100,27 @@ const GUARANTEES = [
   { t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
 ];
 
-/** Правая «экранная» часть карточки возможностей: сюда кладётся GIF или видео (public/landing/gif/<ключ>.gif|.webp|.mp4). Пока файла нет, чёрный блок как в макете. */
+/** Правая «экранная» часть карточки возможностей: короткая анимация интерфейса (public/landing/gif/<ключ>.mp4, заставка <ключ>.webp). Можно заменить на .gif/.webp. Пока файла нет, чёрный блок. */
 function Screen({ k }: { k: string }) {
   const base = `/landing/gif/${k}`;
-  const mp4 = hasMedia(`landing/gif/${k}.mp4`), img = ["gif", "webp"].map((e) => `${base}.${e}`).find((p) => hasMedia(p.slice(1)));
+  const mp4 = hasMedia(`landing/gif/${k}.mp4`), poster = hasMedia(`landing/gif/${k}.webp`) ? `${base}.webp` : undefined, img = ["gif", "webp"].map((e) => `${base}.${e}`).find((p) => hasMedia(p.slice(1)));
   return (
-    <div className="relative aspect-[516/384] w-full overflow-hidden rounded-3xl bg-black">
-      {mp4 ? <video className="size-full object-cover" src={`${base}.mp4`} autoPlay muted loop playsInline preload="metadata" aria-hidden />
+    <div className="relative mx-auto aspect-[516/384] w-full max-w-[516px] overflow-hidden rounded-3xl bg-black xl:mx-0">
+      {mp4 ? <CardVideo src={`${base}.mp4`} poster={poster} />
         : img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="" className="size-full object-cover" loading="lazy" /> : null}
     </div>
   );
 }
 
 function HeroMedia() {
-  const mp4 = hasMedia("landing/hero.mp4"), webm = hasMedia("landing/hero.webm");
+  const d = hasMedia("landing/hero.mp4") ? "/landing/hero.mp4" : undefined, m = hasMedia("landing/hero-mobile.mp4") ? "/landing/hero-mobile.mp4" : undefined;
+  const dPoster = d ? "/landing/hero-poster.webp" : "/landing/hero.webp", mPoster = m ? "/landing/hero-mobile-poster.webp" : dPoster;
   return (
-    <div className="relative mx-auto mt-10 aspect-[1360/560] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14">
-      {mp4 || webm ? (
-        <video className="absolute inset-0 size-full object-cover" poster="/landing/hero.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden>
-          {webm && <source src="/landing/hero.webm" type="video/webm" />}{mp4 && <source src="/landing/hero.mp4" type="video/mp4" />}
-        </video>
-      ) : <Image src="/landing/hero.webp" alt="" width={1360} height={560} priority className="size-full object-cover" />}
+    <div className="relative mx-auto mt-10 aspect-[4/3] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14 md:aspect-[1360/560]">
+      {/* заставка: на телефоне своя картинка 4:3, на компьютере широкая */}
+      <Image src={mPoster} alt="" width={1200} height={900} priority className="absolute inset-0 size-full object-cover md:hidden" />
+      <Image src={dPoster} alt="" width={1920} height={790} priority className="absolute inset-0 hidden size-full object-cover md:block" />
+      <HeroVideo desktop={d} mobile={m} />
     </div>
   );
 }
@@ -162,15 +164,15 @@ export default function Landing() {
           <div className={wrap}>
             <h2 className={h2}>Соцсети нужны каждый день, <br className="hidden md:block" />а времени на них нет</h2>
             <div className="mt-12 grid gap-5 md:mt-14 md:grid-cols-2 lg:mx-auto lg:max-w-[1168px]">
-              <div className="relative flex min-h-[642px] flex-col overflow-hidden rounded-[32px] bg-black px-6 pt-14 text-white sm:px-16">
+              <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-black px-6 pt-14 text-white sm:px-16 md:min-h-[642px]">
                 <h3 className="text-center text-3xl font-semibold leading-8">Как обычно</h3>
                 <ul className="mt-8 space-y-3">{BAD.map((t) => <li key={t} className="rounded-3xl bg-zinc-800/70 px-6 py-5 text-center text-base font-semibold leading-5 backdrop-blur-[2px]">{t}</li>)}</ul>
-                <Image src="/landing/coins.png" alt="" width={374} height={92} className="pointer-events-none absolute bottom-0 left-1/2 h-auto w-80 -translate-x-1/2" />
+                <Image src="/landing/coins.png" alt="" width={374} height={92} className="pointer-events-none mx-auto mt-8 h-auto w-72 md:absolute md:bottom-0 md:left-1/2 md:mt-0 md:w-80 md:-translate-x-1/2" />
               </div>
-              <div className="relative flex min-h-[642px] flex-col overflow-hidden rounded-[32px] bg-lime-300 px-6 pt-14 text-black sm:px-16">
+              <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-lime-300 px-6 pt-14 text-black sm:px-16 md:min-h-[642px]">
                 <h3 className="flex items-center justify-center gap-2.5 text-center text-3xl font-semibold leading-8"><Sparkles size={22} />С Контент-заводом</h3>
                 <ul className="mt-8 space-y-3">{GOOD.map((t) => <li key={t} className="rounded-3xl bg-neutral-100 px-6 py-5 text-center text-base font-semibold leading-5">{t}</li>)}</ul>
-                <Image src="/landing/percent.png" alt="" width={330} height={118} className="pointer-events-none absolute -left-6 bottom-0 h-auto w-72" />
+                <Image src="/landing/percent.png" alt="" width={330} height={118} className="pointer-events-none -ml-6 mt-8 h-auto w-64 md:absolute md:bottom-0 md:left-[-24px] md:ml-0 md:mt-0 md:w-72" />
               </div>
             </div>
           </div>
@@ -184,10 +186,10 @@ export default function Landing() {
             </div>
             <ol className="space-y-5">
               {STEPS.map((s, n) => (
-                <li key={s.t} className="relative h-[384px] overflow-hidden rounded-[20px] bg-[#f5f5f5] p-8 sm:px-10 sm:pt-10">
+                <li key={s.t} className="relative overflow-hidden rounded-[20px] bg-[#f5f5f5] p-6 sm:px-10 sm:pt-10 md:h-[384px]">
                   <h3 className="text-2xl font-semibold leading-7">{s.t}</h3>
                   <p className="mt-3 max-w-md text-base font-semibold leading-5">{s.d}</p>
-                  <Image src="/landing/step.png" alt="" width={357} height={245} className="absolute bottom-0 right-6 h-auto w-[300px] sm:right-24" aria-hidden />
+                  <Image src="/landing/step.png" alt="" width={357} height={245} className="mx-auto mt-4 h-auto w-[280px] md:absolute md:bottom-0 md:right-24 md:mx-0 md:mt-0 md:w-[300px]" aria-hidden />
                   <span className="sr-only">Шаг {n + 1}</span>
                 </li>
               ))}
@@ -207,20 +209,20 @@ export default function Landing() {
         <section id="features" className="pt-24 md:pt-44">
           <div className={wrap}>
             <h2 className={`${h2} mx-auto mb-14 max-w-[820px]`}>Всё, что нужно для регулярного контента, в одном окне</h2>
-            <Rail label="Возможности">
+            <Rail label="Возможности" itemsStart>
               {FEATURES.map((f) => {
                 const bg = f.tone === "blue" ? "/landing/banner-blue.webp" : f.tone === "liquid" ? "/landing/banner-liquid.webp" : null;
                 const light = f.tone !== "blue";
                 return (
-                  <article key={f.key} className={`relative w-[88vw] max-w-[1360px] shrink-0 snap-start overflow-hidden rounded-[20px] p-6 md:min-h-[510px] md:w-[min(1360px,calc(100vw-40px))] md:p-10 ${f.tone === "plain" ? "bg-[#f5f5f5]" : "bg-[#f5f5f5]"} ${light ? "text-black" : "text-white"}`}>
+                  <article key={f.key} className={`relative w-[88vw] max-w-[1360px] shrink-0 snap-start overflow-hidden rounded-[20px] p-6 md:w-full md:p-10 ${f.tone === "plain" ? "bg-[#f5f5f5]" : "bg-[#f5f5f5]"} ${light ? "text-black" : "text-white"}`}>
                     {bg && <Image src={bg} alt="" fill sizes="1360px" className="object-cover" aria-hidden />}
-                    <div className="relative grid gap-8 md:grid-cols-[1fr_516px] md:gap-12 lg:grid-cols-[1fr_516px]">
+                    <div className="relative grid gap-8 xl:grid-cols-[1fr_516px] xl:gap-12">
                       <div className="flex flex-col">
                         <h3 className="text-2xl font-semibold leading-9 md:text-3xl">{f.t}</h3>
-                        <p className="mt-6 max-w-[592px] text-base font-semibold leading-6 md:mt-14">{f.d}</p>
+                        <p className="mt-6 max-w-[592px] text-base font-semibold leading-6 xl:mt-14">{f.d}</p>
                         {f.chips && <ul className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">{f.chips.map((c) => <li key={c} className="rounded-full bg-white/20 px-3 py-1.5">{c}</li>)}</ul>}
                         {f.time && (
-                          <div className="mt-8 flex flex-wrap gap-x-16 gap-y-4 md:mt-auto md:pt-10">
+                          <div className="mt-8 flex flex-wrap gap-x-16 gap-y-4 xl:mt-auto xl:pt-10">
                             <div className={light ? "text-zinc-400" : "text-white/60"}><p className="text-4xl font-semibold leading-10">{f.time[0]}</p><p className={`mt-3 text-base font-semibold ${light ? "text-black" : "text-white"}`}>без помощи ИИ</p></div>
                             <div><p className="text-5xl font-semibold leading-[53px] text-orange-300">{f.time[1]}</p><p className="mt-3 text-base font-semibold">с помощью сервиса</p></div>
                           </div>

@@ -1,0 +1,144 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:516px;height:384px;overflow:hidden;background:#1734fc;font-family:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;color:#172554}
+#bg{position:absolute;inset:0;background:linear-gradient(135deg,#1734fc,#4f46e5 58%,#7c3aed)}
+#bg i{position:absolute;border-radius:50%;background:rgba(255,255,255,.08)}
+#panel{position:absolute;left:24px;top:24px;width:468px;height:336px;background:#fff;border-radius:22px;box-shadow:0 24px 50px -18px rgba(8,16,90,.6);overflow:hidden}
+.abs{position:absolute;left:0;top:0}
+.lab{font-size:10px;font-weight:600;color:#64748b;margin-bottom:4px}
+.inp{height:34px;border-radius:10px;background:#f5f5fb;border:1.5px solid transparent;padding:0 12px;display:flex;align-items:center;font-size:13px;font-weight:600;white-space:nowrap}
+.chip{height:26px;padding:0 11px;border-radius:13px;background:#f5f5fb;font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;color:#475569;margin-right:6px;white-space:nowrap}
+.chip.on{background:#1734fc;color:#fff}
+.bar{height:6px;border-radius:3px;background:#e7e9f6}
+.btn{height:34px;border-radius:17px;background:#1734fc;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0 16px;white-space:nowrap}
+.ic{border-radius:50%;display:grid;place-items:center;overflow:hidden;flex:none;background:#fff}
+.card{background:#fff;border-radius:14px;border:1px solid #ece9fe;box-shadow:0 8px 18px -10px rgba(23,52,252,.25)}
+.h{font-size:15px;font-weight:800}
+.ok{width:18px;height:18px;border-radius:9px;background:#1f9d57;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;flex:none}
+</style></head><body><div id="bg"><i style="width:240px;height:240px;left:-80px;top:-90px"></i><i style="width:300px;height:300px;right:-110px;bottom:-130px"></i></div><div id="panel"></div>
+<script>
+const TGP="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z",VKP="m9.489.004.729-.003h3.564l.73.003.914.01.433.007.418.011.403.014.388.016.374.021.36.025.345.03.333.033c1.74.196 2.933.616 3.833 1.516.9.9 1.32 2.092 1.516 3.833l.034.333.029.346.025.36.02.373.025.588.012.41.013.644.009.915.004.98-.001 3.313-.003.73-.01.914-.007.433-.011.418-.014.403-.016.388-.021.374-.025.36-.03.345-.033.333c-.196 1.74-.616 2.933-1.516 3.833-.9.9-2.092 1.32-3.833 1.516l-.333.034-.346.029-.36.025-.373.02-.588.025-.41.012-.644.013-.915.009-.98.004-3.313-.001-.73-.003-.914-.01-.433-.007-.418-.011-.403-.014-.388-.016-.374-.021-.36-.025-.345-.03-.333-.033c-1.74-.196-2.933-.616-3.833-1.516-.9-.9-1.32-2.092-1.516-3.833l-.034-.333-.029-.346-.025-.36-.02-.373-.025-.588-.012-.41-.013-.644-.009-.915-.004-.98.001-3.313.003-.73.01-.914.007-.433.011-.418.014-.403.016-.388.021-.374.025-.36.03-.345.033-.333c.196-1.74.616-2.933 1.516-3.833.9-.9 2.092-1.32 3.833-1.516l.333-.034.346-.029.36-.025.373-.02.588-.025.41-.012.644-.013.915-.009ZM6.79 7.3H4.05c.13 6.24 3.25 9.99 8.72 9.99h.31v-3.57c2.01.2 3.53 1.67 4.14 3.57h2.84c-.78-2.84-2.83-4.41-4.11-5.01 1.28-.74 3.08-2.54 3.51-4.98h-2.58c-.56 1.98-2.22 3.78-3.8 3.95V7.3H10.5v6.92c-1.6-.4-3.62-2.34-3.71-6.92Z",WPP="M21.469 6.825c.84 1.537 1.318 3.3 1.318 5.175 0 3.979-2.156 7.456-5.363 9.325l3.295-9.527c.615-1.54.82-2.771.82-3.864 0-.405-.026-.78-.07-1.11m-7.981.105c.647-.03 1.232-.105 1.232-.105.582-.075.514-.93-.067-.899 0 0-1.755.135-2.88.135-1.064 0-2.85-.15-2.85-.15-.585-.03-.661.855-.075.885 0 0 .54.061 1.125.09l1.68 4.605-2.37 7.08L5.354 6.9c.649-.03 1.234-.1 1.234-.1.585-.075.516-.93-.065-.896 0 0-1.746.138-2.874.138-.2 0-.438-.008-.69-.015C4.911 3.15 8.235 1.215 12 1.215c2.809 0 5.365 1.072 7.286 2.833-.046-.003-.091-.009-.141-.009-1.06 0-1.812.923-1.812 1.914 0 .89.513 1.643 1.06 2.531.411.72.89 1.643.89 2.977 0 .915-.354 1.994-.821 3.479l-1.075 3.585-3.9-11.61.001.014zM12 22.784c-1.059 0-2.081-.153-3.048-.437l3.237-9.406 3.315 9.087c.024.053.05.101.078.149-1.12.393-2.325.609-3.582.609M1.211 12c0-1.564.336-3.05.935-4.39L7.29 21.709C3.694 19.96 1.212 16.271 1.211 12M12 0C5.385 0 0 5.385 0 12s5.385 12 12 12 12-5.385 12-12S18.615 0 12 0";
+const G=(p,c)=>`<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c}" style="display:block"><path d="${p}"/></svg>`;
+const TGI=G(TGP,"#26A5E4"),VKI=G(VKP,"#0077FF"),WPI=G(WPP,"#21759B"),MXI=`<img src="max-touch.png" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">`;
+
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)],clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const seg=(t,a,b)=>clamp((t-a)/(b-a)),eo=x=>1-Math.pow(1-x,3),eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+const typed=(s,p)=>s.slice(0,Math.round(s.length*clamp(p)));
+const P=$('#panel');
+function mk(html,css,cls='abs'){const d=document.createElement('div');d.className=cls;d.style.cssText=css;d.innerHTML=html;P.appendChild(d);return d}
+function put(el,o,x=0,y=0,s=1){el.style.opacity=o;el.style.transform=`translate(${x}px,${y}px) scale(${s})`}
+function pop(el,k,a,dur=.45,from=18){const p=seg(k,a,a+dur);put(el,clamp(p*2),0,(1-eo(p))*from,.93+.07*back(p));return p}
+const BEAN='<svg viewBox="0 0 24 24" width="100%" height="100%"><ellipse cx="12" cy="12" rx="6.5" ry="9.5" transform="rotate(30 12 12)" fill="#7c4a2d"/><path d="M8 17c4-3 4-7 8-10" stroke="#f5deb3" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+const MARK='<svg viewBox="0 0 30 46" fill="#1734FC" width="100%" height="100%"><path d="M4.6596 11.6835C5.8944 12.9188 6.58808 14.5939 6.58808 16.3405C6.58808 18.0871 5.8944 19.7622 4.6596 20.9974L0 25.6518L4.6596 30.3114L13.9787 20.9974L4.6596 11.6835Z"/><path d="M20.6808 25.6622L25.3404 30.3166C24.1055 29.0814 23.4119 27.4063 23.4119 25.6596C23.4119 23.913 24.1055 22.2379 25.3404 21.0027L30 16.3431L25.3404 11.6835L16.0264 21.0027L20.6808 25.6622Z"/><path d="M5.68375 31.3403C6.919 30.1055 8.59407 29.4118 10.3407 29.4118C12.0873 29.4118 13.7624 30.1055 14.9976 31.3403L19.652 36L24.3116 31.3403L14.9976 22.0264L5.68375 31.3403Z"/><path d="M24.3168 10.6596C23.0816 11.8944 21.4064 12.5881 19.6599 12.5881C17.9132 12.5881 16.2382 11.8944 15.0029 10.6596L10.3433 6L5.68375 10.6596L15.0029 19.9788L24.3168 10.6596Z"/></svg>';
+const bean=(s)=>`<div class="ic" style="width:${s}px;height:${s}px;background:#f6ece3;padding:${s*.18}px">${BEAN}</div>`;
+const SC={};
+const CFG={carousel:{L:12,sp:.58}};const key0=new URLSearchParams(location.search).get('s')||'plan';const L=(CFG[key0]||{L:7}).L,SPD=(CFG[key0]||{sp:1}).sp;window.LEN=L;
+/* ───────── plan ───────── */
+SC.plan=()=>{
+  const head=mk(`<div style="display:flex;justify-content:space-between;align-items:center"><div class="h">Контент-план</div><div style="display:flex;gap:6px;align-items:center"><span class="chip on" style="margin:0">30 дней</span><span class="chip" style="margin:0;background:#e8f6ee;color:#1f9d57;font-weight:800" id="p_n">0 идей</span></div></div>`,'left:16px;top:14px;width:436px');
+  const wk=mk(['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<div style="text-align:center;font-size:10px;color:#94a3b8;font-weight:700">${d}</div>`).join(''),'left:16px;top:50px;width:436px;display:grid;grid-template-columns:repeat(7,1fr);gap:5px');
+  let g='';for(let i=0;i<28;i++)g+=`<div class="cel" style="height:42px;border-radius:9px;background:#f5f5fb;position:relative"><span style="position:absolute;left:5px;top:3px;font-size:9px;color:#b6bdcc;font-weight:700">${i+1}</span><i class="dt" style="position:absolute;left:5px;right:5px;bottom:5px;height:12px;border-radius:6px;background:${['#1734fc','#bef264','#a5b4fc','#fb923c'][i%4]}"></i></div>`;
+  const grid=mk(g,'left:16px;top:68px;width:436px;display:grid;grid-template-columns:repeat(7,1fr);gap:5px');
+  const foot=mk(`<div style="display:flex;align-items:center;gap:10px"><div class="btn" id="p_b" style="height:30px;font-size:12px">Продлить план</div><div id="p_ok" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#1f9d57"><span class="ok">✓</span>План на месяц готов за 1 минуту</div></div>`,'left:16px;top:296px;width:436px');
+  return k=>{pop(head,k,.1);put(wk,seg(k,.2,.6));
+    $$('.cel',grid).forEach((c,i)=>{const p=seg(k,.7+i*.085,1.0+i*.085);const d=$('.dt',c);d.style.transform=`scaleX(${eo(p)})`;d.style.transformOrigin='left';d.style.opacity=p});
+    $('#p_n').textContent=Math.round(30*seg(k,.7,3.4))+' идей';put(grid,1);
+    put(foot,seg(k,3.7,4.2));$('#p_ok').style.opacity=seg(k,4.6,5);$('#p_b').style.transform=`scale(${k>4.2&&k<4.4?.94:1})`};
+};
+/* ───────── carousel ───────── */
+SC.carousel=()=>{
+  const slides=[['#1734fc','#fff','Как выбрать зерно','Листайте →'],['#fff','#172554','01','Смотрите на дату обжарки'],['#172554','#fff','02','Выбирайте под способ заваривания'],['#bef264','#172554','Попробуйте набор','Скидка 15% на первый заказ']];
+  const main=mk(`<div id="c_s" style="position:absolute;inset:0;border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;justify-content:flex-end;border:1px solid #ece9fe"><div id="c_t" style="font-size:22px;font-weight:800;line-height:1.1"></div><div id="c_d" style="font-size:12px;font-weight:600;margin-top:8px;opacity:.85"></div></div><div style="position:absolute;left:14px;top:14px;width:30px;height:20px;opacity:.9" id="c_l">${bean(20)}</div>`,'left:16px;top:20px;width:190px;height:236px');
+  const chips=mk(`<span class="chip on" id="c_c1" style="margin-right:4px;padding:0 9px">Фирменный</span><span class="chip" id="c_c2" style="margin-right:4px;padding:0 9px">Светлый</span><span class="chip" id="c_c3" style="margin:0;padding:0 9px">Тёмный</span>`,'left:216px;top:18px;width:250px;white-space:nowrap');
+  const thumbs=mk(slides.concat([['#a5b4fc','#172554','','']]).concat([['#fb923c','#fff','','']]).map((s,i)=>`<div class="th" style="width:68px;height:86px;border-radius:11px;background:${s[0]};border:1px solid #ece9fe;padding:8px;display:flex;align-items:flex-end;font-size:11px;font-weight:800;color:${s[1]}">${i+1}</div>`).join(''),'left:224px;top:58px;width:230px;display:grid;grid-template-columns:repeat(3,68px);gap:8px 10px');
+  const info=mk(`<span class="chip" style="margin:0;background:#f1f2ff;color:#1734fc;font-weight:800" id="c_n">0 слайдов</span><div class="btn" style="height:30px;font-size:12px;margin-left:8px" id="c_b">Скачать архивом</div>`,'left:16px;top:284px;width:436px;display:flex;align-items:center');
+  return k=>{const sl=Math.min(3,Math.floor(seg(k,.6,4.2)*4));const s=slides[sl];put(main,seg(k,.1,.5),0,0,1);
+    const pp=eo(seg(k,.6+sl*.9,.9+sl*.9));
+    $('#c_s').style.background=s[0];$('#c_s').style.color=s[1];$('#c_t').textContent=typed(s[2],seg(k,.7+sl*.9,1.3+sl*.9)||1);$('#c_d').textContent=typed(s[3],seg(k,1.0+sl*.9,1.6+sl*.9)||1);$('#c_l').style.display=sl===0?'block':'none';
+    put(chips,seg(k,.2,.6));$('#c_c1').className='chip'+(k<3.4?' on':'');$('#c_c2').className='chip'+(k>=3.4&&k<4.6?' on':'');$('#c_c3').className='chip'+(k>=4.6?' on':'');
+    $$('.th',thumbs).forEach((t,i)=>{const p=seg(k,.8+i*.55,1.2+i*.55);t.style.opacity=p;t.style.transform=`scale(${.8+.2*back(p)})`});
+    put(info,seg(k,3.8,4.3));$('#c_n').textContent=Math.round(6*seg(k,.8,4))+' слайдов';$('#c_b').style.transform=`scale(${k>5&&k<5.2?.94:1})`};
+};
+/* ───────── posts ───────── */
+SC.posts=()=>{
+  const st=mk(`<div class="lab">Тип постов</div><span class="chip" id="s1">Новостные</span><span class="chip" id="s2">Экспертные</span><span class="chip" id="s3">Продающие</span><span class="chip" id="s4">Юмор</span><div style="margin-top:10px;display:flex;gap:8px"><span class="chip" id="o1" style="margin:0">Длина: короткий</span><span class="chip" id="o2" style="margin:0">Эмодзи: умеренно</span><span class="chip" id="o3" style="margin:0">Хештеги: 3</span></div>`,'left:16px;top:16px;width:436px');
+  const text='Как выбрать зерно для кофе дома?\n\nТри простых правила:\n• смотрите на дату обжарки\n• берите под свой способ заваривания\n• пробуйте небольшими пачками\n\n#кофе #зерно #дом';
+  const post=mk(`<div style="display:flex;align-items:center;gap:10px;background:#f1f2ff;border-radius:11px;padding:8px 10px">${bean(30)}<div><div style="font-size:12.5px;font-weight:700">Зерно</div><div style="font-size:10px;color:#64748b">обжарка кофе · сегодня</div></div></div><div id="p_t" style="font-size:12.5px;line-height:18px;margin-top:10px;white-space:pre-line;font-weight:500"></div>`,'left:16px;top:98px;width:436px;height:226px;padding:12px;border-radius:14px;border:1px solid #ece9fe;box-shadow:0 8px 18px -10px rgba(23,52,252,.25);background:#fff');
+  return k=>{put(st,seg(k,.1,.5));put(post,seg(k,.4,.8),0,(1-eo(seg(k,.4,.8)))*16);
+    $('#s2').className='chip'+(k>1.0?' on':'');['o1','o2','o3'].forEach((id,i)=>{$('#'+id).style.background=k>1.5+i*.3?'#e8ebff':'#f5f5fb'});
+    $('#p_t').textContent=typed(text,seg(k,1.4,5.2))}
+};
+/* ───────── images ───────── */
+SC.images=()=>{
+  const inp=mk(`<div class="lab">Описание картинки</div><div class="inp" id="i_i" style="width:436px"></div>`,'left:16px;top:16px;width:436px');
+  const btn=mk('<div class="btn" id="i_b">Создать картинку</div>','left:16px;top:76px;width:150px');
+  let beans='';for(let i=0;i<9;i++)beans+=`<div style="position:absolute;left:${20+(i%3)*80+(i*13%20)}px;top:${14+Math.floor(i/3)*50+(i*7%14)}px;width:46px;height:46px;transform:rotate(${i*37}deg)">${BEAN}</div>`;
+  const img=mk(`<div id="i_p" style="position:absolute;inset:0;border-radius:16px;background:radial-gradient(circle at 28% 25%,#f5deb3,#c9956b 45%,#4a2c17 100%);overflow:hidden">${beans}</div><div id="i_l" style="position:absolute;right:12px;bottom:12px;background:#fff;border-radius:14px;padding:5px 10px 5px 6px;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800">${bean(20)}Зерно</div><div id="i_s" style="position:absolute;inset:0;border-radius:16px;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%)"></div>`,'left:16px;top:118px;width:250px;height:206px;overflow:hidden;border-radius:16px');
+  const vars=mk([0,1,2].map(i=>`<div class="va" style="width:150px;height:62px;border-radius:12px;background:${['linear-gradient(135deg,#14532d,#bef264)','linear-gradient(135deg,#1734fc,#a5b4fc)','linear-gradient(135deg,#7c4a2d,#fb923c)'][i]};margin-bottom:10px"></div>`).join(''),'left:286px;top:118px;width:150px');
+  return k=>{put(inp,seg(k,.1,.5));$('#i_i').textContent=typed('Зёрна кофе, тёплый свет, в стиле бренда',seg(k,.5,2));$('#i_i').style.borderColor=k>.45&&k<2.2?'#1734fc':'transparent';
+    put(btn,seg(k,.3,.7));$('#i_b').style.transform=`scale(${k>2.2&&k<2.4?.94:1})`;
+    const p=seg(k,2.4,4.2);put(img,clamp(p*3));$('#i_p').style.filter=`blur(${(1-eo(p))*18}px) saturate(${.4+.6*eo(p)})`;$('#i_p').style.transform=`scale(${1.15-.15*eo(p)})`;
+    $('#i_s').style.opacity=p>0&&p<1?1:0;$('#i_s').style.transform=`translateX(${(p*2-1)*260}px)`;
+    $('#i_l').style.opacity=seg(k,4.2,4.7);$('#i_l').style.transform=`translateY(${(1-eo(seg(k,4.2,4.7)))*12}px)`;
+    $$('.va',vars).forEach((v,i)=>{const q=seg(k,4.6+i*.25,5.1+i*.25);v.style.opacity=q;v.style.transform=`translateX(${(1-eo(q))*24}px)`})}
+};
+/* ───────── seo ───────── */
+SC.seo=()=>{
+  const ed=mk(`<div class="lab">Заголовок H1</div><div class="inp" id="e_h" style="font-size:14px;font-weight:800"></div><div class="lab" style="margin-top:12px">Структура статьи</div><div id="e_o" style="display:grid;gap:7px">${['H2  Как выбрать зерно: арабика и робуста','H2  Степень обжарки и вкус','H2  Какой помол нужен вашей кофеварке','H2  Как хранить кофе дома'].map(t=>`<div class="ol" style="background:#f5f5fb;border-radius:9px;padding:8px 10px;font-size:11.5px;font-weight:600">${t}</div>`).join('')}</div>`,'left:16px;top:16px;width:262px');
+  const side=mk(`<div style="display:flex;align-items:center;gap:12px"><svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#e7e9f6" stroke-width="8"/><circle id="e_r" cx="32" cy="32" r="26" fill="none" stroke="#1f9d57" stroke-width="8" stroke-linecap="round" transform="rotate(-90 32 32)" stroke-dasharray="163" stroke-dashoffset="163"/><text id="e_p" x="32" y="37" text-anchor="middle" font-size="15" font-weight="800" fill="#172554">0</text></svg><div><div style="font-size:13px;font-weight:800">SEO-оценка</div><div style="font-size:10.5px;color:#64748b">проверка перед публикацией</div></div></div><div style="margin-top:12px;display:grid;gap:8px" id="e_c">${['Заголовок H1','Мета-описание','Ключевые слова','Адрес страницы (slug)'].map(t=>`<div class="ck" style="display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600"><span class="ok" style="background:#dfe3f7">✓</span>${t}</div>`).join('')}</div>`,'left:294px;top:16px;width:160px');
+  const pub=mk(`<div class="ic" style="width:24px;height:24px;background:none;overflow:visible">${WPI}</div><div id="e_btn" class="btn" style="height:32px;font-size:12px">Опубликовать в WordPress</div><span id="e_done" style="font-size:11.5px;font-weight:700;color:#1f9d57;display:flex;align-items:center;gap:5px"><span class="ok">✓</span>Черновик создан</span>`,'left:16px;top:290px;width:436px;display:flex;align-items:center;gap:10px');
+  return k=>{put(ed,seg(k,.1,.5));put(side,seg(k,.3,.7));$('#e_h').textContent=typed('Как выбрать зерно для кофе дома',seg(k,.5,1.5));$('#e_h').style.borderColor='transparent';
+    $$('.ol',ed).forEach((o,i)=>{const p=seg(k,1.5+i*.4,1.9+i*.4);o.style.opacity=p;o.style.transform=`translateX(${(1-eo(p))*-18}px)`});
+    const sc=eo(seg(k,2,4.2));$('#e_r').style.strokeDashoffset=163*(1-.92*sc);$('#e_p').textContent=Math.round(92*sc);
+    $$('.ck',side).forEach((c,i)=>{const on=k>2.3+i*.55;$('.ok',c).style.background=on?'#1f9d57':'#dfe3f7'});
+    put(pub,seg(k,3.8,4.3));$('#e_btn').style.transform=`scale(${k>4.8&&k<5&&1?.94:1})`;$('#e_done').style.opacity=seg(k,5.2,5.6)}
+};
+/* ───────── monitor ───────── */
+SC.monitor=()=>{
+  const top=mk(`<div class="h">Новости</div><div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#1f9d57"><span id="m_sp" style="display:inline-block;width:14px;height:14px;border:2px solid #1f9d57;border-right-color:transparent;border-radius:50%"></span>обновлено</div>`,'left:16px;top:14px;width:436px;display:flex;justify-content:space-between;align-items:center');
+  const items=[[TGI,'Кофейный дайджест','t.me/coffee_digest','Спрос на specialty-кофе вырос на 30%'],[VKI,'Coffee Life','vk.com/coffee_life','Новая партия арабики из Эфиопии'],[TGI,'Кофе и бизнес','t.me/coffeebiz','Как открыть мини-обжарку: расчёты'],[VKI,'Coffee Life','vk.com/coffee_life','Тренды кофе: холодный кофе в моде']];
+  const feed=mk(`<div id="m_f" style="position:absolute;left:0;top:0;width:250px">${items.map(it=>`<div class="nw" style="background:#f5f5fb;border-radius:14px;padding:8px;margin-bottom:9px"><div style="display:flex;align-items:center;gap:8px;background:#e9ebff;border-radius:10px;padding:6px 8px"><div class="ic" style="width:24px;height:24px;background:none;overflow:visible">${it[0]}</div><div><div style="font-size:11.5px;font-weight:700">${it[1]}</div><div style="font-size:9.5px;color:#64748b">${it[2]}</div></div></div><div style="font-size:12px;font-weight:700;margin:7px 3px 3px;line-height:1.25">${it[3].replace('кофе','<mark style=\"background:#fde68a;border-radius:3px;padding:0 2px\">кофе</mark>')}</div></div>`).join('')}</div>`,'left:16px;top:52px;width:250px;height:272px;overflow:hidden');
+  const ideas=mk(`<div class="lab" style="font-size:11px">Идеи для плана</div><div id="m_i" style="display:grid;gap:8px">${['Почему вырос спрос на specialty','Эфиопская арабика: чем особенная','Мини-обжарка: с чего начать','Холодный кофе дома: рецепты'].map(t=>`<div class="id" style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #ece9fe;border-radius:11px;padding:8px 10px;font-size:11.5px;font-weight:600;box-shadow:0 6px 14px -10px rgba(23,52,252,.4)"><span style="color:#1734fc;font-weight:800">✦</span>${t}</div>`).join('')}</div>`,'left:284px;top:52px;width:170px');
+  return k=>{put(top,seg(k,.1,.5));$('#m_sp').style.transform=`rotate(${k*360}deg)`;
+    const f=$('#m_f');put(feed,seg(k,.2,.6));f.style.transform=`translateY(${-eio(seg(k,1.2,5.4))*150}px)`;
+    $$('.nw',f).forEach((n,i)=>{const p=seg(k,.3+i*.25,.7+i*.25);n.style.opacity=p});
+    put(ideas,seg(k,.5,.9));$$('.id',ideas).forEach((d,i)=>{const p=seg(k,1.6+i*.9,2.1+i*.9);d.style.opacity=p;d.style.transform=`translateX(${(1-eo(p))*30}px) scale(${.94+.06*back(p)})`})}
+};
+/* ───────── analytics ───────── */
+SC.analytics=()=>{
+  const tiles=[['Просмотры',12480,'','#1734fc'],['Реакции',1340,'','#1f9d57'],['Охват',28,'%','#fb923c']];
+  const kp=mk(tiles.map(t=>`<div class="kp" style="background:#f5f5fb;border-radius:13px;padding:10px 12px"><div style="font-size:10px;color:#64748b;font-weight:700">${t[0]}</div><div class="kv" style="font-size:20px;font-weight:800;margin-top:2px;color:${t[3]}">0</div></div>`).join(''),'left:16px;top:16px;width:436px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px');
+  const days=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],hs=[.35,.5,.42,.66,.8,.58,.92];
+  const ch=mk(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:12px">Просмотры по дням</b><span class="chip" style="margin:0;background:#fff7ed;color:#c2410c;font-weight:800" id="a_best">Лучшее время: 10:00</span></div><div style="display:flex;align-items:flex-end;gap:12px;height:150px">${hs.map((h,i)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;height:100%"><div class="bb" data-h="${h}" style="width:100%;border-radius:8px 8px 3px 3px;background:${i===6?'#1734fc':'#a5b4fc'};height:0"></div><span style="font-size:10px;color:#94a3b8;font-weight:700">${days[i]}</span></div>`).join('')}</div>`,'left:16px;top:98px;width:436px;height:226px;padding:12px 14px;border:1px solid #ece9fe;border-radius:14px');
+  return k=>{put(kp,seg(k,.1,.5));$$('.kv',kp).forEach((v,i)=>{const n=Math.round(tiles[i][1]*eo(seg(k,.5,2.6)));v.textContent=(i===2?'+':'')+n.toLocaleString('ru-RU').replace(/ /g,' ')+tiles[i][2]});
+    put(ch,seg(k,.4,.8));$$('.bb',ch).forEach((b,i)=>{const p=eo(seg(k,.9+i*.2,1.7+i*.2));b.style.height=(p*Number(b.dataset.h)*128)+'px'});
+    $('#a_best').style.opacity=seg(k,3.4,3.9);$('#a_best').style.transform=`scale(${.9+.1*back(seg(k,3.4,3.9))})`}
+};
+/* ───────── autopilot ───────── */
+SC.autopilot=()=>{
+  const m1=mk(`<div class="ic" style="width:28px;height:28px;background:#f1f2ff;padding:6px;flex:none">${MARK}</div><div style="background:#f5f5fb;border-radius:4px 14px 14px 14px;padding:9px 12px;font-size:12px;font-weight:600;line-height:17px">Здравствуйте! Чем помочь? Могу обновить новости и настроить завод.</div>`,'left:16px;top:16px;width:340px;display:flex;gap:8px');
+  const m2=mk(`<div style="background:#1734fc;color:#fff;border-radius:14px 14px 4px 14px;padding:9px 12px;font-size:12px;font-weight:600" id="u_t"></div>`,'right:16px;top:74px;display:block;left:auto');
+  const m3=mk(`<div class="ic" style="width:28px;height:28px;background:#f1f2ff;padding:6px;flex:none">${MARK}</div><div style="flex:1"><div style="background:#f5f5fb;border-radius:4px 14px 14px 14px;padding:9px 12px;font-size:12px;font-weight:600;line-height:17px">Готово к включению. Автопубликация по расписанию и продление плана на 7 дней:</div><div style="display:flex;gap:8px;margin-top:8px"><div class="btn" id="a_b1" style="height:28px;font-size:11.5px">Включить автопубликацию</div><div class="btn" id="a_b2" style="height:28px;font-size:11.5px;background:#f1f2ff;color:#1734fc">Продлить план</div></div></div>`,'left:16px;top:122px;width:420px;display:flex;gap:8px');
+  const sw=mk(`<span style="font-size:12px;font-weight:700">Автопубликация</span><div id="a_sw" style="width:40px;height:23px;border-radius:12px;background:#dfe3f7;position:relative"><i id="a_k" style="position:absolute;left:3px;top:3px;width:17px;height:17px;border-radius:9px;background:#fff"></i></div><span id="a_ok" style="font-size:11.5px;font-weight:700;color:#1f9d57;display:flex;align-items:center;gap:5px"><span class="ok">✓</span>включена</span>`,'left:16px;top:236px;width:436px;display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f5f5fb;border-radius:13px;left:16px');
+  const st=mk(['Идеи собраны','Черновики готовы','Публикация по расписанию'].map((t,i)=>`<span class="chip st" style="margin:0 6px 0 0;background:#e8f6ee;color:#1f9d57;font-weight:800">✓ ${t}</span>`).join(''),'left:16px;top:292px;width:436px');
+  return k=>{pop(m1,k,.1,.4);$('#u_t').textContent=typed('Включи автопубликацию и продли план',seg(k,.9,2));put(m2,seg(k,.8,1.1));
+    pop(m3,k,2.4,.5);const click=k>4.1&&k<4.3;$('#a_b1').style.transform=`scale(${click?.94:1})`;
+    put(sw,seg(k,3.4,3.8));const on=seg(k,4.2,4.5);$('#a_sw').style.background=on>0?'#1734fc':'#dfe3f7';$('#a_k').style.left=(3+17*on)+'px';$('#a_ok').style.opacity=seg(k,4.5,4.9);
+    $$('.st',st).forEach((c,i)=>{const p=seg(k,4.8+i*.35,5.2+i*.35);c.style.opacity=p;c.style.transform=`translateY(${(1-eo(p))*8}px)`});put(st,1)}
+};
+/* ───────── teams ───────── */
+SC.teams=()=>{
+  const brands=[['#7c4a2d','Зерно','Кофе'],['#14532d','Чайный дом','Чай'],['#1734fc','Велоклуб','Спорт']];
+  const bl=mk(`<div class="lab" style="font-size:11px">Бренды</div>${brands.map((b,i)=>`<div class="br" style="display:flex;align-items:center;gap:10px;border:1.5px solid #ece9fe;border-radius:13px;padding:9px 11px;margin-bottom:9px"><div style="width:30px;height:30px;border-radius:9px;background:${b[0]}"></div><div><div style="font-size:12.5px;font-weight:800">${b[1]}</div><div style="font-size:10px;color:#64748b">${b[2]} · свои каналы и стиль</div></div></div>`).join('')}`,'left:16px;top:16px;width:210px');
+  const team=mk(`<div class="lab" style="font-size:11px">Команда</div>${[['АИ','Александр','Админ','#1734fc'],['МП','Мария','Редактор','#7c3aed'],['КЛ','Клиент','Наблюдатель','#64748b']].map(m=>`<div class="mm" style="display:flex;align-items:center;gap:10px;margin-bottom:11px"><div style="width:32px;height:32px;border-radius:50%;background:${m[3]};color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center">${m[0]}</div><div style="flex:1;font-size:12.5px;font-weight:700">${m[1]}</div><span class="chip" style="margin:0;font-weight:800">${m[2]}</span></div>`).join('')}<div class="btn" id="t_b" style="height:30px;font-size:12px;margin-top:6px;width:150px">+ Пригласить</div>`,'left:246px;top:16px;width:206px');
+  const note=mk(`<span class="chip on" style="margin:0">Агентство: безлимит брендов и заводов</span>`,'left:16px;top:292px');
+  return k=>{const bs=$$('.br',bl);put(bl,seg(k,.1,.5));bs.forEach((b,i)=>{const p=seg(k,.4+i*.3,.8+i*.3);b.style.opacity=p;b.style.transform=`translateX(${(1-eo(p))*-20}px)`;const sel=(i===Math.min(2,Math.floor(seg(k,1.6,4.4)*3)));b.style.borderColor=k>1.6&&sel?'#1734fc':'#ece9fe';b.style.background=k>1.6&&sel?'#f1f2ff':'#fff'});
+    put(team,seg(k,.3,.7));$$('.mm',team).forEach((m,i)=>{const p=seg(k,1+i*.6,1.5+i*.6);m.style.opacity=p;m.style.transform=`translateX(${(1-eo(p))*24}px)`});
+    $('#t_b').style.opacity=seg(k,2.8,3.2);$('#t_b').style.transform=`scale(${k>3.8&&k<4?.94:1})`;put(note,seg(k,4.4,4.9),0,(1-eo(seg(k,4.4,4.9)))*10)}
+};
+const key=new URLSearchParams(location.search).get('s')||'plan';
+const R=SC[key]();
+window.render=function(t){const wi=seg(t,0,.55),wo=seg(t,L-.6,L),f=wi*(1-wo);P.style.opacity=clamp(f*1.7);P.style.transform=`translateY(${(1-eo(f))*26}px) scale(${.96+.04*eo(f)})`;R(t*SPD)};
+render(0);
+</script></body></html>

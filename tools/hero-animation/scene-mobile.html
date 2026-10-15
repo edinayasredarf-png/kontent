@@ -1,0 +1,121 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:transparent;width:1600px;height:1200px;overflow:hidden;font-family:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;color:#172554}
+#phone{position:absolute;left:63.67px;top:10px;zoom:3;width:406px;height:790px;background:#0c0f1a;border-radius:56px;padding:8px;box-shadow:0 30px 60px -20px rgba(8,16,90,.6),inset 0 0 0 2px #2a2f45}
+#screen{position:relative;width:390px;height:774px;background:#fff;border-radius:48px;overflow:hidden}
+.abs{position:absolute;left:0;top:0;transform-origin:50% 50%}
+#isl{position:absolute;left:150px;top:10px;width:90px;height:24px;border-radius:12px;background:#0c0f1a;z-index:30}
+#sb{position:absolute;left:0;top:0;width:100%;height:44px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0;font-size:13px;font-weight:700}
+#hd{position:absolute;left:0;top:44px;width:100%;height:46px;display:flex;align-items:center;padding:0 18px;gap:8px;border-bottom:1px solid #ece9fe}
+#hd svg{width:15px;height:23px;margin-right:4px}
+.dot{width:24px;height:24px;border-radius:12px;background:#f1f2ff;color:#94a3b8;font-size:11px;font-weight:800;display:grid;place-items:center;flex:none}
+#stp{margin-left:6px;font-size:14px;font-weight:700;white-space:nowrap}
+#content{position:absolute;left:0;top:90px;width:390px;height:310px}
+.card{background:#fff;border-radius:14px;border:1px solid #ece9fe;box-shadow:0 8px 20px -10px rgba(23,52,252,.25)}
+.lab{font-size:10.5px;font-weight:600;color:#64748b;margin-bottom:4px}
+.inp{height:36px;border-radius:10px;background:#f5f5fb;border:1.5px solid transparent;padding:0 12px;display:flex;align-items:center;font-size:14px;font-weight:600;white-space:nowrap}
+.chip{height:28px;padding:0 11px;border-radius:14px;background:#f5f5fb;font-size:12px;font-weight:600;display:inline-flex;align-items:center;color:#475569;margin-right:6px}
+.chip.on{background:#1734fc;color:#fff}
+.bar{height:6px;border-radius:3px;background:#e7e9f6}
+.btn{height:38px;border-radius:19px;background:#1734fc;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+.ic{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;flex:none}
+.tg{background:#fff}.vk{background:#fff;border-radius:22%!important}.mx{background:none;overflow:hidden}.ic{overflow:hidden}.gl{background:#cbd5e1;color:#475569}
+</style></head><body>
+<div id="phone" class="abs"><div id="screen"><div id="isl"></div>
+<div id="sb"><span>9:41</span><span>●●● ▮</span></div>
+<div id="hd"><svg viewBox="0 0 30 46" fill="#1734FC"><path d="M4.6596 11.6835C5.8944 12.9188 6.58808 14.5939 6.58808 16.3405C6.58808 18.0871 5.8944 19.7622 4.6596 20.9974L0 25.6518L4.6596 30.3114L13.9787 20.9974L4.6596 11.6835Z"/><path d="M20.6808 25.6622L25.3404 30.3166C24.1055 29.0814 23.4119 27.4063 23.4119 25.6596C23.4119 23.913 24.1055 22.2379 25.3404 21.0027L30 16.3431L25.3404 11.6835L16.0264 21.0027L20.6808 25.6622Z"/><path d="M5.68375 31.3403C6.919 30.1055 8.59407 29.4118 10.3407 29.4118C12.0873 29.4118 13.7624 30.1055 14.9976 31.3403L19.652 36L24.3116 31.3403L14.9976 22.0264L5.68375 31.3403Z"/><path d="M24.3168 10.6596C23.0816 11.8944 21.4064 12.5881 19.6599 12.5881C17.9132 12.5881 16.2382 11.8944 15.0029 10.6596L10.3433 6L5.68375 10.6596L15.0029 19.9788L24.3168 10.6596Z"/></svg><div class="dot" id="d0">1</div><div class="dot" id="d1">2</div><div class="dot" id="d2">3</div><div class="dot" id="d3">4</div><div class="dot" id="d4">5</div><div id="stp"></div></div>
+<div id="content"></div></div></div>
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)],clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const seg=(t,a,b)=>clamp((t-a)/(b-a)),eo=x=>1-Math.pow(1-x,3),eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+const typed=(s,p)=>s.slice(0,Math.round(s.length*clamp(p)));
+function place(el,o=1,x=0,y=0,s=1){el.style.opacity=o;el.style.transform=`translate(${x}px,${y}px) scale(${s})`}
+const C=$('#content');
+function mk(html,css){const d=document.createElement('div');d.className='abs';d.style.cssText=css;if(/display:flex/.test(css))d.dataset.d='flex';d.innerHTML=html;C.appendChild(d);return d}
+const TGP="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z",VKP="m9.489.004.729-.003h3.564l.73.003.914.01.433.007.418.011.403.014.388.016.374.021.36.025.345.03.333.033c1.74.196 2.933.616 3.833 1.516.9.9 1.32 2.092 1.516 3.833l.034.333.029.346.025.36.02.373.025.588.012.41.013.644.009.915.004.98-.001 3.313-.003.73-.01.914-.007.433-.011.418-.014.403-.016.388-.021.374-.025.36-.03.345-.033.333c-.196 1.74-.616 2.933-1.516 3.833-.9.9-2.092 1.32-3.833 1.516l-.333.034-.346.029-.36.025-.373.02-.588.025-.41.012-.644.013-.915.009-.98.004-3.313-.001-.73-.003-.914-.01-.433-.007-.418-.011-.403-.014-.388-.016-.374-.021-.36-.025-.345-.03-.333-.033c-1.74-.196-2.933-.616-3.833-1.516-.9-.9-1.32-2.092-1.516-3.833l-.034-.333-.029-.346-.025-.36-.02-.373-.025-.588-.012-.41-.013-.644-.009-.915-.004-.98.001-3.313.003-.73.01-.914.007-.433.011-.418.014-.403.016-.388.021-.374.025-.36.03-.345.033-.333c.196-1.74.616-2.933 1.516-3.833.9-.9 2.092-1.32 3.833-1.516l.333-.034.346-.029.36-.025.373-.02.588-.025.41-.012.644-.013.915-.009ZM6.79 7.3H4.05c.13 6.24 3.25 9.99 8.72 9.99h.31v-3.57c2.01.2 3.53 1.67 4.14 3.57h2.84c-.78-2.84-2.83-4.41-4.11-5.01 1.28-.74 3.08-2.54 3.51-4.98h-2.58c-.56 1.98-2.22 3.78-3.8 3.95V7.3H10.5v6.92c-1.6-.4-3.62-2.34-3.71-6.92Z";
+const G=(p,c)=>`<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c}" style="display:block"><path d="${p}"/></svg>`;
+const TGI=G(TGP,"#26A5E4"),VKI=G(VKP,"#0077FF"),MXI=`<img src="max-touch.png" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">`;
+const tgI=TGI;
+const bean='<svg viewBox="0 0 24 24" width="100%" height="100%"><ellipse cx="12" cy="12" rx="6.5" ry="9.5" transform="rotate(30 12 12)" fill="#7c4a2d"/><path d="M8 17c4-3 4-7 8-10" stroke="#f5deb3" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+const cardCss='background:#fff;border-radius:14px;border:1px solid #ece9fe;box-shadow:0 8px 20px -10px rgba(23,52,252,.25);';
+/* A */
+const A={};
+A.form=mk(`<div class="lab">Название</div><div class="inp" id="a_n"></div><div class="lab" style="margin-top:9px">Чем занимается компания</div><div class="inp" id="a_d" style="height:50px;align-items:flex-start;padding-top:7px;white-space:normal;line-height:18px;font-size:13px"></div><div class="lab" style="margin-top:9px">Тон общения</div><div><span class="chip" id="a_c1">Деловой</span><span class="chip" id="a_c2">Дружелюбный</span><span class="chip" id="a_c3">Юмор</span></div><div class="lab" style="margin-top:9px">Фирменные цвета</div><div id="a_cols" style="display:flex;gap:9px"><b style="width:24px;height:24px;border-radius:50%;background:#7c4a2d"></b><b style="width:24px;height:24px;border-radius:50%;background:#f5deb3"></b><b style="width:24px;height:24px;border-radius:50%;background:#14532d"></b><b style="width:24px;height:24px;border-radius:50%;background:#fb923c"></b></div>`,'left:16px;top:6px;width:358px');
+A.logo=mk(`<div style="width:54px;height:54px;border-radius:15px;background:#f6ece3;padding:9px">${bean}</div>`,'left:310px;top:198px;width:54px');
+A.pr=mk(`<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:5px"><span>Профиль бренда</span><span id="a_pct">0%</span></div><div class="bar"><div id="a_fill" style="height:100%;width:0;background:#1734fc;border-radius:3px"></div></div>`,'left:16px;top:266px;width:358px');
+/* B */
+const B={};
+B.card=mk(`<div style="font-size:16px;font-weight:800;margin-bottom:12px">Новый завод</div><div class="lab">Название</div><div class="inp" id="b_n"></div><div class="lab" style="margin-top:12px">Форматы материалов</div><div><span class="chip" id="b_c1">Пост</span><span class="chip" id="b_c2">Карусель</span><span class="chip" id="b_c3">SEO</span><span class="chip" id="b_c4">Опрос</span></div><div class="btn" id="b_btn" style="margin-top:22px">Создать завод</div>`,cardCss+'left:16px;top:14px;width:358px;padding:16px 16px');
+B.fact=mk(`<div style="display:flex;align-items:center;gap:12px"><div style="width:52px;height:52px;border-radius:15px;background:#1734fc;display:grid;place-items:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6 4V9l6 4V5h3v16z"/></svg></div><div><div style="font-size:16px;font-weight:800">Блог «Зерно»</div><div style="font-size:11px;color:#64748b;margin-top:2px">Пост, Карусель</div></div></div><div style="margin-top:18px;height:10px;border-radius:5px;background:#e7e9f6;position:relative;overflow:hidden"><div id="b_belt" style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,#1734fc 0 14px,transparent 14px 28px);opacity:.55"></div></div><div id="b_items" style="height:40px;position:relative;overflow:hidden"></div><div id="b_badge" style="display:inline-flex;margin-top:8px;height:28px;padding:0 12px;border-radius:14px;background:#e8f6ee;color:#1f9d57;font-weight:700;font-size:12px;align-items:center">✓ Завод запущен</div>`,cardCss+'left:16px;top:34px;width:358px;padding:18px 16px;height:200px');
+for(let i=0;i<6;i++){const e=document.createElement('div');e.style.cssText='position:absolute;top:6px;width:22px;height:22px;border-radius:6px;background:'+['#bef264','#1734fc','#fb923c','#a5b4fc','#bef264','#1734fc'][i];$('#b_items').appendChild(e)}
+/* C */
+const Cc={};
+Cc.head=mk(`<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:16px;font-weight:800">Источники</div><div id="c_cnt" style="background:#1734fc;color:#bef264;font-weight:800;font-size:12px;border-radius:12px;padding:4px 10px">+0 новостей</div></div>`,'left:16px;top:6px;width:358px');
+const rows=[['tg','Telegram','@coffeebiz',tgI],['vk','ВКонтакте','vk.com/coffee_life',VKI],['gl','Сайт','coffeetrends.ru','◎'],['gl','Новости по запросу','кофе, обжарка','≋']];
+Cc.rows=rows.map((r,i)=>mk(`<div class="ic ${r[0]}" style="width:34px;height:34px;font-size:13px">${r[3]}</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">${r[1]}</div><div style="font-size:11px;color:#64748b">${r[2]}</div></div><div class="sw" style="width:40px;height:24px;border-radius:12px;background:#dfe3f7;position:relative"><i style="position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:9px;background:#fff"></i></div>`,cardCss+`left:16px;top:${40+i*66}px;width:358px;height:56px;display:flex;align-items:center;gap:12px;padding:0 14px`));
+/* D */
+const D={};
+D.src=mk(`<div class="ic tg" style="width:30px;height:30px">${tgI}</div><div style="flex:1;min-width:0"><div style="font-size:11px;color:#64748b">Кофейный дайджест · t.me/coffee_digest</div><div style="font-size:13px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden">Спрос на specialty-кофе вырос на 30%</div></div><div id="d_btn" style="background:#1734fc;color:#fff;font-size:11px;font-weight:700;border-radius:13px;padding:6px 10px;white-space:nowrap">Создать</div>`,cardCss+'left:16px;top:4px;width:358px;height:56px;display:flex;align-items:center;gap:10px;padding:0 12px');
+const mini=[`<div class="bar" style="margin-top:8px"></div><div class="bar" style="margin-top:6px;width:88%"></div><div class="bar" style="margin-top:6px;width:62%"></div>`,`<div style="position:relative;height:40px;margin-top:6px"><div class="sl" style="position:absolute;left:8px;top:0;width:32px;height:40px;border-radius:7px;background:#a5b4fc"></div><div class="sl" style="position:absolute;left:8px;top:0;width:32px;height:40px;border-radius:7px;background:#bef264"></div><div class="sl" style="position:absolute;left:8px;top:0;width:32px;height:40px;border-radius:7px;background:#1734fc"></div></div>`,`<div style="font-size:12px;font-weight:800;margin-top:6px;line-height:1.15">Как выбрать зерно для дома</div><div class="bar" style="margin-top:6px"></div><div class="bar" style="margin-top:5px;width:70%"></div>`,`<div style="margin-top:6px;height:40px;border-radius:9px;background:linear-gradient(135deg,#7c4a2d,#f5deb3 60%,#bef264)"></div>`];
+D.cards=[0,1,2,3].map(i=>mk(`<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">${['Пост','Карусель','SEO-статья','Картинка'][i]}</b><span class="dn" style="width:18px;height:18px;border-radius:9px;background:#1f9d57;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center">✓</span></div>${mini[i]}<div style="height:5px;border-radius:3px;background:#e7e9f6;margin-top:9px;overflow:hidden"><div class="pg" style="height:100%;width:0;background:#1734fc"></div></div>`,cardCss+`left:${i%2?200:16}px;top:${72+Math.floor(i/2)*110}px;width:174px;height:100px;padding:10px 12px`));
+/* E */
+const E={};
+let cal='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:15px;font-weight:800">Календарь публикаций</div><div class="chip on" style="margin:0;height:22px;font-size:10px">Октябрь</div></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+for(let i=0;i<21;i++)cal+=`<div class="cel" style="height:30px;border-radius:8px;background:#f5f5fb;position:relative"><i class="dt" style="position:absolute;left:5px;right:5px;bottom:5px;height:10px;border-radius:5px;background:${['#1734fc','#bef264','#a5b4fc','#fb923c'][i%4]}"></i></div>`;
+cal+='</div>';
+E.cal=mk(cal,cardCss+'left:16px;top:4px;width:358px;padding:12px');
+E.toasts=[['tg','Telegram','Карусель · 6 слайдов',tgI],['vk','ВКонтакте','Пост опубликован',VKI],['mx','MAX','Пост опубликован',MXI]].map((r,i)=>mk(`<div class="ic ${r[0]}" style="width:26px;height:26px;font-size:10px">${r[3]}</div><div style="flex:1"><b style="font-size:12px">${r[1]}</b><span style="font-size:11px;color:#64748b"> · ${r[2]}</span></div><span style="width:18px;height:18px;border-radius:9px;background:#1f9d57;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center">✓</span>`,cardCss+`left:16px;top:${188+i*40}px;width:358px;height:34px;display:flex;align-items:center;gap:8px;padding:0 10px`));
+const tap=mk('<div style="width:34px;height:34px;border-radius:50%;border:3px solid #1734fc;background:rgba(23,52,252,.18)"></div>','left:0;top:0;z-index:40');
+const SC={A:[1.1,5.3],B:[5.0,8.9],C:[8.6,12.5],D:[12.2,16.9],E:[16.6,19.5]};
+const vis=(o,els)=>els.forEach(e=>e.style.display=o?(e.dataset.d||'block'):'none');
+const titles=['Бренд','Завод','Новости','Контент','Публикация'];
+function tapAt(k,t0,x,y,f){const p=seg(k,t0,t0+.45);place(tap,p>0&&p<1?(1-p)*f:0,x-17,y-17,.5+eo(p)*1.2)}
+function render(t){
+  const wi=seg(t,0,.9),wo=seg(t,19.4,20.1),wp=wi*(1-wo);
+  const ph=$('#phone');ph.style.opacity=clamp(wp*1.8);ph.style.transform=`translateY(${(1-eo(wp))*90}px) scale(${.96+.04*eo(wp)})`;
+  const step=t<SC.B[0]?0:t<SC.C[0]?1:t<SC.D[0]?2:t<SC.E[0]?3:4;
+  for(let i=0;i<5;i++){const d=$('#d'+i);const on=i===step,done=i<step;d.style.background=on?'#1734fc':done?'#1f9d57':'#f1f2ff';d.style.color=on||done?'#fff':'#94a3b8';d.textContent=done?'✓':String(i+1)}
+  $('#stp').textContent=titles[step];
+  const all=[...Object.values(A),...Object.values(B),Cc.head,...Cc.rows,D.src,...D.cards,E.cal,...E.toasts,tap].flat();all.forEach(e=>e.style.display='none');
+  const fade=(a,b,tt)=>Math.min(seg(tt,a,a+.45),1-seg(tt,b-.45,b));
+  if(t>=SC.A[0]-.1&&t<=SC.A[1]){vis(1,[A.form,A.logo,A.pr,tap]);const f=fade(SC.A[0],SC.A[1],t),k=t-SC.A[0];
+    place(A.form,f,-(1-eo(f))*30,0);place(A.pr,f,(1-eo(f))*30,0);
+    $('#a_n').textContent=typed('Зерно',seg(k,.6,1.2));$('#a_n').style.borderColor=k>.5&&k<1.5?'#1734fc':'transparent';
+    $('#a_d').textContent=typed('Обжариваем кофе и доставляем подписку на зерно домой',seg(k,1.4,2.5));$('#a_d').style.borderColor=k>1.35&&k<2.7?'#1734fc':'transparent';
+    $('#a_c2').className='chip'+(k>2.9?' on':'');
+    [...$('#a_cols').children].forEach((c,i)=>{const p=seg(k,3.1+i*.12,3.45+i*.12);c.style.transform=`scale(${back(p)})`;c.style.opacity=p});
+    const lp=seg(k,3.2,3.8);place(A.logo,clamp(lp*2)*f,0,0,.6+.4*back(lp));
+    const pr=eo(seg(k,.6,3.9));$('#a_fill').style.width=pr*100+'%';$('#a_pct').textContent=Math.round(pr*100)+'%';
+    place(A.pr,f,0,0);tapAt(k,2.75,88,167,f);
+  }
+  if(t>=SC.B[0]-.1&&t<=SC.B[1]){const f=fade(SC.B[0],SC.B[1],t),k=t-SC.B[0];vis(1,[B.card,B.fact,tap]);
+    const cp=eio(seg(k,2.1,2.6));B.card.style.display=cp>=1?'none':'block';place(B.card,f*(1-cp),0,(1-eo(f))*30-cp*20,1-.06*cp);
+    $('#b_n').textContent=typed('Блог «Зерно»',seg(k,.4,1.2));$('#b_n').style.borderColor=k>.3&&k<1.4?'#1734fc':'transparent';
+    ['b_c1','b_c2','b_c3','b_c4'].forEach((id,i)=>{$('#'+id).className='chip'+(((i===0&&k>1.4)||(i===1&&k>1.7))?' on':'')});
+    $('#b_btn').style.transform=`scale(${k>1.95&&k<2.15?.95:1})`;
+    place(B.fact,f*seg(k,2.2,2.7),0,(1-eo(seg(k,2.2,2.7)))*26,.94+.06*back(seg(k,2.2,2.8)));
+    $('#b_belt').style.transform=`translateX(${(k*60)%28}px)`;
+    [...$('#b_items').children].forEach((e,i)=>{e.style.left=((k*90+i*64)%360)+'px';e.style.opacity=seg(k,2.7,3.1)});
+    $('#b_badge').style.opacity=seg(k,2.9,3.3);
+    tapAt(k,1.45,115,126,f);tapAt(k,1.95,190,214,f);
+  }
+  if(t>=SC.C[0]-.1&&t<=SC.C[1]){const f=fade(SC.C[0],SC.C[1],t),k=t-SC.C[0];vis(1,[Cc.head,...Cc.rows]);
+    place(Cc.head,f,0,(1-eo(f))*-16);
+    Cc.rows.forEach((r,i)=>{const p=seg(k,.2+i*.2,.7+i*.2);place(r,clamp(p*2)*f,-(1-eo(p))*60,0);const on=seg(k,1.0+i*.45,1.2+i*.45);const sw=$('.sw',r);sw.style.background=on>0?'#1734fc':'#dfe3f7';$('i',sw).style.left=(3+16*on)+'px'});
+    const n=Math.round(48*eo(seg(k,1.2,3.3)));$('#c_cnt').textContent='+'+n+' новостей';
+  }
+  if(t>=SC.D[0]-.1&&t<=SC.D[1]){const f=fade(SC.D[0],SC.D[1],t),k=t-SC.D[0];vis(1,[D.src,...D.cards,tap]);
+    place(D.src,f,0,(1-eo(f))*-20);$('#d_btn').style.transform=`scale(${k>.7&&k<.9?.92:1})`;tapAt(k,.65,336,32,f);
+    D.cards.forEach((c,i)=>{const a=1.1+i*.35,p=seg(k,a,a+.5);place(c,clamp(p*2)*f,0,(1-eo(p))*30,.92+.08*back(p));
+      $('.pg',c).style.width=(eo(seg(k,a+.3,a+1.5))*100)+'%';const dn=seg(k,a+1.5,a+1.8);$('.dn',c).style.opacity=dn;$('.dn',c).style.transform=`scale(${back(dn)})`;
+      if(i===1)$$('.sl',c).forEach((s,j)=>{const q=eo(seg(k,a+.5,a+1.5));s.style.transform=`translateX(${q*j*26}px) rotate(${(1-q)*(j-1)*6}deg)`})});
+  }
+  if(t>=SC.E[0]-.1&&t<=SC.E[1]){const f=fade(SC.E[0],SC.E[1],t),k=t-SC.E[0];vis(1,[E.cal,...E.toasts]);
+    place(E.cal,f,0,(1-eo(f))*-24);
+    $$('.cel',E.cal).forEach((c,i)=>{const p=seg(k,.2+i*.05,.5+i*.05);const d=$('.dt',c);d.style.transform=`scaleX(${eo(p)})`;d.style.transformOrigin='left';d.style.opacity=p});
+    E.toasts.forEach((e,i)=>{const p=seg(k,1.2+i*.4,1.7+i*.4);place(e,clamp(p*2)*f,(1-eo(p))*50,0,.95+.05*back(p))});
+  }
+}
+window.render=render;render(0);
+</script></body></html>
