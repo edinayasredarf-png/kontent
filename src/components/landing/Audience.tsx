@@ -14,12 +14,12 @@ export function Audience({ items }: { items: AudienceItem[] }) {
       {items.map((a, i) => {
         const on = open === i, blue = i === 0;
         return (
-          <article key={a.title} className={`relative h-[480px] w-[84vw] max-w-96 shrink-0 snap-start overflow-hidden rounded-3xl sm:w-96 ${blue ? "bg-[#1734fc] text-white" : "bg-[#f5f5f5] text-black"}`}>
+          <article key={a.title} className={`relative flex w-[84vw] max-w-96 shrink-0 snap-start flex-col overflow-hidden rounded-3xl sm:w-96 md:h-[480px] ${blue ? "bg-[#1734fc] text-white" : "bg-[#f5f5f5] text-black"}`}>
             <h3 className="px-8 pt-8 text-center text-2xl font-semibold leading-7">{a.title}</h3>
             {on ? (
-              <p className="px-8 pt-8 text-lg font-semibold leading-6">{a.text}</p>
+              <p className="px-8 pb-20 pt-8 text-lg font-semibold leading-6">{a.text}</p>
             ) : (
-              <Image src="/landing/person.png" alt="" width={367} height={305} className="absolute bottom-0 left-1/2 h-auto w-[96%] -translate-x-1/2" />
+              <Image src="/landing/person.png" alt="" width={367} height={305} className="mx-auto mt-4 h-auto w-[92%] md:absolute md:bottom-0 md:left-1/2 md:mt-0 md:w-[96%] md:-translate-x-1/2" />
             )}
             <button type="button" onClick={() => setOpen(on ? null : i)} aria-expanded={on} aria-label={on ? "Скрыть описание" : "Показать описание"}
               className="absolute bottom-5 right-5 grid size-10 place-items-center rounded-full bg-white text-black shadow transition hover:scale-105">
