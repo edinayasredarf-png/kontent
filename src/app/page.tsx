@@ -115,7 +115,7 @@ function HeroMedia() {
   return (
     <div className="relative mx-auto mt-10 aspect-[1360/560] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14">
       {mp4 || webm ? (
-        <video className="absolute inset-0 size-full object-cover" poster="/landing/hero.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden>
+        <video className="absolute inset-0 size-full object-cover" poster="/landing/hero-poster.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden>
           {webm && <source src="/landing/hero.webm" type="video/webm" />}{mp4 && <source src="/landing/hero.mp4" type="video/mp4" />}
         </video>
       ) : <Image src="/landing/hero.webp" alt="" width={1360} height={560} priority className="size-full object-cover" />}
