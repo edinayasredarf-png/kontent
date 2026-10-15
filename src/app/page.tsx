@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Plus, X, Sparkles, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Rail } from "@/components/landing/Rail";
+import { CardVideo } from "@/components/landing/CardVideo";
 import { HeroVideo } from "@/components/landing/HeroVideo";
 import { Audience } from "@/components/landing/Audience";
 import { hasMedia } from "@/lib/landing-media";
@@ -99,13 +100,13 @@ const GUARANTEES = [
   { t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
 ];
 
-/** Правая «экранная» часть карточки возможностей: сюда кладётся GIF или видео (public/landing/gif/<ключ>.gif|.webp|.mp4). Пока файла нет, чёрный блок как в макете. */
+/** Правая «экранная» часть карточки возможностей: короткая анимация интерфейса (public/landing/gif/<ключ>.mp4, заставка <ключ>.webp). Можно заменить на .gif/.webp. Пока файла нет, чёрный блок. */
 function Screen({ k }: { k: string }) {
   const base = `/landing/gif/${k}`;
-  const mp4 = hasMedia(`landing/gif/${k}.mp4`), img = ["gif", "webp"].map((e) => `${base}.${e}`).find((p) => hasMedia(p.slice(1)));
+  const mp4 = hasMedia(`landing/gif/${k}.mp4`), poster = hasMedia(`landing/gif/${k}.webp`) ? `${base}.webp` : undefined, img = ["gif", "webp"].map((e) => `${base}.${e}`).find((p) => hasMedia(p.slice(1)));
   return (
     <div className="relative aspect-[516/384] w-full overflow-hidden rounded-3xl bg-black">
-      {mp4 ? <video className="size-full object-cover" src={`${base}.mp4`} autoPlay muted loop playsInline preload="metadata" aria-hidden />
+      {mp4 ? <CardVideo src={`${base}.mp4`} poster={poster} />
         : img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="" className="size-full object-cover" loading="lazy" /> : null}
     </div>
   );
