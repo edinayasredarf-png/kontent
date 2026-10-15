@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Plus, X, Sparkles, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Rail } from "@/components/landing/Rail";
+import { HeroVideo } from "@/components/landing/HeroVideo";
 import { Audience } from "@/components/landing/Audience";
 import { hasMedia } from "@/lib/landing-media";
 import { SITE } from "@/lib/site";
@@ -111,14 +112,14 @@ function Screen({ k }: { k: string }) {
 }
 
 function HeroMedia() {
-  const mp4 = hasMedia("landing/hero.mp4"), webm = hasMedia("landing/hero.webm");
+  const d = hasMedia("landing/hero.mp4") ? "/landing/hero.mp4" : undefined, m = hasMedia("landing/hero-mobile.mp4") ? "/landing/hero-mobile.mp4" : undefined;
+  const dPoster = d ? "/landing/hero-poster.webp" : "/landing/hero.webp", mPoster = m ? "/landing/hero-mobile-poster.webp" : dPoster;
   return (
-    <div className="relative mx-auto mt-10 aspect-[1360/560] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14">
-      {mp4 || webm ? (
-        <video className="absolute inset-0 size-full object-cover" poster="/landing/hero-poster.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden>
-          {webm && <source src="/landing/hero.webm" type="video/webm" />}{mp4 && <source src="/landing/hero.mp4" type="video/mp4" />}
-        </video>
-      ) : <Image src="/landing/hero.webp" alt="" width={1360} height={560} priority className="size-full object-cover" />}
+    <div className="relative mx-auto mt-10 aspect-[4/3] w-full overflow-hidden rounded-3xl bg-[#2d3cff] md:mt-14 md:aspect-[1360/560]">
+      {/* заставка: на телефоне своя картинка 4:3, на компьютере широкая */}
+      <Image src={mPoster} alt="" width={1200} height={900} priority className="absolute inset-0 size-full object-cover md:hidden" />
+      <Image src={dPoster} alt="" width={1920} height={790} priority className="absolute inset-0 hidden size-full object-cover md:block" />
+      <HeroVideo desktop={d} mobile={m} />
     </div>
   );
 }

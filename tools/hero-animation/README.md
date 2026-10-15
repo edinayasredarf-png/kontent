@@ -6,7 +6,7 @@
 Сборка (нужны `playwright-core` с установленным Chromium и `ffmpeg-static`, ставятся в отдельную папку, в проект не входят):
 
 ```bash
-node cap.mjs full            # 488 кадров с прозрачностью в frames/
+node cap.mjs full  # для телефона: cap-mobile.mjs и scene-mobile.html (4:3, 1600x1200, сборка с crop=960:720:160:0,scale=1200:900)           # 488 кадров с прозрачностью в frames/
 ffmpeg -y -i background.mp4 -framerate 24 -i frames/f%04d.png \
   -filter_complex "[0:v]trim=end_frame=122,setpts=PTS-STARTPTS,loop=loop=3:size=122:start=0,fps=24,scale=1920:-1,crop=1920:790[bg];[bg][1:v]overlay=format=auto,format=yuv420p[v]" \
   -map "[v]" -frames:v 488 -c:v libx264 -preset slow -crf 25 -movflags +faststart -an hero.mp4
