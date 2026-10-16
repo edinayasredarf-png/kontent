@@ -19,8 +19,8 @@ export function Audience({ items }: { items: AudienceItem[] }) {
             {on ? (
               <p className="px-8 pb-20 pt-8 text-lg font-semibold leading-6">{a.text}</p>
             ) : (
-              <div className="mt-auto flex justify-center pt-4 md:absolute md:inset-x-0 md:bottom-0 md:pt-0">
-                <Image src={a.img} alt="" width={Math.round(900 * a.ratio)} height={900} className="h-auto w-[90%] md:h-[350px] md:w-auto md:max-w-[96%] md:object-contain" />
+              <div className={`mt-auto pt-4 md:absolute md:inset-x-0 md:bottom-0 md:pt-0 ${a.ratio < 0.9 ? "max-h-[385px] overflow-hidden" : ""}`}>
+                <Image src={a.img} alt="" width={Math.round(900 * a.ratio)} height={900} className="h-auto w-full" />
               </div>
             )}
             <button type="button" onClick={() => setOpen(on ? null : i)} aria-expanded={on} aria-label={on ? "Скрыть описание" : "Показать описание"}
