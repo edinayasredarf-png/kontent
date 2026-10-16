@@ -332,17 +332,15 @@ export default function Landing() {
           <div className={wrap}>
             <div className="relative overflow-hidden rounded-3xl px-6 py-14 text-center text-white md:py-20" style={{ background: `linear-gradient(120deg, ${BLUE}, #4f46e5)` }}>
               {/* 3D-картинки по краям: на широких экранах вылезают за края блока, на узких идут рядом под кнопками */}
-              <Image src="/landing/cta-left.webp" alt="" width={815} height={760} aria-hidden className="pointer-events-none absolute -bottom-[7%] -left-[4%] hidden h-[60%] w-auto lg:block xl:h-[94%]" />
-              <Image src="/landing/cta-right.webp" alt="" width={938} height={760} aria-hidden className="pointer-events-none absolute -bottom-[7%] -right-[4%] hidden h-[60%] w-auto lg:block xl:h-[94%]" />
+              <Image src="/landing/cta-left.webp" alt="" width={815} height={760} aria-hidden className="pointer-events-none absolute -bottom-[7%] -left-[4%] hidden h-[30%] w-auto lg:block xl:h-[47%]" />
               <h2 className="relative mx-auto max-w-3xl text-balance text-3xl font-semibold leading-tight md:text-5xl">Запустите контент-завод для своего бренда сегодня</h2>
               <p className="relative mx-auto mt-4 max-w-xl text-lg font-semibold">100 ₽ в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
               <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link href="/register" className="inline-flex h-14 items-center rounded-xl bg-white px-10 text-lg font-semibold text-black transition hover:opacity-90">Начать бесплатно</Link>
                 <Link href="/login" className="inline-flex h-14 items-center px-6 text-base font-semibold underline-offset-4 hover:underline">У меня уже есть аккаунт</Link>
               </div>
-              <div className="relative -mb-14 mt-8 flex items-end justify-between lg:hidden" aria-hidden>
-                <Image src="/landing/cta-left.webp" alt="" width={815} height={760} className="-ml-6 h-28 w-auto sm:h-36" />
-                <Image src="/landing/cta-right.webp" alt="" width={938} height={760} className="-mr-6 h-28 w-auto sm:h-36" />
+              <div className="relative -mb-14 mt-8 flex items-end lg:hidden" aria-hidden>
+                <Image src="/landing/cta-left.webp" alt="" width={815} height={760} className="-ml-6 h-14 w-auto sm:h-[72px]" />
               </div>
             </div>
           </div>
