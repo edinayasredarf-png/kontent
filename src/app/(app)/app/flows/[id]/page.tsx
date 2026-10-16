@@ -1,3 +1,4 @@
+import { AutoTextarea } from "@/components/AutoTextarea";
 import { PostText } from "@/components/monitor/PostText";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -62,8 +63,8 @@ const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.r
 const Empty = ({ t }: { t: string }) => <p className="card mx-auto max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
 
 async function Pending({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
-  const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
-    `select i.id,i.text,i.status,i.created_at,k.title,k.url,${SRC},i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
+  const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; body: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
+    `select i.id,i.text,i.status,i.created_at,k.title,k.body,k.url,${SRC},i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
       where i.flow_id=$1 and i.status in ('pending','ready') order by i.created_at desc limit 50`, [flowId]);
   if (!rows.length) return <Empty t="Очередь пуста. Новые новости появятся здесь после отбора и пересказа (проверка источников каждые 5 минут)." />;
   return (
@@ -80,11 +81,11 @@ async function Pending({ flowId, write, hid, unlimited }: { flowId: string; writ
           {r.status === "ready" && <span className="chip !bg-accent-soft !text-accent-ink">выйдет по расписанию</span>}
           <a href={r.url.startsWith("http") ? r.url : undefined} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex items-center gap-1 text-accent-ink">оригинал<ExternalLink size={11} /></a>
         </div>
-        <details className="mb-3 text-xs text-ink2"><summary className="cursor-pointer">Исходная новость</summary><p className="mt-1 whitespace-pre-wrap">{r.title}</p></details>
+        <details className="mb-3 text-xs text-ink2"><summary className="cursor-pointer">Исходная новость</summary><p className="mt-1 whitespace-pre-wrap break-words">{r.body && r.body.length >= r.title.length ? r.body : r.title}</p></details>
         {write ? (
           <form action={approveFlowItemAction} className="space-y-2">
             {hid(r.id)}
-            <textarea name="text" defaultValue={r.text} rows={7} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+            <AutoTextarea name="text" defaultValue={r.text} rows={7} className="input !rounded-2xl !bg-surface text-sm leading-6" />
             <div className="flex flex-wrap items-center gap-2"><SubmitButton className="btn !h-9">Опубликовать</SubmitButton><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
           </form>
         ) : <p className="whitespace-pre-wrap text-sm leading-6">{r.text}</p>}
@@ -115,8 +116,8 @@ async function Published({ flowId }: { flowId: string }) {
 }
 
 async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
-  const rows = await q<Src & { id: string; code: string; note: string | null; created_at: string; title: string; url: string }>(
-    `select i.id,i.reject_code code,i.reject_note note,i.created_at,k.title,k.url,${SRC} from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
+  const rows = await q<Src & { id: string; code: string; note: string | null; created_at: string; title: string; body: string; url: string }>(
+    `select i.id,i.reject_code code,i.reject_note note,i.created_at,k.title,k.body,k.url,${SRC} from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
       where i.flow_id=$1 and i.status='rejected' order by i.created_at desc limit 80`, [flowId]);
   const by = rows.reduce<Record<string, number>>((a, r) => ({ ...a, [r.code]: (a[r.code] ?? 0) + 1 }), {});
   if (!rows.length) return <Empty t="Отбракованных новостей нет." />;
@@ -130,7 +131,7 @@ async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; wri
             {r.url.startsWith("http") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
           </>}>
           <p className="mb-2"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span className="ml-2 text-xs text-ink2">{r.note}</span>}</p>
-          <PostText title="" text={r.title} />
+          <PostText title="" text={r.body && r.body.length >= r.title.length ? r.body : r.title} />
         </NewsCard>))}</FadeList>
     </>
   );
