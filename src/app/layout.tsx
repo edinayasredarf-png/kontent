@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export const viewport: Viewport = { colorScheme: "light dark" };
+export const viewport: Viewport = { colorScheme: "light dark", themeColor: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }, { media: "(prefers-color-scheme: dark)", color: "#0e1020" }] };
 
 // Тема из cookie применяется до отрисовки страницы — без вспышки светлой темы у тех, кто выбрал тёмную. «Как в системе» решает CSS.
 const THEME_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )lt_theme=(light|dark)/);if(m)document.documentElement.setAttribute('data-theme',m[1])}catch(e){}})()`;
