@@ -53,17 +53,17 @@ const BAD = ["Часами ищете темы и придумываете за�
 const GOOD = ["План публикаций на месяц собирается за минуту", "Каждый текст написан тоном вашего бренда", "Карусели и картинки оформлены в ваших цветах и с логотипом", "Контент выходит по расписанию, даже когда вы заняты", "Месяц постов и каруселей стоит как обед, а не как зарплата"];
 
 const STEPS = [
-  { t: "Регистрируйтесь в сервисе и опишите бренд", d: "Название, продукт, аудитория, тон общения, цвета и логотип. Это делается один раз и занимает пять минут." },
-  { t: "Получите контент-план", d: "Сервис предложит темы и форматы на неделю или месяц. Лишнее уберите, нужное оставьте." },
-  { t: "Одобрите материалы", d: "Тексты, карусели и картинки готовы. Правьте любую деталь, а правки слайдов бесплатны." },
-  { t: "Публикуйте по расписанию", d: "Посты выходят в Telegram, VK и MAX в лучшее время. Если что-то пошло не так, деньги возвращаются." },
+  { img: "/landing/step-1.webp", w: 1.156, t: "Регистрируйтесь в сервисе и опишите бренд", d: "Название, продукт, аудитория, тон общения, цвета и логотип. Это делается один раз и занимает пять минут." },
+  { img: "/landing/step-2.webp", w: 1.043, t: "Получите контент-план", d: "Сервис предложит темы и форматы на неделю или месяц. Лишнее уберите, нужное оставьте." },
+  { img: "/landing/step-3.webp", w: 1.174, t: "Одобрите материалы", d: "Тексты, карусели и картинки готовы. Правьте любую деталь, а правки слайдов бесплатны." },
+  { img: "/landing/step-4.webp", w: 0.908, t: "Публикуйте по расписанию", d: "Посты выходят в Telegram, VK и MAX в лучшее время. Если что-то пошло не так, деньги возвращаются." },
 ];
 
 const AUDIENCE = [
-  { title: "Малый бизнес и магазины", text: "Регулярные посты о товарах, акциях и пользе, без найма SMM-специалиста." },
-  { title: "Эксперты и блогеры", text: "Ваш голос и ваши идеи, а рутину оформления и публикации берёт на себя сервис." },
-  { title: "Компании и команды", text: "Единый стиль всех каналов, роли для сотрудников и контроль каждого материала." },
-  { title: "Агентства и фрилансеры", text: "Ведите десятки клиентов в одном окне и берите больше проектов без роста штата." },
+  { title: "Малый бизнес и магазины", text: "Регулярные посты о товарах, акциях и пользе, без найма SMM-специалиста.", img: "/landing/aud-1.webp", ratio: 1.016 },
+  { title: "Эксперты и блогеры", text: "Ваш голос и ваши идеи, а рутину оформления и публикации берёт на себя сервис.", img: "/landing/aud-2.webp", ratio: 1.025 },
+  { title: "Компании и команды", text: "Единый стиль всех каналов, роли для сотрудников и контроль каждого материала.", img: "/landing/aud-3.webp", ratio: 1.063 },
+  { title: "Агентства и фрилансеры", text: "Ведите десятки клиентов в одном окне и берите больше проектов без роста штата.", img: "/landing/aud-4.webp", ratio: 0.774 },
 ];
 
 type Tone = "plain" | "blue" | "liquid";
@@ -167,12 +167,12 @@ export default function Landing() {
               <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-black px-6 pt-14 text-white sm:px-16 md:min-h-[642px]">
                 <h3 className="text-center text-3xl font-semibold leading-8">Как обычно</h3>
                 <ul className="mt-8 space-y-3">{BAD.map((t) => <li key={t} className="rounded-3xl bg-zinc-800/70 px-6 py-5 text-center text-base font-semibold leading-5 backdrop-blur-[2px]">{t}</li>)}</ul>
-                <Image src="/landing/coins.png" alt="" width={374} height={92} className="pointer-events-none mx-auto mt-8 h-auto w-72 md:absolute md:bottom-0 md:left-1/2 md:mt-0 md:w-80 md:-translate-x-1/2" />
+                <Image src="/landing/pile.webp" alt="" width={1300} height={721} className="pointer-events-none -mx-6 mt-auto h-auto w-[calc(100%+3rem)] max-w-none pt-8 sm:-mx-16 sm:w-[calc(100%+8rem)]" />
               </div>
               <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-lime-300 px-6 pt-14 text-black sm:px-16 md:min-h-[642px]">
                 <h3 className="flex items-center justify-center gap-2.5 text-center text-3xl font-semibold leading-8"><Sparkles size={22} />С Контент-заводом</h3>
                 <ul className="mt-8 space-y-3">{GOOD.map((t) => <li key={t} className="rounded-3xl bg-neutral-100 px-6 py-5 text-center text-base font-semibold leading-5">{t}</li>)}</ul>
-                <Image src="/landing/percent.png" alt="" width={330} height={118} className="pointer-events-none -ml-6 mt-8 h-auto w-64 md:absolute md:bottom-0 md:left-[-24px] md:ml-0 md:mt-0 md:w-72" />
+                <Image src="/landing/order.webp" alt="" width={1100} height={905} className="pointer-events-none -ml-6 mt-auto h-auto w-[78%] max-w-none pt-8 sm:-ml-16" />
               </div>
             </div>
           </div>
@@ -189,7 +189,7 @@ export default function Landing() {
                 <li key={s.t} className="relative overflow-hidden rounded-[20px] bg-[#f5f5f5] p-6 sm:px-10 sm:pt-10 md:h-[384px]">
                   <h3 className="text-2xl font-semibold leading-7">{s.t}</h3>
                   <p className="mt-3 max-w-md text-base font-semibold leading-5">{s.d}</p>
-                  <Image src="/landing/step.png" alt="" width={357} height={245} className="mx-auto mt-4 h-auto w-[280px] md:absolute md:bottom-0 md:right-24 md:mx-0 md:mt-0 md:w-[300px]" aria-hidden />
+                  <Image src={s.img} alt="" width={Math.round(700 * s.w)} height={700} className="mx-auto mt-4 h-[210px] w-auto md:absolute md:bottom-3 md:right-10 md:mx-0 md:mt-0 md:h-[236px]" aria-hidden />
                   <span className="sr-only">Шаг {n + 1}</span>
                 </li>
               ))}
