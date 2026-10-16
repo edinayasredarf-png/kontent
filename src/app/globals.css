@@ -166,5 +166,5 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 .pill-accent { background: var(--accent); color: #fff; } .pill-accent:hover { background: var(--accent); opacity: .9; }
 
 /* кнопка с иконкой слева: пока идёт действие, крутится сама иконка, отдельный спиннер не показываем */
-button[data-pending] > .animate-spin:has(+ svg) { display: none; }
-button[data-pending] > .animate-spin + svg { animation: spin 1s linear infinite; }
+button[data-pending]:has(svg:not(.animate-spin)) > .animate-spin { display: none; }
+button[data-pending] svg:not(.animate-spin) { animation: spin 1s linear infinite; }
