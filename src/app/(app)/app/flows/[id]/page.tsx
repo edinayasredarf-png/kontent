@@ -1,3 +1,4 @@
+import { PostText } from "@/components/monitor/PostText";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Pause, Play, RefreshCw, Trash2 } from "lucide-react";
@@ -107,7 +108,7 @@ async function Published({ flowId }: { flowId: string }) {
           <span className={`chip ${r.pub?.includes("failed") || r.status === "failed" ? "!bg-bad-soft !text-bad" : r.pub?.includes("queued") ? "!bg-surface" : "!bg-good-soft !text-good"}`}>{r.pub?.includes("failed") ? "ошибка" : r.pub === "published" ? "опубликовано" : r.pub ? "в очереди" : "не поставлено"}</span>
           {r.urls?.split(" ").map((u) => <a key={u} href={u} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-accent-ink">открыть<ExternalLink size={11} /></a>)}
         </div>
-        <p className="line-clamp-6 whitespace-pre-wrap text-sm leading-6">{r.text}</p>
+        <PostText title="" text={r.text ?? ""} />
         {r.note && <p className="mt-2 text-xs text-warn">{r.note}</p>}
       </NewsCard>))}</FadeList>
   );
@@ -129,7 +130,7 @@ async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; wri
             {r.url.startsWith("http") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
           </>}>
           <p className="mb-2"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span className="ml-2 text-xs text-ink2">{r.note}</span>}</p>
-          <p className="line-clamp-4 text-[15px] font-semibold leading-snug">{r.title}</p>
+          <PostText title="" text={r.title} />
         </NewsCard>))}</FadeList>
     </>
   );

@@ -16,6 +16,7 @@ import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
+import { PostText } from "@/components/monitor/PostText";
 import { NoResults } from "@/components/monitor/NoResults";
 import { SettingsBody } from "@/components/monitor/SettingsBody";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
@@ -94,9 +95,8 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
               </header>
               <div className="px-2.5 pb-1 pt-3">
                 {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-accent-soft !text-accent-ink">сохранено</span>}</p>}
-                <h3 className="text-[15px] font-semibold leading-snug">{r.title}</h3>
+                <PostText title={r.title} text={text} />
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
-                {text && text !== r.title && <p className="mt-2 line-clamp-6 whitespace-pre-line text-sm leading-6">{text.slice(0, 700)}</p>}
                 {(r.kind === "site" || r.kind === "news") && (
                   r.full_text ? (
                     <details className="mt-2 text-xs text-ink2"><summary className="cursor-pointer text-good">Полный текст загружен · {r.full_text.length.toLocaleString("ru-RU")} знаков</summary><p className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">{r.full_text}</p></details>
