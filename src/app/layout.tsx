@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieNotice } from "@/components/CookieNotice";
+import { UiEnhancer } from "@/components/UiEnhancer";
 import { SITE } from "@/lib/site";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"], variable: "--font-inter" });
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
-      <body className="min-h-screen">{children}<CookieNotice /></body>
+      <body className="min-h-screen">{children}<CookieNotice /><UiEnhancer /></body>
     </html>
   );
 }

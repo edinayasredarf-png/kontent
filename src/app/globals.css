@@ -175,3 +175,33 @@ button[data-pending] svg:not(.animate-spin) { animation: spin 1s linear infinite
 @keyframes nr-wobble { 0%,100% { transform: rotate(0) } 30% { transform: rotate(-9deg) } 70% { transform: rotate(7deg) } }
 .nr-lens { transform-box: fill-box; transform-origin: 30% 30%; animation: nr-wobble 2.6s ease-in-out .6s infinite; }
 @media (prefers-reduced-motion: reduce) { .feed-card, .nr-lens { animation: none } }
+
+/* ===== выпадающие списки и календарь (рисует UiEnhancer) ===== */
+.ui-layer .ui-menu, .ui-layer .ui-cal { position: fixed; z-index: 120; overflow: auto; border-radius: 1.25rem; background: var(--surface); padding: .4rem; box-shadow: 0 18px 50px -8px rgba(23,37,84,.28), 0 0 0 1px var(--line); animation: ui-pop .16s cubic-bezier(.2,.9,.3,1); }
+@keyframes ui-pop { from { opacity: 0; transform: translateY(-6px) scale(.98) } to { opacity: 1; transform: none } }
+.ui-menu-item { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .75rem; border-radius: .85rem; padding: .55rem .8rem; text-align: left; font-size: .875rem; color: var(--ink); transition: background .1s; }
+.ui-menu-item:hover:not(:disabled), .ui-menu-item.is-active { background: var(--accent-soft); }
+.ui-menu-item[data-on] { color: var(--accent-ink); font-weight: 600; }
+.ui-menu-item:disabled { opacity: .4; cursor: not-allowed; }
+.ui-menu-check { display: grid; place-items: center; color: var(--accent); }
+.ui-menu-group { padding: .6rem .8rem .25rem; font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink3); }
+.ui-cal { padding: .75rem !important; }
+.ui-cal-head { display: flex; align-items: center; justify-content: space-between; padding: 0 .1rem .6rem; font-size: .9rem; }
+.ui-cal-nav { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--ink); transition: background .12s; }
+.ui-cal-nav:hover { background: var(--tile2); }
+.ui-cal-week, .ui-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .15rem; text-align: center; }
+.ui-cal-week span { padding: .25rem 0; font-size: .7rem; color: var(--ink3); }
+.ui-day { display: grid; aspect-ratio: 1; place-items: center; border-radius: 999px; font-size: .8125rem; color: var(--ink); transition: background .1s; }
+.ui-day:hover:not(:disabled) { background: var(--accent-soft); }
+.ui-day.is-out { color: var(--ink3); opacity: .55; }
+.ui-day.is-today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ui-day.is-sel { background: var(--accent); color: #fff; font-weight: 600; opacity: 1; }
+.ui-day:disabled { opacity: .25; cursor: not-allowed; }
+.ui-cal-foot { display: flex; justify-content: space-between; padding: .6rem .2rem .1rem; }
+.ui-cal-link { border-radius: 999px; padding: .3rem .75rem; font-size: .8125rem; font-weight: 600; color: var(--accent-ink); }
+.ui-cal-link:hover { background: var(--accent-soft); }
+/* поле даты: свой значок календаря вместо системного */
+input[type=date].input { position: relative; padding-right: 2.4rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='3'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .8rem center; background-size: 1.1rem; }
+input[type=date]::-webkit-calendar-picker-indicator { opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+/* стрелка списка: свой значок с отступом от края вместо системного */
+select.input:not([multiple]) { appearance: none; -webkit-appearance: none; padding-right: 2.75rem; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1.05rem center; background-size: 1rem; }
