@@ -42,7 +42,7 @@ export function MonthBuilder() {
             </span>
           ))}
         </div>
-        <p className="text-right text-xs font-semibold leading-4 text-neutral-900/70"><b className="block text-lg text-blue-900 tabular-nums">{sum} ₽</b>{posts} постов, {cars} каруселей</p>
+        <p className="text-right text-xs font-semibold leading-4 text-neutral-900/70"><b className="block text-lg text-blue-900 tabular-nums">≈ {sum} ₽</b>{posts} постов, {cars} каруселей</p>
       </div>
     </div>
   );
