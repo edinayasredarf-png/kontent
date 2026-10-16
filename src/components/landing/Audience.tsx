@@ -19,7 +19,9 @@ export function Audience({ items }: { items: AudienceItem[] }) {
             {on ? (
               <p className="px-8 pb-20 pt-8 text-lg font-semibold leading-6">{a.text}</p>
             ) : (
-              <Image src={a.img} alt="" width={Math.round(900 * a.ratio)} height={900} className="mx-auto mt-4 h-auto w-[90%] md:absolute md:bottom-0 md:left-1/2 md:mt-0 md:h-[350px] md:w-auto md:max-w-[96%] md:-translate-x-1/2 md:object-contain" />
+              <div className="mt-auto flex justify-center pt-4 md:absolute md:inset-x-0 md:bottom-0 md:pt-0">
+                <Image src={a.img} alt="" width={Math.round(900 * a.ratio)} height={900} className="h-auto w-[90%] md:h-[350px] md:w-auto md:max-w-[96%] md:object-contain" />
+              </div>
             )}
             <button type="button" onClick={() => setOpen(on ? null : i)} aria-expanded={on} aria-label={on ? "Скрыть описание" : "Показать описание"}
               className="absolute bottom-5 right-5 grid size-10 place-items-center rounded-full bg-white text-black shadow transition hover:scale-105">
