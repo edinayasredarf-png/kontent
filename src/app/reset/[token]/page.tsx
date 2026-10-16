@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Form, Field } from "@/components/Form";
-import { LegalLinks } from "@/components/LegalLinks";
-import { Logo } from "@/components/Logo";
+import { AuthShell } from "@/components/AuthShell";
 import { PasswordInput } from "@/components/PasswordInput";
 import { resetAction } from "@/lib/actions";
 import { resetInfo } from "@/lib/reset";
@@ -13,9 +12,7 @@ export default async function Reset({ params }: { params: Promise<{ token: strin
   const { token } = await params;
   const info = await resetInfo(token);
   return (
-    <main className="flex min-h-screen flex-col px-5">
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-10"><Logo big href="/login" /></div>
+    <AuthShell>
       {info ? (
         <>
           <h1 className="mb-1 text-2xl font-semibold">Новый пароль</h1>
@@ -33,8 +30,6 @@ export default async function Reset({ params }: { params: Promise<{ token: strin
           <Link href="/forgot" className="btn w-fit">Запросить новую ссылку</Link>
         </>
       )}
-    </div>
-    <footer className="pb-5 pt-2"><LegalLinks className="justify-center" /></footer>
-    </main>
+    </AuthShell>
   );
 }

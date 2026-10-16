@@ -137,3 +137,13 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 .pa-glow { animation: pa-glow 2s ease-in-out infinite; transform-origin: center; }
 .pa-pencil { animation: pa-pencil 1.8s ease-in-out infinite; transform-origin: center; }
 @media (prefers-reduced-motion: reduce) { .pa-line, .pa-sl, .pa-shimmer, .pa-ring, .pa-glow, .pa-pencil { animation: none !important } .pa-line { width: var(--w, 70%) } }
+
+/* Страницы входа и регистрации: светло-голубые поля, тёмная кнопка-таблетка, как в макете */
+:root { --auth-field: #eaf2ff; }
+:root[data-theme="dark"] { --auth-field: #262b52; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --auth-field: #262b52; } }
+.auth .input { height: 3rem; border-radius: 1rem; background: var(--auth-field); padding-inline: 1rem; font-size: .95rem; }
+.auth .input:focus { background: var(--surface); border-color: var(--accent); }
+.auth .label { margin-bottom: .4rem; font-size: .8rem; color: var(--ink2); }
+.auth form .btn { height: 3rem; font-size: .95rem; }
+.auth h1 { font-size: 1.65rem; line-height: 2rem; letter-spacing: -.01em; }

@@ -1,20 +1,17 @@
 import Link from "next/link";
 import { Form, Field } from "@/components/Form";
 import { registerAction } from "@/lib/actions";
-import { Logo } from "@/components/Logo";
 import { PasswordInput } from "@/components/PasswordInput";
 import { OAuthButtons } from "@/components/OAuthButtons";
 import { safeNext } from "@/lib/auth";
-import { LegalLinks } from "@/components/LegalLinks";
+import { AuthShell } from "@/components/AuthShell";
 
 export const metadata = { title: "Регистрация" };
 
 export default async function Register({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const nx = safeNext((await searchParams).next);
   return (
-    <main className="flex min-h-screen flex-col px-5">
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-10"><Logo big href="/register" /></div>
+    <AuthShell logoHref="/register">
       <h1 className="mb-1 text-2xl font-semibold">Создать аккаунт</h1>
       <p className="mb-6 text-sm text-ink2">100 ₽ на баланс в подарок — хватит на пробный контент-план.</p>
       <Form action={registerAction} submit="Создать аккаунт" wide>
@@ -28,8 +25,6 @@ export default async function Register({ searchParams }: { searchParams: Promise
       <OAuthButtons verb="Зарегистрироваться" next={nx} />
       <p className="mt-4 text-xs text-ink3">Регистрируясь через Яндекс ID или VK ID, вы принимаете те же условия.</p>
       <p className="mt-6 text-sm text-ink2">Уже есть аккаунт? <Link className="text-accent-ink" href={nx === "/app" ? "/login" : `/login?next=${encodeURIComponent(nx)}`}>Войти</Link></p>
-    </div>
-    <footer className="pb-5 pt-2"><LegalLinks className="justify-center" /></footer>
-    </main>
+    </AuthShell>
   );
 }

@@ -46,7 +46,7 @@ export function VkIdWidget({ appId, next, canonical }: { appId: string; next: st
         });
         const oneTap = new VKID.OneTap();
         oneTap
-          .render({ container: box.current!, showAlternativeLogin: true, scheme: isDark() ? VKID.Scheme.DARK : VKID.Scheme.LIGHT, styles: { borderRadius: 12, height: 44 } })
+          .render({ container: box.current!, showAlternativeLogin: true, scheme: isDark() ? VKID.Scheme.DARK : VKID.Scheme.LIGHT, styles: { borderRadius: 24, height: 48 } })
           .on(VKID.WidgetEvents.ERROR, (e: { code?: number; text?: string }) => {
             console.error("VKID widget error", e);
             // код 2 — ошибка в процессе входа (закрыли окно, отказ, блокировка окна); 0/1 — виджет не загрузился или сбой VK

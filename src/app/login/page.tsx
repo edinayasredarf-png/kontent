@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { Form, Field } from "@/components/Form";
 import { loginAction } from "@/lib/actions";
-import { Logo } from "@/components/Logo";
 import { PasswordInput } from "@/components/PasswordInput";
 import { OAuthButtons } from "@/components/OAuthButtons";
 import { safeNext } from "@/lib/auth";
-import { LegalLinks } from "@/components/LegalLinks";
+import { AuthShell } from "@/components/AuthShell";
 
 const ERRORS: Record<string, string> = {
   denied: "Вход отменён на стороне провайдера",
@@ -22,9 +21,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const { error, next, reset } = await searchParams;
   const nx = safeNext(next);
   return (
-    <main className="flex min-h-screen flex-col px-5">
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-8">
-      <div className="mb-10"><Logo big href="/login" /></div>
+    <AuthShell>
       <h1 className="mb-6 text-2xl font-semibold">Вход</h1>
       {reset === "1" && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Пароль изменён. Войдите с новым паролем.</p>}
       {error && ERRORS[error] && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{ERRORS[error]}</p>}
@@ -36,8 +33,6 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       </Form>
       <OAuthButtons verb="Войти" next={nx} />
       <p className="mt-6 text-sm text-ink2">Нет аккаунта? <Link className="text-accent-ink" href={nx === "/app" ? "/register" : `/register?next=${encodeURIComponent(nx)}`}>Зарегистрироваться</Link></p>
-    </div>
-    <footer className="pb-5 pt-2"><LegalLinks className="justify-center" /></footer>
-    </main>
+    </AuthShell>
   );
 }
