@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { ArrowUp, Loader2, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowUp, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { countNewAction, refreshFeedAction } from "@/lib/monitor/actions";
 import { filterQuery, type FeedFilter } from "@/lib/monitor/feed-query";
@@ -48,7 +48,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
     <>
       <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
         <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
-        <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты">{busy ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Обновить</button>
+        <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
         <button type="button" className={PILL} onClick={() => setModal("filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
         <Link href="/app/monitor/settings" className={PILL}><Settings2 size={16} />Настройки</Link>
       </div>

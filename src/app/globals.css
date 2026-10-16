@@ -164,3 +164,7 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 
 /* кнопка-таблетка с акцентом (добавить / создать) */
 .pill-accent { background: var(--accent); color: #fff; } .pill-accent:hover { background: var(--accent); opacity: .9; }
+
+/* кнопка с иконкой слева: пока идёт действие, крутится сама иконка, отдельный спиннер не показываем */
+button[data-pending] > .animate-spin:has(+ svg) { display: none; }
+button[data-pending] > .animate-spin + svg { animation: spin 1s linear infinite; }
