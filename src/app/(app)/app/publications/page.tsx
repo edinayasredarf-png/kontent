@@ -2,6 +2,7 @@ import { Send } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PageHead, Empty, Status, KIND } from "@/components/ui";
+import { PostCard, RoundIcon } from "@/components/ui/PostCard";
 
 export default async function Publications() {
   const c = await requireCtx();
@@ -12,11 +13,13 @@ export default async function Publications() {
     <>
       <PageHead title="Публикации" sub="Готовые материалы, очередь и опубликованное." />
       {rows.length === 0 ? <Empty icon={<Send />} title="Публикаций пока нет" text="Материалы появятся здесь, когда завод напишет первый текст." /> : (
-        <div className="card overflow-x-auto">
+        <div className="mx-auto w-full max-w-[600px] space-y-3">
           {rows.map((r) => (
-            <div key={r.id} className="flex min-w-[480px] items-center gap-3 border-b border-line px-5 py-3 last:border-0">
-              <span className="chip">{KIND[r.kind]}</span><span className="min-w-0 flex-1 truncate text-sm">{r.topic}</span><span className="text-xs text-ink3">{r.brand}</span><Status s={r.status} />
-            </div>
+            <PostCard key={r.id} icon={<RoundIcon><Send size={16} /></RoundIcon>} title={r.brand} sub={KIND[r.kind]}
+              when={r.planned_for ? new Date(r.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : undefined}
+              actions={<Status s={r.status} />}>
+              <p className="text-sm">{r.topic}</p>
+            </PostCard>
           ))}
         </div>
       )}

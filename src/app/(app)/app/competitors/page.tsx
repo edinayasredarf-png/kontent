@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw, Trash2, Crosshair } from "lucide-react";
+import { RefreshCw, Trash2, Crosshair } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { competitorStats, MAX_COMPETITORS, topCompetitorPosts } from "@/lib/competitors";
@@ -7,6 +7,7 @@ import { PRICES, rub } from "@/lib/wallet";
 import { AiPanel } from "@/components/AiPanel";
 import { Field, Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
+import { PostCard, RoundIcon } from "@/components/ui/PostCard";
 
 import { SubmitButton } from "@/components/SubmitButton";
 const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("ru-RU"));
@@ -44,23 +45,24 @@ export default async function Competitors() {
               ))}
             </div>
             {write && <AiPanel title="Разбор конкурентов" hint={`Что у них заходит, чем они сильнее и слабее вас, 5 идей для плана · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Разобрать" action={analyzeCompetitorsAction} />}
-            <section className="card">
-              <div className="border-b border-line px-5 py-3 text-sm font-medium">Лучшие посты конкурентов за 60 дней</div>
-              {top.length === 0 && <p className="px-5 py-6 text-sm text-ink2">Постов пока нет.</p>}
-              {top.map((t) => (
-                <div key={t.id} className="border-b border-line px-5 py-3 last:border-0">
-                  <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3"><span className="chip">{t.comp}</span><span>{new Date(t.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span><b className="text-sm text-ink">{fmt(t.views)} просм.</b>
-                    <a href={t.url} target="_blank" rel="noreferrer noopener" className="text-accent-ink"><ExternalLink size={12} /></a></div>
-                  <p className="line-clamp-3 text-sm">{t.body}</p>
-                  {write && factories.length > 0 && (
-                    <Form action={competitorToPlanAction} submit="В план" variant="ghost" className="mt-2 flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="post" value={t.id} />
-                      <select name="factory" className="input !w-auto !py-1 text-xs">{factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-                    </Form>
-                  )}
-                </div>
-              ))}
-              <p className="px-5 pb-3 text-xs text-ink3">«В план» создаёт идею, которую сервис напишет своими словами с позиции вашего бренда, без копирования.</p>
+            <section>
+              <h2 className="mb-3 text-sm font-semibold">Лучшие посты конкурентов за 60 дней</h2>
+              {top.length === 0 && <p className="rounded-3xl bg-tile px-5 py-6 text-sm text-ink2">Постов пока нет.</p>}
+              <div className="space-y-3">
+                {top.map((t) => (
+                  <PostCard key={t.id} icon={<RoundIcon>{t.comp.trim().charAt(0).toUpperCase()}</RoundIcon>} title={t.comp} sub={`${fmt(t.views)} просмотров · открыть ↗`} subHref={t.url}
+                    when={new Date(t.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                    actions={write && factories.length > 0 ? (
+                      <Form action={competitorToPlanAction} submit="В план" variant="ghost" className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="post" value={t.id} />
+                        <select name="factory" className="input !w-auto !py-1 text-xs">{factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
+                      </Form>
+                    ) : undefined}>
+                    <p className="line-clamp-4 whitespace-pre-wrap text-sm">{t.body}</p>
+                  </PostCard>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-ink3">«В план» создаёт идею, которую сервис напишет своими словами с позиции вашего бренда, без копирования.</p>
             </section>
           </>)}
         </div>

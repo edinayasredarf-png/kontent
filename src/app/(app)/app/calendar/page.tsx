@@ -35,7 +35,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <select name="factory" defaultValue={f} className="input !w-auto"><option value="">Все заводы</option>{factories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
         <select name="kind" defaultValue={sp.kind ?? ""} className="input !w-auto"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
         <select name="status" defaultValue={sp.status ?? ""} className="input !w-auto"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-        <SubmitButton className="btn btn-ghost ml-auto">Применить</SubmitButton>
+        <SubmitButton className="pill ml-auto">Применить</SubmitButton>
       </form>
       <CalendarGrid month={month} prevHref={qs({ m: shift(-1) })} nextHref={qs({ m: shift(1) })}
         items={rows.map((r) => ({ id: r.id, date: r.date, kind: r.kind, topic: r.topic, status: r.status, label: r.factory, href: `/app/factories/${r.factory_id}?view=list&open=${r.id}#i-${r.id}`, movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />

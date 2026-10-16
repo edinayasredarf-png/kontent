@@ -155,3 +155,9 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { .feed-fresh { animation: none } }
 .btn-ghost { background: var(--accent-soft); }
 .btn-ghost:hover { background: var(--tile2); }
+
+/* таблетки-вкладки и фильтры — как кнопки в «Новостях» */
+.pill { display: inline-flex; height: 2.5rem; align-items: center; gap: .5rem; border-radius: 999px; background: var(--accent-soft); padding: 0 1rem; font-size: .875rem; font-weight: 600; color: var(--ink); transition: background .15s; }
+.pill:hover { background: var(--tile2); }
+.pill-on { background: var(--accent); color: #fff; } .pill-on:hover { background: var(--accent); }
+.pill-sm { height: 2rem; padding: 0 .85rem; font-size: .8125rem; }

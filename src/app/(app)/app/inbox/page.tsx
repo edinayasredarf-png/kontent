@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, EyeOff, ExternalLink, Inbox as InboxIcon, RotateCcw, Sparkles } from "lucide-react";
+import { Check, EyeOff, Inbox as InboxIcon, RotateCcw, Sparkles } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { commentStatusAction, hideSpamAction, replyCommentAction, suggestReplyAction } from "@/lib/engage-actions";
@@ -7,6 +7,7 @@ import { classifyPending, TONE_LABEL, type Tone } from "@/lib/comments";
 import { PRICES, rub } from "@/lib/wallet";
 import { Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
+import { PostCard, RoundIcon } from "@/components/ui/PostCard";
 
 import { SubmitButton } from "@/components/SubmitButton";
 const TABS: [string, string][] = [["new", "Новые"], ["done", "Обработанные"], ["hidden", "Скрытые"]];
@@ -36,42 +37,42 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   return (
     <>
       <PageHead title="Входящие" sub="Комментарии под вашими постами в одном месте. Собираются автоматически." />
-      <div className="mb-4 flex gap-1 text-sm">{TABS.map(([k, l]) => <Link key={k} href={`/app/inbox?s=${k}`} className={`rounded-lg px-3 py-1.5 ${st === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{cnt[k] ? <span className="ml-1.5 text-xs text-ink3">{cnt[k]}</span> : null}</Link>)}</div>
-      <div className="mb-4 flex flex-wrap items-center gap-1 text-xs">
-        {TONES.map(([k, l]) => <Link key={k || "all"} href={`/app/inbox?s=${st}${k ? `&t=${k}` : ""}`} className={`rounded-full px-3 py-1 ${tone === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{k && st === "new" && tc[k] ? <span className="ml-1 text-ink3">{tc[k]}</span> : null}</Link>)}
-        {write && st === "new" && tc.spam > 0 && <form action={hideSpamAction} className="ml-auto"><SubmitButton className="btn btn-ghost !px-3 !py-1"><EyeOff size={13} />Скрыть весь спам ({tc.spam})</SubmitButton></form>}
+      <div className="mb-3 flex flex-wrap justify-center gap-2">{TABS.map(([k, l]) => <Link key={k} href={`/app/inbox?s=${k}`} className={`pill ${st === k ? "pill-on" : ""}`}>{l}{cnt[k] ? <span className="ml-1.5 text-xs text-ink3">{cnt[k]}</span> : null}</Link>)}</div>
+      <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
+        {TONES.map(([k, l]) => <Link key={k || "all"} href={`/app/inbox?s=${st}${k ? `&t=${k}` : ""}`} className={`pill pill-sm ${tone === k ? "pill-on" : ""}`}>{l}{k && st === "new" && tc[k] ? <span className="ml-1 text-ink3">{tc[k]}</span> : null}</Link>)}
+        {write && st === "new" && tc.spam > 0 && <form action={hideSpamAction} className=""><SubmitButton className="pill pill-sm"><EyeOff size={13} />Скрыть весь спам ({tc.spam})</SubmitButton></form>}
       </div>
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
       {hasTg && <p className="mb-4 rounded-xl bg-tile px-4 py-3 text-xs text-ink2">VK: комментарии собираются и на них можно отвечать отсюда. Telegram: Bot API не отдаёт комментарии каналов, поэтому здесь они не появятся — читайте их в группе обсуждения канала.</p>}
       {rows.length === 0 ? <Empty icon={<InboxIcon />} title={st === "new" ? "Новых комментариев нет" : "Здесь пусто"} text="Комментарии к постам VK подтянутся в течение часа после появления." /> : (
-        <div className="space-y-3">{rows.map((r) => (
-          <article key={r.id} className="card p-4">
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3">
-              <b className="text-sm text-ink">{r.author}</b>{r.tone && r.tone !== "neutral" && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_CLS[r.tone]}`}>{TONE_LABEL[r.tone]}</span>}<span>·</span><span>{new Date(r.posted_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-              <span>·</span><span>{r.channel}</span>{r.url && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-accent-ink">пост<ExternalLink size={11} /></a>}
-            </div>
-            {r.topic && <p className="mb-1 text-xs text-ink3">К посту: {r.topic}</p>}
-            <p className="whitespace-pre-wrap text-sm">{r.body}</p>
-            {r.reply && <p className="mt-2 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Ваш ответ: {r.reply}</p>}
-            {write && (
-              <div className="mt-3 flex flex-wrap items-start gap-3 border-t border-line pt-3">
+        <div className="mx-auto w-full max-w-[600px] space-y-3">{rows.map((r) => (
+          <PostCard key={r.id}
+            icon={<RoundIcon>{(r.author || "?").trim().charAt(0).toUpperCase()}</RoundIcon>}
+            title={<>{r.author}{r.tone && r.tone !== "neutral" && <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_CLS[r.tone]}`}>{TONE_LABEL[r.tone]}</span>}</>}
+            sub={r.url ? `${r.channel} · пост ↗` : r.channel} subHref={r.url ?? undefined}
+            when={new Date(r.posted_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            actions={write ? (
+              <>
                 {r.kind === "vk" && !r.reply && (
-                  <Form action={replyCommentAction} submit="Ответить" className="flex flex-1 flex-wrap items-start gap-2">
+                  <Form action={replyCommentAction} submit="Ответить" className="flex w-full flex-wrap items-start gap-2">
                     <input type="hidden" name="id" value={r.id} />
-                    <textarea key={r.draft ?? "e"} name="text" required rows={2} maxLength={4000} defaultValue={r.draft ?? ""} placeholder="Ответ от имени сообщества" className="input min-w-[16rem] flex-1 text-sm" />
+                    <textarea key={r.draft ?? "e"} name="text" required rows={2} maxLength={4000} defaultValue={r.draft ?? ""} placeholder="Ответ от имени сообщества" className="input min-w-[12rem] flex-1 text-sm" />
                   </Form>
                 )}
                 {!r.reply && r.tone !== "spam" && (
-                  <form action={suggestReplyAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !py-1.5" title="ИИ предложит ответ, вы сможете его поправить"><Sparkles size={14} />{r.draft ? "Другой ответ" : "Ответ от ИИ"}{c.org.unlimited ? "" : ` · ${rub(PRICES.reply)}`}</SubmitButton></form>
+                  <form action={suggestReplyAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="pill pill-sm" title="ИИ предложит ответ, вы сможете его поправить"><Sparkles size={14} />{r.draft ? "Другой ответ" : "Ответ от ИИ"}{c.org.unlimited ? "" : ` · ${rub(PRICES.reply)}`}</SubmitButton></form>
                 )}
-                <div className="ml-auto flex gap-1">
-                  {r.status !== "done" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="done" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Обработано"><Check size={14} /></SubmitButton></form>}
-                  {r.status !== "hidden" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="hidden" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>}
-                  {r.status !== "new" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="new" /><SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" title="Вернуть в новые"><RotateCcw size={14} /></SubmitButton></form>}
+                <div className="ml-auto flex gap-1.5">
+                  {r.status !== "done" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="done" /><SubmitButton className="pill pill-sm !px-3" title="Обработано"><Check size={14} /></SubmitButton></form>}
+                  {r.status !== "hidden" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="hidden" /><SubmitButton className="pill pill-sm !px-3" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>}
+                  {r.status !== "new" && <form action={commentStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="new" /><SubmitButton className="pill pill-sm !px-3" title="Вернуть в новые"><RotateCcw size={14} /></SubmitButton></form>}
                 </div>
-              </div>
-            )}
-          </article>
+              </>
+            ) : undefined}>
+            {r.topic && <p className="mb-1 text-xs text-ink3">К посту: {r.topic}</p>}
+            <p className="whitespace-pre-wrap text-sm">{r.body}</p>
+            {r.reply && <p className="mt-2 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Ваш ответ: {r.reply}</p>}
+          </PostCard>
         ))}</div>
       )}
     </>

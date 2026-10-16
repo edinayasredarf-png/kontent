@@ -202,18 +202,18 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       </form>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl bg-tile p-1 text-sm">
-          <Link href={href({ view: "list" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "list" ? "bg-surface shadow-sm" : "text-ink2"}`}><List size={14} />Список</Link>
-          <Link href={href({ view: "calendar" })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-surface shadow-sm" : "text-ink2"}`}><CalendarDays size={14} />Календарь</Link>
+        <div className="flex gap-2">
+          <Link href={href({ view: "list" })} className={`pill pill-sm ${view === "list" ? "pill-on" : ""}`}><List size={14} />Список</Link>
+          <Link href={href({ view: "calendar" })} className={`pill pill-sm ${view === "calendar" ? "pill-on" : ""}`}><CalendarDays size={14} />Календарь</Link>
         </div>
         <form className="ml-auto flex flex-wrap items-center gap-2" action={`/app/factories/${id}`}>
           <input type="hidden" name="view" value={view} /><input type="hidden" name="m" value={month} />
           <select name="kind" defaultValue={kindF} className="input !w-auto !py-1.5"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
           <select name="status" defaultValue={statusF} className="input !w-auto !py-1.5"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-          <SubmitButton className="btn btn-ghost !py-1.5">Применить</SubmitButton>
+          <SubmitButton className="pill pill-sm">Применить</SubmitButton>
         </form>
         <details className="relative">
-          <summary className="btn btn-ghost !py-1.5 cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
+          <summary className="pill pill-sm cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
           <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg">
             <p className="text-xs text-ink2">Материалы завода по фильтру: формат и статус из полей выше, период выбираете здесь.</p>
             <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
@@ -231,8 +231,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}
       <div className="space-y-3">
         {(view === "list" ? items : []).map((i) => (
-          <details key={i.id} id={`i-${i.id}`} open={sp.open === i.id} className="card group p-4 open:shadow-sm">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
+          <details key={i.id} id={`i-${i.id}`} open={sp.open === i.id} className="group rounded-3xl bg-tile p-2.5">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3">
               <span className="w-20 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
               <span className="chip">{KIND[i.kind]}</span>
               <span className="min-w-0 flex-1 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}{i.rubric && <span className="ml-2 rounded-full bg-tile px-2 py-0.5 text-[11px] font-normal text-ink2">{i.rubric}</span>}{i.ab && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-normal text-accent-ink">A/B {i.ab.variant === "A" ? "А" : "Б"}</span>}</span>
@@ -240,7 +240,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               {(i.body.trim() || i.poll) && <CopyText icon text={plainOf(toExp(i))} label="Копировать текст" />}
               <Status s={i.status} />
             </summary>
-            <div className="mt-4 space-y-3 border-t border-line pt-4">
+            <div className="space-y-3 px-2.5 pb-2 pt-4">
               {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) ? (
                 <details className="rounded-xl bg-tile p-3">
                   <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тему, хук, формат, дату</summary>
