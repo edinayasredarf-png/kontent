@@ -95,9 +95,9 @@ const COMPARE: [string, boolean | string, boolean | string, boolean | string][] 
 ];
 
 const GUARANTEES = [
-  { t: "Публикация только с вашего «да»", d: "Автопилот собирает идеи и пишет черновики, а выходит в канал только то, что вы одобрили." },
-  { t: "Платите за результат", d: "Нет абонемента. Если генерация не удалась, списанные деньги автоматически возвращаются на счёт." },
-  { t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
+  { img: "/landing/guar-approve.webp", r: 0.981, t: "Публикация только с вашего «да»", d: "Автопилот собирает идеи и пишет черновики, а выходит в канал только то, что вы одобрили." },
+  { img: "/landing/guar-money.webp", r: 1.282, t: "Платите за результат", d: "Нет абонемента. Если генерация не удалась, списанные деньги автоматически возвращаются на счёт." },
+  { img: "/landing/guar-lock.webp", r: 1.093, t: "Ключи под замком", d: "Доступы к каналам хранятся в зашифрованном виде и не показываются после сохранения." },
 ];
 
 /** Правая «экранная» часть карточки возможностей: короткая анимация интерфейса (public/landing/gif/<ключ>.mp4, заставка <ключ>.webp). Можно заменить на .gif/.webp. Пока файла нет, чёрный блок. */
@@ -271,7 +271,11 @@ export default function Landing() {
           <div className={wrap}>
             <h2 className={`${h2} mb-12`}>Автоматизация без потери контроля</h2>
             <div className="grid gap-5 md:grid-cols-3">{GUARANTEES.map((g) => (
-              <div key={g.t} className="rounded-[20px] bg-[#f5f5f5] p-8"><h3 className="text-2xl font-semibold leading-7">{g.t}</h3><p className="mt-3 text-base font-semibold leading-6 text-zinc-600">{g.d}</p></div>
+              <div key={g.t} className="relative flex flex-col overflow-hidden rounded-[20px] bg-[#f5f5f5] p-8 pb-0">
+                <h3 className="text-2xl font-semibold leading-7">{g.t}</h3>
+                <p className="mt-3 text-base font-semibold leading-6 text-zinc-600">{g.d}</p>
+                <div className="mt-auto flex justify-end pt-6"><Image src={g.img} alt="" width={Math.round(640 * g.r)} height={640} className="-mr-4 h-[170px] w-auto" aria-hidden /></div>
+              </div>
             ))}</div>
           </div>
         </section>
