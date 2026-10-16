@@ -120,3 +120,20 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 /* Лента карточек на лендинге без полосы прокрутки */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Лендинг, блок цен: маленькие зацикленные анимации вместо статичных иконок */
+@keyframes pa-type { 0% { width: 0 } 45%, 85% { width: var(--w, 70%) } 100% { width: 0 } }
+@keyframes pa-slide { 0%, 100% { transform: translateX(0) rotate(0) } 50% { transform: translateX(var(--dx, 8px)) rotate(var(--rot, 6deg)) } }
+@keyframes pa-sweep { 0% { transform: translateX(-120%) } 60%, 100% { transform: translateX(120%) } }
+@keyframes pa-ring { 0% { stroke-dashoffset: 100 } 70%, 100% { stroke-dashoffset: 8 } }
+@keyframes pa-glow { 0%, 100% { opacity: .35; transform: scale(.9) } 50% { opacity: 1; transform: scale(1.1) } }
+@keyframes pa-pencil { 0%, 100% { transform: translate(0, 0) rotate(0) } 50% { transform: translate(5px, -3px) rotate(8deg) } }
+@keyframes pa-pop { 0% { transform: scale(0); opacity: 0 } 70% { transform: scale(1.18); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
+.pa-tile { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; overflow: hidden; border-radius: 14px; background: #f1f2ff; }
+.pa-line { position: absolute; left: 10px; height: 4px; border-radius: 2px; background: #1734fc; animation: pa-type 3.2s ease-in-out infinite; }
+.pa-sl { position: absolute; left: 14px; top: 11px; width: 17px; height: 25px; border-radius: 5px; animation: pa-slide 2.6s ease-in-out infinite; }
+.pa-shimmer { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); animation: pa-sweep 2.4s ease-in-out infinite; }
+.pa-ring { animation: pa-ring 3s ease-in-out infinite; }
+.pa-glow { animation: pa-glow 2s ease-in-out infinite; transform-origin: center; }
+.pa-pencil { animation: pa-pencil 1.8s ease-in-out infinite; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { .pa-line, .pa-sl, .pa-shimmer, .pa-ring, .pa-glow, .pa-pencil { animation: none !important } .pa-line { width: var(--w, 70%) } }

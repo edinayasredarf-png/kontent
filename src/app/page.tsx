@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Plus, X, Sparkles, FileText, GalleryHorizontal, ImageIcon, Layers, Megaphone } from "lucide-react";
+import { Check, Plus, X, Sparkles } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Rail } from "@/components/landing/Rail";
+import { MonthBuilder } from "@/components/landing/MonthBuilder";
+import { PriceIcon, type PriceKind } from "@/components/landing/PriceIcon";
 import { CardVideo } from "@/components/landing/CardVideo";
 import { HeroVideo } from "@/components/landing/HeroVideo";
 import { Audience } from "@/components/landing/Audience";
@@ -27,7 +29,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Что такое Контент-завод и чем он отличается от обычных нейросетей?", a: "Это готовая система, а не чат. Вы один раз описываете бренд: чем занимаетесь, для кого, каким тоном говорите, какие цвета и логотип. Дальше сервис сам придумывает темы, пишет тексты в голосе бренда, оформляет карусели и картинки в ваших цветах, ставит всё в расписание и публикует. В чате с нейросетью вы каждый раз пишете запрос, копируете текст и вручную выкладываете." },
   { q: "Куда можно публиковать?", a: "В Telegram-каналы, сообщества VK и каналы MAX, а также на сайт на WordPress. Для остальных площадок есть webhook: он передаёт готовый пост и картинки в n8n или Make, а оттуда вы направляете их куда угодно." },
   { q: "Нужно ли мне что-то писать и придумывать самому?", a: "Нет. Достаточно описать бренд. Идеи, тексты, заголовки и оформление карусели сервис делает сам. Каждый материал вы можете одобрить, отредактировать или отклонить. Если хотите полную автоматизацию, включите автопилот: он сам соберёт идеи и напишет черновики, а решение о публикации остаётся за вами." },
-  { q: "Сколько это стоит?", a: "Вы платите только за созданный контент, абонемента нет. Пост стоит от 20 ₽, карусель-картинки 35 ₽, картинка к посту 15 ₽, SEO-статья 40 ₽. При регистрации на счёт зачисляется 100 ₽, этого хватит на первые материалы. Если генерация не удалась, деньги возвращаются автоматически." },
+  { q: "Сколько это стоит?", a: "Вы платите только за созданный контент, абонемента нет. Пост стоит от 20 ₽, карусель-картинки 35 ₽, картинка к посту 15 ₽, SEO-статья 60 ₽. При регистрации на счёт зачисляется 100 ₽, этого хватит на первые материалы. Если генерация не удалась, деньги возвращаются автоматически." },
   { q: "Тексты не будут похожи на безликий ИИ?", a: "Сервис пишет в тоне вашего бренда и учитывает аудиторию, запретные темы, примеры ваших постов, ссылки и призывы к действию. Вы выбираете тип постов (новости, экспертные, продающие, юмор и другие), длину, эмодзи и хештеги. Чем точнее описан бренд, тем более «вашим» получается текст." },
   { q: "Можно ли вести несколько брендов или проектов?", a: "Да. В одной организации можно создать любое число брендов и контент-заводов, у каждого свой стиль, каналы и расписание. Для агентств доступна команда с ролями: администратор, редактор, наблюдатель." },
   { q: "Как устроены карусели?", a: "Сервис сам придумывает структуру из 4–10 слайдов и собирает готовые картинки в стилях бренда (фирменный, светлый, тёмный). Для обложки можно добавить фон, созданный нейросетью. Карусель публикуется альбомом в Telegram и несколькими фото во VK или MAX. Её также можно скачать архивом." },
@@ -79,9 +81,9 @@ const FEATURES: { key: string; t: string; d: string; tone: Tone; chips?: string[
   { key: "teams", t: "Много брендов, команда и роли", d: "Любое число брендов и контент-заводов в одной организации, у каждого свой стиль и каналы. Приглашайте сотрудников и клиентов с ролями «администратор», «редактор», «наблюдатель».", tone: "liquid" },
 ];
 
-const PRICES: { i: typeof FileText; n: string; p: string }[] = [
-  { i: FileText, n: "Пост для соцсетей", p: "20 ₽" }, { i: GalleryHorizontal, n: "Карусель-картинки (4–10 слайдов)", p: "35 ₽" }, { i: ImageIcon, n: "Картинка к посту", p: "15 ₽" },
-  { i: Layers, n: "SEO-статья для сайта", p: "40 ₽" }, { i: Sparkles, n: "Идея для контент-плана", p: "3 ₽" }, { i: Megaphone, n: "Правка слайдов карусели", p: "бесплатно" },
+const PRICES: { k: PriceKind; n: string; p: string }[] = [
+  { k: "post", n: "Пост для соцсетей", p: "20 ₽" }, { k: "carousel", n: "Карусель-картинки (4–10 слайдов)", p: "35 ₽" }, { k: "image", n: "Картинка к посту", p: "15 ₽" },
+  { k: "seo", n: "SEO-статья для сайта", p: "60 ₽" }, { k: "idea", n: "Идея для контент-плана", p: "3 ₽" }, { k: "edit", n: "Правка слайдов карусели", p: "бесплатно" },
 ];
 
 const COMPARE: [string, boolean | string, boolean | string, boolean | string][] = [
@@ -285,11 +287,11 @@ export default function Landing() {
           <div className={wrap}>
             <h2 className={`${h2} mb-14`}>Платите только за созданный контент</h2>
             <div className="mx-auto grid max-w-[1170px] gap-5 lg:grid-cols-[599fr_558fr]">
-              <div className="rounded-3xl p-4 outline outline-1 -outline-offset-1 outline-zinc-200 sm:p-6" style={{ background: "linear-gradient(270deg, #ecfccb, #84cc16)" }}>
-                <ul className="rounded-3xl bg-white/95 p-2 sm:p-4">
+              <div className="flex rounded-3xl p-4 outline outline-1 -outline-offset-1 outline-zinc-200 sm:p-6" style={{ background: "linear-gradient(270deg, #ecfccb, #84cc16)" }}>
+                <ul className="flex flex-1 flex-col rounded-3xl bg-white/95 p-2 sm:p-4">
                   {PRICES.map((r) => (
-                    <li key={r.n} className="flex items-center gap-4 border-b border-stone-200 px-3 py-3.5 last:border-0 sm:px-4">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-stone-100 text-gray-500"><r.i size={19} /></span>
+                    <li key={r.n} className="flex flex-1 items-center gap-4 border-b border-stone-200 px-3 py-3.5 last:border-0 sm:px-4">
+                      <PriceIcon kind={r.k} />
                       <span className="flex-1 text-base font-semibold leading-6 text-zinc-900">{r.n}</span>
                       <span className="text-base font-semibold text-zinc-900">{r.p}</span>
                     </li>
@@ -300,6 +302,7 @@ export default function Landing() {
                 <div className="w-40 pb-6"><Logo href="/" light h={44} /></div>
                 <p className="text-sm font-semibold leading-5 text-neutral-900/80">Пример: контент на месяц</p>
                 <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ 900 руб</p>
+                <MonthBuilder />
                 <p className="mt-6 text-base font-semibold leading-6 text-neutral-900">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста. При регистрации на счёте уже 100 ₽.</p>
                 <Link href="/register" className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-[10px] bg-[#1c1c1c] px-8 text-base font-medium text-white transition hover:opacity-85 lg:mt-8">Хочу также</Link>
               </div>
