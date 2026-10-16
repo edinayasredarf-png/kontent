@@ -5,6 +5,7 @@ import { ChannelCheck } from "@/components/ChannelCheck";
 import { ChannelForm } from "@/components/ChannelForm";
 import { deleteChannel, saveSignatureAction } from "@/lib/actions";
 import { PageHead, Empty } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SUPPORTED_CHANNELS as KINDS } from "@/lib/publishing";
 
@@ -17,9 +18,9 @@ export default async function Channels() {
   return (
     <>
       <PageHead title="Каналы" sub="Куда публикуем. Канал принадлежит бренду." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mx-auto w-full max-w-[600px]">
         <div>
-          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество справа." /> : (
+          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой ниже." /> : (
             <div className="card">{rows.map((r) => (
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
                 <div className="flex flex-wrap items-center gap-3">
@@ -41,9 +42,10 @@ export default async function Channels() {
             </div>
           )}
         </div>
-        <div className="card h-fit p-5">
-          <b className="mb-4 block text-sm">Добавить канал</b>
-          {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} />}
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Добавить канал" title="Добавить канал">
+            {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} />}
+          </ModalButton>
         </div>
       </div>
     </>

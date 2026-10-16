@@ -161,3 +161,6 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 .pill:hover { background: var(--tile2); }
 .pill-on { background: var(--accent); color: #fff; } .pill-on:hover { background: var(--accent); }
 .pill-sm { height: 2rem; padding: 0 .85rem; font-size: .8125rem; }
+
+/* кнопка-таблетка с акцентом (добавить / создать) */
+.pill-accent { background: var(--accent); color: #fff; } .pill-accent:hover { background: var(--accent); opacity: .9; }

@@ -4,6 +4,7 @@ import { requireCtx, canWrite } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { createFlowAction } from "@/lib/flows/actions";
 import { Empty, PageHead } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 
@@ -29,22 +30,22 @@ export default async function Flows({ searchParams }: { searchParams: Promise<{ 
     <>
       <PageHead title="Автолента" sub="Новости из источников сами отбираются, пересказываются в вашем стиле и публикуются в ваши каналы." />
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mx-auto w-full max-w-[560px]">
         <div className="space-y-3">
-          {flows.length === 0 && <Empty icon={<Rss />} title="Потоков пока нет" text="Создайте поток справа: выберите источники из «Мониторинга» и каналы, куда публиковать. По умолчанию каждая новость сначала ждёт вашего одобрения." />}
+          {flows.length === 0 && <Empty icon={<Rss />} title="Потоков пока нет" text="Создайте поток: выберите источники из «Мониторинга» и каналы, куда публиковать. По умолчанию каждая новость сначала ждёт вашего одобрения." />}
           {flows.map((f) => (
-            <Link key={f.id} href={`/app/flows/${f.id}`} className="card block p-4 transition hover:bg-tile/50">
-              <div className="flex flex-wrap items-center gap-2">
-                <b className="text-sm">{f.name}</b><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span>
-                <span className="chip">{f.mode === "auto" ? "автоматом" : "с одобрением"}</span><span className="ml-auto text-xs text-ink3">{f.brand}</span>
+            <Link key={f.id} href={`/app/flows/${f.id}`} className="card block p-5 text-center transition hover:bg-tile/50">
+              <b className="block text-sm">{f.name}</b>
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-2"><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span>
+                <span className="chip">{f.mode === "auto" ? "автоматом" : "с одобрением"}</span><span className="chip">{f.brand}</span>
               </div>
-              <p className="mt-2 text-xs text-ink2">Ждут: <b>{f.pending}</b> · в очереди и опубликовано: <b>{f.queued}</b> · отбраковано: <b>{f.rejected}</b></p>
+              <p className="mt-3 text-xs text-ink2">Ждут: <b>{f.pending}</b> · в очереди и опубликовано: <b>{f.queued}</b> · отбраковано: <b>{f.rejected}</b></p>
               {f.note && <p className="mt-2 rounded-lg bg-warn-soft px-2 py-1 text-xs text-warn">{f.note}</p>}
             </Link>
           ))}
         </div>
-        <section className="card h-fit p-5">
-          <b className="mb-3 block text-sm">Новый поток</b>
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Добавить поток" title="Новый поток" className="pill">
           {!write ? <p className="text-sm text-ink2">Создавать потоки могут редакторы и выше.</p> : brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : (
             <form action={createFlowAction} className="space-y-3">
               <div><label className="label">Название</label><input name="name" required minLength={2} maxLength={80} placeholder="Новости города" className="input" /></div>
@@ -61,7 +62,8 @@ export default async function Flows({ searchParams }: { searchParams: Promise<{ 
               <p className="text-xs text-ink3">Поток создаётся на паузе. Настройте фильтры, стиль и картинки, затем включите.</p>
             </form>
           )}
-        </section>
+          </ModalButton>
+        </div>
       </div>
     </>
   );

@@ -1,14 +1,14 @@
 import clsx from "clsx";
 
 export const PageHead = ({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) => (
-  <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
-    <div><h1 className="text-[28px] font-semibold leading-8 tracking-tight md:text-3xl">{title}</h1>{sub && <p className="mt-2 text-sm text-ink2">{sub}</p>}</div>
-    {action}
+  <div className="mx-auto mb-8 max-w-[640px] text-center">
+    <h1 className="text-[28px] font-semibold leading-8 tracking-tight md:text-3xl">{title}</h1>{sub && <p className="mt-2 text-sm text-ink2">{sub}</p>}
+    {action && <div className="mt-4 flex justify-center">{action}</div>}
   </div>
 );
 
 export const Empty = ({ icon, title, text, action }: { icon: React.ReactNode; title: string; text: string; action?: React.ReactNode }) => (
-  <div className="card flex flex-col items-center px-6 py-14 text-center">
+  <div className="card mx-auto flex w-full max-w-[560px] flex-col items-center px-6 py-12 text-center">
     <div className="mb-3 grid size-12 place-items-center rounded-2xl bg-tile text-ink3">{icon}</div>
     <b>{title}</b><p className="mb-4 mt-1 max-w-sm text-sm text-ink2">{text}</p>{action}
   </div>

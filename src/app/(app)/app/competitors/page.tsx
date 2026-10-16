@@ -7,6 +7,7 @@ import { PRICES, rub } from "@/lib/wallet";
 import { AiPanel } from "@/components/AiPanel";
 import { Field, Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 import { PostCard, RoundIcon } from "@/components/ui/PostCard";
 
 import { SubmitButton } from "@/components/SubmitButton";
@@ -23,14 +24,14 @@ export default async function Competitors() {
   return (
     <>
       <PageHead title="Конкуренты" sub="Следим за публичными каналами Telegram и сообществами VK: что у них заходит, как часто и когда они публикуют." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="mx-auto w-full max-w-[600px]">
         <div className="space-y-6">
-          {stats.length === 0 ? <Empty icon={<Crosshair />} title="Конкурентов пока нет" text="Добавьте публичный канал Telegram или сообщество VK справа. Посты и просмотры подтянутся сразу и потом обновляются дважды в сутки." /> : (<>
-            <div className="grid gap-3 sm:grid-cols-2">
+          {stats.length === 0 ? <Empty icon={<Crosshair />} title="Конкурентов пока нет" text="Добавьте публичный канал Telegram или сообщество VK кнопкой ниже. Посты и просмотры подтянутся сразу и потом обновляются дважды в сутки." /> : (<>
+            <div className="space-y-3">
               {stats.map((s) => (
-                <div key={s.id} className="card p-4">
+                <div key={s.id} className="card p-5">
                   <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{s.title}</div><div className="text-xs text-ink3">{s.kind === "telegram" ? "Telegram" : "VK"} · {s.ref}</div></div>
+                    <div className="min-w-0 flex-1 text-center pl-10"><div className="truncate text-sm font-semibold">{s.title}</div><div className="text-xs text-ink3">{s.kind === "telegram" ? "Telegram" : "VK"} · {s.ref}</div></div>
                     {write && <div className="flex gap-1">
                       <form action={refreshCompetitorAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-ink" title="Обновить"><RefreshCw size={15} /></SubmitButton></form>
                       <form action={deleteCompetitorAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={15} /></SubmitButton></form></div>}
@@ -40,7 +41,7 @@ export default async function Competitors() {
                     {[["Подписчики", fmt(s.members)], ["Постов в неделю", String(s.perWeek)], ["Просмотров на пост", fmt(s.avgViews)]].map(([l, v]) => (
                       <div key={l} className="rounded-xl bg-tile px-2 py-2"><dd className="text-base font-semibold">{v}</dd><dt className="text-[11px] text-ink2">{l}</dt></div>))}
                   </dl>
-                  <p className="mt-2 text-xs text-ink2">{s.erPct != null && <>Охват поста ≈ {s.erPct}% подписчиков. </>}{s.bestHour != null && <>Лучше всего заходят публикации около {s.bestHour}:00 МСК.</>}</p>
+                  <p className="mt-3 text-center text-xs text-ink2">{s.erPct != null && <>Охват поста ≈ {s.erPct}% подписчиков. </>}{s.bestHour != null && <>Лучше всего заходят публикации около {s.bestHour}:00 МСК.</>}</p>
                 </div>
               ))}
             </div>
@@ -66,8 +67,8 @@ export default async function Competitors() {
             </section>
           </>)}
         </div>
-        <section className="card h-fit p-5">
-          <b className="mb-3 block text-sm">Добавить конкурента</b>
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Добавить конкурента" title="Добавить конкурента">
           {write ? (
             <Form action={addCompetitorAction} submit="Добавить">
               <Field label="Площадка"><select name="kind" className="input"><option value="telegram">Telegram-канал</option><option value="vk">Сообщество VK</option></select></Field>
@@ -76,7 +77,8 @@ export default async function Competitors() {
               <p className="text-xs text-ink3">Только открытые источники. Максимум {MAX_COMPETITORS}. Для VK на сервере нужен ключ VK_SERVICE_TOKEN.</p>
             </Form>
           ) : <p className="text-sm text-ink2">Добавлять источники могут редакторы и выше.</p>}
-        </section>
+          </ModalButton>
+        </div>
       </div>
     </>
   );
