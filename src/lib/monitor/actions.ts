@@ -5,6 +5,7 @@ import { requireCtx, requireWriter } from "../auth";
 import { q } from "../db";
 import { addManual, addSource, digest, itemToPlan, pollSource, recompute } from "./service";
 import type { Kind } from "./fetchers";
+import { feedWhere, parseFilter } from "./feed-query";
 import { createFromNews, enrichItem, scoreNews, suggestKeywords, type KwSuggestion } from "./news";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -125,4 +126,29 @@ export async function createFromNewsAction(f: FormData) {
   back();
   if (!r.ok) redirect(`/app/monitor?err=${encodeURIComponent(r.error)}`);
   redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}${r.ids.length > 3 && s(f, "mode") !== "ideas" ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне.")}` : ""}#i-${r.ids[0]}`);
+}
+
+/** Сколько новых постов появилось в ленте с момента `since` с учётом фильтра. */
+export async function countNewAction(params: Record<string, string | string[]>, since: string): Promise<{ count: number }> {
+  const c = await requireCtx();
+  if (Number.isNaN(Date.parse(since))) return { count: 0 };
+  // в JS время с точностью до миллисекунды, в базе до микросекунды: +1 мс, чтобы самый свежий уже показанный пост не считался новым
+  const w = feedWhere(c.org.id, parseFilter(params), new Date(Date.parse(since) + 1).toISOString());
+  const r = await q<{ n: string }>(`select count(*) n from kz_feed_items i where ${w.sql}`, w.args);
+  return { count: Number(r[0]?.n ?? 0) };
+}
+
+/** Кнопка «Обновить»: опрашивает источники (выбранные в фильтре или все активные) и считает, сколько новых постов появилось. */
+export async function refreshFeedAction(params: Record<string, string | string[]>, since: string): Promise<{ count: number; polled: number; failed: number; added: number }> {
+  const c = await requireCtx();
+  const f = parseFilter(params);
+  const src = await q<{ id: string }>(
+    `select id from kz_sources where org_id=$1 and status='active' and kind<>'manual' and ($2::uuid[] = '{}' or id = any($2::uuid[])) order by last_fetched_at nulls first limit 12`, [c.org.id, f.src]);
+  let added = 0, failed = 0;
+  for (let i = 0; i < src.length; i += 4) {
+    const rs = await Promise.all(src.slice(i, i + 4).map((x) => pollSource(x.id)));
+    for (const r of rs) { added += r.added; if (r.error) failed++; }
+  }
+  const { count } = await countNewAction(params, since);
+  return { count, polled: src.length, failed, added };
 }

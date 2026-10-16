@@ -15,6 +15,8 @@ import { AiPanel } from "@/components/AiPanel";
 import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
+import { FeedToolbar } from "@/components/monitor/FeedToolbar";
+import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
 import { sourceView } from "@/lib/monitor/display";
 
 import { SubmitButton } from "@/components/SubmitButton";
@@ -22,37 +24,23 @@ export const maxDuration = 60;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
 
-interface Row { id: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; config: Record<string, unknown> | null; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
+interface Row { id: string; fetched_at: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; config: Record<string, unknown> | null; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
 
 const MAKE = KINDS.filter((k) => k !== "reels");
 
-export default async function Monitor({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+export default async function Monitor({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
   const c = await requireCtx();
-  const show = ["new", "saved", "used", "all"].includes(sp.show ?? "") ? sp.show! : "new";
-  const days = [1, 3, 7, 30].includes(Number(sp.d)) ? Number(sp.d) : 7;
-  const page = Math.max(1, Number(sp.p) || 1);
-  const only = sp.m === "1";
-  const fitOnly = sp.fit === "1";
-
-  const where: string[] = ["i.org_id=$1", "not i.excluded", `i.published_at > now() - ($2||' days')::interval`];
-  const args: unknown[] = [c.org.id, String(days)];
-  const add = (cond: string, v: unknown) => { args.push(v); where.push(cond.replace("?", `$${args.length}`)); };
-  if (show === "new") where.push("i.status='new'"); else if (show !== "all") add("i.status=?", show); else where.push("i.status<>'dismissed'");
-  if (sp.src) add("i.source_id=?", sp.src);
-  if (sp.kw) add("? = any(i.matched)", sp.kw);
-  if (only) where.push("i.score>0");
-  if (fitOnly) where.push("i.fit_score >= 6");
-  if (sp.q) {
-    args.push(`%${sp.q.slice(0, 80).replace(/[%_\\]/g, "\\$&")}%`);
-    where.push(`(i.title ilike $${args.length} or i.body ilike $${args.length})`);
-  }
-  const sql = where.join(" and ");
+  const f = parseFilter(sp);
+  const page = Math.max(1, Number(one(sp.p)) || 1);
+  const freshSince = Number.isNaN(Date.parse(one(sp.fresh))) ? 0 : Date.parse(one(sp.fresh));
+  const { sql, args } = feedWhere(c.org.id, f);
 
   const [rows, sources, kws, factories, stat, brands] = await Promise.all([
-    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.full_text,i.full_status,i.fit_score,i.fit_reason
+    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.fetched_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
-             order by ${fitOnly ? "i.fit_score desc nulls last," : ""} i.score desc, coalesce(i.fit_score,-1) desc, i.published_at desc limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
+             order by ${feedOrder(f)} limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
     q<{ id: string; title: string; last_error: string | null }>("select id,title,last_error from kz_sources where org_id=$1 order by title", [c.org.id]),
     q<{ word: string }>("select word from kz_keywords where org_id=$1 and kind='include' order by word", [c.org.id]),
     q<{ id: string; name: string; brand: string }>("select f.id,f.name,b.name brand from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.status='active' order by f.name", [c.org.id]),
@@ -61,62 +49,39 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   ]);
   const hasMore = rows.length > PAGE;
   const list = rows.slice(0, PAGE);
-  const href = (o: Record<string, string>) => {
-    const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...sp, ...o })) if (v && k !== "err") u.set(k, v);
-    return `/app/monitor?${u}`;
-  };
+  const href = (o: Record<string, string>) => `/app/monitor${filterQuery(f, o)}`;
+  const since = list.length ? new Date(Math.max(...list.map((r) => new Date(r.fetched_at).getTime()))).toISOString() : new Date().toISOString();
   const noSources = Number(stat[0].n) === 0;
   const write = c.org.role !== "viewer";
 
   return (
-    <div className="mx-auto w-full max-w-[600px] pb-28">
-      <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
-        <h1 className="text-center text-2xl font-semibold leading-8 md:text-4xl">Мониторинг новостей</h1>
-        <div className="flex gap-1.5">
-          <form action={refreshAllAction}><SubmitButton title="Обновить ленту" aria-label="Обновить ленту" className={ICON}><RefreshCw size={15} /></SubmitButton></form>
-          <Link href="/app/monitor/settings" title="Источники и ключевые слова" aria-label="Источники и ключевые слова" className={ICON}><Settings2 size={15} /></Link>
-        </div>
-      </div>
-      {sp.note && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</div>}
-      {sp.err && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{sp.err}</div>}
-      {Number(stat[0].err) > 0 && <p className="mb-4 text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Источники и слова».</p>}
+    <div className="mx-auto w-full max-w-[600px]">
+      <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
+      {one(sp.note) && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
+      {one(sp.err) && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
+      {Number(stat[0].err) > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Настройках».</p>}
 
       {noSources ? (
-        <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу — лента заполнится сама."
+        <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
           action={<Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link>} />
-      ) : (<>
-        <details className="mb-6" open={!!(sp.q || sp.src || sp.kw || sp.m || sp.fit || sp.show || sp.d)}>
-          <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-2 rounded-full bg-accent-soft px-5 py-2 text-sm font-semibold"><SlidersHorizontal size={15} />Фильтры и анализ</summary>
-          <div className="mt-4">
-        <AiPanel title="Анализ ленты" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Что в тренде" action={digestAction} />
-        {write && brands.length > 0 && (
-          <div className="card mb-4 p-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2"><b className="text-sm">Подборка новостей для вас</b><span className="text-xs text-ink3">нейросеть оценит свежие новости по профилю бренда и подскажет, как их использовать · {c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}</span></div>
-            <Form action={scoreNewsAction} submit="Подобрать" className="flex flex-wrap items-center gap-2">
-              <select name="brand" className="input !w-auto">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
-            </Form>
-          </div>
-        )}
-        <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" action="/app/monitor">
-          <input name="q" defaultValue={sp.q} placeholder="Поиск по тексту" className="input !w-48" />
-          <select name="src" defaultValue={sp.src ?? ""} className="input !w-auto"><option value="">Все источники</option>{sources.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select>
-          <select name="kw" defaultValue={sp.kw ?? ""} className="input !w-auto"><option value="">Любое слово</option>{kws.map((x) => <option key={x.word} value={x.word}>{x.word}</option>)}</select>
-          <select name="d" defaultValue={String(days)} className="input !w-auto"><option value="1">Сутки</option><option value="3">3 дня</option><option value="7">Неделя</option><option value="30">Месяц</option></select>
-          <select name="show" defaultValue={show} className="input !w-auto"><option value="new">Новые</option><option value="saved">Сохранённые</option><option value="used">Использованные</option><option value="all">Все</option></select>
-          <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" name="m" value="1" defaultChecked={only} />Только с совпадениями</label>
-          <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" name="fit" value="1" defaultChecked={fitOnly} />Подходит мне (оценка 6+)</label>
-          <SubmitButton className="btn btn-ghost ml-auto">Применить</SubmitButton>
-        </form>
-          </div>
-        </details>
-
+      ) : (<FeedToolbar filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} analysis={
+        <div className="space-y-4">
+          <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
+          {write && brands.length > 0 && (
+            <div className="card p-4">
+              <div className="mb-2"><b className="text-sm">Подборка новостей для вас</b><p className="mt-0.5 text-xs text-ink2">Нейросеть оценит свежие новости по профилю бренда и подскажет, как их использовать · {c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}</p></div>
+              <Form action={scoreNewsAction} submit="Подобрать" className="flex flex-wrap items-center gap-2">
+                <select name="brand" className="input !w-auto">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+              </Form>
+            </div>
+          )}
+        </div>}>
         {list.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">Ничего не найдено. Измените фильтры или добавьте ключевые слова.</p>}
         <FadeList className="space-y-5">
           {list.map((r) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
-            <article key={r.id} className="rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear]">
+            <article key={r.id} className={`rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
               <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
                 <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">
@@ -182,15 +147,14 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             {hasMore && <Link className="btn btn-ghost" href={href({ p: String(page + 1) })}>Дальше →</Link>}
           </div>
         )}
-      </>)}
-      {!noSources && (
-        <form action="/app" className="fixed bottom-4 left-1/2 z-30 w-[min(92vw,640px)] -translate-x-1/2 md:left-[calc(50%+170px)]">
-          <div className="flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
+        {/* строка вопроса выровнена по ширине карточек и всегда у нижнего края окна */}
+        <form action="/app" className="sticky bottom-4 z-30 mt-6">
+          <div className="-mx-2 flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
             <input name="q" required maxLength={1500} placeholder="Спросите по новостному фонду или попросите создать материал" aria-label="Вопрос ассистенту" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink3" />
             <SubmitButton className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-white" aria-label="Отправить в чат"><ArrowUp size={18} /></SubmitButton>
           </div>
         </form>
-      )}
+      </FeedToolbar>)}
     </div>
   );
 }

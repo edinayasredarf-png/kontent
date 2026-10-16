@@ -147,3 +147,11 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 .auth .label { margin-bottom: .4rem; font-size: .8rem; color: var(--ink2); }
 .auth form .btn { height: 3rem; font-size: .95rem; }
 .auth h1 { font-size: 1.65rem; line-height: 2rem; letter-spacing: -.01em; }
+
+/* Модальные окна и новые карточки в ленте */
+@keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes feed-in { from { opacity: 0; transform: translateY(-26px) scale(.97) } to { opacity: 1; transform: none } }
+.feed-fresh { animation: feed-in .55s cubic-bezier(.2,.9,.3,1) both; }
+@media (prefers-reduced-motion: reduce) { .feed-fresh { animation: none } }
+.btn-ghost { background: var(--accent-soft); }
+.btn-ghost:hover { background: var(--tile2); }
