@@ -4,7 +4,7 @@ export function PostCard({ icon, title, sub, subHref, when, children, actions, c
   children?: React.ReactNode; actions?: React.ReactNode; className?: string;
 }) {
   return (
-    <article className={`rounded-3xl bg-tile p-2.5 ${className}`}>
+    <article className={`rounded-3xl bg-tile p-2.5 [&_.input]:bg-surface ${className}`}>
       <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
         {icon}
         <div className="min-w-0 flex-1">

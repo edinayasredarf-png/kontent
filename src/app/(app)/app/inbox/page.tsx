@@ -37,9 +37,9 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   return (
     <>
       <PageHead title="Входящие" sub="Комментарии под вашими постами в одном месте. Собираются автоматически." />
-      <div className="mb-3 flex flex-wrap justify-center gap-2">{TABS.map(([k, l]) => <Link key={k} href={`/app/inbox?s=${k}`} className={`pill ${st === k ? "pill-on" : ""}`}>{l}{cnt[k] ? <span className="ml-1.5 text-xs text-ink3">{cnt[k]}</span> : null}</Link>)}</div>
+      <div className="mb-3 flex flex-wrap justify-center gap-2">{TABS.map(([k, l]) => <Link key={k} href={`/app/inbox?s=${k}`} className={`pill ${st === k ? "pill-on" : ""}`}>{l}{cnt[k] ? <span className="text-xs opacity-60">{cnt[k]}</span> : null}</Link>)}</div>
       <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
-        {TONES.map(([k, l]) => <Link key={k || "all"} href={`/app/inbox?s=${st}${k ? `&t=${k}` : ""}`} className={`pill pill-sm ${tone === k ? "pill-on" : ""}`}>{l}{k && st === "new" && tc[k] ? <span className="ml-1 text-ink3">{tc[k]}</span> : null}</Link>)}
+        {TONES.map(([k, l]) => <Link key={k || "all"} href={`/app/inbox?s=${st}${k ? `&t=${k}` : ""}`} className={`pill pill-sm ${tone === k ? "pill-on" : ""}`}>{l}{k && st === "new" && tc[k] ? <span className="opacity-60">{tc[k]}</span> : null}</Link>)}
         {write && st === "new" && tc.spam > 0 && <form action={hideSpamAction} className=""><SubmitButton className="pill pill-sm"><EyeOff size={13} />Скрыть весь спам ({tc.spam})</SubmitButton></form>}
       </div>
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
