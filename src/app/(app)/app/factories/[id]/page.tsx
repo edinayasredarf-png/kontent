@@ -103,7 +103,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="autopublish" defaultChecked={set?.autopublish} />Автопубликация по расписанию</label>
           <label className="flex items-center gap-2"><input type="checkbox" name="images" defaultChecked={set?.images} />Картинки к материалам{c.org.unlimited ? "" : ` (+${rub(PRICES.image)})`}</label>
-          <label className="flex items-center gap-2">Идеи:<select name="approval" defaultValue={set?.approval} className="input !w-auto !py-1.5"><option value="manual">одобряю вручную</option><option value="auto">одобряются сами (полный автомат, план пополняется с баланса)</option></select></label>
+          <label className="flex max-w-full flex-wrap items-center gap-2">Идеи:<select name="approval" defaultValue={set?.approval} title="Полный автомат: план пополняется с баланса" className="input !w-auto min-w-0 max-w-full !py-1.5"><option value="manual">одобряю вручную</option><option value="auto">одобряются сами (автомат, с баланса)</option></select></label>
           <SubmitButton className="btn btn-ghost ml-auto">Сохранить</SubmitButton>
         </div>
       </form>
