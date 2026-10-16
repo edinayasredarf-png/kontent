@@ -5,6 +5,7 @@ import { canManageTeam, listTeam, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
 import { inviteAction, removeMemberAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Team() {
@@ -16,7 +17,7 @@ export default async function Team() {
   return (
     <>
       <PageHead title="Команда" sub={`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mx-auto w-full max-w-[640px]">
         <section className="card">
           {members.map((m) => {
             const editable = manage && m.role !== "owner" && (m.role !== "admin" || c.org.role === "owner") && m.user_id !== c.user.id;
@@ -44,8 +45,8 @@ export default async function Team() {
             </div>
           ))}
         </section>
-        <section className="card h-fit p-5">
-          <b className="mb-1 block text-sm">Пригласить</b>
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Пригласить" title="Пригласить в команду">
           {manage ? (
             <Form action={inviteAction} submit="Создать ссылку">
               <Field label="Email (необязательно)"><input name="email" type="email" className="input" placeholder="colleague@company.ru" /></Field>
@@ -53,7 +54,8 @@ export default async function Team() {
               <p className="text-xs text-ink3">Письмо не отправляется — скопируйте ссылку и передайте человеку. Если указан email, принять приглашение сможет только его владелец.</p>
             </Form>
           ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
-        </section>
+          </ModalButton>
+        </div>
       </div>
     </>
   );

@@ -6,6 +6,7 @@ import { createKeyAction, revokeKeyAction } from "@/lib/apikeys-actions";
 import { SITE } from "@/lib/site";
 import { Field, Form } from "@/components/Form";
 import { PageHead } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SubmitButton } from "@/components/SubmitButton";
 const ENDPOINTS: [string, string, string][] = [
@@ -28,7 +29,7 @@ export default async function Developers() {
   return (
     <>
       <PageHead title="Интеграции и API" sub="Подключайте Контент-завод к n8n, Make, Zapier и своим скриптам." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mx-auto w-full max-w-[760px]">
         <div className="space-y-6">
           <section className="card p-5">
             <b className="text-sm">Ключи доступа</b>
@@ -57,8 +58,8 @@ export default async function Developers() {
   -d '{"factory":"ID_ЗАВОДА","topic":"5 ошибок в закупках","approve":true}'`}</pre>
           </section>
         </div>
-        <section className="card h-fit p-5">
-          <b className="mb-3 block text-sm">Новый ключ</b>
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Новый ключ" title="Новый ключ">
           {can ? (
             <Form action={createKeyAction} submit="Создать ключ">
               <Field label="Название"><input name="name" required minLength={2} maxLength={60} placeholder="Например: n8n" className="input" /></Field>
@@ -66,7 +67,8 @@ export default async function Developers() {
               <p className="text-xs text-ink3">Ключ показывается один раз. Храните его как пароль и не вставляйте в публичные места.</p>
             </Form>
           ) : <p className="text-sm text-ink2">Ключи создают владелец и администратор организации.</p>}
-        </section>
+          </ModalButton>
+        </div>
       </div>
     </>
   );

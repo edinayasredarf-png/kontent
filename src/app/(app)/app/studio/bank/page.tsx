@@ -6,6 +6,7 @@ import { KINDS } from "@/lib/plan";
 import { addBankAction, bankToPlanAction, deleteBankAction } from "@/lib/studio-actions";
 import { Form, Field } from "@/components/Form";
 import { Empty, KIND, PageHead } from "@/components/ui";
+import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Bank({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
@@ -20,7 +21,7 @@ export default async function Bank({ searchParams }: { searchParams: Promise<{ e
       <Link href="/app/studio" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Студия</Link>
       <PageHead title="Банк идей" sub="Заготовки и идеи про запас. Любую можно отправить в контент-план завода." />
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mx-auto w-full max-w-[600px]">
         <div className="space-y-3">
           {rows.length === 0 && <Empty icon={<Bookmark />} title="Банк пуст" text="Сохраняйте сюда результаты студии кнопкой «В банк идей» или добавляйте идеи вручную." />}
           {rows.map((r) => (
@@ -38,13 +39,14 @@ export default async function Bank({ searchParams }: { searchParams: Promise<{ e
               )}
             </article>))}
         </div>
-        <section className="card h-fit p-5">
-          <b className="mb-4 block text-sm">Добавить идею</b>
+        <div className="mt-5 flex justify-center">
+          <ModalButton label="Добавить идею" title="Добавить идею">
           <Form action={addBankAction} submit="Добавить">
             <Field label="Идея"><input name="title" required minLength={3} maxLength={200} className="input" /></Field>
             <Field label="Заметки (необязательно)"><textarea name="body" rows={4} maxLength={8000} className="input" /></Field>
           </Form>
-        </section>
+          </ModalButton>
+        </div>
       </div>
     </>
   );
