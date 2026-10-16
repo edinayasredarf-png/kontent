@@ -9,6 +9,8 @@ import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { PRICES, rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { PageHead } from "@/components/ui";
+import { NewsCard, type NewsSource } from "@/components/monitor/NewsCard";
+import { FadeList } from "@/components/monitor/FadeList";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export const dynamic = "force-dynamic";
@@ -52,76 +54,83 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
 
 type Hid = (item: string) => React.ReactNode;
 
+const COL = "mx-auto w-full max-w-[600px]";
+const SRC = "s.kind,s.title source,s.ref,s.config";
+type Src = { kind: Kind; source: string; ref: string; config: Record<string, unknown> | null };
+const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.ref, config: r.config });
+const Empty = ({ t }: { t: string }) => <p className="card mx-auto max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
+
 async function Pending({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
-  const rows = await q<{ id: string; text: string; status: string; created_at: string; title: string; url: string; source: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
-    `select i.id,i.text,i.status,i.created_at,k.title,k.url,s.title source,i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
+  const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
+    `select i.id,i.text,i.status,i.created_at,k.title,k.url,${SRC},i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
       where i.flow_id=$1 and i.status in ('pending','ready') order by i.created_at desc limit 50`, [flowId]);
-  if (!rows.length) return <p className="card px-6 py-12 text-center text-sm text-ink2">Очередь пуста. Новые новости появятся здесь после отбора и пересказа (проверка источников каждые 5 минут).</p>;
+  if (!rows.length) return <Empty t="Очередь пуста. Новые новости появятся здесь после отбора и пересказа (проверка источников каждые 5 минут)." />;
   return (
-    <div className="space-y-4">{rows.map((r) => (
-      <article key={r.id} className="card p-4">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink3">
-          <span className="chip">{r.source}</span>{r.cls?.topic && <span className="chip">{r.cls.topic}</span>}{r.cls?.fit != null && <span className="chip">нашесть {r.cls.fit}/10</span>}
-          <span>{when(r.created_at)}</span>{r.status === "ready" && <span className="chip !bg-accent-soft !text-accent-ink">выйдет по расписанию</span>}
+    <FadeList className={`${COL} space-y-5 pb-16`}>{rows.map((r) => (
+      <NewsCard key={r.id} s={srcOf(r)} when={when(r.created_at)}
+        actions={write ? (<>
+          <form action={rewriteFlowItemAction} className="flex flex-wrap items-center gap-2">{hid(r.id)}
+            <input name="note" maxLength={300} placeholder="Пожелание: короче, с юмором…" className="input !w-52 !rounded-full !bg-surface !py-1.5 text-xs" />
+            <SubmitButton className="grid h-8 place-items-center rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2"><span className="flex items-center gap-1"><RefreshCw size={13} />Переписать{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</span></SubmitButton></form>
+          <form action={rejectFlowItemAction} className="ml-auto">{hid(r.id)}<SubmitButton className="h-8 rounded-full bg-surface px-3 text-xs font-medium text-bad hover:bg-tile2">Отклонить</SubmitButton></form>
+        </>) : undefined}>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+          {r.cls?.topic && <span className="chip !bg-surface">{r.cls.topic}</span>}{r.cls?.fit != null && <span className="chip !bg-surface">нашесть {r.cls.fit}/10</span>}
+          {r.status === "ready" && <span className="chip !bg-accent-soft !text-accent-ink">выйдет по расписанию</span>}
           <a href={r.url.startsWith("http") ? r.url : undefined} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex items-center gap-1 text-accent-ink">оригинал<ExternalLink size={11} /></a>
         </div>
-        <details className="mb-2 text-xs text-ink2"><summary className="cursor-pointer">Исходная новость</summary><p className="mt-1 whitespace-pre-wrap">{r.title}</p></details>
+        <details className="mb-3 text-xs text-ink2"><summary className="cursor-pointer">Исходная новость</summary><p className="mt-1 whitespace-pre-wrap">{r.title}</p></details>
         {write ? (
           <form action={approveFlowItemAction} className="space-y-2">
             {hid(r.id)}
-            <textarea name="text" defaultValue={r.text} rows={6} className="input text-sm" />
-            <div className="flex flex-wrap items-center gap-2"><SubmitButton className="btn">Опубликовать</SubmitButton><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
+            <textarea name="text" defaultValue={r.text} rows={7} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+            <div className="flex flex-wrap items-center gap-2"><SubmitButton className="btn !h-9">Опубликовать</SubmitButton><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
           </form>
-        ) : <p className="whitespace-pre-wrap text-sm">{r.text}</p>}
-        {write && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <form action={rewriteFlowItemAction} className="flex flex-wrap items-center gap-2">{hid(r.id)}
-              <input name="note" maxLength={300} placeholder="Пожелание (необязательно): короче, с юмором…" className="input !w-56 !py-1.5 text-xs" />
-              <SubmitButton className="btn btn-ghost !py-1.5"><RefreshCw size={14} />Переписать ещё раз{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</SubmitButton></form>
-            <form action={rejectFlowItemAction} className="ml-auto">{hid(r.id)}<SubmitButton className="btn btn-ghost !py-1.5 !text-bad">Отклонить</SubmitButton></form>
-          </div>
-        )}
-      </article>
-    ))}</div>
+        ) : <p className="whitespace-pre-wrap text-sm leading-6">{r.text}</p>}
+      </NewsCard>
+    ))}</FadeList>
   );
 }
 
 async function Published({ flowId }: { flowId: string }) {
-  const rows = await q<{ id: string; text: string; updated_at: string; note: string | null; status: string; urls: string | null; pub: string | null }>(
-    `select i.id,i.text,i.updated_at,i.reject_note note,ci.status,
+  const rows = await q<Partial<Src> & { id: string; text: string; updated_at: string; note: string | null; status: string; urls: string | null; pub: string | null }>(
+    `select i.id,i.text,i.updated_at,i.reject_note note,ci.status,s.kind,s.title source,s.ref,s.config,
             (select string_agg(p.external_url,' ') from kz_publications p where p.item_id=i.content_item_id and p.external_url is not null) urls,
             (select string_agg(distinct p.status,',') from kz_publications p where p.item_id=i.content_item_id) pub
-       from kz_flow_items i left join kz_content_items ci on ci.id=i.content_item_id where i.flow_id=$1 and i.status in ('queued','failed') order by i.updated_at desc limit 60`, [flowId]);
-  if (!rows.length) return <p className="card px-6 py-12 text-center text-sm text-ink2">Пока ничего не опубликовано.</p>;
+       from kz_flow_items i left join kz_content_items ci on ci.id=i.content_item_id left join kz_feed_items k on k.id=i.feed_item_id left join kz_sources s on s.id=k.source_id
+      where i.flow_id=$1 and i.status in ('queued','failed') order by i.updated_at desc limit 60`, [flowId]);
+  if (!rows.length) return <Empty t="Пока ничего не опубликовано." />;
   return (
-    <div className="card divide-y divide-line">{rows.map((r) => (
-      <div key={r.id} className="px-5 py-3">
-        <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>{when(r.updated_at)}</span>
-          <span className={`chip ${r.pub?.includes("failed") || r.status === "failed" ? "!bg-bad-soft !text-bad" : r.pub?.includes("queued") ? "" : "!bg-good-soft !text-good"}`}>{r.pub?.includes("failed") ? "ошибка" : r.pub === "published" ? "опубликовано" : r.pub ? "в очереди" : "не поставлено"}</span>
-          {r.urls?.split(" ").map((u) => <a key={u} href={u} target="_blank" rel="noreferrer noopener" className="text-accent-ink"><ExternalLink size={12} /></a>)}</div>
-        <p className="line-clamp-3 whitespace-pre-wrap text-sm">{r.text}</p>
-        {r.note && <p className="mt-1 text-xs text-warn">{r.note}</p>}
-      </div>))}</div>
+    <FadeList className={`${COL} space-y-5 pb-16`}>{rows.map((r) => (
+      <NewsCard key={r.id} s={{ kind: r.kind ?? "manual", title: r.source ?? "Источник удалён", ref: r.ref ?? "", config: r.config ?? null }} when={when(r.updated_at)}>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className={`chip ${r.pub?.includes("failed") || r.status === "failed" ? "!bg-bad-soft !text-bad" : r.pub?.includes("queued") ? "!bg-surface" : "!bg-good-soft !text-good"}`}>{r.pub?.includes("failed") ? "ошибка" : r.pub === "published" ? "опубликовано" : r.pub ? "в очереди" : "не поставлено"}</span>
+          {r.urls?.split(" ").map((u) => <a key={u} href={u} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-accent-ink">открыть<ExternalLink size={11} /></a>)}
+        </div>
+        <p className="line-clamp-6 whitespace-pre-wrap text-sm leading-6">{r.text}</p>
+        {r.note && <p className="mt-2 text-xs text-warn">{r.note}</p>}
+      </NewsCard>))}</FadeList>
   );
 }
 
 async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
-  const rows = await q<{ id: string; code: string; note: string | null; created_at: string; title: string; url: string; source: string }>(
-    `select i.id,i.reject_code code,i.reject_note note,i.created_at,k.title,k.url,s.title source from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
+  const rows = await q<Src & { id: string; code: string; note: string | null; created_at: string; title: string; url: string }>(
+    `select i.id,i.reject_code code,i.reject_note note,i.created_at,k.title,k.url,${SRC} from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
       where i.flow_id=$1 and i.status='rejected' order by i.created_at desc limit 80`, [flowId]);
   const by = rows.reduce<Record<string, number>>((a, r) => ({ ...a, [r.code]: (a[r.code] ?? 0) + 1 }), {});
-  if (!rows.length) return <p className="card px-6 py-12 text-center text-sm text-ink2">Отбракованных новостей нет.</p>;
+  if (!rows.length) return <Empty t="Отбракованных новостей нет." />;
   return (
     <>
-      <div className="mb-4 flex flex-wrap gap-2">{Object.entries(by).map(([k, n]) => <span key={k} className="chip">{REJECT[k] ?? k}: {n}</span>)}</div>
-      <div className="card divide-y divide-line">{rows.map((r) => (
-        <div key={r.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-ink3"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span>{r.note}</span>}<span>{r.source} · {when(r.created_at)}</span></div>
-            <p className="line-clamp-2 text-sm">{r.title}</p>
-          </div>
-          {write && <form action={rescueFlowItemAction}>{hid(r.id)}<SubmitButton className="btn btn-ghost !py-1.5" title="Пересказать и вернуть в очередь на одобрение">Это нам надо{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</SubmitButton></form>}
-        </div>))}</div>
+      <div className={`${COL} mb-5 flex flex-wrap justify-center gap-2`}>{Object.entries(by).map(([k, n]) => <span key={k} className="chip">{REJECT[k] ?? k}: {n}</span>)}</div>
+      <FadeList className={`${COL} space-y-5 pb-16`}>{rows.map((r) => (
+        <NewsCard key={r.id} s={srcOf(r)} when={when(r.created_at)}
+          actions={<>
+            {write && <form action={rescueFlowItemAction}>{hid(r.id)}<SubmitButton className="h-8 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2" title="Пересказать и вернуть в очередь на одобрение">Это нам надо{unlimited ? "" : ` · ${rub(PRICES.flowRewrite)}`}</SubmitButton></form>}
+            {r.url.startsWith("http") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
+          </>}>
+          <p className="mb-2"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span className="ml-2 text-xs text-ink2">{r.note}</span>}</p>
+          <p className="line-clamp-4 text-[15px] font-semibold leading-snug">{r.title}</p>
+        </NewsCard>))}</FadeList>
     </>
   );
 }
