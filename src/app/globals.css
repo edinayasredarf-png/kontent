@@ -168,3 +168,10 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 /* кнопка с иконкой слева: пока идёт действие, крутится сама иконка, отдельный спиннер не показываем */
 button[data-pending]:has(svg:not(.animate-spin)) > .animate-spin { display: none; }
 button[data-pending] svg:not(.animate-spin) { animation: spin 1s linear infinite; }
+
+/* появление карточек ленты после применения фильтра: плавно, по очереди (--i — номер карточки) */
+@keyframes feed-card { from { opacity: 0; transform: translateY(28px) scale(.96) } to { opacity: 1; transform: none } }
+.feed-card { animation: feed-card .55s cubic-bezier(.2,.9,.3,1) backwards; animation-delay: calc(min(var(--i, 0), 8) * 70ms); }
+@keyframes nr-wobble { 0%,100% { transform: rotate(0) } 30% { transform: rotate(-9deg) } 70% { transform: rotate(7deg) } }
+.nr-lens { transform-box: fill-box; transform-origin: 30% 30%; animation: nr-wobble 2.6s ease-in-out .6s infinite; }
+@media (prefers-reduced-motion: reduce) { .feed-card, .nr-lens { animation: none } }

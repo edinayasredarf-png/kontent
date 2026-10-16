@@ -16,6 +16,8 @@ import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
+import { NoResults } from "@/components/monitor/NoResults";
+import { SettingsBody } from "@/components/monitor/SettingsBody";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
 import { sourceView } from "@/lib/monitor/display";
 
@@ -64,7 +66,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
       {noSources ? (
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
           action={<Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link>} />
-      ) : (<FeedToolbar filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} analysis={
+      ) : (<FeedToolbar filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
           {write && brands.length > 0 && (
@@ -76,12 +78,12 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             </div>
           )}
         </div>}>
-        {list.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">Ничего не найдено. Измените фильтры или добавьте ключевые слова.</p>}
+        {list.length === 0 && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
         <FadeList className="space-y-5">
-          {list.map((r) => {
+          {list.map((r, idx) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
-            <article key={r.id} className={`rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
+            <article key={r.id} style={{ "--i": idx } as React.CSSProperties} className={`feed-card rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
               <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
                 <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">

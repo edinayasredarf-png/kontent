@@ -14,9 +14,9 @@ const PILL = "inline-flex h-10 items-center gap-2 rounded-full bg-accent-soft px
  * если появились новые посты, показывает строку «Загружено N новых постов»; по нажатию лента перезагружается и плавно прокручивается к самым свежим.
  * Раз в минуту новые посты проверяются и сами (без опроса источников).
  */
-export function FeedToolbar({ filter, since, sources, keywords, analysis, children }: { filter: FeedFilter; since: string; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; children: React.ReactNode }) {
+export function FeedToolbar({ filter, since, sources, keywords, analysis, settings, children }: { filter: FeedFilter; since: string; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; settings: React.ReactNode; children: React.ReactNode }) {
   const router = useRouter();
-  const [modal, setModal] = useState<"filter" | "analysis" | null>(null);
+  const [modal, setModal] = useState<"filter" | "analysis" | "settings" | null>(null);
   const [busy, setBusy] = useState(false), [fresh, setFresh] = useState(0), [note, setNote] = useState("");
   const [, start] = useTransition();
   const params = { show: filter.show, d: String(filter.days), src: filter.src, kw: filter.kw, q: filter.q, m: filter.only ? "1" : "", fit: filter.fit ? "1" : "", sort: filter.sort };
@@ -43,6 +43,14 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
     start(() => { router.replace(`/app/monitor${filterQuery(filter, { fresh: since })}`, { scroll: false }); router.refresh(); });
   }, [filter, router, since]);
   const close = useCallback(() => setModal(null), []);
+  // применяем фильтр без перезагрузки страницы: окно закрывается, адрес меняется, лента подгружается заново
+  const apply = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const u = new URLSearchParams();
+    for (const [k, v] of new FormData(e.currentTarget).entries()) if (typeof v === "string" && v !== "") u.append(k, v);
+    setModal(null);
+    start(() => router.push(`/app/monitor${u.size ? `?${u}` : ""}`, { scroll: false }));
+  };
 
   return (
     <>
@@ -50,7 +58,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
         <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
         <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
         <button type="button" className={PILL} onClick={() => setModal("filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
-        <Link href="/app/monitor/settings" className={PILL}><Settings2 size={16} />Настройки</Link>
+        <button type="button" className={PILL} onClick={() => setModal("settings")}><Settings2 size={16} />Настройки</button>
       </div>
       {note && <p className="mb-4 text-center text-xs text-ink2">{note}</p>}
       {fresh > 0 && (
@@ -58,7 +66,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
           <button type="button" onClick={show} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90"><ArrowUp size={16} />Загружено {fresh} {plural(fresh)} · показать</button>
         </div>
       )}
-      {children}
+      <div key={qs}>{children}</div>
 
       {modal === "filter" && (
         <Modal title="Фильтр ленты" onClose={close} footer={
@@ -66,7 +74,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
             <Link href="/app/monitor" onClick={close} className="text-sm font-semibold text-ink2 hover:text-ink">Сбросить всё</Link>
             <button type="submit" form="feed-filter" className="btn !h-11 !px-8">Применить</button>
           </div>}>
-          <form id="feed-filter" action="/app/monitor" onSubmit={close} className="space-y-6">
+          <form id="feed-filter" action="/app/monitor" onSubmit={apply} className="space-y-6">
             <div>
               <p className="label">Поиск по тексту</p>
               <label className="flex h-11 items-center gap-2 rounded-full bg-accent-soft px-4"><Search size={15} className="text-ink2" /><input name="q" defaultValue={filter.q} placeholder="Слово или фраза" className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
@@ -93,6 +101,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, childr
           </form>
         </Modal>
       )}
+      {modal === "settings" && <Modal title="Источники и ключевые слова" onClose={close} wide>{settings}</Modal>}
       {modal === "analysis" && <Modal title="Анализ ленты" onClose={close}>{analysis}</Modal>}
     </>
   );

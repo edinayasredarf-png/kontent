@@ -24,7 +24,12 @@ export function feedWhere(orgId: string, f: FeedFilter, sinceFetched?: string): 
   if (f.kw.length) add("i.matched && ?::text[]", f.kw);
   if (f.only) where.push("i.score>0");
   if (f.fit) where.push("i.fit_score >= 6");
-  if (f.q) { args.push(`%${f.q.replace(/[%_\\]/g, "\\$&")}%`); where.push(`(i.title ilike $${args.length} or i.body ilike $${args.length})`); }
+  if (f.q) {
+    // ilike не сворачивает регистр кириллицы, если у базы локаль C, поэтому ищем по вариантам написания: как ввели, строчные, ПРОПИСНЫЕ, С заглавной
+    const esc = f.q.replace(/[%_\\]/g, "\\$&"), cap = esc.charAt(0).toUpperCase() + esc.slice(1).toLowerCase();
+    args.push([...new Set([esc, esc.toLowerCase(), esc.toUpperCase(), cap])].map((x) => `%${x}%`));
+    where.push(`(i.title ilike any($${args.length}::text[]) or i.body ilike any($${args.length}::text[]))`);
+  }
   if (sinceFetched) add("i.fetched_at > ?::timestamptz", sinceFetched);
   return { sql: where.join(" and "), args };
 }
