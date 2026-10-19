@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { ArrowUp, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { countNewAction, refreshFeedAction } from "@/lib/monitor/actions";
 import { filterQuery, type FeedFilter } from "@/lib/monitor/feed-query";
@@ -18,7 +18,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
   const router = useRouter();
   const [modal, setModal] = useState<"filter" | "analysis" | "settings" | null>(null);
   const [busy, setBusy] = useState(false), [fresh, setFresh] = useState(0), [note, setNote] = useState("");
-  const [, start] = useTransition();
+  const [loading, start] = useTransition();
   const params = { show: filter.show, d: String(filter.days), src: filter.src, kw: filter.kw, q: filter.q, m: filter.only ? "1" : "", fit: filter.fit ? "1" : "", sort: filter.sort };
   const qs = filterQuery(filter);
   const active = (filter.src.length ? 1 : 0) + (filter.kw.length ? 1 : 0) + (filter.q ? 1 : 0) + (filter.only ? 1 : 0) + (filter.fit ? 1 : 0) + (filter.show !== "new" ? 1 : 0) + (filter.days !== 7 ? 1 : 0) + (filter.sort !== "date" ? 1 : 0);
@@ -63,7 +63,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
       {note && <p className="mb-4 text-center text-xs text-ink2">{note}</p>}
       {fresh > 0 && (
         <div className="sticky top-24 z-30 mb-4 flex justify-center">
-          <button type="button" onClick={show} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90"><ArrowUp size={16} />Загружено {fresh} {plural(fresh)} · показать</button>
+          <button type="button" onClick={show} disabled={loading} aria-busy={loading} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90 disabled:cursor-wait disabled:opacity-90">{loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}{loading ? "Загружаем новые посты…" : `Загружено ${fresh} ${plural(fresh)} · показать`}</button>
         </div>
       )}
       <div key={qs}>{children}</div>
