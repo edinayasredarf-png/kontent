@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { FactoryTabMemory } from "@/components/FactoryTabMemory";
+import { PlanToolbar } from "@/components/PlanToolbar";
+import { FactoryTabs } from "@/components/FactoryTabs";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
@@ -55,6 +57,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const f = await one<{ id: string; name: string; brand: string; status: string; niche: string; product: string }>(
     "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
+  const saved = (await cookies()).get("ftab")?.value;
+  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : saved === "plan" || saved === "settings" ? saved : "create";
   const view = sp.view === "calendar" ? "calendar" : "list";
   const kindF = KINDS.includes(sp.kind as never) ? sp.kind : "";
   const statusF = sp.status && STATUS[sp.status] ? sp.status : "";
@@ -63,33 +67,31 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const cond: string[] = [];
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
-  const items = await q<Item>(
+  const items = tab !== "plan" ? [] : await q<Item>(
     `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric,meta->'email' email,meta->'guide' guide from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
-  const carAssets = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
-  const fb = await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
-  const brandColors = cleanKit((await one<{ kit: unknown }>("select b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1", [id]))?.kit).colors?.map((x) => x.hex) ?? [];
-  const strategy = strategyOf((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
+  const carAssets = tab !== "plan" ? [] : await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
+  const fb = tab !== "plan" ? [] : await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
+  const brandColors = tab !== "plan" ? [] : cleanKit((await one<{ kit: unknown }>("select b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1", [id]))?.kit).colors?.map((x) => x.hex) ?? [];
+  const strategy = tab !== "settings" ? null : strategyOf((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
   const matrix = strategy ? await planMatrix(id, strategy.rubrics) : null;
   const abMap = new Map<string, AbResult | null>(await Promise.all(items.filter((x) => x.ab?.pair).map(async (x) => [x.id, await abResult(c.org.id, x.id)] as const)));
-  const st = cleanSettings((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
+  const st = cleanSettings(tab !== "settings" ? undefined : (await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
   const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
-  const runway = await planRunway(id);
+  const runway = tab !== "plan" ? null : await planRunway(id);
   const href = (o: Record<string, string>) => {
     const u = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...sp, tab: "plan", ...o })) if (v && k !== "err" && k !== "note" && k !== "open") u.set(k, v);
     return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
   };
-  const pubs = await q<Pub>(
+  const pubs = tab !== "plan" ? [] : await q<Pub>(
     `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id
       where p.org_id=$1 and p.item_id in (select id from kz_content_items where factory_id=$2)`, [c.org.id, id]);
-  const chans = await q<{ id: string; kind: string; title: string; on: boolean }>(
+  const chans = tab !== "settings" ? [] : await q<{ id: string; kind: string; title: string; on: boolean }>(
     `select ch.id,ch.kind,ch.title,(ch.id = any(fa.channel_ids)) "on" from kz_factories fa join kz_channels ch on ch.brand_id=fa.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
-  const set = await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
+  const set = tab !== "settings" ? null : await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
   const hid = <input type="hidden" name="id" value={id} />;
   // вкладка: после создания и других действий возвращаемся в план (там открывается нужный материал)
-  const saved = (await cookies()).get("ftab")?.value;
-  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : saved === "plan" || saved === "settings" ? saved : "create";
   const stamp = Date.now();
   const DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   const scheduleSummary = sched ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => sched.schedule.days.includes(d)).map((d) => DAYS[d]).join(", ") || "дни не выбраны"} · ${sched.schedule.times.join(", ")}` : "не задано";
@@ -100,11 +102,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <FactoryTabMemory tab={tab} />
       <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} />
       <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
-        <nav className="inline-flex max-w-full overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar">
-          {([["create", "Создание контента"], ["plan", "Контент-план"], ["settings", "Настройки контента"]] as const).map(([k, l]) => (
-            <Link key={k} href={`/app/factories/${id}?tab=${k}`} className={`whitespace-nowrap rounded-full px-4 py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>{l}</Link>
-          ))}
-        </nav>
+        <FactoryTabs factoryId={id} tab={tab} />
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
@@ -223,29 +221,20 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             </ModalButton>
           </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex gap-2">
-          <Link href={href({ view: "list" })} className={`pill pill-sm ${view === "list" ? "pill-on" : ""}`}><List size={14} />Список</Link>
-          <Link href={href({ view: "calendar" })} className={`pill pill-sm ${view === "calendar" ? "pill-on" : ""}`}><CalendarDays size={14} />Календарь</Link>
-        </div>
-        <form className="ml-auto flex flex-wrap items-center gap-2" action={`/app/factories/${id}`}>
-          <input type="hidden" name="view" value={view} /><input type="hidden" name="m" value={month} />
-          <select name="kind" defaultValue={kindF} className="input !w-auto !py-1.5"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
-          <select name="status" defaultValue={statusF} className="input !w-auto !py-1.5"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-          <SubmitButton className="pill pill-sm">Применить</SubmitButton>
-        </form>
-        <details className="relative">
-          <summary className="pill pill-sm cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
-          <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:w-auto">
-            <p className="text-xs text-ink2">Материалы завода по фильтру: формат и статус из полей выше, период выбираете здесь.</p>
-            <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
-            <div className="grid grid-cols-2 gap-2"><div><label className="label">С даты</label><input type="date" name="from" className="input !py-1.5" /></div><div><label className="label">По дату</label><input type="date" name="to" className="input !py-1.5" /></div></div>
-            <select name="format" className="input"><option value="csv">Таблица для Excel (.csv)</option><option value="zip">Архив: тексты и картинки (.zip)</option></select>
-            <SubmitButton className="btn w-full justify-center">Скачать</SubmitButton>
-            <p className="text-xs text-ink3">CSV: до 300 материалов. ZIP: до 120 материалов и 40 МБ, папка на каждый.</p>
-          </form>
-        </details>
-      </div>
+      <PlanToolbar factoryId={id} view={view} kind={kindF ?? ""} status={statusF ?? ""} month={month}
+        kinds={KINDS.map((k) => ({ value: k, label: KIND[k] }))} statuses={Object.entries(STATUS).map(([k, v]) => ({ value: k, label: v.label }))}>
+    <details className="relative">
+      <summary className="pill pill-sm cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
+      <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:w-auto">
+        <p className="text-xs text-ink2">Материалы завода по фильтру: формат и статус из полей выше, период выбираете здесь.</p>
+        <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
+        <div className="grid grid-cols-2 gap-2"><div><label className="label">С даты</label><input type="date" name="from" className="input !py-1.5" /></div><div><label className="label">По дату</label><input type="date" name="to" className="input !py-1.5" /></div></div>
+        <select name="format" className="input"><option value="csv">Таблица для Excel (.csv)</option><option value="zip">Архив: тексты и картинки (.zip)</option></select>
+        <SubmitButton className="btn w-full justify-center">Скачать</SubmitButton>
+        <p className="text-xs text-ink3">CSV: до 300 материалов. ZIP: до 120 материалов и 40 МБ, папка на каждый.</p>
+      </form>
+    </details>
+      </PlanToolbar>
       {view === "calendar" && (
         <CalendarGrid month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
           items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status, href: href({ view: "list", open: i.id }) + `#i-${i.id}`, movable: canWrite(c.org.role) && ["idea", "approved", "ready", "failed", "rejected"].includes(i.status) }))} />
