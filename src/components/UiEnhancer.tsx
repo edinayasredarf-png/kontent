@@ -112,8 +112,10 @@ export function UiEnhancer() {
       if (el instanceof HTMLSelectElement && (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") && !e.altKey) { e.preventDefault(); openSelect(el); }
       else if (el instanceof HTMLInputElement && ((e.key === "ArrowDown" && e.altKey) || e.key === "F4")) { e.preventDefault(); openDate(el); }
     };
-    document.addEventListener("mousedown", onDown, true); document.addEventListener("keydown", onKey, true);
-    return () => { document.removeEventListener("mousedown", onDown, true); document.removeEventListener("keydown", onKey, true); close(); };
+    // системное окно даты открывается по click (в Chrome — по значку, в Firefox — по полю): гасим его, наше уже открыто по mousedown
+    const onClick = (e: MouseEvent) => { const el = target(e); if (usable(el) && el instanceof HTMLInputElement) e.preventDefault(); };
+    document.addEventListener("mousedown", onDown, true); document.addEventListener("click", onClick, true); document.addEventListener("keydown", onKey, true);
+    return () => { document.removeEventListener("mousedown", onDown, true); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); close(); };
   }, []);
   return null;
 }
