@@ -94,8 +94,8 @@ export function AppShell(p: ShellProps) {
             <Link href="/app/profile" aria-label="Профиль" title={p.planName} className="grid size-10 place-items-center rounded-full bg-accent text-sm font-semibold text-white">{initials(p.userName, p.email)}</Link>
           </div>
         </header>
-        {/* при свёрнутой панели слева резервируется 140 px, поэтому справа даём столько же: колонки по центру стоят по центру окна, а не смещены вправо */}
-        <main className={clsx("px-5 pb-10 pt-4 md:px-10", slim && "lg:pr-[180px]")}><div className="mx-auto max-w-[1280px]">{p.children}</div></main>
+        {/* слева резервируется место под панель (140 px свёрнутая, 372 px развёрнутая): справа даём столько же, чтобы колонки по центру стояли по центру окна; на средних экранах поле справа уменьшается, чтобы содержимому осталось не меньше 600 px */}
+        <main className={clsx("px-5 pb-10 pt-4 md:px-10", slim ? "shell-main-slim" : "shell-main-wide")}><div className="mx-auto max-w-[1280px]">{p.children}</div></main>
       </div>
     </div>
   );

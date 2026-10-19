@@ -149,9 +149,9 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             {hasMore && <Link className="btn btn-ghost" href={href({ p: String(page + 1) })}>Дальше →</Link>}
           </div>
         )}
-        {/* строка вопроса выровнена по ширине карточек и всегда у нижнего края окна */}
+        {/* строка вопроса ровно по ширине карточек и всегда у нижнего края окна */}
         <form action="/app" className="sticky bottom-4 z-30 mt-6">
-          <div className="-mx-2 flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
+          <div className="flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
             <input name="q" required maxLength={1500} placeholder="Спросите по новостному фонду или попросите создать материал" aria-label="Вопрос ассистенту" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink3" />
             <SubmitButton className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-white" aria-label="Отправить в чат"><ArrowUp size={18} /></SubmitButton>
           </div>
