@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { UsersRound } from "lucide-react";
@@ -25,7 +26,7 @@ export default async function Invite({ params, searchParams }: { params: Promise
           <p className="mb-1 text-sm text-ink2">Организация: <b className="text-ink">{inv.org_name}</b></p>
           <p className="mb-6 text-sm text-ink2">Роль: {ROLE_LABEL[inv.role]} — {ROLE_HINT[inv.role]}. Вы войдёте как {c.user.email}.</p>
           {err && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
-          <form action={acceptInviteAction}><input type="hidden" name="token" value={token} /><button className="btn btn-accent">Присоединиться</button></form>
+          <form action={acceptInviteAction}><input type="hidden" name="token" value={token} /><SubmitButton className="btn btn-accent">Присоединиться</SubmitButton></form>
         </>
       ) : (
         <>

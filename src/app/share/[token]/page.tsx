@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Check, MessageSquare, Pencil } from "lucide-react";
@@ -114,9 +115,9 @@ export default async function SharePage({ params, searchParams }: { params: Prom
                     <input name="author" maxLength={60} placeholder="Ваше имя (необязательно)" className="input" />
                     <textarea name="comment" rows={2} maxLength={1500} placeholder={p.link.can_approve ? "Комментарий или что изменить" : "Ваш комментарий"} className="input" />
                     <div className="flex flex-wrap gap-2">
-                      {p.link.can_approve && <button name="verdict" value="approved" className="btn" style={{ background: "#1f9d57", color: "#fff" }}><Check size={15} />Одобрить</button>}
-                      {p.link.can_approve && <button name="verdict" value="changes" className="btn btn-ghost"><Pencil size={14} />Нужны правки</button>}
-                      <button name="verdict" value="comment" className="btn btn-ghost"><MessageSquare size={14} />Только комментарий</button>
+                      {p.link.can_approve && <SubmitButton name="verdict" value="approved" className="btn" style={{ background: "#1f9d57", color: "#fff" }}><Check size={15} />Одобрить</SubmitButton>}
+                      {p.link.can_approve && <SubmitButton name="verdict" value="changes" className="btn btn-ghost"><Pencil size={14} />Нужны правки</SubmitButton>}
+                      <SubmitButton name="verdict" value="comment" className="btn btn-ghost"><MessageSquare size={14} />Только комментарий</SubmitButton>
                     </div>
                   </form>
                 </article>

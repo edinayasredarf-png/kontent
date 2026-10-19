@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import { Logo } from "@/components/Logo";
 import { operator } from "@/lib/legal";
 import { logoutAction } from "@/lib/actions";
@@ -12,7 +13,7 @@ export default function Suspended() {
       <div className="mb-10"><Logo big href="/login" /></div>
       <h1 className="mb-2 text-2xl font-semibold">Доступ приостановлен</h1>
       <p className="mb-6 text-sm text-ink2">Работа вашей организации приостановлена администратором платформы. Ваши данные сохранены.{o.email ? <> Свяжитесь с нами: <b>{o.email}</b>.</> : " Свяжитесь с администратором платформы."}</p>
-      <form action={logoutAction}><button className="btn btn-ghost">Выйти</button></form>
+      <form action={logoutAction}><SubmitButton className="btn btn-ghost">Выйти</SubmitButton></form>
     </main>
   );
 }

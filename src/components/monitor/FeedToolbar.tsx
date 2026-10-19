@@ -18,12 +18,13 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
   const router = useRouter();
   const [modal, setModal] = useState<"filter" | "analysis" | "settings" | null>(null);
   const [busy, setBusy] = useState(false), [fresh, setFresh] = useState(0), [note, setNote] = useState("");
-  const [loading, start] = useTransition();
+  const [loading, start] = useTransition(), [applying, setApplying] = useState(false);
   const params = { show: filter.show, d: String(filter.days), src: filter.src, kw: filter.kw, q: filter.q, m: filter.only ? "1" : "", fit: filter.fit ? "1" : "", sort: filter.sort };
   const qs = filterQuery(filter);
   const active = (filter.src.length ? 1 : 0) + (filter.kw.length ? 1 : 0) + (filter.q ? 1 : 0) + (filter.only ? 1 : 0) + (filter.fit ? 1 : 0) + (filter.show !== "new" ? 1 : 0) + (filter.days !== 7 ? 1 : 0) + (filter.sort !== "date" ? 1 : 0);
 
   useEffect(() => { setFresh(0); }, [since]);
+  useEffect(() => { if (!loading) setApplying(false); }, [loading]);
   // тихая проверка новых постов раз в минуту, пока вкладка открыта
   useEffect(() => {
     const t = setInterval(async () => { if (document.hidden) return; try { const r = await countNewAction(params, since); setFresh(r.count); } catch { /* сеть */ } }, 60_000);
@@ -48,7 +49,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
     e.preventDefault();
     const u = new URLSearchParams();
     for (const [k, v] of new FormData(e.currentTarget).entries()) if (typeof v === "string" && v !== "") u.append(k, v);
-    setModal(null);
+    setModal(null); setApplying(true);
     start(() => router.push(`/app/monitor${u.size ? `?${u}` : ""}`, { scroll: false }));
   };
 
@@ -66,7 +67,10 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
           <button type="button" onClick={show} disabled={loading} aria-busy={loading} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90 disabled:cursor-wait disabled:opacity-90">{loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}{loading ? "Загружаем новые посты…" : `Загружено ${fresh} ${plural(fresh)} · показать`}</button>
         </div>
       )}
-      <div key={qs}>{children}</div>
+      {applying && loading && (
+        <div role="status" className="sticky top-24 z-30 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
+      )}
+      <div key={qs} className={applying && loading ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>{children}</div>
 
       {modal === "filter" && (
         <Modal title="Фильтр ленты" onClose={close} footer={
