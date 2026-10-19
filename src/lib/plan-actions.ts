@@ -56,7 +56,7 @@ export async function repurposeAction(f: FormData) {
   const c = await requireWriter();
   const fid = s(f, "factory");
   const r = await repurposeSource(c.org.id, fid, { url: s(f, "url"), text: String(f.get("text") ?? ""), count: Number(s(f, "count")) });
-  go(fid, r);
+  go(fid, r, "view=list");
 }
 
 /** Повтор опубликованного материала: раз в N дней, не больше 5 раз. 0 дней — выключить. */

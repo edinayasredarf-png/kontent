@@ -5,16 +5,15 @@ import { saveContentSettingsAction } from "@/lib/carousel/actions";
 import { PRICES, rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
+import { Switch } from "@/components/ui/Switch";
 const Sel = ({ name, value, opts }: { name: string; value: string | number; opts: Record<string, string> }) => (
   <select name={name} defaultValue={String(value)} className="input">{Object.entries(opts).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
 );
 
 /** Настройки контента завода: как писать посты и как оформлять карусели. Применяются к новым материалам и к плану. */
-export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string; st: ContentSettings; free: boolean }) {
-  return (
-    <details className="card mb-4 p-4">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Settings2 size={15} />Настройки контента: посты и карусели</summary>
-      <form action={saveContentSettingsAction} className="mt-4 space-y-5">
+export function ContentSettingsCard({ factoryId, st, free, bare }: { factoryId: string; st: ContentSettings; free: boolean; bare?: boolean }) {
+  const form = (
+      <form action={saveContentSettingsAction} className={bare ? "space-y-5" : "mt-4 space-y-5"}>
         <input type="hidden" name="factory" value={factoryId} />
         <div>
           <span className="label">Типы постов (если выбрано несколько, план распределит их по идеям)</span>
@@ -42,7 +41,7 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
           <label className="label">Примеры ваших постов</label>
           <textarea name="examples" defaultValue={st.examples} rows={5} maxLength={3000} placeholder="Вставьте 2–3 примера постов, которые вам нравятся. Нейросеть перенимает манеру и интонацию, но не содержание." className="input text-sm" />
         </div>
-        <label className="flex items-start gap-2 rounded-xl bg-tile p-3 text-sm"><input type="checkbox" name="learn" defaultChecked={st.learn} className="mt-0.5" /><span><b>Учиться на результатах</b><span className="block text-xs text-ink2">Когда накопится статистика (от 6 постов), ИИ видит, какие темы и форматы набрали больше просмотров, и предлагает идеи в этом духе.</span></span></label>
+        <Switch name="learn" defaultChecked={st.learn} label="Учиться на результатах" hint="Когда накопится статистика (от 6 постов), ИИ видит, какие темы и форматы набрали больше просмотров, и предлагает идеи в этом духе." />
         <div className="border-t border-line pt-4">
           <b className="mb-3 block text-sm">Карусели</b>
           <div className="grid gap-4 sm:grid-cols-4">
@@ -55,6 +54,11 @@ export function ContentSettingsCard({ factoryId, st, free }: { factoryId: string
         </div>
         <SubmitButton className="btn">Сохранить настройки</SubmitButton>
       </form>
+  );
+  return bare ? form : (
+    <details className="card mb-4 p-4">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Settings2 size={15} />Настройки контента: посты и карусели</summary>
+      {form}
     </details>
   );
 }

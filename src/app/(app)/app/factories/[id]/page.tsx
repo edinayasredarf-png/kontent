@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
@@ -18,6 +20,10 @@ import { plainOf, type ExportItem } from "@/lib/exporter";
 import { DocPanel } from "@/components/DocPanel";
 import { GrowthPanel } from "@/components/GrowthPanel";
 import { StrategyCard } from "@/components/StrategyCard";
+import { CreateMaterialForm } from "@/components/CreateMaterialForm";
+import { SettingsList } from "@/components/ui/SettingsList";
+import { ModalButton } from "@/components/ui/ModalButton";
+import { Switch } from "@/components/ui/Switch";
 import { planMatrix, strategyOf } from "@/lib/strategy";
 import { abResult, type AbResult } from "@/lib/growth";
 import { InfographicPanel } from "@/components/InfographicPanel";
@@ -70,7 +76,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const runway = await planRunway(id);
   const href = (o: Record<string, string>) => {
     const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...sp, ...o })) if (v && k !== "err" && k !== "note" && k !== "open") u.set(k, v);
+    for (const [k, v] of Object.entries({ ...sp, tab: "plan", ...o })) if (v && k !== "err" && k !== "note" && k !== "open") u.set(k, v);
     return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
   };
   const pubs = await q<Pub>(
@@ -81,42 +87,77 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
   const set = await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
   const hid = <input type="hidden" name="id" value={id} />;
+  // вкладка: после создания и других действий возвращаемся в план (там открывается нужный материал)
+  const saved = (await cookies()).get("ftab")?.value;
+  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : saved === "plan" || saved === "settings" ? saved : "create";
+  const stamp = Date.now();
+  const DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+  const scheduleSummary = sched ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => sched.schedule.days.includes(d)).map((d) => DAYS[d]).join(", ") || "дни не выбраны"} · ${sched.schedule.times.join(", ")}` : "не задано";
   // обычный пост — основной формат, поэтому он первый и выбран по умолчанию
   const planFormats = [...(sched?.formats?.length ? sched.formats : [...KINDS])].sort((a, b) => (a === "post" ? -1 : b === "post" ? 1 : 0));
   return (
     <>
-      <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} action={
-        <div className="flex gap-2">
-          <form action={toggleFactory}>{hid}<SubmitButton className="btn btn-ghost">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
-          <form action={deleteFactory}>{hid}<SubmitButton className="btn btn-danger" title="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
-        </div>} />
-      {note && <div className="mb-4 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
-      {err && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
-      <form action={setFactoryChannels} className="card mb-4 space-y-3 p-4">
-        {hid}
-        <div className="flex flex-wrap items-center gap-2"><b className="mr-2 text-sm">Публикация</b>
-          {chans.length === 0 && <span className="text-sm text-ink2">У бренда нет каналов — подключите в разделе «Каналы».</span>}
-          {chans.map((ch) => (
-            <ChannelChip key={ch.id} id={ch.id} on={ch.on} label={`${SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: ${ch.title}`} />
+      <FactoryTabMemory tab={tab} />
+      <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} />
+      <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+        <nav className="inline-flex max-w-full overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar">
+          {([["create", "Создание контента"], ["plan", "Контент-план"], ["settings", "Настройки контента"]] as const).map(([k, l]) => (
+            <Link key={k} href={`/app/factories/${id}?tab=${k}`} className={`whitespace-nowrap rounded-full px-4 py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>{l}</Link>
           ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <label className="flex items-center gap-2"><input type="checkbox" name="autopublish" defaultChecked={set?.autopublish} />Автопубликация по расписанию</label>
-          <label className="flex items-center gap-2"><input type="checkbox" name="images" defaultChecked={set?.images} />Картинки к материалам{c.org.unlimited ? "" : ` (+${rub(PRICES.image)})`}</label>
-          <label className="flex max-w-full flex-wrap items-center gap-2">Идеи:<select name="approval" defaultValue={set?.approval} title="Полный автомат: план пополняется с баланса" className="input !w-auto min-w-0 max-w-full !py-1.5"><option value="manual">одобряю вручную</option><option value="auto">одобряются сами (автомат, с баланса)</option></select></label>
-          <SubmitButton className="btn btn-ghost ml-auto">Сохранить</SubmitButton>
-        </div>
-      </form>
-      {(runway === null || runway < 3) && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-warn-soft px-4 py-3 text-sm text-warn">
-          <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его — кнопка ниже.
+        </nav>
+        <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
+        <form action={deleteFactory}>{hid}<SubmitButton className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
+      </div>
+      {note && <div className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
+      {err && <div className="mx-auto mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
+
+      {tab === "create" && (
+        <div className="mx-auto mb-6 w-full max-w-[680px] rounded-[28px] bg-surface p-2.5 shadow-float outline outline-1 -outline-offset-1 outline-line">
+          <div className="mb-3 flex items-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-sm font-semibold"><Sparkles size={16} />Создать материал</div>
+          <div className="px-2 pb-2">
+            <CreateMaterialForm factoryId={id} kinds={[...KINDS]} labels={KIND} defaultKind={sched?.formats?.[0] ?? "post"} createAction={createMaterialsAction} repurposeAction={repurposeAction}
+              priceHint={`Каждый выбранный тип стоит как обычно (пост ${rub(PRICES.post)}, карусель ${rub(PRICES.carousel)}, SEO-статья ${rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.`}
+              sourcePrice={c.org.unlimited ? "" : `${rub(PRICES.idea)} за материал.`} />
+          </div>
         </div>
       )}
-      <StrategyCard factoryId={id} strategy={strategy} matrix={matrix} free={c.org.unlimited} />
-      <ContentSettingsCard factoryId={id} st={st} free={c.org.unlimited} />
-      <details className="card mb-4 p-4">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Clock size={15} />Расписание публикаций</summary>
-        <form action={saveScheduleAction} className="mt-4 space-y-3">
+
+      {tab === "settings" && (
+        <div className="mx-auto mb-6 w-full max-w-[680px]">
+          <SettingsList stamp={stamp}
+            items={[
+              { label: "Каналы публикации", value: chans.filter((x) => x.on).map((x) => x.title).join(", ") || "не выбраны", modal: "publish" },
+              { label: "Автопубликация по расписанию", value: set?.autopublish ? "Включена" : "Выключена", modal: "publish" },
+              { label: "Картинки к материалам", value: set?.images ? "Да" : "Нет", modal: "publish" },
+              { label: "Утверждение идей", value: set?.approval === "auto" ? "Автоматически" : "Вручную", modal: "publish" },
+              { label: "Расписание публикаций", value: scheduleSummary, modal: "schedule" },
+              { label: "Контент-стратегия и рубрики", value: strategy ? `${strategy.rubrics.length} рубрик` : "не составлена", modal: "strategy" },
+              { label: "Посты и карусели", value: `${st.slides} слайдов в карусели`, modal: "content" },
+            ]}
+            modals={{
+              publish: { title: "Публикация", node: (
+                <form action={setFactoryChannels} className="space-y-5">
+                  {hid}
+                  <div>
+                    <span className="label">Куда публиковать</span>
+                    <div className="flex flex-wrap gap-2">
+                      {chans.length === 0 && <span className="text-sm text-ink2">У бренда нет каналов — подключите в разделе «Каналы».</span>}
+                      {chans.map((ch) => <ChannelChip key={ch.id} id={ch.id} on={ch.on} auto={false} label={`${SUPPORTED_CHANNELS[ch.kind] ?? ch.kind}: ${ch.title}`} />)}
+                    </div>
+                  </div>
+                  <div className="divide-y divide-line">
+                    <Switch name="autopublish" defaultChecked={set?.autopublish} label="Автопубликация по расписанию" hint="Материалы выходят сами в заданное время." />
+                    <Switch name="images" defaultChecked={set?.images} label="Картинки к материалам" hint={c.org.unlimited ? "Бесплатно для админа" : `+${rub(PRICES.image)} за картинку`} />
+                  </div>
+                  <div>
+                    <label className="label">Утверждение идей</label>
+                    <select name="approval" defaultValue={set?.approval} className="input"><option value="manual">Одобряю вручную</option><option value="auto">Одобряются сами (полный автомат, план пополняется с баланса)</option></select>
+                  </div>
+                  <SubmitButton className="btn btn-accent h-11 w-full justify-center">Сохранить</SubmitButton>
+                </form>) },
+              schedule: { title: "Расписание публикаций", node: (
+                <div>
+        <form action={saveScheduleAction} className="space-y-4">
           <input type="hidden" name="factory" value={id} />
           <div className="flex flex-wrap gap-2">
             {[["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", "Пт"], ["6", "Сб"], ["0", "Вс"]].map(([v, l]) => (
@@ -130,49 +171,26 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           </div>
           <p className="text-xs text-ink3">Новые идеи ставятся только на выбранные дни. Автопубликация выпускает материалы в указанное время по часовому поясу.</p>
         </form>
-      </details>
-      <section className="card mb-4 p-4">
-        <form action={createMaterialsAction} className="space-y-3">
-          <input type="hidden" name="factory" value={id} />
-          <b className="flex items-center gap-2 text-sm"><Sparkles size={15} />Создать материал</b>
-          <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала (для SEO-статьи — поисковый запрос)" className="input" />
-          <input name="hook" maxLength={300} placeholder="Хук или угол (необязательно)" className="input" />
-          <div>
-            <span className="label">Какие материалы создать по этой теме</span>
-            <div className="flex flex-wrap gap-2">
-              {KINDS.map((k) => (
-                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === (sched?.formats?.[0] ?? "post")} className="hidden" />{KIND[k]}</label>
-              ))}
+                </div>) },
+              strategy: { title: "Контент-стратегия и рубрики", wide: true, node: <StrategyCard bare factoryId={id} strategy={strategy} matrix={matrix} free={c.org.unlimited} /> },
+              content: { title: "Посты и карусели", wide: true, node: <ContentSettingsCard bare factoryId={id} st={st} free={c.org.unlimited} /> },
+            }} />
+        </div>
+      )}
+
+      {tab === "plan" && (
+        <>
+          {(runway === null || runway < 3) && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+              <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его кнопкой «Продлить план».
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <select name="mode" className="input !w-auto"><option value="now">Создать сразу (без карточек-идей)</option><option value="ideas">Только добавить идеи в план</option></select>
-            <input name="date" type="date" className="input !w-auto" title="Дата (если пусто — сегодня)" />
-            <SubmitButton className="btn ml-auto"><Sparkles size={14} />Создать</SubmitButton>
-          </div>
-          <p className="text-xs text-ink3">Каждый выбранный тип стоит как обычно (пост {rub(PRICES.post)}, карусель {rub(PRICES.carousel)}, SEO-статья {rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.</p>
-        </form>
-      </section>
-      <details className="card mb-4 p-4">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Layers size={15} />Контент из одного источника: статья или текст → несколько материалов</summary>
-        <form action={repurposeAction} className="mt-4 space-y-3">
+          )}
+          <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
+            <ModalButton stamp={stamp} label="Добавить идею" title="Добавить свою идею в план">
+              <p className="mb-3 text-sm text-ink2">Одна тема на один материал. Идея встаёт в план на выбранный день (или на ближайший свободный), а текст пишется после одобрения.</p>
+        <form action={addIdeaAction} className="space-y-3">
           <input type="hidden" name="factory" value={id} />
-          <p className="text-xs text-ink2">Дайте ссылку на статью или вставьте текст (блог, расшифровку вебинара, длинный пост). Сервис выделит разные мысли и предложит материалы с отдельным углом подачи. Тексты потом пишутся по фактам исходника.</p>
-          <input name="url" type="url" maxLength={500} placeholder="Ссылка на статью (https://…)" className="input" />
-          <textarea name="text" rows={5} maxLength={30000} placeholder="…или вставьте текст целиком (от 400 знаков)" className="input" />
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">Сколько материалов
-              <select name="count" defaultValue="5" className="input !w-auto">{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-            <SubmitButton className="btn ml-auto max-w-full !whitespace-normal text-left"><Layers size={15} className="shrink-0" />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</SubmitButton>
-          </div>
-          <p className="text-xs text-ink3">Идеи появятся в плане на ближайшие свободные дни. Создание самих постов и каруселей оплачивается как обычно.</p>
-        </form>
-      </details>
-      <div className="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
-        <form action={addIdeaAction} className="space-y-2">
-          <input type="hidden" name="factory" value={id} />
-          <b className="text-sm">Добавить свою идею в план</b>
-          <p className="text-xs text-ink2">Одна тема на один материал. Идея встаёт в план на выбранный день (или на ближайший свободный), а текст пишется после одобрения. Формат любой: пост, статья, карусель, опрос и другие.</p>
+                    <p className="text-xs text-ink2">Одна тема на один материал. Идея встаёт в план на выбранный день (или на ближайший свободный), а текст пишется после одобрения. Формат любой: пост, статья, карусель, опрос и другие.</p>
           <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала" className="input" />
           <input name="hook" maxLength={300} placeholder="Хук — первая строка (необязательно)" className="input" />
           <div className="flex flex-wrap items-center gap-2">
@@ -182,10 +200,11 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить</SubmitButton>
           </div>
         </form>
-        <form action={addIdeasBulkAction} className="space-y-2">
+            </ModalButton>
+            <ModalButton stamp={stamp} label="Добавить списком" title="Добавить несколько идей списком">
+        <form action={addIdeasBulkAction} className="space-y-3">
           <input type="hidden" name="factory" value={id} />
-          <b className="text-sm">Добавить несколько идей списком</b>
-          <p className="text-xs text-ink2">Быстрый способ завести много тем сразу: каждая строка становится отдельной идеей в плане, дни подбираются сами.</p>
+                    <p className="text-xs text-ink2">Быстрый способ завести много тем сразу: каждая строка становится отдельной идеей в плане, дни подбираются сами.</p>
           <textarea name="list" rows={4} required placeholder={"По одной идее в строке. Можно с хуком через «|»:\n5 ошибок при планировании бюджета | Вы тоже так делаете?\nКак читать выписку из ЕГРН"} className="input text-xs" />
           <div className="flex flex-wrap items-center gap-2">
             <select name="kind" defaultValue={planFormats.includes("post") ? "post" : planFormats[0]} className="input !w-auto">{planFormats.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
@@ -193,13 +212,16 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             <SubmitButton className="btn btn-ghost ml-auto"><Plus size={15} />Добавить список</SubmitButton>
           </div>
         </form>
-      </div>
-      <form action={generatePlanAction} className="card mb-6 flex flex-wrap items-center gap-3 p-4">
-        {hid}
-        <div className="mr-auto"><b className="text-sm">Продлить план с помощью ИИ</b><p className="text-xs text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p></div>
-        <select name="days" defaultValue="7" className="input !w-auto">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней{c.org.unlimited ? "" : ` — ${rub(d * PRICES.plan_day)}`}</option>)}</select>
-        <SubmitButton className="btn btn-accent"><Sparkles size={15} />Продлить</SubmitButton>
-      </form>
+            </ModalButton>
+            <ModalButton stamp={stamp} label="Продлить план" title="Продлить план с помощью ИИ" icon={<Sparkles size={16} />}>
+              <form action={generatePlanAction} className="space-y-4">
+            {hid}
+            <p className="text-sm text-ink2">Новые темы не повторяют уже существующие · {c.org.unlimited ? "бесплатно для админа" : `${rub(PRICES.plan_day)} за день`}</p>
+            <select name="days" defaultValue="7" className="input">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней{c.org.unlimited ? "" : ` — ${rub(d * PRICES.plan_day)}`}</option>)}</select>
+            <SubmitButton className="btn btn-accent w-full justify-center"><Sparkles size={15} />Продлить</SubmitButton>
+          </form>
+            </ModalButton>
+          </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex gap-2">
@@ -358,6 +380,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           </details>
         ))}
       </div>
+        </>
+      )}
     </>
   );
 }

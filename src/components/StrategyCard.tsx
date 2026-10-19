@@ -7,13 +7,10 @@ import { SubmitButton } from "@/components/SubmitButton";
 interface Matrix { weeks: string[]; rows: { name: string; counts: number[]; total: number }[]; untagged: number[] }
 
 /** Контент-стратегия завода: позиционирование, боли аудитории, рубрики с долями и матрица плана на 4 недели. */
-export function StrategyCard({ factoryId, strategy, matrix, free }: { factoryId: string; strategy: Strategy | null; matrix: Matrix | null; free: boolean }) {
+export function StrategyCard({ factoryId, strategy, matrix, free, bare }: { factoryId: string; strategy: Strategy | null; matrix: Matrix | null; free: boolean; bare?: boolean }) {
   const slots = Array.from({ length: 8 }, (_, i) => strategy?.rubrics[i] ?? { name: "", share: 0, desc: "" });
   const maxShare = Math.max(1, ...(strategy?.rubrics.map((r) => r.share) ?? [1]));
-  return (
-    <details className="card mb-4 p-4" open={!strategy}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Compass size={15} />Контент-стратегия и рубрики{strategy ? <span className="chip">{strategy.rubrics.length} рубрик</span> : <span className="chip !bg-warn-soft !text-warn">не составлена</span>}</summary>
-      <div className="mt-4 space-y-5">
+  const body = (<>
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tile p-3">
           <p className="min-w-[14rem] flex-1 text-xs text-ink2">ИИ составит рубрики и доли по описанию бренда, лучшим вашим постам и тому, что заходит у конкурентов. План и тексты будут опираться на рубрики.</p>
           <form action={genStrategyAction}><input type="hidden" name="factory" value={factoryId} /><SubmitButton className="btn"><Sparkles size={14} />{strategy ? "Составить заново" : "Составить стратегию"}{free ? "" : ` · ${rub(PRICES.strategy)}`}</SubmitButton></form>
@@ -61,7 +58,12 @@ export function StrategyCard({ factoryId, strategy, matrix, free }: { factoryId:
             <div className="flex items-center gap-3"><SubmitButton className="btn">Сохранить</SubmitButton><span className="text-xs text-ink3">Доли приводятся к 100%. Пустая рубрика удаляется.</span></div>
           </form>
         </details>
-      </div>
-    </details>
+  </>);
+  return (
+    <>{bare ? <div className="space-y-5">{body}</div> : (
+    <details className="card mb-4 p-4" open={!strategy}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><Compass size={15} />Контент-стратегия и рубрики{strategy ? <span className="chip">{strategy.rubrics.length} рубрик</span> : <span className="chip !bg-warn-soft !text-warn">не составлена</span>}</summary>
+      <div className="mt-4 space-y-5">{body}</div>
+    </details>)}</>
   );
 }
