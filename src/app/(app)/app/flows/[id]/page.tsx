@@ -49,7 +49,7 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
       {tab === "queued" && <Published flowId={id} />}
       {tab === "rejected" && <Rejected flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} />}
       {tab === "cost" && <Cost flowId={id} />}
-      {tab === "settings" && <Settings flowId={id} name={flow.name} st={st} sourceIds={flow.source_ids} channelIds={flow.channel_ids} orgId={c.org.id} write={write} />}
+      {tab === "settings" && <div className={COL}><Settings flowId={id} name={flow.name} st={st} sourceIds={flow.source_ids} channelIds={flow.channel_ids} orgId={c.org.id} write={write} /></div>}
     </>
   );
 }

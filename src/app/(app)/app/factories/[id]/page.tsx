@@ -179,7 +179,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       )}
 
       {tab === "plan" && (
-        <>
+        <div className={view === "calendar" ? "" : "mx-auto w-full max-w-[680px]"}>
           {(runway === null || runway < 3) && (
             <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
               <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его кнопкой «Продлить план».
@@ -380,7 +380,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           </details>
         ))}
       </div>
-        </>
+        </div>
       )}
     </>
   );
