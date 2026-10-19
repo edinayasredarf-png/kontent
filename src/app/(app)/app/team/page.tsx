@@ -30,7 +30,7 @@ export default async function Team() {
                     <SubmitButton className="btn btn-ghost !py-1.5 text-xs">Сохранить</SubmitButton></form>
                 ) : <span className="chip">{ROLE_LABEL[m.role]}</span>}
                 {(editable || (m.user_id === c.user.id && m.role !== "owner")) && (
-                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><SubmitButton className="text-ink3 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={15} /></SubmitButton></form>
+                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><SubmitButton data-confirm="Убрать участника из команды? Доступ к организации у него пропадёт." data-confirm-ok="Убрать" className="text-ink3 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={15} /></SubmitButton></form>
                 )}
               </div>
             );
@@ -41,7 +41,7 @@ export default async function Team() {
               <div className="min-w-0 flex-1 truncate text-sm">{i.email ?? "Любой, у кого есть ссылка"}</div>
               <span className="chip">{ROLE_LABEL[i.role]}</span>
               <span className="text-xs text-ink3">до {new Date(i.expires_at).toLocaleDateString("ru-RU")}</span>
-              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Отозвать"><X size={15} /></SubmitButton></form>}
+              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Отозвать приглашение? Ссылка перестанет работать." data-confirm-ok="Отозвать" className="text-ink3 hover:text-bad" title="Отозвать"><X size={15} /></SubmitButton></form>}
             </div>
           ))}
         </section>

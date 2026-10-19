@@ -86,7 +86,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
             {logo && (
               <div className="mb-3 flex items-center gap-3">
                 <div className="grid size-20 place-items-center rounded-xl border border-line bg-[repeating-conic-gradient(#f1f2f4_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={`/api/assets/${logo.id}`} alt="Логотип" className="max-h-full max-w-full object-contain" /></div>
-                {canEdit && <form action={deleteAssetAction}><input type="hidden" name="id" value={logo.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={16} /></SubmitButton></form>}
+                {canEdit && <form action={deleteAssetAction}><input type="hidden" name="id" value={logo.id} /><SubmitButton data-confirm="Удалить файл из брендбука? Вернуть его будет нельзя." className="text-ink3 hover:text-bad" title="Удалить"><Trash2 size={16} /></SubmitButton></form>}
               </div>
             )}
             <AssetUploader brandId={id} kind="logo" label={logo ? "Заменить логотип" : "Загрузить логотип"} disabled={!canEdit} />
@@ -114,7 +114,7 @@ function Gallery({ title, hint, items, brandId, kind, max, canEdit }: { title: s
               {canEdit && (
                 <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                   {!a.note && <form action={redescribeAssetAction}><input type="hidden" name="id" value={a.id} /><SubmitButton className="rounded-md bg-surface/90 p-1 text-ink2 shadow" title="Описать заново"><RefreshCw size={12} /></SubmitButton></form>}
-                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><SubmitButton className="rounded-md bg-surface/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></SubmitButton></form>
+                  <form action={deleteAssetAction}><input type="hidden" name="id" value={a.id} /><SubmitButton data-confirm="Удалить файл из брендбука? Вернуть его будет нельзя." className="rounded-md bg-surface/90 p-1 text-bad shadow" title="Удалить"><Trash2 size={12} /></SubmitButton></form>
                 </div>
               )}
             </div>

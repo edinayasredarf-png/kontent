@@ -116,7 +116,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
                     <form action={toggleStyleAction}><input type="hidden" name="brand" value={id} /><input type="hidden" name="id" value={d.id} />
                       <SubmitButton className={`chip cursor-pointer !px-3 !py-1.5 ${d.use_style ? "bg-accent-soft text-accent" : ""}`} title="Брать этот материал как образец стиля письма">{d.use_style ? "Образец стиля ✓" : "Образец стиля"}</SubmitButton></form>
                     <form action={deleteDocAction}><input type="hidden" name="brand" value={id} /><input type="hidden" name="id" value={d.id} />
-                      <SubmitButton className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Удалить материал"><Trash2 size={14} /></SubmitButton></form>
+                      <SubmitButton data-confirm="Удалить документ из базы знаний? Бренд перестанет учитывать его при создании материалов." className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Удалить материал"><Trash2 size={14} /></SubmitButton></form>
                   </div>
                 )}
               </li>

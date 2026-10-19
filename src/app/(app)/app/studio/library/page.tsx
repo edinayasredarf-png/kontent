@@ -26,7 +26,7 @@ export default async function Library() {
               <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-xs text-ink2">
                 <span className="min-w-0 flex-1 truncate">{new Date(r.created_at).toLocaleDateString("ru-RU")} · {(r.size / 1024).toFixed(0)} КБ</span>
                 <a href={`/api/assets/${r.id}?dl=1`} title="Скачать" className="text-ink3 hover:text-ink"><Download size={15} /></a>
-                <form action={deleteStudioAssetAction}><input type="hidden" name="id" value={r.id} /><SubmitButton title="Удалить" className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
+                <form action={deleteStudioAssetAction}><input type="hidden" name="id" value={r.id} /><SubmitButton data-confirm="Удалить файл из библиотеки? Вернуть его будет нельзя." title="Удалить" className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
               </div>
             </div>))}
         </div>

@@ -50,7 +50,7 @@ export async function SettingsBody() {
                 <form action={refreshSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className={IBTN} title="Обновить сейчас" aria-label="Обновить источник"><RefreshCw size={15} /></SubmitButton></form>
                 <form action={toggleSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className={IBTN} title={s.status === "active" ? "Пауза" : "Возобновить"} aria-label={s.status === "active" ? "Поставить на паузу" : "Возобновить"}>{s.status === "active" ? <Pause size={15} /> : <Play size={15} />}</SubmitButton></form>
               </>)}
-              <form action={deleteSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className={`${IBTN} hover:!text-bad`} title="Удалить вместе с постами" aria-label="Удалить источник"><Trash2 size={15} /></SubmitButton></form>
+              <form action={deleteSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton data-confirm="Удалить источник вместе со всеми его постами в ленте?" className={`${IBTN} hover:!text-bad`} title="Удалить вместе с постами" aria-label="Удалить источник"><Trash2 size={15} /></SubmitButton></form>
             </div>
           </li>);
       })}</ul>

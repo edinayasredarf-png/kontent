@@ -213,3 +213,13 @@ select.input:not([multiple]) { appearance: none; -webkit-appearance: none; paddi
   .shell-main-slim { padding-right: clamp(40px, calc(100vw - 780px), 180px); }
   .shell-main-wide { padding-right: clamp(40px, calc(100vw - 1012px), 412px); }
 }
+
+/* окно подтверждения удаления (UiEnhancer, кнопки с data-confirm) */
+.ui-confirm { position: fixed; inset: 0; z-index: 140; display: grid; place-items: center; padding: 1rem; }
+.ui-confirm-back { position: absolute; inset: 0; background: rgba(11,16,48,.5); backdrop-filter: blur(2px); animation: ui-pop .15s ease-out; }
+.ui-confirm-box { position: relative; width: 100%; max-width: 26rem; border-radius: 1.5rem; background: var(--surface); padding: 1.5rem; box-shadow: 0 24px 60px -10px rgba(23,37,84,.4); animation: ui-pop .18s cubic-bezier(.2,.9,.3,1); }
+.ui-confirm-box b { display: block; font-size: 1.125rem; font-weight: 600; }
+.ui-confirm-box p { margin-top: .5rem; font-size: .9rem; line-height: 1.45; color: var(--ink2); }
+.ui-confirm-row { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.25rem; }
+.ui-confirm-yes { display: inline-flex; height: 2.5rem; align-items: center; border-radius: 999px; background: var(--bad); padding: 0 1.25rem; font-size: .875rem; font-weight: 600; color: #fff; transition: opacity .15s; }
+.ui-confirm-yes:hover { opacity: .88; }

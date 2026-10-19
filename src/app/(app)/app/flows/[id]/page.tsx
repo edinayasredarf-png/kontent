@@ -20,10 +20,11 @@ export const maxDuration = 120;
 const TABS: [string, string][] = [["pending", "Очередь"], ["queued", "Опубликовано"], ["rejected", "Отбракованные"], ["settings", "Настройки"], ["cost", "Расход"]];
 const when = (d: string) => new Date(d).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
 
-export default async function FlowPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ t?: string; err?: string; note?: string }> }) {
+export default async function FlowPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ t?: string; err?: string; note?: string; n?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const tab = TABS.some(([k]) => k === sp.t) ? sp.t! : "pending";
+  const lim = Math.min(300, Math.max(15, Math.round(Number(sp.n)) || 15));
   const c = await requireCtx();
   const flow = await one<{ id: string; name: string; status: string; settings: unknown; source_ids: string[]; channel_ids: string[]; brand: string; note: string }>(
     "select f.id,f.name,f.status,f.settings,f.source_ids,f.channel_ids,b.name brand,f.note from kz_flows f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
@@ -38,16 +39,16 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
       <PageHead title={flow.name} sub={`${flow.brand} · ${st.mode === "auto" ? "публикует автоматически" : "каждая новость ждёт вашего одобрения"}`} action={write && (
         <div className="flex gap-2">
           <form action={toggleFlowAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="tab" value={tab} /><SubmitButton className="btn">{flow.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Включить</>}</SubmitButton></form>
-          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton className="btn btn-danger" title="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
+          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Удалить поток? Очередь, отбракованные и история отбора будут удалены. Это действие нельзя отменить." className="btn btn-danger" title="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
         </div>)} />
       {sp.err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
       {sp.note && <p className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
       {flow.note && <p className="mb-4 rounded-xl bg-warn-soft px-4 py-3 text-sm text-warn">{flow.note}</p>}
       {flow.status !== "active" && <p className="mb-4 rounded-xl bg-tile px-4 py-3 text-sm text-ink2">Поток на паузе: новости не обрабатываются. Проверьте настройки и нажмите «Включить».</p>}
       <div className="mb-4 flex flex-wrap gap-1 text-sm">{TABS.map(([k, l]) => <Link key={k} href={`/app/flows/${id}?t=${k}`} className={`rounded-lg px-3 py-1.5 ${tab === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{counts[k] ? <span className="ml-1.5 text-xs text-ink3">{counts[k]}</span> : null}</Link>)}</div>
-      {tab === "pending" && <Pending flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} />}
-      {tab === "queued" && <Published flowId={id} />}
-      {tab === "rejected" && <Rejected flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} />}
+      {tab === "pending" && <Pending flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
+      {tab === "queued" && <Published flowId={id} lim={lim} />}
+      {tab === "rejected" && <Rejected flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
       {tab === "cost" && <Cost flowId={id} />}
       {tab === "settings" && <div className={COL}><Settings flowId={id} name={flow.name} st={st} sourceIds={flow.source_ids} channelIds={flow.channel_ids} orgId={c.org.id} write={write} /></div>}
     </>
@@ -62,12 +63,14 @@ type Src = { kind: Kind; source: string; ref: string; config: Record<string, unk
 const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.ref, config: r.config });
 const Empty = ({ t }: { t: string }) => <p className="card mx-auto max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
 
-async function Pending({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
+async function Pending({ flowId, write, hid, unlimited, lim }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean; lim: number }) {
   const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; body: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
     `select i.id,i.text,i.status,i.created_at,k.title,k.body,k.url,${SRC},i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
-      where i.flow_id=$1 and i.status in ('pending','ready') order by i.created_at desc limit 50`, [flowId]);
+      where i.flow_id=$1 and i.status in ('pending','ready') order by i.created_at desc limit ${lim + 1}`, [flowId]);
+  const more = rows.length > lim; if (more) rows.length = lim;
   if (!rows.length) return <Empty t="Очередь пуста. Новые новости появятся здесь после отбора и пересказа (проверка источников каждые 5 минут)." />;
   return (
+    <>
     <FadeList className={`${COL} space-y-5 pb-16`}>{rows.map((r) => (
       <NewsCard key={r.id} s={srcOf(r)} when={when(r.created_at)}
         actions={write ? (<>
@@ -91,18 +94,22 @@ async function Pending({ flowId, write, hid, unlimited }: { flowId: string; writ
         ) : <p className="whitespace-pre-wrap text-sm leading-6">{r.text}</p>}
       </NewsCard>
     ))}</FadeList>
+    {more && <div className="mt-2 flex justify-center pb-10"><Link href={`/app/flows/${flowId}?t=pending&n=${lim + 15}`} scroll={false} className="pill">Показать ещё</Link></div>}
+    </>
   );
 }
 
-async function Published({ flowId }: { flowId: string }) {
+async function Published({ flowId, lim }: { flowId: string; lim: number }) {
   const rows = await q<Partial<Src> & { id: string; text: string; updated_at: string; note: string | null; status: string; urls: string | null; pub: string | null }>(
     `select i.id,i.text,i.updated_at,i.reject_note note,ci.status,s.kind,s.title source,s.ref,s.config,
             (select string_agg(p.external_url,' ') from kz_publications p where p.item_id=i.content_item_id and p.external_url is not null) urls,
             (select string_agg(distinct p.status,',') from kz_publications p where p.item_id=i.content_item_id) pub
        from kz_flow_items i left join kz_content_items ci on ci.id=i.content_item_id left join kz_feed_items k on k.id=i.feed_item_id left join kz_sources s on s.id=k.source_id
-      where i.flow_id=$1 and i.status in ('queued','failed') order by i.updated_at desc limit 60`, [flowId]);
+      where i.flow_id=$1 and i.status in ('queued','failed') order by i.updated_at desc limit ${lim + 1}`, [flowId]);
+  const more = rows.length > lim; if (more) rows.length = lim;
   if (!rows.length) return <Empty t="Пока ничего не опубликовано." />;
   return (
+    <>
     <FadeList className={`${COL} space-y-5 pb-16`}>{rows.map((r) => (
       <NewsCard key={r.id} s={{ kind: r.kind ?? "manual", title: r.source ?? "Источник удалён", ref: r.ref ?? "", config: r.config ?? null }} when={when(r.updated_at)}>
         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -112,14 +119,17 @@ async function Published({ flowId }: { flowId: string }) {
         <PostText title="" text={r.text ?? ""} />
         {r.note && <p className="mt-2 text-xs text-warn">{r.note}</p>}
       </NewsCard>))}</FadeList>
+    {more && <div className="mt-2 flex justify-center pb-10"><Link href={`/app/flows/${flowId}?t=queued&n=${lim + 15}`} scroll={false} className="pill">Показать ещё</Link></div>}
+    </>
   );
 }
 
-async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean }) {
+async function Rejected({ flowId, write, hid, unlimited, lim }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean; lim: number }) {
   const rows = await q<Src & { id: string; code: string; note: string | null; created_at: string; title: string; body: string; url: string }>(
     `select i.id,i.reject_code code,i.reject_note note,i.created_at,k.title,k.body,k.url,${SRC} from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
-      where i.flow_id=$1 and i.status='rejected' order by i.created_at desc limit 80`, [flowId]);
+      where i.flow_id=$1 and i.status='rejected' order by i.created_at desc limit ${lim + 1}`, [flowId]);
   const by = rows.reduce<Record<string, number>>((a, r) => ({ ...a, [r.code]: (a[r.code] ?? 0) + 1 }), {});
+  const more = rows.length > lim; if (more) rows.length = lim;
   if (!rows.length) return <Empty t="Отбракованных новостей нет." />;
   return (
     <>
@@ -133,6 +143,7 @@ async function Rejected({ flowId, write, hid, unlimited }: { flowId: string; wri
           <p className="mb-2"><span className="chip !bg-warn-soft !text-warn">{REJECT[r.code] ?? r.code}</span>{r.note && <span className="ml-2 text-xs text-ink2">{r.note}</span>}</p>
           <PostText title="" text={r.body && r.body.length >= r.title.length ? r.body : r.title} />
         </NewsCard>))}</FadeList>
+    {more && <div className="mt-2 flex justify-center pb-10"><Link href={`/app/flows/${flowId}?t=rejected&n=${lim + 15}`} scroll={false} className="pill">Показать ещё</Link></div>}
     </>
   );
 }

@@ -26,7 +26,7 @@ export default async function Channels() {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="chip">{KINDS[r.kind] ?? r.kind}</span><span className="flex-1 text-sm">{r.title}</span><span className="text-xs text-ink3">{r.brand}</span>
                   <ChannelCheck id={r.id} />
-                  <form action={deleteChannel}><input type="hidden" name="id" value={r.id} /><SubmitButton className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
+                  <form action={deleteChannel}><input type="hidden" name="id" value={r.id} /><SubmitButton data-confirm="Удалить канал? Публикации в него остановятся." className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
                 </div>
                 {!["wordpress", "webhook"].includes(r.kind) && (
                   <details className="mt-2" open={!!r.signature}>

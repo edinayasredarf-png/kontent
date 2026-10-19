@@ -15,8 +15,9 @@ const TABS: [string, string][] = [["new", "Новые"], ["done", "Обрабо�
 const TONES: [string, string][] = [["", "Все"], ["negative", "Негатив"], ["question", "Вопросы"], ["spam", "Спам"], ["positive", "Позитив"]];
 const TONE_CLS: Record<Tone, string> = { neutral: "bg-tile text-ink2", positive: "bg-good-soft text-good", question: "bg-accent-soft text-accent-ink", negative: "bg-bad-soft text-bad", spam: "bg-warn-soft text-warn" };
 
-export default async function Inbox({ searchParams }: { searchParams: Promise<{ s?: string; t?: string; err?: string }> }) {
-  const { s, t, err } = await searchParams;
+export default async function Inbox({ searchParams }: { searchParams: Promise<{ s?: string; t?: string; err?: string; n?: string }> }) {
+  const { s, t, err, n } = await searchParams;
+  const lim = Math.min(300, Math.max(30, Math.round(Number(n)) || 30));
   const tone = TONES.some(([k]) => k && k === t) ? t! : "";
   const st = TABS.some(([k]) => k === s) ? s! : "new";
   const c = await requireCtx();
@@ -25,11 +26,12 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
     q<{ id: string; author: string; body: string; posted_at: string; status: string; reply: string | null; tone: Tone | null; draft: string | null; topic: string | null; url: string | null; channel: string; kind: string }>(
       `select cm.id,cm.author,cm.body,cm.posted_at,cm.status,cm.reply,cm.tone,cm.draft,i.topic,p.external_url url,ch.title channel,ch.kind
          from kz_comments cm join kz_channels ch on ch.id=cm.channel_id left join kz_publications p on p.id=cm.publication_id left join kz_content_items i on i.id=p.item_id
-        where cm.org_id=$1 and cm.status=$2 ${tone ? "and cm.tone=$3" : ""} order by cm.posted_at desc limit 100`, tone ? [c.org.id, st, tone] : [c.org.id, st]),
+        where cm.org_id=$1 and cm.status=$2 ${tone ? "and cm.tone=$3" : ""} order by cm.posted_at desc limit ${lim + 1}`, tone ? [c.org.id, st, tone] : [c.org.id, st]),
     q<{ status: string; n: string }>("select status,count(*) n from kz_comments where org_id=$1 group by status", [c.org.id]),
     q<{ kind: string }>("select distinct kind from kz_channels where org_id=$1", [c.org.id]),
     q<{ tone: string; n: string }>("select tone,count(*) n from kz_comments where org_id=$1 and status='new' and tone is not null group by tone", [c.org.id]),
   ]);
+  const hasMore = rows.length > lim; if (hasMore) rows.length = lim;
   const tc = Object.fromEntries(toneCounts.map((x) => [x.tone, Number(x.n)]));
   const cnt = Object.fromEntries(counts.map((x) => [x.status, Number(x.n)]));
   const hasTg = channels.some((x) => x.kind === "telegram");
@@ -73,7 +75,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
             <p className="whitespace-pre-wrap text-sm">{r.body}</p>
             {r.reply && <p className="mt-2 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Ваш ответ: {r.reply}</p>}
           </PostCard>
-        ))}</div>
+        ))}{hasMore && <div className="flex justify-center pt-1"><Link href={`/app/inbox?s=${st}${tone ? `&t=${tone}` : ""}&n=${lim + 30}`} scroll={false} className="pill">Показать ещё</Link></div>}</div>
       )}
     </>
   );

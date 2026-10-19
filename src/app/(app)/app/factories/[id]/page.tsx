@@ -62,13 +62,17 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const view = sp.view === "calendar" ? "calendar" : "list";
   const kindF = KINDS.includes(sp.kind as never) ? sp.kind : "";
   const statusF = sp.status && STATUS[sp.status] ? sp.status : "";
+  const lim = view === "list" ? Math.min(400, Math.max(20, Math.round(Number(sp.n)) || 20)) : 500;
   const month = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : new Date().toISOString().slice(0, 7);
   const args: unknown[] = [id, c.org.id];
   const cond: string[] = [];
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = tab !== "plan" ? [] : await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric,meta->'email' email,meta->'guide' guide from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric,meta->'email' email,meta->'guide' guide from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at limit ${lim + 1}`, args);
+  // список материалов подгружается порциями: тяжёлые карточки с формами не нужны все сразу
+  const hasMore = view === "list" && items.length > lim;
+  if (hasMore) items.length = lim;
   const carAssets = tab !== "plan" ? [] : await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
   const fb = tab !== "plan" ? [] : await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
   const brandColors = tab !== "plan" ? [] : cleanKit((await one<{ kit: unknown }>("select b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1", [id]))?.kit).colors?.map((x) => x.hex) ?? [];
@@ -104,7 +108,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
         <FactoryTabs factoryId={id} tab={tab} />
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
-        <form action={deleteFactory}>{hid}<SubmitButton className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
+        <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
       {note && <div className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {err && <div className="mx-auto mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
@@ -338,7 +342,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
                   <a href={`/api/assets/${i.image_id}?dl=1`} download className="btn btn-ghost !py-1.5" title="Скачать картинку файлом"><Download size={14} />Скачать картинку</a>
-                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><SubmitButton className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</SubmitButton></form>
+                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Убрать картинку у материала?" data-confirm-ok="Убрать" className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</SubmitButton></form>
                 </div>
               )}
               {i.body && !["carousel", "infographic", "poll", "email", "guide", "reels"].includes(i.kind) && !["published", "scheduled", "generating"].includes(i.status) && (
@@ -362,13 +366,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   {i.status === "idea" && <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="approved" /><SubmitButton className="btn btn-ghost"><Check size={15} />Одобрить</SubmitButton></form>}
                   <form action={setItemStatus}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="rejected" /><SubmitButton className="btn btn-ghost"><X size={15} />Отклонить</SubmitButton></form>
                 </>)}
-                {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && <form action={deleteIdeaAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton className="btn btn-danger" title="Удалить из плана"><Trash2 size={15} />Удалить</SubmitButton></form>}
+                {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && <form action={deleteIdeaAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton data-confirm="Удалить материал из плана? Вернуть его будет нельзя." className="btn btn-danger" title="Удалить из плана"><Trash2 size={15} />Удалить</SubmitButton></form>}
                 {["idea", "approved", "failed"].includes(i.status) && <form action={generateItemAction}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /><SubmitButton className="btn btn-accent"><Sparkles size={15} />Написать</SubmitButton></form>}
               </div>
             </div>
           </details>
         ))}
       </div>
+        {hasMore && <div className="mt-4 flex justify-center"><Link href={href({ n: String(lim + 20) }) + "#more"} scroll={false} className="pill">Показать ещё</Link></div>}
         </div>
       )}
     </>

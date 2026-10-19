@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -114,24 +115,29 @@ export async function switchOrg(orgId: string) {
 
 /** Контекст запроса. Единственная точка, откуда берётся org_id — все запросы данных обязаны брать его отсюда. */
 export async function requireCtx(): Promise<Ctx> {
-  try { return await loadCtx(); }
+  try { return await loadCtxOnce(); }
   catch (e) { if (isSchemaError(e)) redirect("/update-required"); throw e; }
 }
+
+const loadCtxOnce = cache(loadCtx);
 
 async function loadCtx(): Promise<Ctx> {
   const s = await readSession();
   if (!s) redirect("/login");
-  // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
-  // её бесплатной не делает. Пересчитываем при каждом входе: убрали email из списка — безлимит снимется.
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
-  await q(`update kz_orgs o set unlimited = exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))
-            where o.id=$1 and o.unlimited is distinct from exists(select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=o.id and m.role='owner' and lower(u.email)=any($2::text[]))`, [s.org, admins]);
-  const row = await one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
-    `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role
-       from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
-      where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org]);
+  // три независимых запроса идут одновременно; безлимит пересчитываем тут же и пишем в базу, только если он изменился
+  const [row, orgs] = await Promise.all([
+    one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
+      `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role,
+              exists(select 1 from kz_memberships m2 join kz_users u2 on u2.id=m2.user_id where m2.org_id=o.id and m2.role='owner' and lower(u2.email)=any($3::text[])) want_unlimited
+         from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
+        where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org, admins]),
+    q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]),
+  ]);
   if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
-  const orgs = await q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]);
+  // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
+  // её бесплатной не делает. Пересчитываем при каждом запросе: убрали email из списка — безлимит снимется.
+  if (row.unlimited !== row.want_unlimited) { await q("update kz_orgs set unlimited=$2 where id=$1", [s.org, row.want_unlimited]); row.unlimited = row.want_unlimited; }
   const isAdmin = admins.includes(row.email.toLowerCase());
   // приостановленная организация недоступна её участникам; администратор платформы заходит всегда
   if (row.suspended && !isAdmin) redirect("/suspended");

@@ -22,7 +22,7 @@ export function ShareCard({ brandId, links, canEdit, wl }: { brandId: string; li
           {l.url ? <CopyField value={l.url} /> : <p className="text-xs text-warn">Адрес недоступен: сменился ключ шифрования. Отзовите ссылку и создайте новую.</p>}
           <div className="mt-2 flex items-center justify-between text-xs text-ink3">
             <span>{l.expires_at ? `до ${when(l.expires_at)}` : "бессрочно"} · открывали: {when(l.last_seen_at)}</span>
-            {canEdit && <form action={revokeShareLinkAction}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="brand" value={brandId} /><SubmitButton className="inline-flex items-center gap-1 text-bad hover:underline"><Trash2 size={12} />Отозвать</SubmitButton></form>}
+            {canEdit && <form action={revokeShareLinkAction}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="brand" value={brandId} /><SubmitButton data-confirm="Отозвать ссылку? Клиент больше не сможет по ней зайти." data-confirm-ok="Отозвать" className="inline-flex items-center gap-1 text-bad hover:underline"><Trash2 size={12} />Отозвать</SubmitButton></form>}
           </div>
         </div>
       ))}

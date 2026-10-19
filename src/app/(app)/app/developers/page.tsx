@@ -40,7 +40,7 @@ export default async function Developers() {
                   <KeyRound size={15} className="text-ink3" /><span className="font-medium">{k.name}</span><code className="text-xs text-ink3">{k.prefix}…</code>
                   <span className="chip">{k.role === "viewer" ? "только чтение" : "чтение и запись"}</span>
                   <span className="ml-auto text-xs text-ink3">{k.revoked ? "отозван" : k.last_used_at ? `использован ${new Date(k.last_used_at).toLocaleDateString("ru-RU")}` : "не использовался"}</span>
-                  {can && !k.revoked && <form action={revokeKeyAction}><input type="hidden" name="id" value={k.id} /><SubmitButton className="text-ink3 hover:text-bad" title="Отозвать"><Trash2 size={15} /></SubmitButton></form>}
+                  {can && !k.revoked && <form action={revokeKeyAction}><input type="hidden" name="id" value={k.id} /><SubmitButton data-confirm="Отозвать ключ? Интеграции, которые его используют, перестанут работать." data-confirm-ok="Отозвать" className="text-ink3 hover:text-bad" title="Отозвать"><Trash2 size={15} /></SubmitButton></form>}
                 </div>
               ))}
             </div>

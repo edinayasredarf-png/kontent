@@ -28,7 +28,9 @@ export function classifyComment(text: string): Tone {
 /** Расставляет тон там, где его ещё нет (старые комментарии до появления разметки). */
 export async function classifyPending(orgId: string, limit = 200): Promise<void> {
   const rows = await q<{ id: string; body: string }>("select id,body from kz_comments where org_id=$1 and tone is null limit $2", [orgId, limit]);
-  for (const r of rows) await q("update kz_comments set tone=$2 where id=$1 and tone is null", [r.id, classifyComment(r.body)]);
+  if (!rows.length) return;
+  // одним запросом, а не по одному на комментарий
+  await q("update kz_comments c set tone=v.tone from (select unnest($1::uuid[]) id, unnest($2::text[]) tone) v where c.id=v.id and c.tone is null", [rows.map((r) => r.id), rows.map((r) => classifyComment(r.body))]);
 }
 
 const GUIDE: Record<Tone, string> = {

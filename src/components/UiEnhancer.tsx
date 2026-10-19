@@ -114,8 +114,35 @@ export function UiEnhancer() {
     };
     // системное окно даты открывается по click (в Chrome — по значку, в Firefox — по полю): гасим его, наше уже открыто по mousedown
     const onClick = (e: MouseEvent) => { const el = target(e); if (usable(el) && el instanceof HTMLInputElement) e.preventDefault(); };
+    // подтверждение для кнопок с data-confirm (удаление и отзыв): вместо мгновенного действия спрашиваем в своём окне
+    let bypass: HTMLElement | null = null, ask: HTMLDivElement | null = null;
+    const closeAsk = () => { ask?.remove(); ask = null; };
+    const onConfirm = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement | null)?.closest?.("[data-confirm]") as HTMLButtonElement | null;
+      if (!btn || btn.disabled) return;
+      if (bypass === btn) { bypass = null; return; }
+      e.preventDefault(); e.stopPropagation();
+      closeAsk();
+      const ok = btn.dataset.confirmOk || "Удалить";
+      ask = document.createElement("div"); ask.className = "ui-confirm"; ask.setAttribute("role", "alertdialog"); ask.setAttribute("aria-modal", "true");
+      const back = document.createElement("div"); back.className = "ui-confirm-back";
+      const box = document.createElement("div"); box.className = "ui-confirm-box";
+      const h = document.createElement("b"); h.textContent = "Вы уверены?";
+      const p = document.createElement("p"); p.textContent = btn.dataset.confirm ?? "";
+      const row = document.createElement("div"); row.className = "ui-confirm-row";
+      const no = document.createElement("button"); no.type = "button"; no.className = "pill"; no.textContent = "Отмена";
+      const yes = document.createElement("button"); yes.type = "button"; yes.className = "ui-confirm-yes"; yes.textContent = ok;
+      row.append(no, yes); box.append(h, p, row); ask.append(back, box); document.body.appendChild(ask);
+      no.focus();
+      const off = () => { document.removeEventListener("keydown", key, true); closeAsk(); };
+      const key = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); off(); btn.focus({ preventScroll: true }); } };
+      document.addEventListener("keydown", key, true);
+      back.addEventListener("click", off); no.addEventListener("click", off);
+      yes.addEventListener("click", () => { off(); bypass = btn; btn.click(); });
+    };
+    document.addEventListener("click", onConfirm, true);
     document.addEventListener("mousedown", onDown, true); document.addEventListener("click", onClick, true); document.addEventListener("keydown", onKey, true);
-    return () => { document.removeEventListener("mousedown", onDown, true); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); close(); };
+    return () => { document.removeEventListener("click", onConfirm, true); closeAsk(); document.removeEventListener("mousedown", onDown, true); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); close(); };
   }, []);
   return null;
 }
