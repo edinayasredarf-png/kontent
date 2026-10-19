@@ -131,7 +131,7 @@ export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; nam
           {composer}
           <div className="mt-6">
             {SUGGEST.map((s) => (
-              <button key={s.text} type="button" onClick={() => send(s.text)} className="flex h-12 w-full items-center gap-3 rounded-2xl px-2 text-left text-base hover:bg-accent-soft/70"><s.icon size={18} className="shrink-0 text-ink2" />{s.text}</button>
+              <button key={s.text} type="button" onClick={() => send(s.text)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-2 text-left text-base leading-snug hover:bg-accent-soft/70"><s.icon size={18} className="shrink-0 text-ink2" />{s.text}</button>
             ))}
           </div>
         </div>

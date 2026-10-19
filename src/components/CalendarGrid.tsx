@@ -46,23 +46,23 @@ export function CalendarGrid({ month, items: initial, prevHref, nextHref }: { mo
       </div>
       {err && <p className="mb-2.5 rounded-2xl bg-bad-soft px-4 py-2 text-xs text-bad">{err}</p>}
       <div className="overflow-x-auto">
-        <div className="min-w-[640px]">
-          <div className="grid grid-cols-7 gap-1.5 pb-1.5 text-center text-xs font-medium text-ink3">{["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => <div key={d} className="py-1.5">{d}</div>)}</div>
-          <div className="grid grid-cols-7 gap-1.5">
+        <div className="sm:min-w-[640px]">
+          <div className="grid grid-cols-7 gap-1 pb-1.5 sm:gap-1.5 text-center text-xs font-medium text-ink3">{["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => <div key={d} className="py-1.5">{d}</div>)}</div>
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {cells.slice(0, rows * 7).map((d) => {
               const key = ymd(d), list = by.get(key) ?? [], out = d.getMonth() !== m - 1;
               return (
                 <div key={key} onDragOver={(e) => { e.preventDefault(); setOver(key); }} onDragLeave={() => setOver((o) => (o === key ? null : o))}
                   onDrop={(e) => { e.preventDefault(); setOver(null); const id = e.dataTransfer.getData("text/plain"); if (id) move(id, key); }}
-                  className={`min-h-24 rounded-2xl p-1.5 transition-colors ${over === key ? "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]" : out ? "bg-surface/40" : "bg-surface"}`}>
+                  className={`min-h-[4.5rem] rounded-xl p-1 transition-colors sm:min-h-24 sm:rounded-2xl sm:p-1.5 ${over === key ? "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]" : out ? "bg-surface/40" : "bg-surface"}`}>
                   <div className={`mb-1 text-xs ${key === today ? "grid size-6 place-items-center rounded-full bg-accent font-semibold text-white" : out ? "text-ink3" : "font-medium text-ink2"}`}>{d.getDate()}</div>
-                  <div className="space-y-1">
+                  <div className="flex flex-wrap gap-1 sm:block sm:space-y-1">
                     {list.slice(0, 3).map((it) => (
-                      <Link key={it.id} href={it.href} draggable={it.movable} onDragStart={(e) => { e.dataTransfer.setData("text/plain", it.id); e.dataTransfer.effectAllowed = "move"; }} title={`${it.label ? it.label + ": " : ""}${it.topic}${it.movable ? " (можно перетащить)" : ""}`} className={`${it.movable ? "cursor-grab active:cursor-grabbing " : ""}flex items-center gap-1 rounded-lg bg-tile px-1.5 py-1 text-[11px] leading-tight transition hover:bg-tile2`}>
-                        <span className={`size-1.5 shrink-0 rounded-full ${DOT[it.status] ?? "bg-ink3"}`} /><span className="shrink-0 text-ink3">{KIND[it.kind]?.slice(0, 3)}</span><span className="truncate">{it.topic}</span>
+                      <Link key={it.id} href={it.href} draggable={it.movable} onDragStart={(e) => { e.dataTransfer.setData("text/plain", it.id); e.dataTransfer.effectAllowed = "move"; }} title={`${it.label ? it.label + ": " : ""}${it.topic}${it.movable ? " (можно перетащить)" : ""}`} className={`${it.movable ? "cursor-grab active:cursor-grabbing " : ""}flex items-center gap-1 rounded-lg bg-tile px-1.5 py-1 text-[11px] leading-tight transition hover:bg-tile2 max-sm:bg-transparent max-sm:p-0.5`}>
+                        <span className={`size-1.5 shrink-0 rounded-full max-sm:size-2.5 ${DOT[it.status] ?? "bg-ink3"}`} /><span className="shrink-0 text-ink3 max-sm:hidden">{KIND[it.kind]?.slice(0, 3)}</span><span className="truncate max-sm:hidden">{it.topic}</span>
                       </Link>
                     ))}
-                    {list.length > 3 && <p className="px-1 text-[11px] text-ink3">ещё {list.length - 3}</p>}
+                    {list.length > 3 && <p className="px-1 text-[11px] text-ink3 max-sm:px-0">+{list.length - 3}</p>}
                   </div>
                 </div>
               );

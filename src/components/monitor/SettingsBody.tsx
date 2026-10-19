@@ -41,8 +41,8 @@ export async function SettingsBody() {
           <li key={s.id} className={`${box} flex flex-wrap items-center gap-3`}>
             <SourceIcon kind={s.kind} avatar={typeof s.config?.avatar === "string" ? s.config.avatar : undefined} />
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 truncate text-sm font-semibold"><span className="truncate">{sv.name}</span><span className="chip !bg-surface">{KIND_LABEL[s.kind]}</span>{s.status === "paused" && <span className="chip !bg-warn-soft !text-warn">пауза</span>}</p>
-              <p className="truncate text-xs text-ink2">{sv.address} · постов: {s.items} · {s.last_fetched_at ? `обновлено ${new Date(s.last_fetched_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : s.kind === "manual" ? "добавлено вручную" : "ещё не обновлялся"}</p>
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold"><span className="max-w-full break-words">{sv.name}</span><span className="chip !bg-surface">{KIND_LABEL[s.kind]}</span>{s.status === "paused" && <span className="chip !bg-warn-soft !text-warn">пауза</span>}</p>
+              <p className="break-words text-xs text-ink2 sm:truncate">{sv.address} · постов: {s.items} · {s.last_fetched_at ? `обновлено ${new Date(s.last_fetched_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : s.kind === "manual" ? "добавлено вручную" : "ещё не обновлялся"}</p>
               {s.last_error && <p className="mt-1 flex items-start gap-1.5 text-xs text-bad"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{s.last_error}</p>}
             </div>
             <div className="flex gap-1.5">

@@ -163,7 +163,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm">Сколько материалов
               <select name="count" defaultValue="5" className="input !w-auto">{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-            <SubmitButton className="btn ml-auto"><Layers size={15} />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</SubmitButton>
+            <SubmitButton className="btn ml-auto max-w-full !whitespace-normal text-left"><Layers size={15} className="shrink-0" />Разобрать на материалы{c.org.unlimited ? "" : ` · ${rub(PRICES.idea)} за материал`}</SubmitButton>
           </div>
           <p className="text-xs text-ink3">Идеи появятся в плане на ближайшие свободные дни. Создание самих постов и каруселей оплачивается как обычно.</p>
         </form>
@@ -214,7 +214,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </form>
         <details className="relative">
           <summary className="pill pill-sm cursor-pointer list-none"><Download size={14} />Выгрузить всё</summary>
-          <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg">
+          <form action={`/api/export/factory/${id}`} method="get" className="absolute right-0 z-20 mt-1 w-72 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:w-auto">
             <p className="text-xs text-ink2">Материалы завода по фильтру: формат и статус из полей выше, период выбираете здесь.</p>
             <input type="hidden" name="kind" value={kindF ?? ""} /><input type="hidden" name="status" value={statusF ?? ""} />
             <div className="grid grid-cols-2 gap-2"><div><label className="label">С даты</label><input type="date" name="from" className="input !py-1.5" /></div><div><label className="label">По дату</label><input type="date" name="to" className="input !py-1.5" /></div></div>

@@ -8,7 +8,7 @@ export function PostCard({ icon, title, sub, subHref, when, children, actions, c
       <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
         {icon}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-5">{title}</p>
+          <p className="line-clamp-2 break-words text-sm font-semibold leading-5">{title}</p>
           {sub != null && (subHref ? <a href={subHref} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sub}</a> : <p className="truncate text-xs leading-4 text-ink2">{sub}</p>)}
         </div>
         {when != null && <span className="shrink-0 self-start pt-0.5 text-xs text-ink3">{when}</span>}

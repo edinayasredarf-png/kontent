@@ -55,7 +55,7 @@ export function AppShell(p: ShellProps) {
         })}
       </nav>
       {!slim && p.free && (
-        <div className="relative mx-6 mb-5 mt-6 shrink-0 rounded-2xl px-6 pb-6 pt-12 text-center text-white" style={{ background: "linear-gradient(285deg, #4d63ff, #1734fc 70%)", boxShadow: "0 21px 27px -10px rgba(96,60,255,.48)" }}>
+        <div className="relative mx-6 mb-5 mt-6 shrink-0 rounded-2xl px-6 pb-6 pt-12 text-center text-white max-md:hidden" style={{ background: "linear-gradient(285deg, #4d63ff, #1734fc 70%)", boxShadow: "0 21px 27px -10px rgba(96,60,255,.48)" }}>
           <span className="absolute -top-10 left-1/2 grid size-20 -translate-x-1/2 place-items-center rounded-full border-4 border-white" style={{ background: "linear-gradient(285deg, #4d63ff, #1734fc 70%)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mark-white.svg" alt="" className="size-9" />
