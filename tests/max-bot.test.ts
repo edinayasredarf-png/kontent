@@ -93,6 +93,11 @@ describe("MAX: бот сервиса", { skip }, () => {
     await bot.handleUpdate(dm(42, "привет"));
     assert.match(String((replies()[0].body as { text: string }).text), /Чтобы подключить канал/);
   });
+  it("личное сообщение без chat_type в событии тоже принимается", async () => {
+    const { code } = await bot.newLink(orgA, userA, brandA);
+    await bot.handleUpdate({ update_type: "message_created", message: { sender: { user_id: 42 }, recipient: { user_id: 1 }, body: { text: code.toLowerCase() } } });
+    assert.equal((await db.one<{ status: string }>("select status from kz_max_links where org_id=$1", [orgA]))!.status, "linked");
+  });
   it("неверный и просроченный ключ отклоняются", async () => {
     const { code } = await bot.newLink(orgA, userA, brandA);
     await bot.handleUpdate(dm(42, "AAAA-BBBB"));

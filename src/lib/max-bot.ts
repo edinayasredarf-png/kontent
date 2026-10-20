@@ -93,7 +93,10 @@ export async function handleUpdate(u: Upd): Promise<void> {
     const id = u.user?.user_id; if (id != null) await say(id, HELP(process.env.NEXT_PUBLIC_SITE_NAME ?? ""));
   } else if (t === "message_created") {
     const m = u.message, from = m?.sender?.user_id;
-    if (!m || from == null || m.sender?.is_bot || m.recipient?.chat_type !== "dialog") return; // ключ принимаем только в личной переписке
+    const ct = m?.recipient?.chat_type;
+    console.log("[max-bot] сообщение: chat_type=", ct ?? "нет", "sender=", from ?? "нет");
+    // ключ принимаем только в личной переписке: значение chat_type у MAX в документации не уточнено, поэтому чатом и каналом считаем только явные chat/channel
+    if (!m || from == null || m.sender?.is_bot || ct === "chat" || ct === "channel") return;
     const code = normCode(m.body?.text ?? "");
     if (code.length !== 8) { await say(from, HELP("")); return; }
     const r = await q<{ id: string }>("update kz_max_links set status='linked', max_user_id=$2 where code=$1 and status in ('pending','linked') and expires_at > now() returning id", [code, from]);
