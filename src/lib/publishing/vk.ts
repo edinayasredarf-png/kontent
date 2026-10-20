@@ -58,15 +58,6 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
     if (!saved[0]) throw new PublishError("VK не сохранил фото");
     return `photo${saved[0].owner_id}_${saved[0].id}`;
   } },
-  { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
-    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
-    const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
-    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
-    const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveMessagesPhoto", { server: String(up.server), photo: up.photo, hash: up.hash });
-    if (!saved[0]) throw new PublishError("VK не сохранил фото");
-    void gid;
-    return `photo${saved[0].owner_id}_${saved[0].id}${saved[0].access_key ? `_${saved[0].access_key}` : ""}`;
-  } },
   { name: "файл", multi: false, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "docs.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ file?: string }>(srv.upload_url, "file", img);
@@ -76,10 +67,19 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
     if (!d) throw new PublishError("VK не сохранил файл");
     return `doc${d.owner_id}_${d.id}${"access_key" in d && d.access_key ? `_${d.access_key}` : ""}`;
   } },
-  // последний путь: ссылка на страницу с картинкой — VK покажет её карточкой с крупным изображением (нужна публичная ссылка, APP_URL)
+  // ключ сообщества: фото через «сообщения» VK принимает, но к посту на стене не показывает, поэтому сначала файл и карточка-ссылка; ссылка на страницу с картинкой — VK покажет её карточкой с крупным изображением (нужна публичная ссылка, APP_URL)
   { name: "ссылка с картинкой", multi: false, run: async (_t, _g, _i, imageUrl) => {
     if (!imageUrl) throw new PublishError("не задан APP_URL, публичной ссылки на картинку нет");
     return imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?");
+  } },
+  { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
+    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
+    const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
+    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
+    const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveMessagesPhoto", { server: String(up.server), photo: up.photo, hash: up.hash });
+    if (!saved[0]) throw new PublishError("VK не сохранил фото");
+    void gid;
+    return `photo${saved[0].owner_id}_${saved[0].id}${saved[0].access_key ? `_${saved[0].access_key}` : ""}`;
   } },
 ];
 
@@ -122,7 +122,7 @@ export const vk: Provider = {
         let checkErr = "";
         const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
         const list = Array.isArray(got) ? got : got?.items;
-        if (checkErr || !list?.[0]) return done(r, `Не удалось проверить, что картинка попала в пост (${checkErr || "пустой ответ VK"}). Если её нет — откройте пост в VK. Вложение: ${ids.join(",")}`);
+        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. Чтобы картинка гарантированно была, задайте APP_URL на сервере (тогда она прикрепится ссылкой-карточкой) или подключите ключ пользователя-администратора. Способ: ${up.name}`);
         if (!(list[0].attachments?.length)) {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
