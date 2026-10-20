@@ -1,3 +1,4 @@
+import { attachUploadToItems } from "../item-images";
 import { angleTask } from "./angles";
 import { POST_TYPES } from "../postsettings";
 import { kbText } from "../kb/use";
@@ -138,7 +139,7 @@ export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonl
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей
  * (первые три в этом запросе, остальные уйдут в очередь воркера), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
  */
-export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
+export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string; date?: string; image?: FormDataEntryValue | null } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
   const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; status: string; source: string }>(
@@ -150,7 +151,9 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
   const full = (await one<{ full_text: string | null }>("select full_text from kz_feed_items where id=$1", [itemId]))?.full_text ?? null;
   const text = bestText({ title: it.title, body: it.body, full_text: full });
   const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + text.slice(0, 8000) };
-  const dates = await allocateDates(factoryId, ks.length);
+  // дата не выбрана — ближайшие свободные дни по расписанию завода
+  const picked = opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;
+  const dates = picked ? ks.map(() => picked) : await allocateDates(factoryId, ks.length);
   const ids = await tx(async (run) => {
     const out: string[] = [];
     for (let i = 0; i < ks.length; i++) {
@@ -162,6 +165,8 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
     return out;
   });
   let error: string | undefined;
+  const imgErr = await attachUploadToItems(orgId, fac.brand_id, opts.image ?? null, ks.map((k, i) => ({ id: ids[i], kind: k })));
+  if (imgErr) error = `Изображение не прикреплено: ${imgErr}`;
   if (now) {
     const t0 = Date.now();
     for (const id of ids.slice(0, 3)) {

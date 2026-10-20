@@ -161,6 +161,67 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES):
   throw new Error(`Модель ${model} не вернула изображение${lastErr ? ` (${lastErr})` : ""}. Проверьте, что выбрана именно модель изображений`);
 }
 
+/**
+ * Доработка готового изображения по тексту («убери фон», «добавь тёплые тона»). Три способа по порядку, потому что модели шлюза разные:
+ * 1) OpenAI-совместимый /images/edits; 2) чат-модель, которая принимает картинку и отдаёт картинку (Gemini Image);
+ * 3) запасной: vision-модель описывает картинку, а новая создаётся по описанию и пожеланию — это «по мотивам», не точная правка.
+ * Возвращает буфер и способ, чтобы показать пользователю, насколько точно сделано.
+ */
+export async function editImage(src: Buffer, mime: string, instruction: string, aspect: keyof typeof SIZES): Promise<{ data: Buffer; how: "edit" | "chat" | "redraw" }> {
+  const base = baseUrl();
+  if (!base) throw new Error("AI Gateway не настроен (SELFHOSTED_LLM_URL)");
+  const model = await modelFor("image");
+  if (!model) throw new Error("Не выбрана модель изображений. Откройте «Настройки ИИ» и выберите её в пункте «Генерация изображений»");
+  const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
+  const auth: Record<string, string> = key ? { Authorization: `Bearer ${key}` } : {};
+  const dataUrl = `data:${mime};base64,${src.toString("base64")}`;
+  const ask = `Отредактируй это изображение: ${instruction}. Сохрани композицию, главный объект и узнаваемость, меняй только то, что просят. Верни итоговое изображение.`;
+  let lastErr = "";
+
+  // 1) прямое редактирование
+  try {
+    const fd = new FormData();
+    fd.append("model", model); fd.append("prompt", ask); fd.append("n", "1"); fd.append("size", SIZES[aspect]);
+    fd.append("image", new Blob([new Uint8Array(src)], { type: mime }), mime === "image/png" ? "image.png" : "image.jpg");
+    const res = await fetch(`${base}/images/edits`, { method: "POST", headers: auth, body: fd, signal: AbortSignal.timeout(110_000) });
+    if (res.ok) {
+      const j = (await res.json().catch(() => ({}))) as ImgResp;
+      const b = await toBuffer(j.data?.[0]);
+      if (b?.length) return { data: b, how: "edit" };
+      lastErr = "пустой ответ";
+    } else {
+      lastErr = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 160)}`;
+      if (res.status === 401 || res.status === 403 || res.status === 429 || res.status >= 500) throw new Error(`Шлюз ${lastErr} (модель ${model})`);
+    }
+  } catch (e) {
+    const t = (e as Error).name === "TimeoutError";
+    if (t || /^Шлюз /.test((e as Error).message)) throw new Error(t ? `Модель изображений не ответила за 110 с (${model})` : (e as Error).message);
+    lastErr = (e as Error).message;
+  }
+
+  // 2) чат-модель с входной и выходной картинкой
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...auth }, signal: AbortSignal.timeout(110_000),
+      body: JSON.stringify({ model, modalities: ["image", "text"], max_tokens: 1000, messages: [{ role: "user", content: [{ type: "text", text: ask }, { type: "image_url", image_url: { url: dataUrl } }] }] }),
+    });
+    if (res.ok) {
+      const j = (await res.json()) as { choices?: { message?: { content?: unknown; images?: { image_url?: { url?: string } }[] } }[] };
+      const msg = j.choices?.[0]?.message;
+      const urls: string[] = [];
+      for (const im of msg?.images ?? []) if (im.image_url?.url) urls.push(im.image_url.url);
+      if (Array.isArray(msg?.content)) for (const p of msg!.content as { image_url?: { url?: string } }[]) if (p.image_url?.url) urls.push(p.image_url.url);
+      if (typeof msg?.content === "string") { const m = msg.content.match(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+/i); if (m) urls.push(m[0]); }
+      for (const u of urls) { const b = u.startsWith("data:") ? fromDataUri(u) : (await safeFetchBuffer(u)).data; if (b?.length) return { data: b, how: "chat" }; }
+      lastErr = "модель не вернула картинку";
+    } else lastErr = `${res.status}`;
+  } catch (e) { lastErr = (e as Error).message; }
+
+  // 3) по мотивам: описание + новая картинка
+  const desc = await visionAsk(dataUrl, "Опиши это изображение подробно для художника, который воссоздаст его: что изображено, композиция, ракурс, цвета, свет, фон, стиль. Только описание, 5–8 предложений.").catch((e) => { throw new Error(`Не удалось доработать изображение (${lastErr}); запасной способ тоже не сработал: ${(e as Error).message}`); });
+  return { data: await generateImage(`${desc.slice(0, 900)}\n\nВнеси изменения: ${instruction}.`, aspect), how: "redraw" };
+}
+
 /** Накладывает логотип бренда в угол. Лого не «рисует» нейросеть — модели искажают буквы, поэтому оно приклеивается готовым файлом. */
 export async function finalizeImage(raw: Buffer, logo: AssetRow | null, kit: Kit) {
   let img = sharp(raw, { limitInputPixels: 40_000_000 }).rotate();

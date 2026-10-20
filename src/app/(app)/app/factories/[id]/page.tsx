@@ -22,6 +22,9 @@ import { plainOf, type ExportItem } from "@/lib/exporter";
 import { DocPanel } from "@/components/DocPanel";
 import { GrowthPanel } from "@/components/GrowthPanel";
 import { StrategyCard } from "@/components/StrategyCard";
+import { ImagePicker } from "@/components/ImagePicker";
+import { attachItemImageAction, reworkItemImageAction } from "@/lib/image-actions";
+import { setItemDateAction } from "@/lib/growth-actions";
 import { CreateMaterialForm } from "@/components/CreateMaterialForm";
 import { SettingsList } from "@/components/ui/SettingsList";
 import { ModalButton } from "@/components/ui/ModalButton";
@@ -256,6 +259,15 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               <Status s={i.status} />
             </summary>
             <div className="space-y-3 px-2.5 pb-2 pt-4">
+              {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) && canWrite(c.org.role) && (
+                <form action={setItemDateAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-3">
+                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                  <label className="text-sm font-medium">Дата выхода в плане</label>
+                  <input type="date" name="date" defaultValue={i.planned_for ?? ""} className="input !w-auto !py-1.5 text-sm" />
+                  <SubmitButton className="pill pill-sm">Сохранить дату</SubmitButton>
+                  <span className="text-xs text-ink3">Без даты материал встаёт на ближайший свободный день сам.</span>
+                </form>
+              )}
               {["idea", "approved", "ready", "failed", "rejected"].includes(i.status) ? (
                 <details className="rounded-xl bg-tile p-3">
                   <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тему, хук, формат, дату</summary>
@@ -296,7 +308,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <ExportMenu id={i.id} kind={i.kind} hasImages={!!i.image_id || carAssets.some((a) => a.item_id === i.id)} />
                 </div>
               )}
-              <GrowthPanel itemId={i.id} factoryId={id} kind={i.kind} status={i.status} hasBody={!!i.body.trim()} ab={i.ab} abRes={abMap.get(i.id) ?? null} variants={i.variants} free={c.org.unlimited} canEdit={canWrite(c.org.role)} />
+              <GrowthPanel itemId={i.id} factoryId={id} kind={i.kind} status={i.status} hasBody={!!i.body.trim()} ab={i.ab} abRes={abMap.get(i.id) ?? null} variants={i.variants} free={c.org.unlimited} canEdit={canWrite(c.org.role)} aDate={i.planned_for} stamp={stamp} />
               {i.kind === "infographic" && i.infographic && (
                 <InfographicPanel colors={brandColors} itemId={i.id} factoryId={id} info={i.infographic} style={i.info_style ?? "brand"} assetId={carAssets.find((a) => a.item_id === i.id)?.id} editable={["idea", "approved", "ready", "failed"].includes(i.status)} />
               )}
@@ -343,6 +355,23 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                   <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
                   <a href={`/api/assets/${i.image_id}?dl=1`} download className="btn btn-ghost !py-1.5" title="Скачать картинку файлом"><Download size={14} />Скачать картинку</a>
                   <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Убрать картинку у материала?" data-confirm-ok="Убрать" className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</SubmitButton></form>
+                </div>
+              )}
+              {!["carousel", "infographic", "email", "guide", "reels"].includes(i.kind) && !["published", "scheduled", "generating"].includes(i.status) && (
+                <div className="space-y-3 rounded-2xl bg-tile p-3">
+                  <b className="text-sm">Своё изображение</b>
+                  <form action={attachItemImageAction} className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                    <ImagePicker label={i.image_id ? "Заменить своим изображением" : "Прикрепить своё изображение"} className="min-w-0" />
+                    <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
+                  </form>
+                  {i.image_id && (
+                    <form action={reworkItemImageAction} className="flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                      <input name="instruction" required minLength={3} maxLength={400} placeholder="Доработать ИИ: убрать фон, добавить тёплые тона, сделать ярче…" className="input min-w-[14rem] flex-1 !bg-surface text-sm" />
+                      <SubmitButton className="btn btn-accent !py-2"><Sparkles size={14} />Доработать{c.org.unlimited ? "" : ` · ${rub(PRICES.image)}`}</SubmitButton>
+                    </form>
+                  )}
                 </div>
               )}
               {i.body && !["carousel", "infographic", "poll", "email", "guide", "reels"].includes(i.kind) && !["published", "scheduled", "generating"].includes(i.status) && (

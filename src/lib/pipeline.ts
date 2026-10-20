@@ -212,7 +212,8 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
     // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
-    if (fac.brief?.images && !["carousel", "infographic", "poll", "email", "guide"].includes(item.kind)) {
+    // своё изображение, прикреплённое при создании, не заменяется сгенерированным
+    if (fac.brief?.images && !(item.meta as { imageOwn?: boolean } | null)?.imageOwn && !["carousel", "infographic", "poll", "email", "guide"].includes(item.kind)) {
       const im = await buildImage(orgId, item.id);
       if (!im.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, im.error]);
     }

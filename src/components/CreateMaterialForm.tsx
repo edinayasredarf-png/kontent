@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Layers, Sparkles } from "lucide-react";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Switch } from "@/components/ui/Switch";
+import { ImagePicker } from "@/components/ImagePicker";
 
 const MULTI = "__multi", SOURCE = "__source";
 type Act = (f: FormData) => void | Promise<void>;
@@ -52,6 +53,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
           </div>
         </div>
       )}
+      {!source && <ImagePicker hint="Фото или картинка к посту. Если приложите своё, ИИ не будет создавать другое; доработать его можно в самом материале." />}
       {!source && <Switch name="mode" value="ideas" label="Только добавить в план" hint="Материал не пишется сразу: тема ляжет в план идеей, текст появится после одобрения." />}
       <SubmitButton className="btn btn-accent h-12 w-full justify-center text-[15px]">{source ? <Layers size={16} /> : <Sparkles size={16} />}{source ? "Разобрать на материалы" : "Создать"}</SubmitButton>
       <p className="text-xs text-ink3">{source

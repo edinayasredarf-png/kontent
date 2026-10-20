@@ -1,4 +1,6 @@
 "use server";
+import { allocateDates } from "./plan";
+import { attachUploadToItems } from "./item-images";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
@@ -91,14 +93,20 @@ export async function createMaterialsAction(f: FormData) {
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [fid, c.org.id]);
   if (!fac) return go(fid, { ok: false, error: "Завод не найден" });
   const now = s(f, "mode") !== "ideas";
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(s(f, "date")) ? s(f, "date") : null;
-  const ids: string[] = [];
-  for (const k of kinds) {
+  const picked = /^\d{4}-\d{2}-\d{2}$/.test(s(f, "date")) ? s(f, "date") : null;
+  // дата не выбрана — ставим автоматически: ближайшие свободные дни по расписанию завода, каждому формату свой
+  const auto = picked ? [] : await allocateDates(fid, kinds.length);
+  const ids: string[] = [], kindOf: { id: string; kind: string }[] = [];
+  for (const [ki, k] of kinds.entries()) {
+    const date = picked ?? auto[ki] ?? null;
     const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,coalesce($7::date,current_date),$8,'{\"manual\":true}') returning id",
       [c.org.id, fid, fac.brand_id, k, topic, hook, date, now ? "approved" : "idea"]);
     ids.push(row!.id);
+    kindOf.push({ id: row!.id, kind: k });
   }
-  let errMsg = "";
+  // своё изображение, если прикрепили: оно уже есть у материала, и ИИ его не заменяет
+  const imgErr = await attachUploadToItems(c.org.id, fac.brand_id, f.get("image"), kindOf);
+  let errMsg = imgErr ? `Изображение не прикреплено: ${imgErr}` : "";
   if (now) {
     const t0 = Date.now();
     for (const id of ids.slice(0, 3)) {

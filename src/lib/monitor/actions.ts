@@ -122,7 +122,7 @@ export async function suggestKeywordsAction(brand: string): Promise<{ ok: true; 
 export async function createFromNewsAction(f: FormData) {
   const c = await requireWriter();
   const factory = s(f, "factory");
-  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), s(f, "mode") !== "ideas", { angle: s(f, "angle"), postType: s(f, "postType") });
+  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), s(f, "mode") !== "ideas", { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image") });
   back();
   if (!r.ok) redirect(`/app/monitor?err=${encodeURIComponent(r.error)}`);
   redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}${r.ids.length > 3 && s(f, "mode") !== "ideas" ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне.")}` : ""}#i-${r.ids[0]}`);

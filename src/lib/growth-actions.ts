@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
 import { createVariant, genVariants, moreLikeThis, VARIANT_LABEL } from "./growth";
+import { allocateDates, moveItem } from "./plan";
 import { cleanStrategy, genStrategy, saveStrategy } from "./strategy";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -38,14 +39,14 @@ export async function moreLikeThisAction(f: FormData) {
 export async function createVariantAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory");
-  const r = await createVariant(c.org.id, id);
+  const r = await createVariant(c.org.id, id, s(f, "date") || undefined);
   back(fid, id, r.ok ? undefined : r.error);
 }
 
 export async function genVariantsAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory");
-  const r = await genVariants(c.org.id, id);
+  const r = await genVariants(c.org.id, id, s(f, "only") || undefined);
   back(fid, id, r.ok ? undefined : r.error);
 }
 
@@ -57,4 +58,15 @@ export async function saveVariantsAction(f: FormData) {
   for (const k of Object.keys(VARIANT_LABEL)) { const t = String(f.get(`v_${k}`) ?? "").replace(/\r/g, "").trim().slice(0, 4000); if (t) v[k] = t; }
   await q("update kz_content_items set meta = case when $3::jsonb = '{}'::jsonb then meta - 'variants' else meta || jsonb_build_object('variants',$3::jsonb) end, updated_at=now() where id=$1 and org_id=$2 and status not in ('published','generating')", [id, c.org.id, JSON.stringify(v)]);
   back(fid, id);
+}
+
+/** Дата выхода материала в плане: быстро меняется там же, где материал, и у варианта Б A/B-теста. Не влияет на уже опубликованное. */
+export async function setItemDateAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id"), fid = s(f, "factory");
+  // дата не выбрана — ближайший свободный день по расписанию завода
+  const date = s(f, "date") || (await allocateDates(fid, 1))[0] || "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return back(fid, id, "Не удалось подобрать дату, выберите её вручную");
+  const r = await moveItem(c.org.id, id, date);
+  back(fid, id, r.ok ? undefined : (r.error ?? "Не удалось перенести"));
 }

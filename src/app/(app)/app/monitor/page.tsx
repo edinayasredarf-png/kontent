@@ -17,6 +17,7 @@ import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
+import { ImagePicker } from "@/components/ImagePicker";
 import { NoResults } from "@/components/monitor/NoResults";
 import { SettingsBody } from "@/components/monitor/SettingsBody";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
@@ -122,6 +123,10 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div><label className="label">Как подать новость</label><select name="angle" defaultValue="retell" className="input !bg-surface">{Object.entries(ANGLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
                           <div><label className="label">Стиль написания</label><select name="postType" defaultValue="" className="input !bg-surface"><option value="">По настройкам завода</option>{Object.entries(POST_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div><label className="label">Дата выхода в плане</label><input type="date" name="date" className="input !bg-surface" /><p className="mt-1 text-xs text-ink3">Не выберете — дата поставится сама по расписанию завода.</p></div>
+                          <div><span className="label">Изображение</span><ImagePicker hint="Своё фото к посту; ИИ его не заменит." /></div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <select name="mode" className="input !w-auto !bg-surface"><option value="now">Создать сразу</option><option value="ideas">Только в контент-план (идеи)</option></select>

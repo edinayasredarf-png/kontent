@@ -1,8 +1,10 @@
 import { AutoTextarea } from "@/components/AutoTextarea";
+import { ImagePicker } from "@/components/ImagePicker";
+import { attachFlowImageAction, removeFlowImageAction, reworkFlowImageAction } from "@/lib/image-actions";
 import { PostText } from "@/components/monitor/PostText";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Pause, Play, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pause, Play, RefreshCw, Trash2, Sparkles } from "lucide-react";
 import { requireCtx, canWrite } from "@/lib/auth";
 import { q, one } from "@/lib/db";
 import { approveFlowItemAction, deleteFlowAction, rejectFlowItemAction, rescueFlowItemAction, rewriteFlowItemAction, saveFlowSettingsAction, toggleFlowAction } from "@/lib/flows/actions";
@@ -64,7 +66,7 @@ const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.r
 const Empty = ({ t }: { t: string }) => <p className="card mx-auto max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
 
 async function Pending({ flowId, write, hid, unlimited, lim }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean; lim: number }) {
-  const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; body: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number } | null }>(
+  const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; body: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number; imageId?: string } | null }>(
     `select i.id,i.text,i.status,i.created_at,k.title,k.body,k.url,${SRC},i.classification cls from kz_flow_items i join kz_feed_items k on k.id=i.feed_item_id join kz_sources s on s.id=k.source_id
       where i.flow_id=$1 and i.status in ('pending','ready') order by i.created_at desc limit ${lim + 1}`, [flowId]);
   const more = rows.length > lim; if (more) rows.length = lim;
@@ -89,6 +91,26 @@ async function Pending({ flowId, write, hid, unlimited, lim }: { flowId: string;
           <form action={approveFlowItemAction} className="space-y-2">
             {hid(r.id)}
             <AutoTextarea name="text" defaultValue={r.text} rows={7} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+            <div className="space-y-2 rounded-2xl bg-surface p-3">
+              <b className="text-xs font-semibold text-ink2">Изображение к посту</b>
+              {r.cls?.imageId ? (
+                <div className="space-y-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/assets/${r.cls.imageId}`} alt="Изображение к посту" className="max-h-56 w-auto max-w-full rounded-xl border border-line" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input name="instruction" maxLength={400} placeholder="Доработать ИИ: убрать фон, добавить тёплые тона…" className="input min-w-[12rem] flex-1 !bg-tile text-xs" />
+                    <SubmitButton formAction={reworkFlowImageAction} className="grid h-8 place-items-center rounded-full bg-accent px-3 text-xs font-medium text-white hover:opacity-90"><span className="flex items-center gap-1"><Sparkles size={13} />Доработать{unlimited ? "" : ` · ${rub(PRICES.image)}`}</span></SubmitButton>
+                  </div>
+                  <SubmitButton formAction={removeFlowImageAction} data-confirm="Убрать изображение у этого поста?" data-confirm-ok="Убрать" className="text-xs text-ink2 hover:text-bad">Убрать изображение</SubmitButton>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <ImagePicker label="Прикрепить своё изображение" className="min-w-0" />
+                  <SubmitButton formAction={attachFlowImageAction} className="pill pill-sm" title="Сохранить изображение, чтобы доработать его ИИ">Загрузить</SubmitButton>
+                </div>
+              )}
+              <p className="text-[11px] text-ink3">Своё изображение уйдёт вместе с постом и заменит картинку из источника. Текст выше при этом сохраняется.</p>
+            </div>
             <div className="flex flex-wrap items-center gap-2"><SubmitButton className="btn !h-9">Опубликовать</SubmitButton><span className="text-xs text-ink3">текст можно править перед публикацией</span></div>
           </form>
         ) : <p className="whitespace-pre-wrap text-sm leading-6">{r.text}</p>}

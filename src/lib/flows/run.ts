@@ -1,3 +1,4 @@
+import { copyAssetToItem } from "../item-images";
 import { kbText } from "../kb/use";
 import { one, q } from "../db";
 import { aiReady, type BrandCtx } from "../ai";
@@ -125,8 +126,8 @@ async function attachImage(orgId: string, contentId: string, brandId: string, mo
 
 /** Создаёт материал по пересказу и ставит его в очередь публикации в каналы потока. Сбой — статус «failed» с причиной. */
 export async function publishFlowItem(orgId: string, flowItemId: string, textOverride?: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await one<{ id: string; status: string; text: string; flow_id: string; feed_item_id: string; brand_id: string; channel_ids: string[]; settings: unknown; url: string; media: { type: string; url?: string }[] }>(
-    `select fi.id,fi.status,fi.text,fi.flow_id,fi.feed_item_id,f.brand_id,f.channel_ids,f.settings,k.url,k.media
+  const r = await one<{ id: string; status: string; text: string; flow_id: string; feed_item_id: string; brand_id: string; channel_ids: string[]; settings: unknown; url: string; media: { type: string; url?: string }[]; own_image: string | null }>(
+    `select fi.id,fi.status,fi.text,fi.flow_id,fi.feed_item_id,f.brand_id,f.channel_ids,f.settings,k.url,k.media,fi.classification->>'imageId' own_image
        from kz_flow_items fi join kz_flows f on f.id=fi.flow_id join kz_feed_items k on k.id=fi.feed_item_id where fi.id=$1 and fi.org_id=$2`, [flowItemId, orgId]);
   if (!r) return { ok: false, error: "Запись не найдена" };
   if (!["pending", "ready", "failed"].includes(r.status)) return { ok: false, error: "Эта запись уже обработана" };
@@ -140,7 +141,13 @@ export async function publishFlowItem(orgId: string, flowItemId: string, textOve
   const c = (await one<{ id: string }>(
     `insert into kz_content_items(org_id,brand_id,kind,topic,hook,body,planned_for,status,meta) values($1,$2,'post',$3,'',$4,current_date,'ready',$5) returning id`,
     [orgId, r.brand_id, text.split(/[.!?\n]/)[0].slice(0, 200) || "Новость", text, JSON.stringify({ flow: r.flow_id, flowItem: r.id, channelIds: r.channel_ids })]))!;
-  const imgNote = await attachImage(orgId, c.id, r.brand_id, s.images, r.media ?? []);
+  // своё изображение, прикреплённое к записи, важнее картинки из источника и генерации
+  let imgNote: string | null = null;
+  if (r.own_image && await copyAssetToItem(orgId, r.own_image, c.id)) {
+    await q("delete from kz_assets where id=$1 and org_id=$2", [r.own_image, orgId]);
+    await q("update kz_flow_items set classification = coalesce(classification,'{}'::jsonb) - 'imageId' where id=$1", [r.id]);
+  }
+  else imgNote = await attachImage(orgId, c.id, r.brand_id, s.images, r.media ?? []);
   const e = await enqueue(orgId, c.id);
   if (!e.ok) { await q("update kz_flow_items set status='failed', reject_note=$2, content_item_id=$3, updated_at=now() where id=$1", [flowItemId, e.error, c.id]); return { ok: false, error: e.error ?? "Не удалось поставить в очередь" }; }
   await q("update kz_flow_items set status='queued', text=$2, content_item_id=$3, reject_note=$4, updated_at=now() where id=$1", [flowItemId, text, c.id, imgNote]);

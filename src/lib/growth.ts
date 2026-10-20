@@ -64,13 +64,15 @@ const AB_KINDS = ["post", "story", "contest"];
  * Вариант Б того же поста: те же факты, другой заход (первое предложение, подача). Выходит на день позже варианта А в те же каналы;
  * сравнение просмотров показывается, когда оба прожили не меньше суток. Платим как за пост.
  */
-export async function createVariant(orgId: string, itemId: string): Promise<Result> {
+export async function createVariant(orgId: string, itemId: string, date?: string): Promise<Result> {
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const it = await one<{ factory_id: string; brand_id: string; kind: string; topic: string; hook: string; body: string; planned_for: string | null; meta: { ab?: { group: string; variant: string } } }>(
     "select factory_id,brand_id,kind,topic,hook,body,to_char(planned_for,'YYYY-MM-DD') planned_for,meta from kz_content_items where id=$1 and org_id=$2 and factory_id is not null and status in ('ready','scheduled','published')", [itemId, orgId]);
   if (!it) return { ok: false, error: "Вариант можно сделать у готового или опубликованного материала" };
   if (!AB_KINDS.includes(it.kind)) return { ok: false, error: "A/B-тест доступен для постов, сторис и конкурсов" };
   if (it.meta?.ab) return { ok: false, error: "У этого материала уже есть A/B-вариант" };
+  const bDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  if (bDate && bDate < new Date().toISOString().slice(0, 10)) return { ok: false, error: "Дата выхода варианта Б не может быть в прошлом" };
   if (!it.body.trim()) return { ok: false, error: "У материала нет текста" };
   const fac = await loadFactory(orgId, it.factory_id);
   if (!fac) return { ok: false, error: "Завод не найден" };
@@ -81,13 +83,14 @@ export async function createVariant(orgId: string, itemId: string): Promise<Resu
       "Ты редактор бренда. Перепиши пост так, чтобы получился вариант Б для A/B-теста: те же факты, смысл и призыв, но другой заход (иной первый абзац, другая интонация подачи) и другая структура. Не копируй формулировки варианта А. Не выдумывай новых фактов. Верни только текст поста.",
       `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nВариант А:\n${it.body.slice(0, 3500)}\n\nНапиши вариант Б.`, { maxTokens: 1500, temperature: 0.85, timeoutMs: 45_000 })).trim();
     if (body.length < 30) throw new Error("пустой ответ модели");
+    // дата выхода варианта Б: выбранная пользователем или на день позже варианта А
     const base = it.planned_for ? new Date(it.planned_for + "T12:00:00") : new Date();
     base.setDate(base.getDate() + 1);
-    const date = base.toISOString().slice(0, 10);
+    const when = bDate ?? base.toISOString().slice(0, 10);
     const bId = await tx(async (run) => {
       const [b] = await run<{ id: string }>(
         "insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,body,planned_for,status,meta,cost_kop) values($1,$2,$3,$4,$5,$6,$7,$8,'ready',$9,$10) returning id",
-        [orgId, it.factory_id, it.brand_id, it.kind, `${it.topic} (вариант Б)`.slice(0, 300), it.hook, body, date, JSON.stringify({ ab: { group: itemId, variant: "B" } }), PRICES.post]);
+        [orgId, it.factory_id, it.brand_id, it.kind, `${it.topic} (вариант Б)`.slice(0, 300), it.hook, body, when, JSON.stringify({ ab: { group: itemId, variant: "B" } }), PRICES.post]);
       await run("update kz_content_items set meta = meta || jsonb_build_object('ab', jsonb_build_object('group',$2::text,'variant','A','pair',$3::text)) where id=$1", [itemId, itemId, b.id]);
       await run("update kz_content_items set meta = jsonb_set(meta,'{ab,pair}', to_jsonb($2::text)) where id=$1", [b.id, itemId]);
       return b.id;
@@ -100,7 +103,7 @@ export async function createVariant(orgId: string, itemId: string): Promise<Resu
   }
 }
 
-export interface AbResult { aViews: number | null; bViews: number | null; ready: boolean; winner: "A" | "B" | "tie" | null; diffPct: number | null; aId: string; bId: string }
+export interface AbResult { aViews: number | null; bViews: number | null; ready: boolean; winner: "A" | "B" | "tie" | null; diffPct: number | null; aId: string; bId: string; aDate: string | null; bDate: string | null; bStatus: string | null }
 
 /** Сравнение вариантов A и B: честно только когда оба опубликованы не меньше суток назад (иначе у раннего больше времени набрать просмотры). */
 export async function abResult(orgId: string, itemId: string): Promise<AbResult | null> {
@@ -112,6 +115,8 @@ export async function abResult(orgId: string, itemId: string): Promise<AbResult 
     `select sum(s.views) views, extract(epoch from now() - min(p.published_at))/3600 age from kz_publications p left join kz_post_stats s on s.publication_id=p.id
       where p.item_id=$1 and p.org_id=$2 and p.status='published'`, [id, orgId]);
   const [a, b] = await Promise.all([stat(aId), stat(bId)]);
+  const dates = await q<{ id: string; d: string | null; status: string }>("select id,to_char(planned_for,'YYYY-MM-DD') d,status from kz_content_items where org_id=$1 and id = any($2::uuid[])", [orgId, [aId, bId]]);
+  const dOf = (id: string) => dates.find((x) => x.id === id);
   const av = a?.views != null ? Number(a.views) : null, bv = b?.views != null ? Number(b.views) : null;
   const ready = av != null && bv != null && Number(a?.age ?? 0) >= 24 && Number(b?.age ?? 0) >= 24;
   let winner: AbResult["winner"] = null, diffPct: number | null = null;
@@ -120,41 +125,79 @@ export async function abResult(orgId: string, itemId: string): Promise<AbResult 
     diffPct = lo > 0 ? Math.round(((hi - lo) / lo) * 100) : null;
     winner = hi === 0 || (lo > 0 && (hi - lo) / lo < 0.1) ? "tie" : av > bv ? "A" : "B"; // разница меньше 10% — считаем ничьей
   }
-  return { aViews: av, bViews: bv, ready, winner, diffPct, aId, bId };
+  return { aViews: av, bViews: bv, ready, winner, diffPct, aId, bId, aDate: dOf(aId)?.d ?? null, bDate: dOf(bId)?.d ?? null, bStatus: dOf(bId)?.status ?? null };
 }
 
 /* ───────── версии под площадки ───────── */
 export const VARIANT_LABEL: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max: "MAX", short: "Короткая версия (до 280 знаков)", reels: "Сценарий ролика (20 секунд)" };
 
+const VARIANT_SPEC: Record<string, string> = {
+  telegram: "Telegram: живо, короткие абзацы, можно 1–3 эмодзи, до 900 знаков",
+  vk: "ВКонтакте: чуть подробнее и дружелюбнее, до 1200 знаков",
+  max: "MAX: компактно, до 600 знаков",
+  short: "Короткая версия: одна мысль до 280 знаков, для X, Threads, сторис",
+  reels: "Сценарий ролика на 20 секунд: хук, 3 кадра с текстом на экране, призыв",
+};
+
+/** Разбор ответа вида «### telegram … ### vk …». Терпим к регистру, markdown и лишним словам; запасной путь — JSON. */
+function parseVariants(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const keys = Object.keys(VARIANT_SPEC);
+  const re = new RegExp(`^[#*\\s>-]*(${keys.join("|")})[*\\s:#-]*$`, "gim");
+  const marks = [...text.matchAll(re)];
+  for (let i = 0; i < marks.length; i++) {
+    const start = marks[i].index! + marks[i][0].length, end = i + 1 < marks.length ? marks[i + 1].index! : text.length;
+    const t = text.slice(start, end).replace(/^[\s`]+|[\s`]+$/g, "").slice(0, 4000);
+    if (t) out[marks[i][1].toLowerCase()] = t;
+  }
+  if (!Object.keys(out).length) {
+    const o = extractObject(text);
+    if (o) for (const k of keys) { const t = typeof o[k] === "string" ? (o[k] as string).trim().slice(0, 4000) : ""; if (t) out[k] = t; }
+  }
+  return out;
+}
+
 /**
  * Версии поста под площадки: каждая со своей подачей (Telegram — живее и с абзацами, ВК — чуть подробнее, MAX — компактнее),
  * плюс короткая и сценарий ролика для ручного использования. При публикации в канал берётся версия его площадки.
+ * Ответ модели — размеченный текст, а не JSON: в JSON переносы строк внутри абзацев ломали разбор, и версии «не создавались».
+ * only — пересоздать одну площадку (дешевле).
  */
-export async function genVariants(orgId: string, itemId: string): Promise<Result> {
+export async function genVariants(orgId: string, itemId: string, only?: string): Promise<Result> {
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
-  const it = await one<{ factory_id: string; kind: string; topic: string; body: string; status: string }>(
-    "select factory_id,kind,topic,body,status from kz_content_items where id=$1 and org_id=$2 and factory_id is not null", [itemId, orgId]);
+  const it = await one<{ factory_id: string; kind: string; topic: string; body: string; status: string; meta: { variants?: Record<string, string> } }>(
+    "select factory_id,kind,topic,body,status,meta from kz_content_items where id=$1 and org_id=$2 and factory_id is not null", [itemId, orgId]);
   if (!it || !it.body.trim()) return { ok: false, error: "Сначала создайте текст материала" };
   if (!["post", "story", "contest"].includes(it.kind)) return { ok: false, error: "Версии доступны для постов, сторис и конкурсов" };
   if (["generating", "published"].includes(it.status)) return { ok: false, error: "Материал уже публикуется или опубликован" };
+  if (only && !VARIANT_SPEC[only]) return { ok: false, error: "Неизвестная площадка" };
   const fac = await loadFactory(orgId, it.factory_id);
   if (!fac) return { ok: false, error: "Завод не найден" };
-  try { await charge(orgId, PRICES.variants, `Версии под площадки: ${it.topic.slice(0, 50)}`, itemId); }
+  const cost = only ? Math.round(PRICES.variants / 3) : PRICES.variants;
+  try { await charge(orgId, cost, `Версии под площадки: ${it.topic.slice(0, 50)}`, itemId); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   try {
-    const user = `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nИсходный пост:\n${it.body.slice(0, 3500)}\n\n` +
-      `Сделай версии этого поста под площадки, факты и призыв сохрани, ничего не выдумывай:\n- "telegram": живо, абзацы, можно 1–3 эмодзи, до 900 знаков;\n- "vk": чуть подробнее и дружелюбнее, до 1200 знаков;\n- "max": компактно, до 600 знаков;\n- "short": одна мысль до 280 знаков, для X/Threads/сторис;\n- "reels": сценарий ролика на 20 секунд: хук, 3 кадра с текстом на экране, призыв.\n` +
-      `Ссылки и призыв из исходного поста сохрани. Формат: {"telegram":"...","vk":"...","max":"...","short":"...","reels":"..."}`;
-    let o: Record<string, unknown> | null = null;
-    for (let a = 0; a < 2 && !o; a++) o = extractObject(await chat("post", "Ты редактор бренда. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.", a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON." : user, { maxTokens: 2800, temperature: 0.7, timeoutMs: 55_000 }));
-    if (!o) throw new Error("Модель не вернула версии");
-    const v: Record<string, string> = {};
-    for (const k of Object.keys(VARIANT_LABEL)) { const t = typeof o[k] === "string" ? (o[k] as string).trim().slice(0, 4000) : ""; if (t) v[k] = t; }
-    if (!Object.keys(v).length) throw new Error("пустые версии");
-    await q("update kz_content_items set meta = meta || jsonb_build_object('variants',$3::jsonb), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(v)]);
+    const want = only ? [only] : Object.keys(VARIANT_SPEC);
+    const sys = "Ты редактор бренда. Пиши по-русски. Факты, ссылки и призыв из исходного поста сохраняй, ничего не выдумывай. Отвечай только версиями в заданном формате, без пояснений.";
+    const ask = (keys: string[], retry = false) => `${brandBlock(brandOf(fac, it.topic), fac.product, fac.niche)}\nИсходный пост:\n${it.body.slice(0, 3500)}\n\n` +
+      `Сделай версии этого поста:\n${keys.map((k) => `- ${k}: ${VARIANT_SPEC[k]}`).join("\n")}\n\n` +
+      `Формат ответа строго такой: перед каждой версией отдельная строка ### имя (${keys.join(", ")}), ниже текст версии.${retry ? "\n\nПРЕДЫДУЩИЙ ОТВЕТ НЕ УДАЛОСЬ РАЗОБРАТЬ, СЛЕДУЙ ФОРМАТУ." : ""}`;
+    let v: Record<string, string> = {};
+    for (let a = 0; a < 2 && Object.keys(v).length < want.length; a++) {
+      const got = parseVariants(await chat("post", sys, ask(want.filter((k) => !v[k]), a > 0), { maxTokens: 2800, temperature: 0.7, timeoutMs: 55_000 }));
+      v = { ...v, ...Object.fromEntries(Object.entries(got).filter(([k]) => want.includes(k))) };
+    }
+    // чего не хватило — по одной площадке отдельными короткими запросами
+    for (const k of want.filter((k) => !v[k])) {
+      const got = parseVariants(`### ${k}\n` + (await chat("post", sys, ask([k]), { maxTokens: 900, temperature: 0.7, timeoutMs: 30_000 })).replace(new RegExp(`^[#*\\s]*${k}[*\\s:#-]*`, "i"), ""));
+      if (got[k]) v[k] = got[k];
+    }
+    if (!Object.keys(v).length) throw new Error("модель не вернула версии");
+    const merged = { ...(it.meta?.variants ?? {}), ...v };
+    await q("update kz_content_items set meta = meta || jsonb_build_object('variants',$3::jsonb), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(merged)]);
     return { ok: true };
   } catch (e) {
-    await refund(orgId, PRICES.variants, "ошибка версий под площадки", itemId);
+    await refund(orgId, cost, "ошибка версий под площадки", itemId);
     return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
   }
 }

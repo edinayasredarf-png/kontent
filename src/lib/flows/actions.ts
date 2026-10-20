@@ -1,4 +1,5 @@
 "use server";
+import { attachFlowImage } from "../item-images";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "../auth";
@@ -58,6 +59,9 @@ export async function deleteFlowAction(f: FormData) {
 
 export async function approveFlowItemAction(f: FormData) {
   const c = await requireWriter();
+  // если выбрали файл и не нажали «Загрузить», прикрепляем его перед публикацией
+  const up = f.get("image");
+  if (up instanceof File && up.size) { const ir = await attachFlowImage(c.org.id, s(f, "item"), up); if (!ir.ok) return back(s(f, "flow"), s(f, "tab") || "pending", ir.error); }
   const r = await publishFlowItem(c.org.id, s(f, "item"), String(f.get("text") ?? ""));
   back(s(f, "flow"), s(f, "tab") || "pending", r.ok ? undefined : r.error, r.ok ? "Поставлено в очередь публикации" : undefined);
 }
