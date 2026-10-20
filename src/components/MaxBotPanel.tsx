@@ -13,6 +13,8 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState(false);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { setSlow(false); if (state !== "pending") return; const t = setTimeout(() => setSlow(true), 45_000); return () => clearTimeout(t); }, [state, code]);
 
   const brandId = () => (root.current?.closest("form")?.querySelector('select[name="brand_id"]') as HTMLSelectElement | null)?.value ?? "";
   const start = async () => {
@@ -65,6 +67,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
             <span className="text-xs text-ink3">Действует 30 минут</span>
           </div>
           {state === "pending" && <p className="flex items-center gap-2 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Ждём, пока бот получит ключ…</p>}
+          {state === "pending" && slow && <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Бот пока ничего не получил. Проверьте, что ключ отправлен именно в личные сообщения боту (а не в канал). Если так и есть, сообщите администратору сервиса: возможно, не подключён вебхук бота.</p>}
           {state === "linked" && (
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-xs text-good"><CheckCircle2 size={14} />Ключ принят. Выберите канал:</p>

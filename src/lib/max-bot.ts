@@ -113,13 +113,21 @@ export async function subscribe(): Promise<string> {
   return `${base}/api/max/webhook`;
 }
 
-/** Состояние бота для админки: токен рабочий, на что подписан. */
+/** Состояние бота для админки: переменные окружения, токен, подписка на вебхук и совпадение её адреса с ожидаемым. */
 export async function botState(): Promise<{ ok: boolean; text: string }> {
   if (!botConfigured()) return { ok: false, text: "Бот MAX не настроен (MAX_BOT_TOKEN)" };
+  const miss = [!process.env.MAX_WEBHOOK_SECRET?.trim() && "MAX_WEBHOOK_SECRET", !process.env.APP_URL?.trim() && "APP_URL", !botUsername() && "MAX_BOT_USERNAME"].filter(Boolean);
+  if (miss.length) return { ok: false, text: `Бот MAX: не заданы переменные ${miss.join(", ")}` };
   try {
     const me = await maxCall<{ username?: string; name?: string }>(botToken(), "GET", "/me");
-    const subs = await maxCall<{ subscriptions?: { url?: string }[] }>(botToken(), "GET", "/subscriptions");
-    const n = subs.subscriptions?.length ?? 0;
-    return { ok: n > 0, text: `Бот ${me.username ?? me.name ?? "?"}: ${n > 0 ? `вебхук подключён (${subs.subscriptions![0].url})` : "вебхук не подключён — нажмите «Подключить вебхук»"}` };
+    const subs = await maxCall<{ subscriptions?: { url?: string; update_types?: string[] }[] }>(botToken(), "GET", "/subscriptions");
+    const list = subs.subscriptions ?? [];
+    const want = `${process.env.APP_URL!.trim().replace(/\/+$/, "")}/api/max/webhook`;
+    const name = me.username ?? me.name ?? "?";
+    if (!list.length) return { ok: false, text: `Бот ${name}: вебхук не подключён — нажмите «Подключить вебхук бота MAX» ниже` };
+    if (!list.some((x) => x.url === want)) return { ok: false, text: `Бот ${name}: подписка на другой адрес (${list[0].url}), ожидается ${want} — нажмите «Подключить вебхук бота MAX»` };
+    const need = ["bot_added", "message_created"].filter((t) => !list.some((x) => !x.update_types || x.update_types.includes(t)));
+    if (need.length) return { ok: false, text: `Бот ${name}: подписка без событий ${need.join(", ")} — нажмите «Подключить вебхук бота MAX»` };
+    return { ok: true, text: `Бот ${name}: вебхук подключён (${want})` };
   } catch (e) { return { ok: false, text: `Бот MAX: ${(e as Error).message}` }; }
 }
