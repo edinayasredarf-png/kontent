@@ -112,7 +112,15 @@ export const vk: Provider = {
       try {
         const ids: string[] = [];
         for (const pic of pics) ids.push(await up.run(token, id, pic));
-        return done(await post(ids.join(",")));
+        const r = await post(ids.join(","));
+        // VK может принять вложение и молча его отбросить: проверяем готовый пост, и если картинки нет — удаляем и пробуем другой способ
+        const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch(() => null);
+        const list = Array.isArray(got) ? got : got?.items;
+        if (list && list[0] && !(list[0].attachments?.length)) {
+          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
+          throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
+        }
+        return done(r);
       } catch (e) {
         if ((e as PublishError).retryable) throw e;
         errs.push(`${up.name}: ${(e as Error).message}`);

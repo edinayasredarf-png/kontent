@@ -69,11 +69,18 @@ export const telegram: Provider = {
       const one = (input.image ?? input.images![0])!;
       // подпись к фото — до 1024 знаков; если текст длиннее, фото уходит без подписи, а текст следом
       const fits = plain.length <= 1024;
+      // длинный текст не помещается в подпись: одним сообщением — текст с картинкой-превью над ним (по публичной ссылке)
+      if (!fits && input.imageUrl && plain.length <= 4000) {
+        try {
+          first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain, link_preview_options: { url: input.imageUrl, show_above_text: true, prefer_large_media: true } })).message_id;
+          rest = "";
+        } catch (e) { if ((e as PublishError).retryable) throw e; }
+      }
       const f = new FormData();
       f.set("chat_id", target);
       if (fits) f.set("caption", plain);
       f.set("photo", new Blob([new Uint8Array(one.data)], { type: one.mime }), "image.jpg");
-      try { first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
+      try { if (first == null) first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e; // временный сбой — повторит воркер, дубль не получится: фото не ушло
         warning = `Картинка не отправлена (${(e as Error).message}), пост опубликован без неё`;

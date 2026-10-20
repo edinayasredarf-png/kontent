@@ -1,3 +1,4 @@
+import { pubImageUrl } from "./pub-image";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
@@ -364,7 +365,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
-      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: img && !slides.length ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
