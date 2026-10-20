@@ -124,7 +124,7 @@ export async function reworkFlowImage(orgId: string, flowItemId: string, instruc
 }
 
 /** Одно загруженное изображение — ко всем создаваемым материалам (у каждого своя запись). Картинка идёт только к тем форматам, где она публикуется. */
-const IMAGE_KINDS = ["post", "article", "story", "seo", "poll", "contest"];
+export const IMAGE_KINDS = ["post", "article", "story", "seo", "contest"];
 export async function attachUploadToItems(orgId: string, brandId: string, v: FormDataEntryValue | null, items: { id: string; kind: string }[]): Promise<string | null> {
   let up: Awaited<ReturnType<typeof readUpload>>;
   try { up = await readUpload(v); } catch (e) { return (e as Error).message; }

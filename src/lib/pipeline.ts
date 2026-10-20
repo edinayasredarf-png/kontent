@@ -310,6 +310,19 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Выпуск материалов, у которых наступило выбранное время (воркер). Возвращает сколько поставлено в очередь. */
+async function releaseTimed(): Promise<{ queued: number; errors: string[] }> {
+  const due = await q<{ id: string; org_id: string }>(
+    `select id,org_id from kz_content_items where status='ready' and (meta->>'publishAt') is not null and (meta->>'publishAt')::timestamptz <= now() and not coalesce((meta->>'draft')::boolean,false) limit 20`);
+  let queued = 0; const errors: string[] = [];
+  for (const it of due) {
+    await q("update kz_content_items set meta = meta - 'publishAt' where id=$1", [it.id]);
+    const e = await enqueue(it.org_id, it.id);
+    if (e.ok) queued++; else { errors.push(`timed ${it.id}: ${e.error}`); await q("update kz_content_items set meta = meta || jsonb_build_object('imageError',$2::text) where id=$1", [it.id, `Не опубликовалось в выбранное время: ${e.error}`]); }
+  }
+  return { queued, errors };
+}
+
 const MAX_ATTEMPTS = 3;
 
 /** Подпись канала добавляется к постам и каруселям, но не к SEO-статьям и не дважды (если пост уже заканчивается ею). */
@@ -463,6 +476,9 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
     if (r.ok) rep.generated++; else rep.errors.push(`item ${it.id}: ${r.error}`);
   }
 
+  // 3.5) материалы, которым человек выбрал дату и время выхода
+  try { const t = await releaseTimed(); rep.queued += t.queued; rep.errors.push(...t.errors.slice(0, 2)); } catch (e) { rep.errors.push(`timed: ${(e as Error).message}`); }
+
   // 4) расписание автопубликации: сколько слотов дня уже прошло минус сколько уже опубликовано/запланировано сегодня
   const facs = await q<{ id: string; org_id: string; schedule: { days: number[]; times: string[]; tz: string } }>(
     "select id,org_id,schedule from kz_factories where status='active' and autopublish and cardinality(channel_ids)>0 and not exists (select 1 from kz_orgs so where so.id=kz_factories.org_id and so.suspended)");
@@ -475,7 +491,8 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
       "select count(*) c from kz_content_items where factory_id=$1 and scheduled_at is not null and (scheduled_at at time zone $2)::date = $3::date", [f.id, tz, n.date]))!.c);
     const slots = passed - done;
     if (slots <= 0) continue;
-    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and kind not in ('reels','email','guide') and planned_for <= $2::date order by planned_for limit $3", [f.id, n.date, slots]);
+    // черновики и материалы с выбранным временем выпускаются не по слотам расписания
+    const ready = await q<{ id: string }>("select id from kz_content_items where factory_id=$1 and status='ready' and kind not in ('reels','email','guide') and planned_for <= $2::date and not coalesce((meta->>'draft')::boolean,false) and (meta->>'publishAt') is null order by planned_for limit $3", [f.id, n.date, slots]);
     for (const r of ready) { const e = await enqueue(f.org_id, r.id); if (e.ok) rep.queued++; else rep.errors.push(`enqueue ${r.id}: ${e.error}`); }
   }
 

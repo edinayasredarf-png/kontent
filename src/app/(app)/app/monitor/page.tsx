@@ -18,6 +18,7 @@ import { FadeList } from "@/components/monitor/FadeList";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
 import { ImagePicker } from "@/components/ImagePicker";
+import { DraftHost } from "@/components/DraftHost";
 import { NoResults } from "@/components/monitor/NoResults";
 import { SettingsBody } from "@/components/monitor/SettingsBody";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
@@ -35,6 +36,7 @@ const MAKE = KINDS.filter((k) => k !== "reels");
 export default async function Monitor({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+  const draftIds = one(sp.draft).split(",").filter((x) => /^[0-9a-f-]{36}$/.test(x));
   const c = await requireCtx();
   const f = parseFilter(sp);
   const page = Math.max(1, Number(one(sp.p)) || 1);
@@ -61,8 +63,9 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   return (
     <div className="mx-auto w-full max-w-[600px]">
       <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
-      {one(sp.note) && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
-      {one(sp.err) && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
+      {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo="/app/monitor" err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
+      {one(sp.note) && !draftIds.length && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
+      {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
       {Number(stat[0].err) > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Настройках».</p>}
 
       {noSources ? (
@@ -125,7 +128,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                           <div><label className="label">Стиль написания</label><select name="postType" defaultValue="" className="input !bg-surface"><option value="">По настройкам завода</option>{Object.entries(POST_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <div><label className="label">Дата выхода в плане</label><input type="date" name="date" className="input !bg-surface" /><p className="mt-1 text-xs text-ink3">Не выберете — дата поставится сама по расписанию завода.</p></div>
+                          <div><label className="label">Дата в плане (для идей)</label><input type="date" name="date" className="input !bg-surface" /><p className="mt-1 text-xs text-ink3">Нужна, если выбрано «Только в контент-план». При «Создать сразу» дату и время спросим, когда отправите материал в план.</p></div>
                           <div><span className="label">Изображение</span><ImagePicker hint="Своё фото к посту; ИИ его не заменит." /></div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">

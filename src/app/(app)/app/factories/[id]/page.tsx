@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import { PlanToolbar } from "@/components/PlanToolbar";
 import { FactoryTabs } from "@/components/FactoryTabs";
+import { DraftHost } from "@/components/DraftHost";
+import { listFactoryDrafts } from "@/lib/drafts";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
@@ -72,7 +74,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   if (kindF) { args.push(kindF); cond.push(`kind=$${args.length}`); }
   if (statusF) { args.push(statusF); cond.push(`status=$${args.length}`); }
   const items = tab !== "plan" ? [] : await q<Item>(
-    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric,meta->'email' email,meta->'guide' guide from kz_content_items where factory_id=$1 and org_id=$2 ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at limit ${lim + 1}`, args);
+    `select id,kind,topic,hook,body,status,to_char(planned_for,'YYYY-MM-DD') planned_for,image_id,meta->>'imagePrompt' image_prompt,meta->>'imageError' image_error,coalesce((meta->>'manual')::boolean,false) manual,meta->'seo' seo,meta->'carousel' carousel,meta->'client'->>'verdict' client,meta->'repeat' repeat,meta->>'repeatOf' repeat_of,meta->'infographic' infographic,meta->>'infographicStyle' info_style,meta->'poll' poll,meta->'ab' ab,meta->'variants' variants,meta->>'rubric' rubric,meta->'email' email,meta->'guide' guide from kz_content_items where factory_id=$1 and org_id=$2 and not coalesce((meta->>'draft')::boolean,false) ${cond.map((x) => "and " + x).join(" ")} order by planned_for nulls last, created_at limit ${lim + 1}`, args);
   // список материалов подгружается порциями: тяжёлые карточки с формами не нужны все сразу
   const hasMore = view === "list" && items.length > lim;
   if (hasMore) items.length = lim;
@@ -100,6 +102,9 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const hid = <input type="hidden" name="id" value={id} />;
   // вкладка: после создания и других действий возвращаемся в план (там открывается нужный материал)
   const stamp = Date.now();
+  // созданное «сразу» открывается окном (черновики), а не уходит в план
+  const draftIds = (sp.draft ?? "").split(",").filter((x) => /^[0-9a-f-]{36}$/.test(x));
+  const drafts = tab === "create" ? await listFactoryDrafts(c.org.id, id) : [];
   const DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   const scheduleSummary = sched ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => sched.schedule.days.includes(d)).map((d) => DAYS[d]).join(", ") || "дни не выбраны"} · ${sched.schedule.times.join(", ")}` : "не задано";
   // обычный пост — основной формат, поэтому он первый и выбран по умолчанию
@@ -113,9 +118,20 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
-      {note && <div className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
-      {err && <div className="mx-auto mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
+      {note && !draftIds.length && <div className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
+      {err && !draftIds.length && <div className="mx-auto mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
 
+      {tab === "create" && draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={`/app/factories/${id}?tab=create`} err={err} note={note} free={c.org.unlimited} />}
+      {tab === "create" && drafts.length > 0 && (
+        <div className="mx-auto mb-6 w-full max-w-[680px] space-y-2 rounded-[28px] bg-tile p-3">
+          <b className="px-2 text-sm">Черновики ({drafts.length})</b>
+          {drafts.map((d) => (
+            <Link key={d.id} href={`/app/factories/${id}?tab=create&draft=${d.id}`} className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 text-sm transition hover:opacity-80">
+              <span className="chip">{KIND[d.kind] ?? d.kind}</span><span className="min-w-0 flex-1 truncate">{d.topic}</span><span className="text-xs text-ink3">{d.status === "ready" ? "готов" : d.status === "failed" ? "ошибка" : "создаётся"}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       {tab === "create" && (
         <div className="mx-auto mb-6 w-full max-w-[680px] rounded-[28px] bg-surface p-2.5 shadow-float outline outline-1 -outline-offset-1 outline-line">
           <div className="mb-3 flex items-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-sm font-semibold"><Sparkles size={16} />Создать материал</div>

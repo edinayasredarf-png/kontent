@@ -122,10 +122,18 @@ export async function suggestKeywordsAction(brand: string): Promise<{ ok: true; 
 export async function createFromNewsAction(f: FormData) {
   const c = await requireWriter();
   const factory = s(f, "factory");
-  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), s(f, "mode") !== "ideas", { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image") });
+  const now = s(f, "mode") !== "ideas";
+  // «создать сразу» — черновик в окне поверх ленты; «в план» — идеи сразу в плане завода
+  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), now, { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image"), draft: now });
   back();
   if (!r.ok) redirect(`/app/monitor?err=${encodeURIComponent(r.error)}`);
-  redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}${r.ids.length > 3 && s(f, "mode") !== "ideas" ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне.")}` : ""}#i-${r.ids[0]}`);
+  if (now) {
+    const q = new URLSearchParams({ draft: r.ids.join(",") });
+    if (r.error) q.set("err", r.error);
+    else if (r.ids.length > 3) q.set("note", "Первые три материала созданы, остальные пишутся в фоне: они появятся в черновиках завода через несколько минут.");
+    redirect(`/app/monitor?${q}`);
+  }
+  redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}`);
 }
 
 /** Сколько новых постов появилось в ленте с момента `since` с учётом фильтра. */

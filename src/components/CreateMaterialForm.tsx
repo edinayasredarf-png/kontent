@@ -16,7 +16,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
   factoryId: string; kinds: string[]; labels: Record<string, string>; defaultKind: string;
   createAction: Act; repurposeAction: Act; priceHint: string; sourcePrice: string;
 }) {
-  const [type, setType] = useState(defaultKind);
+  const [type, setType] = useState(defaultKind), [plan, setPlan] = useState(false);
   const source = type === SOURCE, multi = type === MULTI;
   return (
     <form action={source ? repurposeAction : createAction} className="space-y-3">
@@ -33,7 +33,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
           <input name="hook" maxLength={300} placeholder="Хук или угол (необязательно)" className="input" />
         </>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={`grid gap-3 ${source || plan ? "sm:grid-cols-2" : ""}`}>
         <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Тип материала" className="input">
           {kinds.map((k) => <option key={k} value={k}>{labels[k]}</option>)}
           <option value={MULTI}>Несколько форматов по одной теме</option>
@@ -41,9 +41,9 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
         </select>
         {source ? (
           <select name="count" defaultValue="5" aria-label="Сколько материалов" className="input">{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>Материалов: {n}</option>)}</select>
-        ) : (
-          <input name="date" type="date" className="input" title="Дата (если пусто — сегодня)" aria-label="Дата" />
-        )}
+        ) : plan ? (
+          <input name="date" type="date" className="input" title="Дата выхода идеи в плане (если пусто — ближайший свободный день)" aria-label="Дата" />
+        ) : null}
       </div>
       {multi && (
         <div>
@@ -54,7 +54,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
         </div>
       )}
       {!source && <ImagePicker hint="Фото или картинка к посту. Если приложите своё, ИИ не будет создавать другое; доработать его можно в самом материале." />}
-      {!source && <Switch name="mode" value="ideas" label="Только добавить в план" hint="Материал не пишется сразу: тема ляжет в план идеей, текст появится после одобрения." />}
+      {!source && <Switch name="mode" value="ideas" onChange={(e) => setPlan(e.target.checked)} label="Только добавить в план" hint="Текст не пишется сразу: тема ляжет в план идеей, дату можно выбрать. Без этого материал создаётся сразу и откроется в окне: его можно посмотреть и поправить до отправки в план." />}
       <SubmitButton className="btn btn-accent h-12 w-full justify-center text-[15px]">{source ? <Layers size={16} /> : <Sparkles size={16} />}{source ? "Разобрать на материалы" : "Создать"}</SubmitButton>
       <p className="text-xs text-ink3">{source
         ? `Сервис выделит разные мысли и предложит материалы с отдельным углом подачи; тексты потом пишутся по фактам исходника. ${sourcePrice} Идеи встанут в план на ближайшие свободные дни.`

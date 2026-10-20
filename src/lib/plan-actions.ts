@@ -99,8 +99,10 @@ export async function createMaterialsAction(f: FormData) {
   const ids: string[] = [], kindOf: { id: string; kind: string }[] = [];
   for (const [ki, k] of kinds.entries()) {
     const date = picked ?? auto[ki] ?? null;
-    const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,coalesce($7::date,current_date),$8,'{\"manual\":true}') returning id",
-      [c.org.id, fid, fac.brand_id, k, topic, hook, date, now ? "approved" : "idea"]);
+    // «создать сразу» — это черновик: без даты, вне плана и публикации, пока человек не посмотрит и не решит; дату и время спрашиваем при отправке в план.
+    // Материалам сверх трёх дата нужна воркеру (они пишутся в фоне), но черновик всё равно остаётся скрытым.
+    const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7::date,$8,$9::jsonb) returning id",
+      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify(now ? { manual: true, draft: true } : { manual: true })]);
     ids.push(row!.id);
     kindOf.push({ id: row!.id, kind: k });
   }
@@ -116,5 +118,11 @@ export async function createMaterialsAction(f: FormData) {
     }
   }
   revalidatePath("/app", "layout");
+  if (now) {
+    const q = new URLSearchParams({ tab: "create", draft: ids.join(",") });
+    if (errMsg) q.set("err", errMsg);
+    else if (ids.length > 3) q.set("note", "Первые три материала созданы, остальные пишутся в фоне: они появятся в «Черновиках» через несколько минут.");
+    redirect(`/app/factories/${fid}?${q}`);
+  }
   redirect(`/app/factories/${fid}?view=list&open=${ids[0]}${errMsg ? `&err=${encodeURIComponent(errMsg)}` : ""}${now && ids.length > 3 ? `&note=${encodeURIComponent("Первые три материала созданы, остальные пишутся в фоне и появятся через несколько минут.")}` : ""}#i-${ids[0]}`);
 }

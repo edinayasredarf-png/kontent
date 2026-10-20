@@ -24,7 +24,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const rows = await q<{ id: string; date: string; kind: string; topic: string; status: string; factory_id: string; factory: string }>(
     `select i.id,to_char(i.planned_for,'YYYY-MM-DD') date,i.kind,i.topic,i.status,i.factory_id,f.name factory
        from kz_content_items i join kz_factories f on f.id=i.factory_id
-      where i.org_id=$1 and i.planned_for between $2 and $3 ${cond.map((x) => "and " + x).join(" ")} order by i.planned_for, i.created_at limit 1500`, args);
+      where i.org_id=$1 and not coalesce((i.meta->>'draft')::boolean,false) and i.planned_for between $2 and $3 ${cond.map((x) => "and " + x).join(" ")} order by i.planned_for, i.created_at limit 1500`, args);
   const shift = (n: number) => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
   const qs = (o: Record<string, string>) => { const u = new URLSearchParams(); for (const [k, v] of Object.entries({ ...sp, ...o })) if (v) u.set(k, v); return `/app/calendar?${u}`; };
   return (

@@ -139,7 +139,7 @@ export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonl
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей
  * (первые три в этом запросе, остальные уйдут в очередь воркера), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
  */
-export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string; date?: string; image?: FormDataEntryValue | null } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
+export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
   const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; status: string; source: string }>(
@@ -158,7 +158,7 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
     const out: string[] = [];
     for (let i = 0; i < ks.length; i++) {
       const [c] = await run<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,'',$6,$7,$8) returning id",
-        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true, ...(opts.postType && opts.postType in POST_TYPES ? { postType: opts.postType } : {}) })]);
+        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), opts.draft ? (i < 3 ? null : new Date().toISOString().slice(0, 10)) : dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true, ...(opts.draft ? { draft: true } : {}), ...(opts.postType && opts.postType in POST_TYPES ? { postType: opts.postType } : {}) })]);
       out.push(c.id);
     }
     await run("update kz_feed_items set status='used', content_item_id=$2 where id=$1", [itemId, out[0]]);
