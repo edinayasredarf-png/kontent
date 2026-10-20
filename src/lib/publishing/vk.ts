@@ -30,25 +30,10 @@ const need = (c: Record<string, string>) => {
   return { token: c.token, id };
 };
 
-const ALBUM_TITLE = "Контент-завод";
-
-/** Выбор альбома сообщества для картинок: наш (создаём при первой публикации), иначе любой существующий. */
-async function communityAlbum(token: string, groupId: string): Promise<number> {
-  const list = await call<{ items?: { id: number; title: string }[] }>(token, "photos.getAlbums", { owner_id: `-${groupId}` });
-  const items = list.items ?? [];
-  const mine = items.find((x) => x.title === ALBUM_TITLE);
-  if (mine) return mine.id;
-  try {
-    const made = await call<{ id: number }>(token, "photos.createAlbum", { title: ALBUM_TITLE, group_id: groupId, description: "Картинки к постам" });
-    return made.id;
-  } catch (e) {
-    if (items[0]) return items[0].id;
-    throw new PublishError(`не удалось создать альбом для картинок (${(e as Error).message}). Создайте в сообществе любой фотоальбом и опубликуйте снова`);
-  }
-}
+type Img = { data: Buffer; mime: string };
 
 /** Отправка файла на адрес загрузки VK (multipart). */
-async function sendFile<T>(url: string, field: string, img: { data: Buffer; mime: string }): Promise<T> {
+async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
   const f = new FormData();
   f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), "image.jpg");
   try {
@@ -58,39 +43,47 @@ async function sendFile<T>(url: string, field: string, img: { data: Buffer; mime
 }
 
 /**
- * Загрузка фото для поста. Сначала «стена» (работает с ключом пользователя); VK не пускает к ней ключ сообщества (код 27),
- * поэтому тогда картинка загружается в альбом сообщества и прикрепляется к посту оттуда — так делают все боты сообществ.
+ * Способы загрузить картинку (по документации dev.vk.com). Методы «стена» и «альбом» доступны только ключу пользователя с особым правом,
+ * ключу сообщества они отвечают кодом 27. Ключу сообщества разрешены серверы сообщений (право «Фотографии»): фото сохраняется как фото сообщества
+ * и прикрепляется к посту; как запасной путь — файл через docs (право «Файлы»).
  */
-async function uploadPhoto(token: string, groupId: string, img: { data: Buffer; mime: string }): Promise<string> {
-  try {
-    const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: groupId });
+const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: string, img: Img) => Promise<string> }[] = [
+  { name: "стена", multi: true, run: async (token, gid, img) => {
+    const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
     if (!up?.photo || !up.hash) throw new PublishError("VK не принял файл");
-    const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.saveWallPhoto", { group_id: groupId, server: String(up.server), photo: up.photo, hash: up.hash });
+    const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.saveWallPhoto", { group_id: gid, server: String(up.server), photo: up.photo, hash: up.hash });
     if (!saved[0]) throw new PublishError("VK не сохранил фото");
     return `photo${saved[0].owner_id}_${saved[0].id}`;
-  } catch (e) {
-    if (!/код 27\)/.test((e as Error).message)) throw e;
-  }
-  // путь для ключа сообщества: альбом
-  const album = await communityAlbum(token, groupId);
-  const srv = await call<{ upload_url: string }>(token, "photos.getUploadServer", { album_id: String(album), group_id: groupId });
-  const up = await sendFile<{ server: number; photos_list: string; hash: string }>(srv.upload_url, "file1", img);
-  if (!up?.photos_list || up.photos_list === "[]" || !up.hash) throw new PublishError("VK не принял файл");
-  const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.save", { album_id: String(album), group_id: groupId, server: String(up.server), photos_list: up.photos_list, hash: up.hash });
-  if (!saved[0]) throw new PublishError("VK не сохранил фото");
-  return `photo${saved[0].owner_id}_${saved[0].id}`;
-}
+  } },
+  { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
+    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", { peer_id: "0" });
+    const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
+    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError("VK не принял файл");
+    const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveMessagesPhoto", { server: String(up.server), photo: up.photo, hash: up.hash });
+    if (!saved[0]) throw new PublishError("VK не сохранил фото");
+    void gid;
+    return `photo${saved[0].owner_id}_${saved[0].id}${saved[0].access_key ? `_${saved[0].access_key}` : ""}`;
+  } },
+  { name: "файл", multi: false, run: async (token, gid, img) => {
+    const srv = await call<{ upload_url: string }>(token, "docs.getWallUploadServer", { group_id: gid });
+    const up = await sendFile<{ file?: string }>(srv.upload_url, "file", img);
+    if (!up?.file) throw new PublishError("VK не принял файл");
+    const saved = await call<{ type?: string; doc?: { id: number; owner_id: number; access_key?: string }; graffiti?: unknown } | { id: number; owner_id: number }[]>(token, "docs.save", { file: up.file, title: "image.jpg" });
+    const d = Array.isArray(saved) ? saved[0] : (saved as { doc?: { id: number; owner_id: number; access_key?: string } }).doc;
+    if (!d) throw new PublishError("VK не сохранил файл");
+    return `doc${d.owner_id}_${d.id}${"access_key" in d && d.access_key ? `_${d.access_key}` : ""}`;
+  } },
+];
 
-/** Понятная причина, почему VK не принял фото. Чаще всего у ключа сообщества нет права «Фотографии». */
-function vkPhotoHint(msg: string): string {
-  const code = Number(/\(код (\d+)\)/.exec(msg)?.[1] ?? 0);
-  if (code === 27 || /unavailable with group auth/i.test(msg)) return `VK не разрешает этот метод с ключом сообщества (${msg})`;
-  if ([15, 200, 203, 7].includes(code) || /access denied|permission/i.test(msg))
-    return `у ключа сообщества не хватает прав для фото (${msg}). Проверьте, что в ключе отмечены «Стена» и «Фотографии», при необходимости создайте новый и замените его в разделе «Каналы»`;
-  if (code === 5) return `ключ доступа недействителен или отозван (${msg}). Создайте новый ключ и замените его в разделе «Каналы»`;
-  if (/VK не принял файл/.test(msg)) return "VK отклонил файл изображения (формат или размер). Попробуйте другое изображение: JPG или PNG до 4 МБ";
-  return msg;
+/** Понятная причина, почему VK не принял фото: по каждому способу загрузки. */
+function vkPhotoHint(errs: string[]): string {
+  const all = errs.join(" | ");
+  const tail = `Подробности: ${all}`;
+  if (/код 5\)/.test(all)) return `ключ доступа недействителен или отозван. ${tail}`;
+  if (/сообщения сообщества: [^|]*(код 15|код 27|код 200|код 7|Access denied|permission)/i.test(all)) return `у ключа сообщества не хватает прав для фото: отметьте «Фотографии» (и «Файлы») при создании ключа, а в сообществе включите сообщения (Управление → Сообщения). ${tail}`;
+  if (/сообщения сообщества: [^|]*(код 9|901|messages)/i.test(all)) return `включите сообщения сообщества: Управление → Сообщения → «Включены». ${tail}`;
+  return tail;
 }
 
 export const vk: Provider = {
@@ -104,16 +97,25 @@ export const vk: Provider = {
   },
   async publish(input, c) {
     const { token, id } = need(c);
-    let attachment: string | undefined, warning: string | undefined;
     const pics = input.images?.length ? input.images.slice(0, 10) : input.image ? [input.image] : [];
-    if (pics.length) {
-      try { const ids: string[] = []; for (const pic of pics) ids.push(await uploadPhoto(token, id, pic)); attachment = ids.join(","); }
-      catch (e) {
+    const message = toPlain(input.text).slice(0, 15000);
+    const post = async (attachment?: string) => call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(attachment ? { attachments: attachment } : {}) });
+    const done = (r: { post_id: number }, warning?: string) => ({ externalId: String(r.post_id), url: `https://vk.com/wall-${id}_${r.post_id}`, warning });
+    const errs: string[] = [];
+    // пробуем способы по очереди; пост не публикуется, пока не подготовлено вложение, а ошибка вложения не теряет текст
+    for (const up of UPLOADERS) {
+      if (!pics.length) break;
+      if (!up.multi && pics.length > 1) continue;
+      try {
+        const ids: string[] = [];
+        for (const pic of pics) ids.push(await up.run(token, id, pic));
+        return done(await post(ids.join(",")));
+      } catch (e) {
         if ((e as PublishError).retryable) throw e;
-        warning = `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"}: ${vkPhotoHint((e as Error).message)}. Пост опубликован без ${pics.length > 1 ? "них" : "неё"}.`;
+        errs.push(`${up.name}: ${(e as Error).message}`);
       }
     }
-    const r = await call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message: toPlain(input.text).slice(0, 15000), ...(attachment ? { attachments: attachment } : {}) });
-    return { externalId: String(r.post_id), url: `https://vk.com/wall-${id}_${r.post_id}`, warning };
+    const r = await post();
+    return done(r, pics.length ? `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"}: ${vkPhotoHint(errs)}. Пост опубликован без ${pics.length > 1 ? "них" : "неё"}.` : undefined);
   },
 };
