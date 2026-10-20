@@ -82,7 +82,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           {planHref && <Link href={planHref} className="btn btn-accent !py-2">Открыть в контент-плане</Link>}
           {canPublish && (
             <form action={itemPublishAction}>{hid}
-              <SubmitButton data-confirm="Опубликовать материал сейчас во все каналы завода?" data-confirm-ok="Опубликовать" className="pill"><Send size={15} />{it.status === "failed" ? "Повторить публикацию" : "Опубликовать сейчас"}</SubmitButton></form>
+              <SubmitButton data-confirm="Опубликовать материал сейчас во все выбранные каналы завода?" data-confirm-ok="Опубликовать" className="pill"><Send size={15} />{it.status === "failed" ? "Повторить публикацию" : "Опубликовать сейчас"}</SubmitButton></form>
           )}
         </div>
 

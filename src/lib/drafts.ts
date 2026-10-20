@@ -120,13 +120,16 @@ export async function publishItemNow(orgId: string, id: string): Promise<Result>
 
 /** Итог только что выполненной публикации: по каждому каналу — успех, ошибка или «опубликовано, но…» (например, картинка не загрузилась). */
 export async function publishReport(orgId: string, id: string): Promise<{ ok: boolean; note?: string; error?: string }> {
-  const rows = await q<{ status: string; error: string | null; channel: string }>(
-    `select p.status,p.error,ch.title channel from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.item_id=$1 and p.org_id=$2 order by p.created_at`, [id, orgId]);
+  const rows = await q<{ status: string; error: string | null; channel: string; kind: string }>(
+    `select p.status,p.error,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.item_id=$1 and p.org_id=$2 order by p.created_at`, [id, orgId]);
   if (!rows.length) return { ok: true, note: "Отправлено в публикацию." };
-  const names = rows.map((r) => r.channel).join(", ");
-  const bad = rows.filter((r) => r.status === "failed"), warn = rows.filter((r) => r.status === "published" && r.error), queued = rows.filter((r) => ["queued", "sending"].includes(r.status));
-  if (bad.length) return { ok: false, error: `Не опубликовалось: ${bad.map((r) => `${r.channel} — ${r.error ?? "ошибка"}`).join("; ")}` };
-  if (warn.length) return { ok: true, note: `Опубликовано, но: ${warn.map((r) => `${r.channel} — ${r.error}`).join("; ")}` };
-  if (queued.length) return { ok: true, note: `Поставлено в очередь (${names}), отправка займёт до нескольких минут. Статус по каналам виден в разделе «Публикации».` };
-  return { ok: true, note: `Опубликовано в: ${names}.` };
+  const kind = (k: string) => ({ vk: "VK", telegram: "Telegram", max: "MAX", wordpress: "WordPress" } as Record<string, string>)[k] ?? k;
+  const nm = (r: { channel: string; kind: string }) => `${r.channel} (${kind(r.kind)})`;
+  const list = (f: (r: (typeof rows)[number]) => boolean, fmt: (r: (typeof rows)[number]) => string) => rows.filter(f).map(fmt).join("; ");
+  const okAll = list((r) => r.status === "published" && !r.error, nm);
+  const warn = list((r) => r.status === "published" && !!r.error, (r) => `${nm(r)} — ${r.error}`);
+  const bad = list((r) => r.status === "failed", (r) => `${nm(r)} — ${r.error ?? "ошибка"}`);
+  const queued = list((r) => ["queued", "sending"].includes(r.status), nm);
+  const parts = [okAll && `Опубликовано: ${okAll}`, warn && `Опубликовано, но: ${warn}`, queued && `В очереди (отправка займёт до нескольких минут, статус виден в «Публикациях»): ${queued}`, bad && `Не опубликовалось: ${bad}`].filter(Boolean);
+  return bad ? { ok: false, error: parts.join(". ") } : { ok: true, note: parts.join(". ") + "." };
 }
