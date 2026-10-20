@@ -19,6 +19,16 @@ npm i && npm run db:migrate && npm run dev
 3. Миграции: `DATABASE_URL=… npm run db:migrate` с локальной машины.
 4. Домен: Vercel → Settings → Domains → `kontent.единаясреда.рф` (punycode: `kontent.xn--80aakbcct4b2aj7m.xn--p1ai`). У DNS-хостинга домена добавить CNAME `kontent` → `cname.vercel-dns.com`.
 
+## Домен juicerai.ru и прокси
+Vercel режет российские IP, поэтому российские посетители заходят через свой nginx-прокси (папка `deploy/docker-proxy` проекта «Опора», сервер 94.198.217.44). Прокси ничего не знает о проекте: он по имени хоста пересылает запрос на Vercel, который выбирает проект по домену.
+1. **Vercel** → проект → Settings → Domains → добавить `juicerai.ru` и `www.juicerai.ru`. Статус «Invalid Configuration» до смены DNS нормален.
+2. **DNS у регистратора:** A-записи `juicerai.ru` и `www` → `94.198.217.44` (IP прокси, не Vercel).
+3. **Сервер прокси** (от root, из `deploy/docker-proxy`): `sudo bash setup.sh EMAIL juicerai.ru` — выпустит сертификаты Let's Encrypt для `juicerai.ru` и `www.juicerai.ru`, добавит конфиг и перезагрузит nginx. Существующие домены не затрагиваются, `PROXY_SECRET` переиспользуется (`cat data/proxy.secret`).
+4. **Vercel → Environment Variables:** `APP_URL=https://juicerai.ru`, `PROXY_SECRET=<значение из proxy.secret>`; затем Redeploy. Без `PROXY_SECRET` все посетители для сайта будут «одним IP» (ограничитель попыток входа сработает на всех сразу).
+5. **Провайдеры входа:** добавить `https://juicerai.ru` в Яндекс ID и VK ID (Callback `https://juicerai.ru/api/oauth/<провайдер>/callback`, для Яндекса ещё `https://juicerai.ru/suggest/token`).
+6. **Воркер:** в cron-job.org обновить адрес на `https://juicerai.ru/api/cron/tick`.
+7. Проверка: `curl -sI https://juicerai.ru/ | head -3`; в админке платформы строка «APP_URL» должна показывать новый адрес.
+
 ## Воркер (cron)
 `GET/POST /api/cron/tick` с заголовком `Authorization: Bearer $CRON_SECRET`. За проход: одобряет идеи автозаводов → пополняет план → пишет тексты по наступившим датам → ставит в очередь по расписанию → отправляет в Telegram/VK с ретраями (3 попытки, 5/10 мин).
 Vercel Hobby даёт cron раз в сутки (`vercel.json`) — это страховка. Основной вызов: cron-job.org каждые 5 минут на `https://kontent.единаясреда.рф/api/cron/tick` с этим заголовком.

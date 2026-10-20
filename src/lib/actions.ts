@@ -1,4 +1,5 @@
 "use server";
+import { clientIpFromHeaders } from "./proxy-trust";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { diagnose } from "./errors";
@@ -26,10 +27,9 @@ async function writer(): Promise<Ctx> {
 }
 
 // ---------- auth ----------
-/** IP клиента: на Vercel первый адрес в x-forwarded-for. Подделать его можно только до Vercel, поэтому это ограничитель, а не единственная защита. */
+/** IP клиента: за нашим прокси — из подписанного заголовка (см. proxy-trust), на прямом Vercel — первый адрес в x-forwarded-for. Это ограничитель, а не единственная защита. */
 async function clientIp() {
-  const h = await headers();
-  return (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim().slice(0, 64);
+  return clientIpFromHeaders(await headers());
 }
 
 // redirect() в Next — это исключение, поэтому ловим только ошибки до него
