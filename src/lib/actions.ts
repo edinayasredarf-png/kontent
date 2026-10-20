@@ -235,7 +235,7 @@ export async function checkChannelAction(f: FormData): Promise<{ ok: true; name:
 /** Повторная проверка уже подключённого канала: не отозван ли токен, не убрали ли бота из администраторов. */
 export async function checkSavedChannelAction(id: string): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   const c = await writer();
-  const r = await one<{ kind: string; credentials: unknown; connection_id: string | null }>("select kind,credentials,connection_id from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
+  const r = await one<{ kind: string; credentials: unknown; connection_id: string | null }>("select kind,credentials,(to_jsonb(kz_channels)->>'connection_id')::uuid connection_id from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
   if (!r) return { ok: false, error: "Канал не найден" };
   const prov = providerFor(r.kind);
   if (!prov) return { ok: false, error: "Тип канала не поддерживается" };

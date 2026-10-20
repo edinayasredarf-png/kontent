@@ -352,7 +352,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       returning id,org_id,item_id,channel_id,attempts`, onlyItem ? [limit, onlyItem] : [limit]);
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
-    const ch = await one<{ kind: string; credentials: unknown; signature: string; connection_id: string | null }>("select kind,credentials,signature,connection_id from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
+    const ch = await one<{ kind: string; credentials: unknown; signature: string; connection_id: string | null }>("select kind,credentials,signature,(to_jsonb(kz_channels)->>'connection_id')::uuid connection_id from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
     const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] }; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
