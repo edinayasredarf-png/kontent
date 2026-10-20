@@ -17,6 +17,7 @@ import { open, seal } from "./crypto";
 import { NICHES } from "./niches";
 import { cleanSettings } from "./postsettings";
 import { providerFor } from "./publishing";
+import { resolveCred } from "./vk-connect";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -234,11 +235,11 @@ export async function checkChannelAction(f: FormData): Promise<{ ok: true; name:
 /** Повторная проверка уже подключённого канала: не отозван ли токен, не убрали ли бота из администраторов. */
 export async function checkSavedChannelAction(id: string): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   const c = await writer();
-  const r = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
+  const r = await one<{ kind: string; credentials: unknown; connection_id: string | null }>("select kind,credentials,connection_id from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
   if (!r) return { ok: false, error: "Канал не найден" };
   const prov = providerFor(r.kind);
   if (!prov) return { ok: false, error: "Тип канала не поддерживается" };
-  try { return { ok: true, name: await prov.verify(open(r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+  try { return { ok: true, name: await prov.verify(await resolveCred(c.org.id, r)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
 }
 
 export async function saveChannel(_: unknown, f: FormData) {
