@@ -46,6 +46,16 @@ async function uploadPhoto(token: string, groupId: string, img: { data: Buffer; 
   return `photo${saved[0].owner_id}_${saved[0].id}`;
 }
 
+/** Понятная причина, почему VK не принял фото. Чаще всего у ключа сообщества нет права «Фотографии». */
+function vkPhotoHint(msg: string): string {
+  const code = Number(/\(код (\d+)\)/.exec(msg)?.[1] ?? 0);
+  if ([15, 27, 200, 203, 7].includes(code) || /access denied|unavailable with group auth|permission/i.test(msg))
+    return `у ключа сообщества нет права «Фотографии» (${msg}). Создайте в VK новый ключ с правами «Стена» и «Фотографии» и замените его в разделе «Каналы»`;
+  if (code === 5) return `ключ доступа недействителен или отозван (${msg}). Создайте новый ключ и замените его в разделе «Каналы»`;
+  if (/VK не принял файл/.test(msg)) return "VK отклонил файл изображения (формат или размер). Попробуйте другое изображение: JPG или PNG до 4 МБ";
+  return msg;
+}
+
 export const vk: Provider = {
   kind: "vk",
   async verify(c) {
@@ -63,7 +73,7 @@ export const vk: Provider = {
       try { const ids: string[] = []; for (const pic of pics) ids.push(await uploadPhoto(token, id, pic)); attachment = ids.join(","); }
       catch (e) {
         if ((e as PublishError).retryable) throw e;
-        warning = `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"} (${(e as Error).message}), пост опубликован без ${pics.length > 1 ? "них" : "неё"}. Проверьте, что у ключа сообщества есть право «фотографии»`;
+        warning = `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"}: ${vkPhotoHint((e as Error).message)}. Пост опубликован без ${pics.length > 1 ? "них" : "неё"}.`;
       }
     }
     const r = await call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message: toPlain(input.text).slice(0, 15000), ...(attachment ? { attachments: attachment } : {}) });

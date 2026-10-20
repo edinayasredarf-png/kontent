@@ -1,5 +1,6 @@
 import { AutoTextarea } from "@/components/AutoTextarea";
 import { ImagePicker } from "@/components/ImagePicker";
+import { ImageSlot } from "@/components/ImageSlot";
 import { attachFlowImageAction, removeFlowImageAction, reworkFlowImageAction } from "@/lib/image-actions";
 import { PostText } from "@/components/monitor/PostText";
 import Link from "next/link";
@@ -95,13 +96,11 @@ async function Pending({ flowId, write, hid, unlimited, lim }: { flowId: string;
               <b className="text-xs font-semibold text-ink2">Изображение к посту</b>
               {r.cls?.imageId ? (
                 <div className="space-y-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/assets/${r.cls.imageId}`} alt="Изображение к посту" className="max-h-56 w-auto max-w-full rounded-xl border border-line" />
+                  <ImageSlot inForm src={`/api/assets/${r.cls.imageId}`} alt="Изображение к посту" replaceAction={attachFlowImageAction} removeAction={removeFlowImageAction} removeConfirm="Убрать изображение у этого поста?" />
                   <div className="flex flex-wrap items-center gap-2">
                     <input name="instruction" maxLength={400} placeholder="Доработать ИИ: убрать фон, добавить тёплые тона…" className="input min-w-[12rem] flex-1 !bg-tile text-xs" />
                     <SubmitButton formAction={reworkFlowImageAction} className="grid h-8 place-items-center rounded-full bg-accent px-3 text-xs font-medium text-white hover:opacity-90"><span className="flex items-center gap-1"><Sparkles size={13} />Доработать{unlimited ? "" : ` · ${rub(PRICES.image)}`}</span></SubmitButton>
                   </div>
-                  <SubmitButton formAction={removeFlowImageAction} data-confirm="Убрать изображение у этого поста?" data-confirm-ok="Убрать" className="text-xs text-ink2 hover:text-bad">Убрать изображение</SubmitButton>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">

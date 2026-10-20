@@ -10,6 +10,7 @@ import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { AutoTextarea } from "@/components/AutoTextarea";
 import { ImagePicker } from "@/components/ImagePicker";
+import { ImageSlot } from "@/components/ImageSlot";
 import { SubmitButton } from "@/components/SubmitButton";
 
 const SLIDE_KINDS = ["carousel", "infographic"], NO_IMAGE = ["reels", "email", "guide", "poll"];
@@ -69,21 +70,21 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
                 {it.image_error && <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />{it.image_error}</p>}
                 {it.image_id && (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/assets/${it.image_id}`} alt="Изображение к материалу" className="max-h-56 w-auto max-w-full rounded-xl border border-line" />
+                    <ImageSlot src={`/api/assets/${it.image_id}`} alt="Изображение к материалу" replaceAction={draftAttachImageAction} removeAction={draftRemoveImageAction} fields={hid(it.id)} />
                     <form action={draftReworkImageAction} className="flex flex-wrap items-center gap-2">
                       {hid(it.id)}
                       <input name="instruction" maxLength={400} placeholder="Доработать ИИ: убрать фон, добавить тёплые тона…" className="input min-w-[12rem] flex-1 !bg-tile text-xs" />
                       <SubmitButton className="pill pill-sm !bg-accent !text-white"><Sparkles size={13} />Доработать{price(PRICES.image)}</SubmitButton>
-                      <SubmitButton formAction={draftRemoveImageAction} data-confirm="Убрать изображение у материала?" data-confirm-ok="Убрать" className="text-xs text-ink2 hover:text-bad">Убрать</SubmitButton>
                     </form>
                   </>
                 )}
-                <form action={draftAttachImageAction} className="flex flex-wrap items-center gap-2">
-                  {hid(it.id)}
-                  <ImagePicker label={it.image_id ? "Заменить своим" : "Прикрепить своё изображение"} className="min-w-0" />
-                  <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
-                </form>
+                {!it.image_id && (
+                  <form action={draftAttachImageAction} className="flex flex-wrap items-center gap-2">
+                    {hid(it.id)}
+                    <ImagePicker label="Прикрепить своё изображение" className="min-w-0" />
+                    <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
+                  </form>
+                )}
                 <form action={draftImageGenAction} className="flex flex-wrap items-center gap-2">
                   {hid(it.id)}
                   <input name="prompt" maxLength={500} placeholder="Описание картинки (необязательно)" className="input min-w-[12rem] flex-1 !bg-tile text-xs" />

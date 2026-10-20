@@ -72,7 +72,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
                 <span className="chip !bg-surface">{CH[p.kind] ?? p.kind}: {p.channel}</span>
                 <span className={p.status === "published" ? "text-good" : p.status === "failed" ? "text-bad" : "text-ink2"}>{PUB[p.status] ?? p.status}{p.at ? ` · ${p.at}` : ""}</span>
                 {p.url && <a href={p.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-accent-ink">открыть<ExternalLink size={11} /></a>}
-                {p.error && <span className="text-bad">{p.error.slice(0, 140)}</span>}
+                {p.error && (p.status === "published" ? <span className="w-full rounded-xl bg-warn-soft px-3 py-2 text-warn">Опубликовано, но: {p.error}</span> : <span className="text-bad">{p.error.slice(0, 240)}</span>)}
               </p>
             ))}
           </div>

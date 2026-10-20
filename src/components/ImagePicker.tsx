@@ -5,7 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 const MAX_SIDE = 1600;
 
 /** Уменьшает фото перед отправкой: телефонные снимки по 8–12 МБ не проходят в форму, а для поста хватает 1600 px. */
-async function shrink(file: File): Promise<File> {
+export async function shrink(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) throw new Error("Выберите файл изображения (JPG, PNG или WebP)");
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("Допустимы только JPG, PNG и WebP");
   const bmp = await createImageBitmap(file).catch(() => { throw new Error("Не удалось прочитать изображение"); });

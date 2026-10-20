@@ -8,7 +8,7 @@ import { pendingStore } from "@/lib/pending-store";
  * Кнопка отправки формы с индикатором ожидания: пока действие выполняется, она блокируется, показывает спиннер и включает общую полосу
  * загрузки сверху. Работает внутри любой <form action={…}>; вне формы ведёт себя как обычная кнопка.
  */
-export function SubmitButton({ children, disabled, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function SubmitButton({ children, disabled, ...rest }: React.ComponentProps<"button">) {
   const { pending } = useFormStatus();
   useEffect(() => { if (!pending) return; pendingStore.inc(); return () => pendingStore.dec(); }, [pending]);
   return (

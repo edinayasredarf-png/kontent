@@ -27,6 +27,7 @@ import { GrowthPanel } from "@/components/GrowthPanel";
 import { StrategyCard } from "@/components/StrategyCard";
 import { ChannelForm } from "@/components/ChannelForm";
 import { ImagePicker } from "@/components/ImagePicker";
+import { ImageSlot } from "@/components/ImageSlot";
 import { attachItemImageAction, reworkItemImageAction } from "@/lib/image-actions";
 import { setItemDateAction } from "@/lib/growth-actions";
 import { CreateMaterialForm } from "@/components/CreateMaterialForm";
@@ -378,20 +379,20 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
               {i.image_id && ["idea", "approved", "ready", "failed"].includes(i.status) && <SlideEditor itemId={i.id} targets={[{ key: "image", label: "Править картинку", assetId: i.image_id }]} colors={brandColors} />}
               {i.image_id && (
                 <div className="flex flex-wrap items-start gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
+                  <ImageSlot src={`/api/assets/${i.image_id}`} alt="Картинка к материалу" replaceAction={attachItemImageAction} removeAction={removeImageAction} fields={<><input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} /></>} />
                   <a href={`/api/assets/${i.image_id}?dl=1`} download className="btn btn-ghost !py-1.5" title="Скачать картинку файлом"><Download size={14} />Скачать картинку</a>
-                  <form action={removeImageAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Убрать картинку у материала?" data-confirm-ok="Убрать" className="btn btn-danger !py-1.5" title="Убрать картинку"><Trash2 size={14} />Убрать</SubmitButton></form>
                 </div>
               )}
               {!["carousel", "infographic", "email", "guide", "reels"].includes(i.kind) && !["published", "scheduled", "generating"].includes(i.status) && (
                 <div className="space-y-3 rounded-2xl bg-tile p-3">
                   <b className="text-sm">Своё изображение</b>
-                  <form action={attachItemImageAction} className="flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
-                    <ImagePicker label={i.image_id ? "Заменить своим изображением" : "Прикрепить своё изображение"} className="min-w-0" />
-                    <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
-                  </form>
+                  {!i.image_id && (
+                    <form action={attachItemImageAction} className="flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
+                      <ImagePicker label="Прикрепить своё изображение" className="min-w-0" />
+                      <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
+                    </form>
+                  )}
                   {i.image_id && (
                     <form action={reworkItemImageAction} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={i.id} /><input type="hidden" name="factory" value={id} />
