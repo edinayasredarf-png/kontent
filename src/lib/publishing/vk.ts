@@ -30,18 +30,54 @@ const need = (c: Record<string, string>) => {
   return { token: c.token, id };
 };
 
-/** Загрузка фото на стену сообщества: адрес загрузки → файл → сохранение → attachment. */
-async function uploadPhoto(token: string, groupId: string, img: { data: Buffer; mime: string }): Promise<string> {
-  const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: groupId });
-  const f = new FormData();
-  f.set("photo", new Blob([new Uint8Array(img.data)], { type: img.mime }), "image.jpg");
-  let up: { server: number; photo: string; hash: string };
+const ALBUM_TITLE = "Контент-завод";
+
+/** Выбор альбома сообщества для картинок: наш (создаём при первой публикации), иначе любой существующий. */
+async function communityAlbum(token: string, groupId: string): Promise<number> {
+  const list = await call<{ items?: { id: number; title: string }[] }>(token, "photos.getAlbums", { owner_id: `-${groupId}` });
+  const items = list.items ?? [];
+  const mine = items.find((x) => x.title === ALBUM_TITLE);
+  if (mine) return mine.id;
   try {
-    const res = await fetch(srv.upload_url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
-    up = (await res.json()) as typeof up;
+    const made = await call<{ id: number }>(token, "photos.createAlbum", { title: ALBUM_TITLE, group_id: groupId, description: "Картинки к постам" });
+    return made.id;
+  } catch (e) {
+    if (items[0]) return items[0].id;
+    throw new PublishError(`не удалось создать альбом для картинок (${(e as Error).message}). Создайте в сообществе любой фотоальбом и опубликуйте снова`);
+  }
+}
+
+/** Отправка файла на адрес загрузки VK (multipart). */
+async function sendFile<T>(url: string, field: string, img: { data: Buffer; mime: string }): Promise<T> {
+  const f = new FormData();
+  f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), "image.jpg");
+  try {
+    const res = await fetch(url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
+    return (await res.json()) as T;
   } catch (e) { throw new PublishError(`загрузка файла: ${(e as Error).message}`, true); }
-  if (!up?.photo || !up.hash) throw new PublishError("VK не принял файл");
-  const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.saveWallPhoto", { group_id: groupId, server: String(up.server), photo: up.photo, hash: up.hash });
+}
+
+/**
+ * Загрузка фото для поста. Сначала «стена» (работает с ключом пользователя); VK не пускает к ней ключ сообщества (код 27),
+ * поэтому тогда картинка загружается в альбом сообщества и прикрепляется к посту оттуда — так делают все боты сообществ.
+ */
+async function uploadPhoto(token: string, groupId: string, img: { data: Buffer; mime: string }): Promise<string> {
+  try {
+    const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: groupId });
+    const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
+    if (!up?.photo || !up.hash) throw new PublishError("VK не принял файл");
+    const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.saveWallPhoto", { group_id: groupId, server: String(up.server), photo: up.photo, hash: up.hash });
+    if (!saved[0]) throw new PublishError("VK не сохранил фото");
+    return `photo${saved[0].owner_id}_${saved[0].id}`;
+  } catch (e) {
+    if (!/код 27\)/.test((e as Error).message)) throw e;
+  }
+  // путь для ключа сообщества: альбом
+  const album = await communityAlbum(token, groupId);
+  const srv = await call<{ upload_url: string }>(token, "photos.getUploadServer", { album_id: String(album), group_id: groupId });
+  const up = await sendFile<{ server: number; photos_list: string; hash: string }>(srv.upload_url, "file1", img);
+  if (!up?.photos_list || up.photos_list === "[]" || !up.hash) throw new PublishError("VK не принял файл");
+  const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.save", { album_id: String(album), group_id: groupId, server: String(up.server), photos_list: up.photos_list, hash: up.hash });
   if (!saved[0]) throw new PublishError("VK не сохранил фото");
   return `photo${saved[0].owner_id}_${saved[0].id}`;
 }
