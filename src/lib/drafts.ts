@@ -17,7 +17,7 @@ export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftIte
   if (!ids.length) return [];
   const rows = await q<Omit<DraftItem, "slides" | "channels"> & { chans: string[] | null }>(
     `select i.id,i.factory_id,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
-            (select array_agg(ch.title order by ch.created_at) from kz_channels ch where ch.id = any(f.channel_ids)) chans
+            (select array_agg(ch.title || ' (' || case ch.kind when 'vk' then 'VK' when 'telegram' then 'Telegram' when 'max' then 'MAX' when 'wordpress' then 'WordPress' else ch.kind end || ')' order by ch.created_at) from kz_channels ch where ch.org_id=i.org_id and ch.status='active' and ch.id = any(coalesce(f.channel_ids, array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid)))) chans
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.org_id=$1 and i.id = any($2::uuid[]) and ${DRAFT.replace(/meta/g, "i.meta")} order by i.created_at`, [orgId, ids]);
   const slides = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [orgId, rows.map((r) => r.id)]);
@@ -123,9 +123,10 @@ export async function publishReport(orgId: string, id: string): Promise<{ ok: bo
   const rows = await q<{ status: string; error: string | null; channel: string }>(
     `select p.status,p.error,ch.title channel from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.item_id=$1 and p.org_id=$2 order by p.created_at`, [id, orgId]);
   if (!rows.length) return { ok: true, note: "Отправлено в публикацию." };
+  const names = rows.map((r) => r.channel).join(", ");
   const bad = rows.filter((r) => r.status === "failed"), warn = rows.filter((r) => r.status === "published" && r.error), queued = rows.filter((r) => ["queued", "sending"].includes(r.status));
   if (bad.length) return { ok: false, error: `Не опубликовалось: ${bad.map((r) => `${r.channel} — ${r.error ?? "ошибка"}`).join("; ")}` };
   if (warn.length) return { ok: true, note: `Опубликовано, но: ${warn.map((r) => `${r.channel} — ${r.error}`).join("; ")}` };
-  if (queued.length) return { ok: true, note: "Поставлено в очередь, отправка займёт до нескольких минут. Статус по каналам виден в разделе «Публикации»." };
-  return { ok: true, note: "Опубликовано во все каналы." };
+  if (queued.length) return { ok: true, note: `Поставлено в очередь (${names}), отправка займёт до нескольких минут. Статус по каналам виден в разделе «Публикации».` };
+  return { ok: true, note: `Опубликовано в: ${names}.` };
 }

@@ -96,7 +96,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
             )}
 
             <div className="space-y-2 rounded-2xl bg-surface p-3">
-              {it.channels.length ? <p className="text-xs text-ink2">Уйдёт в каналы: {it.channels.join(", ")}</p> : <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />У завода не выбраны каналы публикации. Включите их во вкладке «Настройки контента».</p>}
+              {it.channels.length ? <p className="text-sm text-ink2"><Send size={13} className="mr-1 inline" />Публикация пойдёт в: <b className="text-ink">{it.channels.join(", ")}</b></p> : <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />У завода не выбраны каналы публикации. Включите их во вкладке «Настройки контента».</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <details className="group">
                   <summary className="btn btn-accent !py-2 cursor-pointer list-none"><CalendarPlus size={15} />В контент-план</summary>
@@ -108,7 +108,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
                     <p className="w-full text-xs text-ink3">В выбранное время материал сам уйдёт в каналы завода. Время по часовому поясу завода.</p>
                   </form>
                 </details>
-                <form action={draftPublishAction}>{hid(it.id)}<SubmitButton data-confirm="Опубликовать материал сейчас во все каналы завода?" data-confirm-ok="Опубликовать" className="pill"><Send size={15} />Опубликовать сейчас</SubmitButton></form>
+                <form action={draftPublishAction}>{hid(it.id)}<SubmitButton data-confirm={it.channels.length ? `Опубликовать сейчас в: ${it.channels.join(", ")}?` : "Опубликовать материал сейчас?"} data-confirm-ok="Опубликовать" className="pill"><Send size={15} />Опубликовать сейчас</SubmitButton></form>
                 <form action={draftDiscardAction} className="ml-auto">{hid(it.id)}<SubmitButton data-confirm="Удалить этот материал? Вернуть его будет нельзя." className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad hover:opacity-80" title="Удалить черновик" aria-label="Удалить черновик"><Trash2 size={15} /></SubmitButton></form>
               </div>
             </div>
