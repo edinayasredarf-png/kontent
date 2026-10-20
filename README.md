@@ -29,6 +29,13 @@ Vercel режет российские IP, поэтому российские �
 6. **Воркер:** в cron-job.org обновить адрес на `https://juicerai.ru/api/cron/tick`.
 7. Проверка: `curl -sI https://juicerai.ru/ | head -3`; в админке платформы строка «APP_URL» должна показывать новый адрес.
 
+### Свой сервер под прокси (62.76.233.238)
+Вместо общего прокси «Опоры» можно поднять отдельный: `deploy/proxy/bootstrap.sh` — один файл, ставит Docker, nginx в контейнере и сертификаты Let's Encrypt (те же шаблоны, что в `deploy/docker-proxy` проекта «Опора»).
+1. DNS: A-записи `juicerai.ru` и `www` → IP нового сервера (до запуска, иначе сертификат не выпустится).
+2. С Mac из папки проекта: `scp deploy/proxy/bootstrap.sh root@62.76.233.238:/root/`, затем `ssh root@62.76.233.238` и `bash bootstrap.sh EMAIL juicerai.ru`. Если в Vercel уже задан `PROXY_SECRET`, передайте его же: `PROXY_SECRET=… bash bootstrap.sh EMAIL juicerai.ru` (иначе секрет сгенерируется, значение: `cat /opt/vercel-proxy/data/proxy.secret`, его нужно указать в Vercel).
+3. Vercel: домены `juicerai.ru` и `www.juicerai.ru`, переменные `APP_URL=https://juicerai.ru` и `PROXY_SECRET`, затем Redeploy; воркер в cron-job.org — на новый адрес; провайдеры входа (Яндекс, VK) и вебхук MAX — на новый домен.
+4. Проверка: `curl -sI https://juicerai.ru/ | head -3`; логи прокси: `docker logs vercel-proxy`.
+
 ## Воркер (cron)
 `GET/POST /api/cron/tick` с заголовком `Authorization: Bearer $CRON_SECRET`. За проход: одобряет идеи автозаводов → пополняет план → пишет тексты по наступившим датам → ставит в очередь по расписанию → отправляет в Telegram/VK с ретраями (3 попытки, 5/10 мин).
 Vercel Hobby даёт cron раз в сутки (`vercel.json`) — это страховка. Основной вызов: cron-job.org каждые 5 минут на `https://kontent.единаясреда.рф/api/cron/tick` с этим заголовком.
