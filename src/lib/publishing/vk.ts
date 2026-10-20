@@ -35,11 +35,13 @@ type Img = { data: Buffer; mime: string };
 /** Отправка файла на адрес загрузки VK (multipart). */
 async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
   const f = new FormData();
-  f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), "image.jpg");
+  const ext = /png/.test(img.mime) ? "png" : /gif/.test(img.mime) ? "gif" : "jpg";
+  f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), `image.${ext}`);
   try {
     const res = await fetch(url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
-    return (await res.json()) as T;
-  } catch (e) { throw new PublishError(`загрузка файла: ${(e as Error).message}`, true); }
+    const raw = await res.text();
+    try { return JSON.parse(raw) as T; } catch { throw new PublishError(`ответ загрузки (${res.status}): ${raw.slice(0, 120)}`); }
+  } catch (e) { if (e instanceof PublishError) throw e; throw new PublishError(`загрузка файла: ${(e as Error).message}`, true); }
 }
 
 /**
@@ -57,9 +59,9 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
     return `photo${saved[0].owner_id}_${saved[0].id}`;
   } },
   { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
-    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", { peer_id: "0" });
+    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
     const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
-    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError("VK не принял файл");
+    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
     const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveMessagesPhoto", { server: String(up.server), photo: up.photo, hash: up.hash });
     if (!saved[0]) throw new PublishError("VK не сохранил фото");
     void gid;
@@ -68,7 +70,7 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
   { name: "файл", multi: false, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "docs.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ file?: string }>(srv.upload_url, "file", img);
-    if (!up?.file) throw new PublishError("VK не принял файл");
+    if (!up?.file) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
     const saved = await call<{ type?: string; doc?: { id: number; owner_id: number; access_key?: string }; graffiti?: unknown } | { id: number; owner_id: number }[]>(token, "docs.save", { file: up.file, title: "image.jpg" });
     const d = Array.isArray(saved) ? saved[0] : (saved as { doc?: { id: number; owner_id: number; access_key?: string } }).doc;
     if (!d) throw new PublishError("VK не сохранил файл");
@@ -81,6 +83,7 @@ function vkPhotoHint(errs: string[]): string {
   const all = errs.join(" | ");
   const tail = `Подробности: ${all}`;
   if (/код 5\)/.test(all)) return `ключ доступа недействителен или отозван. ${tail}`;
+  if (/файл: [^|]*код 15/.test(all) && /сообщения сообщества: [^|]*не принял/.test(all)) return `ВК отказал и в фото, и в файле. В сообществе: Управление → Сообщения → включить; Управление → Разделы → «Файлы» (документы) → включить; в ключе отметьте «Фотографии», «Файлы» и «Сообщения». Если не помогает — ключ не подходит для загрузки, и нужен ключ пользователя-администратора. ${tail}`;
   if (/сообщения сообщества: [^|]*(код 15|код 27|код 200|код 7|Access denied|permission)/i.test(all)) return `у ключа сообщества не хватает прав для фото: отметьте «Фотографии» (и «Файлы») при создании ключа, а в сообществе включите сообщения (Управление → Сообщения). ${tail}`;
   if (/сообщения сообщества: [^|]*(код 9|901|messages)/i.test(all)) return `включите сообщения сообщества: Управление → Сообщения → «Включены». ${tail}`;
   return tail;
