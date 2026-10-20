@@ -58,13 +58,13 @@ export async function imageForDraft(orgId: string, id: string, prompt: string): 
 export async function draftToPlan(orgId: string, id: string, date: string, time: string): Promise<Result> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Выберите дату" };
   if (!/^\d{2}:\d{2}$/.test(time)) return { ok: false, error: "Укажите время публикации" };
-  const it = await one<{ tz: string | null; at: string; future: boolean }>(
-    `select f.schedule->>'tz' tz, to_char((($3 || ' ' || $4)::timestamp at time zone coalesce(f.schedule->>'tz','Europe/Moscow')) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') at,
+  const it = await one<{ tz: string | null; pub_at: string; future: boolean }>(
+    `select f.schedule->>'tz' tz, to_char((($3 || ' ' || $4)::timestamp at time zone coalesce(f.schedule->>'tz','Europe/Moscow')) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') pub_at,
             (($3 || ' ' || $4)::timestamp at time zone coalesce(f.schedule->>'tz','Europe/Moscow')) > now() future
        from kz_content_items i join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2 and ${DRAFT.replace(/meta/g, "i.meta")} and i.status='ready'`, [id, orgId, date, time]);
   if (!it) return { ok: false, error: "Материал ещё создаётся или не найден" };
   if (!it.future) return { ok: false, error: "Это время уже прошло. Выберите будущие дату и время или нажмите «Опубликовать сейчас»" };
-  await q("update kz_content_items set planned_for=$3::date, meta = (meta - 'draft') || jsonb_build_object('publishAt',$4::text), updated_at=now() where id=$1 and org_id=$2", [id, orgId, date, it.at]);
+  await q("update kz_content_items set planned_for=$3::date, meta = (meta - 'draft') || jsonb_build_object('publishAt',$4::text), updated_at=now() where id=$1 and org_id=$2", [id, orgId, date, it.pub_at]);
   return { ok: true };
 }
 
@@ -81,4 +81,39 @@ export async function draftPublishNow(orgId: string, id: string): Promise<Result
 export async function discardDraft(orgId: string, id: string): Promise<void> {
   const it = await one<{ image_id: string | null }>(`delete from kz_content_items where id=$1 and org_id=$2 and ${DRAFT} returning image_id`, [id, orgId]);
   if (it?.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
+}
+
+const EDITABLE_ITEM = ["idea", "approved", "ready", "failed", "rejected"];
+
+/** Перенос выхода материала из окна: дата всегда; время — только для готового (тогда он уйдёт в каналы завода в этот момент). */
+export async function rescheduleItem(orgId: string, id: string, date: string, time: string): Promise<Result> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Выберите дату" };
+  const it = await one<{ status: string }>("select status from kz_content_items where id=$1 and org_id=$2", [id, orgId]);
+  if (!it) return { ok: false, error: "Материал не найден" };
+  if (!EDITABLE_ITEM.includes(it.status)) return { ok: false, error: "Этот материал уже в очереди или опубликован: перенести его нельзя" };
+  if (it.status === "ready" && /^\d{2}:\d{2}$/.test(time)) {
+    const r = await draftToPlanAny(orgId, id, date, time);
+    return r;
+  }
+  await q("update kz_content_items set planned_for=$3::date, updated_at=now() where id=$1 and org_id=$2", [id, orgId, date]);
+  return { ok: true };
+}
+
+async function draftToPlanAny(orgId: string, id: string, date: string, time: string): Promise<Result> {
+  const it = await one<{ pub_at: string; future: boolean }>(
+    `select to_char((($3 || ' ' || $4)::timestamp at time zone coalesce(f.schedule->>'tz','Europe/Moscow')) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') pub_at,
+            (($3 || ' ' || $4)::timestamp at time zone coalesce(f.schedule->>'tz','Europe/Moscow')) > now() future
+       from kz_content_items i join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2`, [id, orgId, date, time]);
+  if (!it) return { ok: false, error: "Материал не найден" };
+  if (!it.future) return { ok: false, error: "Это время уже прошло. Выберите будущие дату и время или нажмите «Опубликовать сейчас»" };
+  await q("update kz_content_items set planned_for=$3::date, meta = meta || jsonb_build_object('publishAt',$4::text), updated_at=now() where id=$1 and org_id=$2", [id, orgId, date, it.pub_at]);
+  return { ok: true };
+}
+
+export async function publishItemNow(orgId: string, id: string): Promise<Result> {
+  const e = await enqueue(orgId, id);
+  if (!e.ok) return { ok: false, error: e.error ?? "Не удалось поставить в очередь" };
+  await q("update kz_content_items set meta = meta - 'publishAt' where id=$1 and org_id=$2", [id, orgId]);
+  await processQueue(10, id);
+  return { ok: true };
 }

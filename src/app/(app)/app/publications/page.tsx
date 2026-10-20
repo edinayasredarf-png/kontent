@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Send } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PageHead, Empty, Status, KIND } from "@/components/ui";
 import { PostCard, RoundIcon } from "@/components/ui/PostCard";
+import { ItemModal } from "@/components/ItemModal";
 
-export default async function Publications({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
-  const { n } = await searchParams;
+export default async function Publications({ searchParams }: { searchParams: Promise<{ n?: string; item?: string; err?: string; note?: string }> }) {
+  const { n, item, err, note } = await searchParams;
+  const itemId = /^[0-9a-f-]{36}$/.test(item ?? "") ? item! : "";
   const lim = Math.min(400, Math.max(30, Math.round(Number(n)) || 30));
   const c = await requireCtx();
   const rows = await q<{ id: string; topic: string; kind: string; status: string; brand: string; planned_for: string | null }>(
@@ -15,15 +17,18 @@ export default async function Publications({ searchParams }: { searchParams: Pro
   const hasMore = rows.length > lim; if (hasMore) rows.length = lim;
   return (
     <>
+      {itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={n ? `/app/publications?n=${lim}` : "/app/publications"} err={err} note={note} canWrite={canWrite(c.org.role)} />}
       <PageHead title="Публикации" sub="Готовые материалы, очередь и опубликованное." />
       {rows.length === 0 ? <Empty icon={<Send />} title="Публикаций пока нет" text="Материалы появятся здесь, когда завод напишет первый текст." /> : (
         <div className="mx-auto w-full max-w-[600px] space-y-3">
           {rows.map((r) => (
-            <PostCard key={r.id} icon={<RoundIcon><Send size={16} /></RoundIcon>} title={r.brand} sub={KIND[r.kind]}
-              when={r.planned_for ? new Date(r.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : undefined}
-              actions={<Status s={r.status} />}>
-              <p className="text-sm">{r.topic}</p>
-            </PostCard>
+            <Link key={r.id} href={`/app/publications?item=${r.id}${n ? `&n=${lim}` : ""}`} scroll={false} className="block transition hover:opacity-90">
+              <PostCard icon={<RoundIcon><Send size={16} /></RoundIcon>} title={r.brand} sub={KIND[r.kind]}
+                when={r.planned_for ? new Date(r.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : undefined}
+                actions={<Status s={r.status} />}>
+                <p className="text-sm">{r.topic}</p>
+              </PostCard>
+            </Link>
           ))}
           {hasMore && <div className="flex justify-center pt-1"><Link href={`/app/publications?n=${lim + 30}`} scroll={false} className="pill">Показать ещё</Link></div>}
         </div>

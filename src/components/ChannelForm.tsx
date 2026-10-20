@@ -40,7 +40,7 @@ const GUIDE: Record<string, { title: string; steps: string[] }> = {
 };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
-export function ChannelForm({ brands }: { brands: { id: string; name: string }[] }) {
+export function ChannelForm({ brands, factoryId, ret }: { brands: { id: string; name: string }[]; factoryId?: string; ret?: string }) {
   const [kind, setKind] = useState("telegram");
   const [found, setFound] = useState<{ id: string; title: string; channel: boolean }[]>([]);
   const [findMsg, setFindMsg] = useState("");
@@ -61,6 +61,7 @@ export function ChannelForm({ brands }: { brands: { id: string; name: string }[]
   const g = GUIDE[kind];
   return (
     <Form action={saveChannel} submit="Проверить и подключить">
+      {factoryId && <input type="hidden" name="factory" value={factoryId} />}{ret && <input type="hidden" name="ret" value={ret} />}
       <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
       <Field label="Тип"><select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="input">{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
       {g && (

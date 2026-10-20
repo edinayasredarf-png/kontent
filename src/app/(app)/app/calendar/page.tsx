@@ -3,6 +3,7 @@ import { q } from "@/lib/db";
 import { KINDS } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { KIND, PageHead, STATUS } from "@/components/ui";
+import { ItemModal } from "@/components/ItemModal";
 
 import { SubmitButton } from "@/components/SubmitButton";
 const MOVABLE = ["idea", "approved", "ready", "failed", "rejected"];
@@ -26,7 +27,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
        from kz_content_items i join kz_factories f on f.id=i.factory_id
       where i.org_id=$1 and not coalesce((i.meta->>'draft')::boolean,false) and i.planned_for between $2 and $3 ${cond.map((x) => "and " + x).join(" ")} order by i.planned_for, i.created_at limit 1500`, args);
   const shift = (n: number) => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
-  const qs = (o: Record<string, string>) => { const u = new URLSearchParams(); for (const [k, v] of Object.entries({ ...sp, ...o })) if (v) u.set(k, v); return `/app/calendar?${u}`; };
+  const qs = (o: Record<string, string>) => { const u = new URLSearchParams(); const { item: _i, err: _e, note: _n, ...keep } = sp; void _i; void _e; void _n; for (const [k, v] of Object.entries({ ...keep, ...o })) if (v) u.set(k, v); return `/app/calendar?${u}`; };
+  const itemId = /^[0-9a-f-]{36}$/.test(sp.item ?? "") ? sp.item! : "";
   return (
     <>
       <PageHead title="Календарь" sub="Все материалы по заводам. Перетащите материал на другой день или нажмите на него, чтобы открыть." />
@@ -37,8 +39,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <select name="status" defaultValue={sp.status ?? ""} className="input !w-auto"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
         <SubmitButton className="pill ml-auto">Применить</SubmitButton>
       </form>
+      {itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={qs({})} err={sp.err} note={sp.note} canWrite={canWrite(c.org.role)} />}
       <CalendarGrid month={month} prevHref={qs({ m: shift(-1) })} nextHref={qs({ m: shift(1) })}
-        items={rows.map((r) => ({ id: r.id, date: r.date, kind: r.kind, topic: r.topic, status: r.status, label: r.factory, href: `/app/factories/${r.factory_id}?view=list&open=${r.id}#i-${r.id}`, movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />
+        items={rows.map((r) => ({ id: r.id, date: r.date, kind: r.kind, topic: r.topic, status: r.status, label: r.factory, href: qs({ item: r.id }), movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />
     </>
   );
 }

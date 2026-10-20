@@ -251,9 +251,14 @@ export async function saveChannel(_: unknown, f: FormData) {
   // Проверяем до сохранения: токен рабочий, бот — админ, сообщество существует.
   let name: string;
   try { name = await prov.verify(cred); } catch (e) { return { error: (e as Error).message }; }
-  await q("insert into kz_channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5)", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || name, JSON.stringify(seal(cred))]);
-  revalidatePath("/app/channels");
-  redirect("/app/channels");
+  const ch = await one<{ id: string }>("insert into kz_channels(org_id,brand_id,kind,title,credentials) values($1,$2,$3,$4,$5) returning id", [c.org.id, s(f, "brand_id"), kind, s(f, "title") || name, JSON.stringify(seal(cred))]);
+  // канал создан из настроек завода: сразу включаем его в публикацию этого завода (только если завод того же бренда)
+  if (ch && /^[0-9a-f-]{36}$/.test(s(f, "factory"))) {
+    await q("update kz_factories set channel_ids = array_append(channel_ids, $3::uuid) where id=$1 and org_id=$2 and brand_id=$4 and not ($3::uuid = any(channel_ids))", [s(f, "factory"), c.org.id, ch.id, s(f, "brand_id")]);
+  }
+  revalidatePath("/app", "layout");
+  const ret = s(f, "ret");
+  redirect(/^\/app\/[A-Za-z0-9/_?=&-]*$/.test(ret) ? ret : "/app/channels");
 }
 /** Подсказка для подключения MAX: каналы и чаты, о которых боту приходили события. Токен вводится в форме, в базе не сохраняется. */
 export async function discoverMaxAction(token: string): Promise<{ ok: true; chats: { id: string; title: string; channel: boolean }[] } | { ok: false; error: string }> {

@@ -4,6 +4,7 @@ import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import { PlanToolbar } from "@/components/PlanToolbar";
 import { FactoryTabs } from "@/components/FactoryTabs";
 import { DraftHost } from "@/components/DraftHost";
+import { ItemModal } from "@/components/ItemModal";
 import { listFactoryDrafts } from "@/lib/drafts";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
@@ -24,6 +25,7 @@ import { plainOf, type ExportItem } from "@/lib/exporter";
 import { DocPanel } from "@/components/DocPanel";
 import { GrowthPanel } from "@/components/GrowthPanel";
 import { StrategyCard } from "@/components/StrategyCard";
+import { ChannelForm } from "@/components/ChannelForm";
 import { ImagePicker } from "@/components/ImagePicker";
 import { attachItemImageAction, reworkItemImageAction } from "@/lib/image-actions";
 import { setItemDateAction } from "@/lib/growth-actions";
@@ -59,8 +61,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const err = sp.err, note = sp.note;
   const c = await requireCtx();
-  const f = await one<{ id: string; name: string; brand: string; status: string; niche: string; product: string }>(
-    "select f.id,f.name,b.name brand,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
+  const f = await one<{ id: string; name: string; brand: string; brand_id: string; status: string; niche: string; product: string }>(
+    "select f.id,f.name,b.name brand,f.brand_id,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
   const saved = (await cookies()).get("ftab")?.value;
   const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : saved === "plan" || saved === "settings" ? saved : "create";
@@ -89,7 +91,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const runway = tab !== "plan" ? null : await planRunway(id);
   const href = (o: Record<string, string>) => {
     const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...sp, tab: "plan", ...o })) if (v && k !== "err" && k !== "note" && k !== "open") u.set(k, v);
+    const { err: _e, note: _n, open: _o, item: _i, ...keep } = sp; void _e; void _n; void _o; void _i;
+    for (const [k, v] of Object.entries({ ...keep, tab: "plan", ...o })) if (v) u.set(k, v);
     return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
   };
   const pubs = tab !== "plan" ? [] : await q<Pub>(
@@ -102,6 +105,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const hid = <input type="hidden" name="id" value={id} />;
   // вкладка: после создания и других действий возвращаемся в план (там открывается нужный материал)
   const stamp = Date.now();
+  const itemId = /^[0-9a-f-]{36}$/.test(sp.item ?? "") ? sp.item! : "";
   // созданное «сразу» открывается окном (черновики), а не уходит в план
   const draftIds = (sp.draft ?? "").split(",").filter((x) => /^[0-9a-f-]{36}$/.test(x));
   const drafts = tab === "create" ? await listFactoryDrafts(c.org.id, id) : [];
@@ -157,7 +161,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             ]}
             modals={{
               publish: { title: "Публикация", node: (
-                <form action={setFactoryChannels} className="space-y-5">
+                <div className="space-y-5"><form action={setFactoryChannels} className="space-y-5">
                   {hid}
                   <div>
                     <span className="label">Куда публиковать</span>
@@ -175,7 +179,13 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                     <select name="approval" defaultValue={set?.approval} className="input"><option value="manual">Одобряю вручную</option><option value="auto">Одобряются сами (полный автомат, план пополняется с баланса)</option></select>
                   </div>
                   <SubmitButton className="btn btn-accent h-11 w-full justify-center">Сохранить</SubmitButton>
-                </form>) },
+                </form>
+                  <details className="rounded-2xl bg-tile p-3" open={chans.length === 0}>
+                    <summary className="cursor-pointer text-sm font-medium">Подключить новый канал</summary>
+                    <div className="mt-3"><ChannelForm brands={[{ id: f.brand_id, name: f.brand }]} factoryId={id} ret={`/app/factories/${id}?tab=settings`} /></div>
+                    <p className="mt-3 text-xs text-ink3">Новый канал сразу включится в публикацию этого завода. Все каналы и их проверка: <Link href="/app/channels" className="text-accent-ink">раздел «Каналы»</Link>.</p>
+                  </details>
+                </div>) },
               schedule: { title: "Расписание публикаций", node: (
                 <div>
         <form action={saveScheduleAction} className="space-y-4">
@@ -199,6 +209,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {tab === "plan" && itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={href({})} err={err} note={note} canWrite={canWrite(c.org.role)} />}
       {tab === "plan" && (
         <div className={view === "calendar" ? "" : "mx-auto w-full max-w-[680px]"}>
           {(runway === null || runway < 3) && (
@@ -260,7 +271,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       </PlanToolbar>
       {view === "calendar" && (
         <CalendarGrid month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
-          items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status, href: href({ view: "list", open: i.id }) + `#i-${i.id}`, movable: canWrite(c.org.role) && ["idea", "approved", "ready", "failed", "rejected"].includes(i.status) }))} />
+          items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status, href: href({ item: i.id }), movable: canWrite(c.org.role) && ["idea", "approved", "ready", "failed", "rejected"].includes(i.status) }))} />
       )}
       {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}
       <div className="space-y-3">
