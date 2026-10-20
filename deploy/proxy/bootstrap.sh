@@ -66,7 +66,16 @@ server {
     listen 80;
     listen [::]:80;
     server_name __NAMES__;
-    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
+    # проверка домена: свой файл certbot отдаём сами, остальное (проверка Vercel для выпуска его сертификата) пересылаем на Vercel по http
+    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; try_files $uri @vercel_http; }
+    location @vercel_http {
+        set $vercel_http cname.vercel-dns.com;
+        proxy_pass http://$vercel_http;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+    }
     location / { return 301 https://$host$request_uri; }
 }
 
