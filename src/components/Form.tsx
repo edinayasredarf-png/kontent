@@ -24,7 +24,7 @@ export function Form({ action, children, submit, className, variant, wide }: { w
       {children}
       {state?.ok && <p className="rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{state.ok}</p>}
       {state?.error && <p className="rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{state.error}</p>}
-      <button className={variant === "ghost" ? "btn btn-ghost !py-1.5" : variant === "danger" ? "btn btn-danger !py-1.5" : wide ? "btn h-11 w-full justify-center" : "btn"} disabled={pending}>{pending && <Loader2 size={15} className="animate-spin" />}{submit}</button>
+      {submit && <button className={variant === "ghost" ? "btn btn-ghost !py-1.5" : variant === "danger" ? "btn btn-danger !py-1.5" : wide ? "btn h-11 w-full justify-center" : "btn"} disabled={pending}>{pending && <Loader2 size={15} className="animate-spin" />}{submit}</button>}
     </form>
   );
 }

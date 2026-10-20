@@ -4,6 +4,7 @@ import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import { PlanToolbar } from "@/components/PlanToolbar";
 import { FactoryTabs } from "@/components/FactoryTabs";
 import { DraftHost } from "@/components/DraftHost";
+import { botConfigured, botLink, botUsername } from "@/lib/max-bot";
 import { ItemModal } from "@/components/ItemModal";
 import { listFactoryDrafts } from "@/lib/drafts";
 import Link from "next/link";
@@ -183,7 +184,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
                 </form>
                   <details className="rounded-2xl bg-tile p-3" open={chans.length === 0}>
                     <summary className="cursor-pointer text-sm font-medium">Подключить новый канал</summary>
-                    <div className="mt-3"><ChannelForm brands={[{ id: f.brand_id, name: f.brand }]} factoryId={id} ret={`/app/factories/${id}?tab=settings`} /></div>
+                    <div className="mt-3"><ChannelForm brands={[{ id: f.brand_id, name: f.brand }]} maxBot={botConfigured() ? { link: botLink(), name: botUsername() } : undefined} factoryId={id} ret={`/app/factories/${id}?tab=settings`} /></div>
                     <p className="mt-3 text-xs text-ink3">Новый канал сразу включится в публикацию этого завода. Все каналы и их проверка: <Link href="/app/channels" className="text-accent-ink">раздел «Каналы»</Link>.</p>
                   </details>
                 </div>) },

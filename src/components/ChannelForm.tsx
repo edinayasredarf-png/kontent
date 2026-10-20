@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { Form, Field } from "./Form";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { MaxBotPanel } from "./MaxBotPanel";
 import { checkChannelAction, discoverMaxAction, saveChannel } from "@/lib/actions";
 
-const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max: "MAX (бета)", wordpress: "WordPress (SEO-статьи)", webhook: "Webhook (сайты и любые соцсети через n8n/Make)" };
+const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max_bot: "MAX через бота сервиса (рекомендуется)", max: "MAX: свой бот (токен)", wordpress: "WordPress (SEO-статьи)", webhook: "Webhook (сайты и любые соцсети через n8n/Make)" };
 
 /** Пошаговые инструкции: как получить доступ и что нажать на самой площадке. */
 const GUIDE: Record<string, { title: string; steps: string[] }> = {
@@ -20,11 +21,12 @@ const GUIDE: Record<string, { title: string; steps: string[] }> = {
     "Числовой id сообщества: число из адреса вида vk.com/club123456789 (без «club» и без минуса). Если у сообщества короткий адрес, id указан в «Управление» → «Настройки» → «Работа с API».",
     "Нажмите «Проверить подключение». Проверка подтверждает, что ключ рабочий и сообщество найдено; права на стену и фотографии проверяются при первой публикации.",
   ] },
-  max: { title: "Как подключить канал MAX", steps: [
-    "В MAX для бизнеса создайте бота и скопируйте его токен.",
-    "Добавьте бота в канал администратором и включите права «писать» и «читать все сообщения» (первое нужно для публикации, второе для чтения постов).",
-    "Опубликуйте в канале любой пост, вставьте токен и нажмите «Найти каналы бота»: выберите свой канал из списка, id подставится сам.",
-    "Нажмите «Проверить подключение».",
+  max: { title: "Как подключить канал MAX со своим ботом", steps: [
+    "Зарегистрируйтесь на business.max.ru и пройдите верификацию организации (до 48 часов).",
+    "Создайте чат-бота в разделе «Чат-боты и мини-приложения» и дождитесь модерации (статус «Готов к публикации»).",
+    "Добавьте бота в канал администратором с правом «Писать сообщения».",
+    "Скопируйте токен: настройки бота → «Токен доступа». Вставьте его ниже.",
+    "Укажите id канала (или опубликуйте в канале пост, вставьте токен и нажмите «Найти каналы бота») и нажмите «Проверить подключение».",
   ] },
   wordpress: { title: "Как подключить сайт на WordPress", steps: [
     "В WordPress откройте «Пользователи» → «Профиль» → блок «Пароли приложений», введите любое название и нажмите «Добавить». Скопируйте показанный пароль (он показывается один раз).",
@@ -40,8 +42,9 @@ const GUIDE: Record<string, { title: string; steps: string[] }> = {
 };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
-export function ChannelForm({ brands, factoryId, ret }: { brands: { id: string; name: string }[]; factoryId?: string; ret?: string }) {
+export function ChannelForm({ brands, factoryId, ret, maxBot }: { brands: { id: string; name: string }[]; factoryId?: string; ret?: string; maxBot?: { link: string; name: string } }) {
   const [kind, setKind] = useState("telegram");
+  const kinds = Object.entries(KINDS).filter(([k]) => k !== "max_bot" || maxBot);
   const [found, setFound] = useState<{ id: string; title: string; channel: boolean }[]>([]);
   const [findMsg, setFindMsg] = useState("");
   const find = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -60,17 +63,18 @@ export function ChannelForm({ brands, factoryId, ret }: { brands: { id: string; 
   };
   const g = GUIDE[kind];
   return (
-    <Form action={saveChannel} submit="Проверить и подключить">
+    <Form action={saveChannel} submit={kind === "max_bot" ? "" : "Проверить и подключить"}>
       {factoryId && <input type="hidden" name="factory" value={factoryId} />}{ret && <input type="hidden" name="ret" value={ret} />}
       <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-      <Field label="Тип"><select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="input">{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+      <Field label="Тип"><select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="input">{kinds.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
       {g && (
         <details className="rounded-xl bg-tile p-3 text-sm" open>
           <summary className="cursor-pointer font-medium">{g.title}</summary>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs text-ink2">{g.steps.map((t, i) => <li key={i}>{t}</li>)}</ol>
         </details>
       )}
-      <Field label="Название (необязательно)"><input name="title" className="input" /></Field>
+      {kind === "max_bot" && maxBot && <MaxBotPanel botLink={maxBot.link} botName={maxBot.name} factoryId={factoryId} />}
+      {kind !== "max_bot" && <Field label="Название (необязательно)"><input name="title" className="input" /></Field>}
       {kind === "wordpress" && (<>
         <Field label="Адрес сайта"><input name="target" required className="input" placeholder="https://mysite.ru" /></Field>
         <Field label="Логин WordPress"><input name="wp_user" required autoComplete="off" className="input" /></Field>
@@ -97,11 +101,13 @@ export function ChannelForm({ brands, factoryId, ret }: { brands: { id: string; 
         <Field label={kind === "telegram" ? "Токен бота" : "Ключ доступа сообщества"}><input name="token" type="password" required autoComplete="off" className="input" /></Field>
         <Field label={kind === "telegram" ? "@канал или id" : "Числовой id сообщества"}><input name="target" required className="input" placeholder={kind === "telegram" ? "@mychannel" : "123456789"} /></Field>
       </>)}
+      {kind !== "max_bot" && (<>
       <div className="space-y-2">
         <button type="button" onClick={check} disabled={chk.busy} className="btn btn-ghost !py-1.5 text-xs">{chk.busy && <Loader2 size={14} className="animate-spin" />}Проверить подключение</button>
         {chk.text && <p className={`flex items-start gap-1.5 rounded-xl px-3 py-2 text-xs ${chk.ok ? "bg-good-soft text-good" : "bg-bad-soft text-bad"}`}>{chk.ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <XCircle size={14} className="mt-0.5 shrink-0" />}<span>{chk.text}</span></p>}
       </div>
       <p className="text-xs text-ink3">Перед сохранением мы проверим доступ. Секреты хранятся в зашифрованном виде и больше нигде не показываются.</p>
+      </>)}
     </Form>
   );
 }

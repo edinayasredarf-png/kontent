@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { safeFetchBuffer, safeFetchText } from "../safefetch";
 import { one } from "../db";
 import { open } from "../crypto";
-import { listPosts } from "../publishing/max";
+import { listPosts, maxToken } from "../publishing/max";
 import { pageIcon, parseTelegramInfo, discoverFeeds, looksLikeFeed, pageTitle, parseFeed, parseTelegram, scrapeLinks, sha, type Item } from "./parse";
 
 export type Kind = "site" | "telegram" | "vk" | "news" | "manual" | "max";
@@ -67,7 +67,7 @@ export async function fetchMaxItems(orgId: string, channelId: string): Promise<I
   const ch = await one<{ credentials: unknown }>("select credentials from kz_channels where id=$1 and org_id=$2 and kind='max'", [channelId, orgId]);
   if (!ch) throw new Error("Канал MAX удалён или недоступен");
   const c = open(ch.credentials);
-  const posts = await listPosts(c.token, (c.target ?? "").trim(), { count: 50 });
+  const posts = await listPosts(maxToken(c), (c.target ?? "").trim(), { count: 50 });
   return posts.filter((p) => p.text).map((p) => ({
     extId: p.mid, url: p.url ?? `max://channel/${(c.target ?? "").trim()}/${p.mid}`, title: p.text.length > 140 ? p.text.slice(0, 139) + "…" : p.text, body: p.text.slice(0, 4000), publishedAt: p.at, media: p.media,
   }));

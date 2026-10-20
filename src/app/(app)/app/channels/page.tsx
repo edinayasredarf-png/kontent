@@ -10,6 +10,7 @@ import { ModalButton } from "@/components/ui/ModalButton";
 import { SUPPORTED_CHANNELS as KINDS } from "@/lib/publishing";
 
 import { SubmitButton } from "@/components/SubmitButton";
+import { botConfigured, botLink, botUsername } from "@/lib/max-bot";
 export default async function Channels() {
   const c = await requireCtx();
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
@@ -44,7 +45,7 @@ export default async function Channels() {
         </div>
         <div className="mt-5 flex justify-center">
           <ModalButton label="Добавить канал" title="Добавить канал">
-            {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} />}
+            {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} maxBot={botConfigured() ? { link: botLink(), name: botUsername() } : undefined} />}
           </ModalButton>
         </div>
       </div>

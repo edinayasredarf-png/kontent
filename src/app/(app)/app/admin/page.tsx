@@ -8,10 +8,12 @@ import { oauthProblem } from "@/lib/oauth";
 import { rub } from "@/lib/wallet";
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
+import { botState } from "@/lib/max-bot";
+import { MaxSubscribe } from "@/components/MaxSubscribe";
 
 export default async function AdminHome() {
   await requireAdmin();
-  const o = await overview();
+  const [o, bot] = await Promise.all([overview(), botState()]);
   const n = (k: string) => Number(o.stats[k] ?? 0);
   const tickAge = o.tick ? Math.round((Date.now() - new Date(o.tick.updated_at).getTime()) / 60000) : null;
   const checks: { ok: boolean; text: string; href?: string }[] = [
@@ -21,6 +23,7 @@ export default async function AdminHome() {
     { ok: tickAge !== null && tickAge < 15, text: tickAge === null ? "Воркер ещё ни разу не запускался: проверьте задание в cron-job.org" : tickAge < 15 ? `Воркер работает: последний проход ${tickAge} мин назад` : `Воркер не запускался ${tickAge} мин — проверьте cron-job.org и CRON_SECRET` },
     ...(["vk", "yandex"] as const).map((p) => { const pr = oauthProblem(p); return { ok: !pr, text: pr ? `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"}: ${pr}` : `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"} настроен` }; }),
     { ok: !!process.env.APP_URL?.trim(), text: process.env.APP_URL?.trim() ? `APP_URL задан: ${process.env.APP_URL.trim()}` : "APP_URL не задан (рекомендуется https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai): тогда вход через VK и Яндекс всегда идёт на основной адрес" },
+    { ok: bot.ok, text: bot.text },
     { ok: !!process.env.CRON_SECRET?.trim(), text: process.env.CRON_SECRET?.trim() ? "CRON_SECRET задан" : "CRON_SECRET не задан — воркер закрыт" },
   ];
   const tiles = [["Пользователей", n("users"), `за 7 дней: +${n("users_7d")}`], ["Организаций", n("orgs"), n("suspended") ? `приостановлено: ${n("suspended")}` : "все активны"], ["Материалов за 7 дней", n("items_7d"), `опубликовано: ${n("pubs_7d")}`], ["Расход за 7 дней", rub(n("spent_7d")), `остатки клиентов: ${rub(n("balances"))}`]];
@@ -37,6 +40,7 @@ export default async function AdminHome() {
           const inner = <><span className={c.ok ? "text-good" : "text-warn"}>{c.ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span><span className="text-sm">{c.text}</span></>;
           return c.href ? <Link key={c.text} href={c.href} className="flex items-start gap-2 hover:underline">{inner}</Link> : <div key={c.text} className="flex items-start gap-2">{inner}</div>;
         })}</div>
+        <MaxSubscribe />
         {n("failed_7d") > 0 && <p className="mt-3 text-sm text-bad">Ошибок публикации за 7 дней: {n("failed_7d")}</p>}
         {o.tick && <details className="mt-3 text-xs text-ink2"><summary className="cursor-pointer">Отчёт последнего прохода воркера</summary><pre className="mt-2 overflow-x-auto rounded-xl bg-tile p-3">{JSON.stringify(o.tick.value, null, 2)}</pre></details>}
       </section>

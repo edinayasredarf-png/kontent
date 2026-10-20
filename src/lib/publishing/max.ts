@@ -41,10 +41,16 @@ async function upload(token: string, img: Img, n: number): Promise<string> {
   return t;
 }
 
+/** Токен бота: у канала, подключённого через общего бота сервиса (shared), токена в базе нет — берём из окружения сервера. */
+export const maxToken = (c: Record<string, string>) => (c.shared ? process.env.MAX_BOT_TOKEN?.trim() ?? "" : (c.token ?? "").trim());
+
 const need = (c: Record<string, string>) => {
-  if (!c.token || !c.target) throw new PublishError("Для MAX нужны токен бота и id чата или канала");
-  return { token: c.token.trim(), chat: c.target.trim() };
+  const token = maxToken(c);
+  if (!token || !c.target) throw new PublishError(c.shared ? "Бот сервиса MAX не настроен на сервере (MAX_BOT_TOKEN)" : "Для MAX нужны токен бота и id чата или канала");
+  return { token, chat: c.target.trim() };
 };
+
+export { call as maxCall };
 
 export const max: Provider = {
   kind: "max",
