@@ -271,7 +271,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
     </details>
       </PlanToolbar>
       {view === "calendar" && (
-        <CalendarGrid month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
+        <CalendarGrid key={`${month}|${kindF ?? ""}|${statusF ?? ""}`} month={month} prevHref={href({ view: "calendar", m: shiftMonth(month, -1) })} nextHref={href({ view: "calendar", m: shiftMonth(month, 1) })}
           items={items.filter((i) => i.planned_for).map((i) => ({ id: i.id, date: i.planned_for!, kind: i.kind, topic: i.topic, status: i.status, href: href({ item: i.id }), movable: canWrite(c.org.role) && ["idea", "approved", "ready", "failed", "rejected"].includes(i.status) }))} />
       )}
       {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}

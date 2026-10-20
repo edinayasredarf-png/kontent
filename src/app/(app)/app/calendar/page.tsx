@@ -4,6 +4,7 @@ import { KINDS } from "@/lib/plan";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { KIND, PageHead, STATUS } from "@/components/ui";
 import { ItemModal } from "@/components/ItemModal";
+import { CalendarFilters } from "@/components/CalendarFilters";
 
 import { SubmitButton } from "@/components/SubmitButton";
 const MOVABLE = ["idea", "approved", "ready", "failed", "rejected"];
@@ -32,15 +33,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHead title="Календарь" sub="Все материалы по заводам. Перетащите материал на другой день или нажмите на него, чтобы открыть." />
-      <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" action="/app/calendar">
-        <input type="hidden" name="m" value={month} />
-        <select name="factory" defaultValue={f} className="input !w-auto"><option value="">Все заводы</option>{factories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-        <select name="kind" defaultValue={sp.kind ?? ""} className="input !w-auto"><option value="">Все форматы</option>{KINDS.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}</select>
-        <select name="status" defaultValue={sp.status ?? ""} className="input !w-auto"><option value="">Все статусы</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-        <SubmitButton className="pill ml-auto">Применить</SubmitButton>
-      </form>
+      <CalendarFilters month={month} factory={f ?? ""} kind={sp.kind ?? ""} status={sp.status ?? ""}
+        factories={factories.map((x) => ({ value: x.id, label: x.name }))} kinds={KINDS.map((k) => ({ value: k, label: KIND[k] }))} statuses={Object.entries(STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
       {itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={qs({})} err={sp.err} note={sp.note} canWrite={canWrite(c.org.role)} />}
-      <CalendarGrid month={month} prevHref={qs({ m: shift(-1) })} nextHref={qs({ m: shift(1) })}
+      <CalendarGrid key={`${month}|${f ?? ""}|${sp.kind ?? ""}|${sp.status ?? ""}`} month={month} prevHref={qs({ m: shift(-1) })} nextHref={qs({ m: shift(1) })}
         items={rows.map((r) => ({ id: r.id, date: r.date, kind: r.kind, topic: r.topic, status: r.status, label: r.factory, href: qs({ item: r.id }), movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />
     </>
   );

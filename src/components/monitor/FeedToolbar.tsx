@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { ArrowUp, Loader2, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { countNewAction, refreshFeedAction } from "@/lib/monitor/actions";
@@ -44,14 +44,16 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
     start(() => { router.replace(`/app/monitor${filterQuery(filter, { fresh: since })}`, { scroll: false }); router.refresh(); });
   }, [filter, router, since]);
   const close = useCallback(() => setModal(null), []);
-  // применяем фильтр без перезагрузки страницы: окно закрывается, адрес меняется, лента подгружается заново
-  const apply = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // фильтр применяется сразу при любом изменении (поиск по тексту — через 0,4 с после последней буквы): окно остаётся открытым, лента за ним обновляется
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submit = (form: HTMLFormElement) => {
     const u = new URLSearchParams();
-    for (const [k, v] of new FormData(e.currentTarget).entries()) if (typeof v === "string" && v !== "") u.append(k, v);
-    setModal(null); setApplying(true);
-    start(() => router.push(`/app/monitor${u.size ? `?${u}` : ""}`, { scroll: false }));
+    for (const [k, v] of new FormData(form).entries()) if (typeof v === "string" && v !== "") u.append(k, v);
+    setApplying(true);
+    start(() => router.replace(`/app/monitor${u.size ? `?${u}` : ""}`, { scroll: false }));
   };
+  const later = (form: HTMLFormElement, ms: number) => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => submit(form), ms); };
+  const apply = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); if (timer.current) clearTimeout(timer.current); submit(e.currentTarget); };
 
   return (
     <>
@@ -76,9 +78,9 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
         <Modal title="Фильтр ленты" onClose={close} footer={
           <div className="flex items-center justify-between gap-3">
             <Link href="/app/monitor" onClick={close} className="text-sm font-semibold text-ink2 hover:text-ink">Сбросить всё</Link>
-            <button type="submit" form="feed-filter" className="btn !h-11 !px-8">Применить</button>
+            <button type="button" onClick={close} className="btn !h-11 !px-8">Готово</button>
           </div>}>
-          <form id="feed-filter" action="/app/monitor" onSubmit={apply} className="space-y-6">
+          <form id="feed-filter" action="/app/monitor" onSubmit={apply} onChange={(e) => later(e.currentTarget, (e.target as unknown as HTMLInputElement).name === "q" ? 400 : 120)} className="space-y-6">
             <div>
               <p className="label">Поиск по тексту</p>
               <label className="flex h-11 items-center gap-2 rounded-full bg-accent-soft px-4"><Search size={15} className="text-ink2" /><input name="q" defaultValue={filter.q} placeholder="Слово или фраза" className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
