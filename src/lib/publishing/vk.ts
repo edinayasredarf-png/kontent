@@ -49,8 +49,9 @@ async function uploadPhoto(token: string, groupId: string, img: { data: Buffer; 
 /** Понятная причина, почему VK не принял фото. Чаще всего у ключа сообщества нет права «Фотографии». */
 function vkPhotoHint(msg: string): string {
   const code = Number(/\(код (\d+)\)/.exec(msg)?.[1] ?? 0);
-  if ([15, 27, 200, 203, 7].includes(code) || /access denied|unavailable with group auth|permission/i.test(msg))
-    return `у ключа сообщества нет права «Фотографии» (${msg}). Создайте в VK новый ключ с правами «Стена» и «Фотографии» и замените его в разделе «Каналы»`;
+  if (code === 27 || /unavailable with group auth/i.test(msg)) return `VK не разрешает этот метод с ключом сообщества (${msg})`;
+  if ([15, 200, 203, 7].includes(code) || /access denied|permission/i.test(msg))
+    return `у ключа сообщества не хватает прав для фото (${msg}). Проверьте, что в ключе отмечены «Стена» и «Фотографии», при необходимости создайте новый и замените его в разделе «Каналы»`;
   if (code === 5) return `ключ доступа недействителен или отозван (${msg}). Создайте новый ключ и замените его в разделе «Каналы»`;
   if (/VK не принял файл/.test(msg)) return "VK отклонил файл изображения (формат или размер). Попробуйте другое изображение: JPG или PNG до 4 МБ";
   return msg;

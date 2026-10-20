@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
-import { discardDraft, draftPublishNow, draftToPlan, imageForDraft, regenDraft, saveDraftBody } from "./drafts";
+import { discardDraft, draftPublishNow, draftToPlan, imageForDraft, publishReport, regenDraft, saveDraftBody } from "./drafts";
 import { attachOwnImage, reworkItemImage } from "./item-images";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -67,7 +67,9 @@ export async function draftToPlanAction(f: FormData) {
 export async function draftPublishAction(f: FormData) {
   const c = await requireWriter();
   const r = await draftPublishNow(c.org.id, s(f, "id"));
-  back(f, r.ok ? { ok: true, note: "Материал отправлен в публикацию. Статус по каналам виден в разделе «Публикации»." } : r, r.ok ? s(f, "id") : undefined);
+  // итог по каналам показываем сразу: если картинка не загрузилась, видна причина
+  const rep = r.ok ? await publishReport(c.org.id, s(f, "id")) : r;
+  back(f, rep.ok ? { ok: true, note: ("note" in rep ? rep.note : undefined) } : { ok: false, error: ("error" in rep ? rep.error : undefined) }, r.ok ? s(f, "id") : undefined);
 }
 
 export async function draftDiscardAction(f: FormData) {

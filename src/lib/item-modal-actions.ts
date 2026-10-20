@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
-import { publishItemNow, rescheduleItem } from "./drafts";
+import { publishItemNow, publishReport, rescheduleItem } from "./drafts";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -24,5 +24,6 @@ export async function itemRescheduleAction(f: FormData) {
 export async function itemPublishAction(f: FormData) {
   const c = await requireWriter();
   const r = await publishItemNow(c.org.id, s(f, "id"));
-  back(f, r.ok ? { ok: true, note: "Отправлено в публикацию. Статус по каналам ниже обновится после отправки." } : r);
+  const rep = r.ok ? await publishReport(c.org.id, s(f, "id")) : r;
+  back(f, rep.ok ? { ok: true, note: ("note" in rep ? rep.note : undefined) } : { ok: false, error: ("error" in rep ? rep.error : undefined) });
 }

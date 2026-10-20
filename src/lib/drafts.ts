@@ -117,3 +117,15 @@ export async function publishItemNow(orgId: string, id: string): Promise<Result>
   await processQueue(10, id);
   return { ok: true };
 }
+
+/** Итог только что выполненной публикации: по каждому каналу — успех, ошибка или «опубликовано, но…» (например, картинка не загрузилась). */
+export async function publishReport(orgId: string, id: string): Promise<{ ok: boolean; note?: string; error?: string }> {
+  const rows = await q<{ status: string; error: string | null; channel: string }>(
+    `select p.status,p.error,ch.title channel from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.item_id=$1 and p.org_id=$2 order by p.created_at`, [id, orgId]);
+  if (!rows.length) return { ok: true, note: "Отправлено в публикацию." };
+  const bad = rows.filter((r) => r.status === "failed"), warn = rows.filter((r) => r.status === "published" && r.error), queued = rows.filter((r) => ["queued", "sending"].includes(r.status));
+  if (bad.length) return { ok: false, error: `Не опубликовалось: ${bad.map((r) => `${r.channel} — ${r.error ?? "ошибка"}`).join("; ")}` };
+  if (warn.length) return { ok: true, note: `Опубликовано, но: ${warn.map((r) => `${r.channel} — ${r.error}`).join("; ")}` };
+  if (queued.length) return { ok: true, note: "Поставлено в очередь, отправка займёт до нескольких минут. Статус по каналам виден в разделе «Публикации»." };
+  return { ok: true, note: "Опубликовано во все каналы." };
+}
