@@ -1,4 +1,5 @@
 import { PublishError, type Provider } from "./types";
+import sharp from "sharp";
 import { toPlain } from "./format";
 
 /** credentials: token (ключ доступа сообщества, права «стена»), target (числовой id сообщества). */
@@ -49,7 +50,7 @@ async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
  * ключу сообщества они отвечают кодом 27. Ключу сообщества разрешены серверы сообщений (право «Фотографии»): фото сохраняется как фото сообщества
  * и прикрепляется к посту; как запасной путь — файл через docs (право «Файлы»).
  */
-const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: string, img: Img, imageUrl?: string) => Promise<string> }[] = [
+const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: string, gid: string, img: Img, imageUrl?: string) => Promise<string> }[] = [
   { name: "стена", multi: true, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
@@ -68,7 +69,7 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
     return `doc${d.owner_id}_${d.id}${"access_key" in d && d.access_key ? `_${d.access_key}` : ""}`;
   } },
   // ключ сообщества: фото через «сообщения» VK принимает, но к посту на стене не показывает, поэтому сначала файл и карточка-ссылка; ссылка на страницу с картинкой — VK покажет её карточкой с крупным изображением (нужна публичная ссылка, APP_URL)
-  { name: "ссылка с картинкой", multi: false, run: async (_t, _g, _i, imageUrl) => {
+  { name: "ссылка с картинкой", multi: true, single: true, run: async (_t, _g, _i, imageUrl) => {
     if (!imageUrl) throw new PublishError("не задан APP_URL, публичной ссылки на картинку нет");
     return imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?");
   } },
@@ -105,7 +106,9 @@ export const vk: Provider = {
   },
   async publish(input, c) {
     const { token, id } = need(c);
-    const pics = input.images?.length ? input.images.slice(0, 10) : input.image ? [input.image] : [];
+    const raw = input.images?.length ? input.images.slice(0, 10) : input.image ? [input.image] : [];
+    // VK принимает только JPG, PNG и GIF; WebP и прочее он отбрасывает (пустой ответ загрузки), поэтому отправляем всё JPEG-ом
+    const pics: Img[] = await Promise.all(raw.map(async (p) => /jpe?g/.test(p.mime) ? p : { data: await sharp(p.data).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" }));
     const message = toPlain(input.text).slice(0, 15000);
     const post = async (attachment?: string) => call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(attachment ? { attachments: attachment } : {}) });
     const done = (r: { post_id: number }, warning?: string) => ({ externalId: String(r.post_id), url: `https://vk.com/wall-${id}_${r.post_id}`, warning });
@@ -116,8 +119,10 @@ export const vk: Provider = {
       if (!up.multi && pics.length > 1) continue;
       try {
         const ids: string[] = [];
-        for (const pic of pics) ids.push(await up.run(token, id, pic, input.imageUrl));
+        // «single»: способ прикрепляет одну ссылку на всё (для карусели — на первый слайд)
+        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(token, id, pic, input.imageUrl));
         const r = await post(ids.join(","));
+        if (up.single) return done(r, pics.length > 1 ? `В VK ушла карточка только с первым слайдом из ${pics.length}: ключ сообщества не позволяет загрузить все. Для всех слайдов нужен ключ пользователя-администратора с правом photos.` : undefined);
         // VK может принять вложение и молча его отбросить: проверяем готовый пост, и если картинки нет — удаляем и пробуем другой способ
         let checkErr = "";
         const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
@@ -127,7 +132,7 @@ export const vk: Provider = {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
         }
-        return done(r);
+        return done(r, up.single && pics.length > 1 ? `В VK ушла карточка только с первым слайдом из ${pics.length}: ключ сообщества не позволяет загрузить все. Для всех слайдов нужен ключ пользователя-администратора с правом photos.` : undefined);
       } catch (e) {
         if ((e as PublishError).retryable) throw e;
         errs.push(`${up.name}: ${(e as Error).message}`);
