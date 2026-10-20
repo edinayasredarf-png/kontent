@@ -16,7 +16,7 @@ export default async function Channels({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const c = await requireCtx();
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
-  const conns = await q<{ id: string; name: string; status: VkConn["status"]; lastError: string | null; scope: string }>("select id,name,status,last_error \"lastError\",scope from kz_vk_connections where org_id=$1 order by created_at", [c.org.id]).catch(() => []); // миграция 022 ещё не применена — карточка просто пустая
+  const conns = await q<{ id: string; name: string; status: VkConn["status"]; lastError: string | null; scope: string }>("select id,name,status,last_error \"lastError\",scope from kz_vk_connections where org_id=$1 order by created_at", [c.org.id]);
   const rows = await q<{ id: string; kind: string; title: string; brand: string; signature: string; status: string }>(
     "select ch.id,ch.kind,ch.title,ch.signature,ch.status,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
   return (
