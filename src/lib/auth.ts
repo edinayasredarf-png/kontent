@@ -156,10 +156,3 @@ export async function requireWriter(): Promise<Ctx> {
   if (!canWrite(c.org.role)) throw new Error("Недостаточно прав");
   return c;
 }
-
-/** Для маршрутов API, где нет серверных действий: сессия действительна (участник организации, не заблокирован, версия сессии та же) и роль позволяет запись. */
-export async function loadWriterOrNull(s: Session): Promise<boolean> {
-  const r = await one<{ role: string; disabled: boolean; session_ver: number }>(
-    "select m.role,u.disabled,u.session_ver from kz_memberships m join kz_users u on u.id=m.user_id where m.user_id=$1 and m.org_id=$2", [s.uid, s.org]);
-  return !!r && !r.disabled && (s.v ?? 0) === r.session_ver && canWrite(r.role);
-}

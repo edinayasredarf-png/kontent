@@ -10,26 +10,21 @@ import { ModalButton } from "@/components/ui/ModalButton";
 import { SUPPORTED_CHANNELS as KINDS } from "@/lib/publishing";
 
 import { SubmitButton } from "@/components/SubmitButton";
-import { VkConnectionCard, type VkConn } from "@/components/VkConnectionCard";
-import { vkConnectConfigured } from "@/lib/vk-connect";
-export default async function Channels({ searchParams }: { searchParams: Promise<{ [k: string]: string | string[] | undefined }> }) {
-  const sp = await searchParams;
+export default async function Channels() {
   const c = await requireCtx();
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
-  const conns = await q<{ id: string; name: string; status: VkConn["status"]; lastError: string | null; scope: string }>("select id,name,status,last_error \"lastError\",scope from kz_vk_connections where org_id=$1 order by created_at", [c.org.id]);
-  const rows = await q<{ id: string; kind: string; title: string; brand: string; signature: string; status: string }>(
-    "select ch.id,ch.kind,ch.title,ch.signature,ch.status,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
+  const rows = await q<{ id: string; kind: string; title: string; brand: string; signature: string }>(
+    "select ch.id,ch.kind,ch.title,ch.signature,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
   return (
     <>
       <PageHead title="Каналы" sub="Куда публикуем. Канал принадлежит бренду." />
       <div className="mx-auto w-full max-w-[600px]">
-        <VkConnectionCard conns={conns} brands={brands} configured={vkConnectConfigured()} flash={typeof sp.vk === "string" ? sp.vk : undefined} />
         <div>
           {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой ниже." /> : (
             <div className="card">{rows.map((r) => (
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="chip">{KINDS[r.kind] ?? r.kind}</span><span className="flex-1 text-sm">{r.title}{r.status !== "active" && <span className="chip ml-2 bg-warn-soft text-warn">{r.status === "reauth" ? "нужна авторизация VK" : r.status}</span>}</span><span className="text-xs text-ink3">{r.brand}</span>
+                  <span className="chip">{KINDS[r.kind] ?? r.kind}</span><span className="flex-1 text-sm">{r.title}</span><span className="text-xs text-ink3">{r.brand}</span>
                   <ChannelCheck id={r.id} />
                   <form action={deleteChannel}><input type="hidden" name="id" value={r.id} /><SubmitButton data-confirm="Удалить канал? Публикации в него остановятся." className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>
                 </div>

@@ -2,8 +2,7 @@ export interface Article { title: string; description: string; slug: string; key
 export interface Img { data: Buffer; mime: string }
 /** images — слайды карусели по порядку; image — одиночная картинка поста. */
 export interface Poll { question: string; options: string[] }
-export interface Video { data: Buffer; mime: string; name?: string }
-export interface PublishInput { text: string; /** Ключ защиты от дублей: повтор с тем же ключом не создаёт второй пост (VK guid, действует час). */ dedupeKey?: string; /** Видеофайл для площадок, которые это умеют (VK, только с ключом пользователя с правом video). */ video?: Video; image?: Img; /** Публичная подписанная ссылка на ту же картинку (если задан APP_URL). */ imageUrl?: string; images?: Img[]; article?: Article; /** Опрос: Telegram публикует встроенным опросом, остальные площадки получают его уже в тексте. */ poll?: Poll }
+export interface PublishInput { text: string; image?: Img; /** Публичная подписанная ссылка на ту же картинку (если задан APP_URL). */ imageUrl?: string; images?: Img[]; article?: Article; /** Опрос: Telegram публикует встроенным опросом, остальные площадки получают его уже в тексте. */ poll?: Poll }
 /** warning — публикация прошла, но что-то (например, картинка) не удалось: пост ушёл без неё. */
 export interface PublishOutput { externalId: string; url: string | null; warning?: string }
 

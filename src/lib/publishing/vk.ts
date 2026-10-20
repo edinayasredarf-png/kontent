@@ -1,5 +1,4 @@
-import { PublishError, type Provider, type Video } from "./types";
-import { createHash } from "node:crypto";
+import { PublishError, type Provider } from "./types";
 import sharp from "sharp";
 import { toPlain } from "./format";
 
@@ -75,17 +74,9 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
     return imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?");
   } },
   { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
-    // пустой ответ загрузки иногда лечится повтором с новым адресом; если нет — в ошибку идут размеры файла, чтобы было видно причину
-    let up: { server: number; photo: string; hash: string } | undefined;
-    for (let i = 0; i < 2; i++) {
-      const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
-      up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
-      if (up?.photo && up.photo !== "[]" && up.hash) break;
-    }
-    if (!up?.photo || up.photo === "[]" || !up.hash) {
-      const m = await sharp(img.data).metadata().catch(() => ({ width: 0, height: 0 }));
-      throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)}; ${m.width}×${m.height}, ${Math.round(img.data.length / 1024)} КБ, ${img.mime})`);
-    }
+    const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
+    const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
+    if (!up?.photo || up.photo === "[]" || !up.hash) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
     const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveMessagesPhoto", { server: String(up.server), photo: up.photo, hash: up.hash });
     if (!saved[0]) throw new PublishError("VK не сохранил фото");
     void gid;
@@ -108,11 +99,9 @@ export const vk: Provider = {
   kind: "vk",
   async verify(c) {
     const { token, id } = need(c);
-    const g = await call<{ groups?: { name: string; admin_level?: number; is_admin?: number }[] } | { name: string; admin_level?: number; is_admin?: number }[]>(token, "groups.getById", { group_id: id, ...(c.mode === "user" ? { fields: "is_admin,admin_level" } : {}) });
-    const first = Array.isArray(g) ? g[0] : g.groups?.[0];
-    const name = first?.name;
+    const g = await call<{ groups?: { name: string }[] } | { name: string }[]>(token, "groups.getById", { group_id: id });
+    const name = Array.isArray(g) ? g[0]?.name : g.groups?.[0]?.name;
     if (!name) throw new PublishError("Сообщество не найдено — проверьте id");
-    if (c.mode === "user" && !((first?.admin_level ?? 0) >= 2 || first?.is_admin === 1)) throw new PublishError("У вас нет прав редактора или администратора в этом сообществе");
     return name;
   },
   async publish(input, c) {
@@ -121,16 +110,9 @@ export const vk: Provider = {
     // VK принимает только JPG, PNG и GIF; WebP и прочее он отбрасывает (пустой ответ загрузки), поэтому отправляем всё JPEG-ом
     const pics: Img[] = await Promise.all(raw.map(async (p) => /jpe?g/.test(p.mime) ? p : { data: await sharp(p.data).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" }));
     const message = toPlain(input.text).slice(0, 15000);
-    // guid: VK час не создаёт вторую запись с тем же guid — повтор после неясного таймаута безопасен
-    const guid = input.dedupeKey ? createHash("sha256").update(`${input.dedupeKey}:${id}`).digest("hex").slice(0, 32) : undefined;
-    const post = async (attachment?: string) => call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(guid ? { guid } : {}), ...(attachment ? { attachments: attachment } : {}) });
+    const post = async (attachment?: string) => call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(attachment ? { attachments: attachment } : {}) });
     const done = (r: { post_id: number }, warning?: string) => ({ externalId: String(r.post_id), url: `https://vk.com/wall-${id}_${r.post_id}`, warning });
     const errs: string[] = [];
-    if (input.video) {
-      // видео: video.save → загрузка файла → ожидание обработки → запись с вложением video{owner}_{id}; нужен ключ пользователя с правом video
-      const att = await uploadVideo(token, id, input.video, message.slice(0, 128));
-      return done(await post(att));
-    }
     // пробуем способы по очереди; пост не публикуется, пока не подготовлено вложение, а ошибка вложения не теряет текст
     for (const up of UPLOADERS) {
       if (!pics.length) break;
@@ -160,27 +142,3 @@ export const vk: Provider = {
     return done(r, pics.length ? `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"}: ${vkPhotoHint(errs)}. Пост опубликован без ${pics.length > 1 ? "них" : "неё"}.` : undefined);
   },
 };
-
-/**
- * Видео в сообщество: video.save (ключ пользователя с правом video — у ключа сообщества метода нет), отправка файла на upload_url,
- * затем ждём, пока VK обработает ролик (video.get: поле processing), и только после этого возвращаем вложение.
- */
-export async function uploadVideo(token: string, gid: string, v: Video, name: string, opts: { waitMs?: number; pollMs?: number } = {}): Promise<string> {
-  const saved = await call<{ upload_url: string; video_id: number; owner_id: number; access_key?: string }>(token, "video.save", { group_id: gid, name: name || "Видео", wallpost: "0" });
-  const f = new FormData();
-  f.set("video_file", new Blob([new Uint8Array(v.data)], { type: v.mime }), v.name || "video.mp4");
-  let res: Response;
-  try { res = await fetch(saved.upload_url, { method: "POST", body: f, signal: AbortSignal.timeout(120_000) }); }
-  catch (e) { throw new PublishError(`загрузка видео: ${(e as Error).message}`, true); }
-  if (!res.ok) throw new PublishError(`VK не принял видео (HTTP ${res.status})`, res.status >= 500);
-  const ref = `${saved.owner_id}_${saved.video_id}`;
-  const end = Date.now() + (opts.waitMs ?? 60_000);
-  for (;;) {
-    const got = await call<{ items?: { processing?: number; is_processed?: number }[] }>(token, "video.get", { videos: `${ref}${saved.access_key ? `_${saved.access_key}` : ""}` });
-    const it = got.items?.[0];
-    if (it && !it.processing) break; // нет поля processing — ролик обработан
-    if (Date.now() > end) throw new PublishError("VK ещё обрабатывает видео: повторим позже", true);
-    await new Promise((r) => setTimeout(r, opts.pollMs ?? 3000));
-  }
-  return `video${ref}${saved.access_key ? `_${saved.access_key}` : ""}`;
-}

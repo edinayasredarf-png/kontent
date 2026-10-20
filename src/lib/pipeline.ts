@@ -1,5 +1,4 @@
 import { pubImageUrl } from "./pub-image";
-import { resolveCred } from "./vk-connect";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
@@ -352,7 +351,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       returning id,org_id,item_id,channel_id,attempts`, onlyItem ? [limit, onlyItem] : [limit]);
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
-    const ch = await one<{ kind: string; credentials: unknown; signature: string; connection_id: string | null }>("select kind,credentials,signature,connection_id from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
+    const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
     const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] }; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
@@ -367,7 +366,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
-      const r = await prov.publish({ text: outText, dedupeKey: j.id, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, await resolveCred(j.org_id, ch));
+      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {
