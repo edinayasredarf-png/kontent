@@ -289,7 +289,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
 export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
     // материалы автоленты не принадлежат заводу: каналы лежат в meta.channelIds
-    `select i.factory_id,coalesce(f.channel_ids, array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid)) channel_ids,i.body,i.status,i.kind
+    `select i.factory_id,case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 or f.channel_ids is null then array(select jsonb_array_elements_text(coalesce(i.meta->'channelIds','[]'::jsonb))::uuid) else f.channel_ids end channel_ids,i.body,i.status,i.kind
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };

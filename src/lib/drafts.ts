@@ -1,27 +1,36 @@
 import { one, q } from "./db";
 import { buildItem, buildImage, enqueue, processQueue } from "./pipeline";
 import { cleanHtml } from "./seo";
+import { SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
+import { uuidList } from "./util-ids";
 
 type Result = { ok: true; note?: string } | { ok: false; error: string };
 
 /** SQL-условие «материал — черновик»: созданный вручную и ещё не отправленный в план или публикацию. Черновики не видны в плане, календаре и публикациях. */
 export const DRAFT = "coalesce((meta->>'draft')::boolean,false)";
 
+export interface ChannelOpt { id: string; title: string; kind: string; on: boolean }
+
 export interface DraftItem {
   id: string; factory_id: string; kind: string; topic: string; body: string; status: string; image_id: string | null;
-  image_error: string | null; own_image: boolean; slides: string[]; channels: string[];
+  image_error: string | null; own_image: boolean; slides: string[]; channels: ChannelOpt[];
 }
 
 /** Материалы окна «Созданное»: только черновики этой организации, в порядке создания. */
 export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftItem[]> {
   if (!ids.length) return [];
-  const rows = await q<Omit<DraftItem, "slides" | "channels"> & { chans: string[] | null }>(
+  const rows = await q<Omit<DraftItem, "slides" | "channels"> & { chan_ids: string[] | null }>(
     `select i.id,i.factory_id,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
-            (select array_agg(ch.title || ' (' || case ch.kind when 'vk' then 'VK' when 'telegram' then 'Telegram' when 'max' then 'MAX' when 'wordpress' then 'WordPress' else ch.kind end || ')' order by ch.created_at) from kz_channels ch where ch.org_id=i.org_id and ch.status='active' and ch.id = any(coalesce(f.channel_ids, array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid)))) chans
+            case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 then array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid) else f.channel_ids end chan_ids
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.org_id=$1 and i.id = any($2::uuid[]) and ${DRAFT.replace(/meta/g, "i.meta")} order by i.created_at`, [orgId, ids]);
   const slides = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [orgId, rows.map((r) => r.id)]);
-  return rows.map(({ chans, ...r }) => ({ ...r, slides: slides.filter((s) => s.item_id === r.id).map((s) => s.id), channels: chans ?? [] }));
+  const all = await q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 and status='active' order by created_at", [orgId]);
+  return rows.map(({ chan_ids, ...r }) => {
+    const seo = r.kind === "seo";
+    const opts = all.filter((c) => (seo ? SITE_CHANNELS.includes(c.kind) : !ARTICLE_ONLY.includes(c.kind)));
+    return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })) };
+  });
 }
 
 export async function listFactoryDrafts(orgId: string, factoryId: string): Promise<{ id: string; kind: string; topic: string; status: string }[]> {
@@ -132,4 +141,12 @@ export async function publishReport(orgId: string, id: string): Promise<{ ok: bo
   const queued = list((r) => ["queued", "sending"].includes(r.status), nm);
   const parts = [okAll && `Опубликовано: ${okAll}`, warn && `Опубликовано, но: ${warn}`, queued && `В очереди (отправка займёт до нескольких минут, статус виден в «Публикациях»): ${queued}`, bad && `Не опубликовалось: ${bad}`].filter(Boolean);
   return bad ? { ok: false, error: parts.join(". ") } : { ok: true, note: parts.join(". ") + "." };
+}
+
+/** Каналы, выбранные в окне материала: запоминаются в самом материале и имеют приоритет над настройкой завода. */
+export async function setItemChannels(orgId: string, id: string, ids: string[]): Promise<Result> {
+  const ok = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[])", [orgId, uuidList(ids)]);
+  if (!ok.length) return { ok: false, error: "Выберите хотя бы один канал публикации" };
+  await q("update kz_content_items set meta = meta || jsonb_build_object('channelIds', $3::jsonb), updated_at=now() where id=$1 and org_id=$2", [id, orgId, JSON.stringify(ok.map((c) => c.id))]);
+  return { ok: true };
 }

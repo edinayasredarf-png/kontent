@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
 import { q } from "./db";
-import { discardDraft, draftPublishNow, draftToPlan, imageForDraft, publishReport, regenDraft, saveDraftBody } from "./drafts";
+import { setItemChannels, discardDraft, draftPublishNow, draftToPlan, imageForDraft, publishReport, regenDraft, saveDraftBody } from "./drafts";
 import { attachOwnImage, reworkItemImage } from "./item-images";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -59,14 +59,16 @@ export async function draftRemoveImageAction(f: FormData) {
 export async function draftToPlanAction(f: FormData) {
   const c = await requireWriter();
   const date = s(f, "date"), time = s(f, "time");
-  const r = await draftToPlan(c.org.id, s(f, "id"), date, time);
+  const chs = await setItemChannels(c.org.id, s(f, "id"), f.getAll("ch").map(String));
+  const r = chs.ok ? await draftToPlan(c.org.id, s(f, "id"), date, time) : chs;
   const label = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + "T12:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) : date;
   back(f, r.ok ? { ok: true, note: `Материал добавлен в контент-план: ${label} в ${time}. В это время он уйдёт в каналы завода.` } : r, r.ok ? s(f, "id") : undefined);
 }
 
 export async function draftPublishAction(f: FormData) {
   const c = await requireWriter();
-  const r = await draftPublishNow(c.org.id, s(f, "id"));
+  const chs = await setItemChannels(c.org.id, s(f, "id"), f.getAll("ch").map(String));
+  const r = chs.ok ? await draftPublishNow(c.org.id, s(f, "id")) : chs;
   // итог по каналам показываем сразу: если картинка не загрузилась, видна причина
   const rep = r.ok ? await publishReport(c.org.id, s(f, "id")) : r;
   back(f, rep.ok ? { ok: true, note: ("note" in rep ? rep.note : undefined) } : { ok: false, error: ("error" in rep ? rep.error : undefined) }, r.ok ? s(f, "id") : undefined);

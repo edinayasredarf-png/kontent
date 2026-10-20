@@ -13,6 +13,7 @@ import { ImagePicker } from "@/components/ImagePicker";
 import { ImageSlot } from "@/components/ImageSlot";
 import { SubmitButton } from "@/components/SubmitButton";
 
+const CH_NAME: Record<string, string> = { vk: "VK", telegram: "Telegram", max: "MAX", wordpress: "WordPress", webhook: "Webhook" };
 const SLIDE_KINDS = ["carousel", "infographic"], NO_IMAGE = ["reels", "email", "guide", "poll"];
 
 /**
@@ -95,22 +96,35 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
               <p className="rounded-2xl bg-surface p-3 text-xs text-ink3">{NO_IMAGE.includes(it.kind) ? "К этому формату изображение не прикрепляется: оно не публикуется вместе с материалом." : ""}</p>
             )}
 
-            <div className="space-y-2 rounded-2xl bg-surface p-3">
-              {it.channels.length ? <p className="text-sm text-ink2"><Send size={13} className="mr-1 inline" />Публикация пойдёт в: <b className="text-ink">{it.channels.join(", ")}</b></p> : <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />У завода не выбраны каналы публикации. Включите их во вкладке «Настройки контента».</p>}
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-3">
+              <form className="contents">
+                {hid(it.id)}
+                <fieldset className="w-full">
+                  <legend className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold"><Send size={13} />Куда опубликовать</legend>
+                  {it.channels.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {it.channels.map((c) => (
+                        <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-full bg-tile px-3 py-1.5 text-sm has-[:checked]:bg-accent-soft has-[:checked]:text-accent-ink">
+                          <input type="checkbox" name="ch" value={c.id} defaultChecked={c.on} className="size-4 accent-[var(--accent)]" />
+                          {c.title} <span className="text-xs text-ink3">{CH_NAME[c.kind] ?? c.kind}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />Нет подключённых каналов. Подключите их в разделе «Каналы».</p>}
+                  <p className="mt-1 text-xs text-ink3">Отмечены каналы завода по умолчанию; можно выбрать любые из подключённых.</p>
+                </fieldset>
                 <details className="group">
                   <summary className="btn btn-accent !py-2 cursor-pointer list-none"><CalendarPlus size={15} />В контент-план</summary>
-                  <form action={draftToPlanAction} className="mt-3 flex flex-wrap items-end gap-2 rounded-2xl bg-tile p-3">
-                    {hid(it.id)}
+                  <div className="mt-3 flex flex-wrap items-end gap-2 rounded-2xl bg-tile p-3">
                     <div><label className="label">Дата публикации</label><input type="date" name="date" required defaultValue={date} min={new Date().toISOString().slice(0, 10)} className="input !w-auto !bg-surface" /></div>
                     <div><label className="label">Время</label><input type="time" name="time" required defaultValue={time} className="input !w-auto !bg-surface" /></div>
-                    <SubmitButton className="btn !py-2">Поставить в план</SubmitButton>
-                    <p className="w-full text-xs text-ink3">В выбранное время материал сам уйдёт в каналы завода. Время по часовому поясу завода.</p>
-                  </form>
+                    <SubmitButton formAction={draftToPlanAction} className="btn !py-2">Поставить в план</SubmitButton>
+                    <p className="w-full text-xs text-ink3">В выбранное время материал сам уйдёт в отмеченные каналы. Время по часовому поясу завода.</p>
+                  </div>
                 </details>
-                <form action={draftPublishAction}>{hid(it.id)}<SubmitButton data-confirm={it.channels.length ? `Опубликовать сейчас в: ${it.channels.join(", ")}?` : "Опубликовать материал сейчас?"} data-confirm-ok="Опубликовать" className="pill"><Send size={15} />Опубликовать сейчас</SubmitButton></form>
-                <form action={draftDiscardAction} className="ml-auto">{hid(it.id)}<SubmitButton data-confirm="Удалить этот материал? Вернуть его будет нельзя." className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad hover:opacity-80" title="Удалить черновик" aria-label="Удалить черновик"><Trash2 size={15} /></SubmitButton></form>
-              </div>
+                <SubmitButton formAction={draftPublishAction} formNoValidate data-confirm="Опубликовать сейчас в отмеченные каналы?" data-confirm-ok="Опубликовать" className="pill"><Send size={15} />Опубликовать сейчас</SubmitButton>
+              </form>
+              <form action={draftDiscardAction} className="ml-auto">{hid(it.id)}<SubmitButton data-confirm="Удалить этот материал? Вернуть его будет нельзя." className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad hover:opacity-80" title="Удалить черновик" aria-label="Удалить черновик"><Trash2 size={15} /></SubmitButton></form>
             </div>
           </>
         )}

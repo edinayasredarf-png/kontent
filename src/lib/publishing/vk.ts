@@ -49,7 +49,7 @@ async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
  * ключу сообщества они отвечают кодом 27. Ключу сообщества разрешены серверы сообщений (право «Фотографии»): фото сохраняется как фото сообщества
  * и прикрепляется к посту; как запасной путь — файл через docs (право «Файлы»).
  */
-const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: string, img: Img) => Promise<string> }[] = [
+const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: string, img: Img, imageUrl?: string) => Promise<string> }[] = [
   { name: "стена", multi: true, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
@@ -75,6 +75,11 @@ const UPLOADERS: { name: string; multi: boolean; run: (token: string, gid: strin
     const d = Array.isArray(saved) ? saved[0] : (saved as { doc?: { id: number; owner_id: number; access_key?: string } }).doc;
     if (!d) throw new PublishError("VK не сохранил файл");
     return `doc${d.owner_id}_${d.id}${"access_key" in d && d.access_key ? `_${d.access_key}` : ""}`;
+  } },
+  // последний путь: ссылка на страницу с картинкой — VK покажет её карточкой с крупным изображением (нужна публичная ссылка, APP_URL)
+  { name: "ссылка с картинкой", multi: false, run: async (_t, _g, _i, imageUrl) => {
+    if (!imageUrl) throw new PublishError("не задан APP_URL, публичной ссылки на картинку нет");
+    return imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?");
   } },
 ];
 
@@ -111,12 +116,14 @@ export const vk: Provider = {
       if (!up.multi && pics.length > 1) continue;
       try {
         const ids: string[] = [];
-        for (const pic of pics) ids.push(await up.run(token, id, pic));
+        for (const pic of pics) ids.push(await up.run(token, id, pic, input.imageUrl));
         const r = await post(ids.join(","));
         // VK может принять вложение и молча его отбросить: проверяем готовый пост, и если картинки нет — удаляем и пробуем другой способ
-        const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch(() => null);
+        let checkErr = "";
+        const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
         const list = Array.isArray(got) ? got : got?.items;
-        if (list && list[0] && !(list[0].attachments?.length)) {
+        if (checkErr || !list?.[0]) return done(r, `Не удалось проверить, что картинка попала в пост (${checkErr || "пустой ответ VK"}). Если её нет — откройте пост в VK. Вложение: ${ids.join(",")}`);
+        if (!(list[0].attachments?.length)) {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
         }
