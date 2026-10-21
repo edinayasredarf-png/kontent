@@ -111,6 +111,23 @@ describe("MAX: бот сервиса", { skip }, () => {
   });
 });
 
+describe("MAX: канал, добавленный до подписки на вебхук", { skip }, () => {
+  it("пост в канале, где бот администратор, запоминает канал (с названием и типом)", async () => {
+    titles["700"] = "Старый канал";
+    await bot.handleUpdate({ update_type: "message_created", message: { sender: { user_id: 5 }, recipient: { chat_id: 700, chat_type: "channel" }, body: { text: "пост" } } });
+    const r = await db.one<{ title: string; is_channel: boolean; active: boolean }>("select title,is_channel,active from kz_max_chats where chat_id=700");
+    assert.deepEqual([r!.title, r!.is_channel, r!.active], ["Старый канал", true, true]);
+    assert.equal(replies().length, 0, "на посты в канале бот не отвечает");
+  });
+  it("смена прав бота в канале тоже возвращает канал в список, added_by не затирается", async () => {
+    titles["701"] = "К2";
+    await bot.handleUpdate(botAdded(701, 42));
+    await bot.handleUpdate({ update_type: "bot_admin_permissions_changed", chat_id: 701 });
+    const r = await db.one<{ added_by: string }>("select added_by from kz_max_chats where chat_id=701");
+    assert.equal(r!.added_by, "42");
+  });
+});
+
 describe("MAX: выбор и подключение канала", { skip }, () => {
   const ready = async (maxUser = 42) => {
     const { code } = await bot.newLink(orgA, userA, brandA);

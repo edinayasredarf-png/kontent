@@ -72,7 +72,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-xs text-good"><CheckCircle2 size={14} />Ключ принят. Выберите канал:</p>
               {chats.length === 0 ? (
-                <p className="text-xs text-ink2">Каналов, где вы администратор, а бот добавлен, пока нет. Добавьте бота администратором и нажмите «Обновить».</p>
+                <p className="text-xs text-ink2">Сайт пока не видит ваших каналов: он узнаёт о канале только когда бот в него добавлен или в нём что-то происходит. Если бота добавили раньше, просто опубликуйте в канале любой пост (или удалите бота и добавьте администратором заново) и нажмите «Обновить». Важно: ваш аккаунт MAX должен быть администратором канала.</p>
               ) : chats.map((c) => (
                 <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg bg-tile px-3 py-2">
                   <span className="min-w-0 flex-1 text-sm"><b>{c.title}</b><span className="block text-xs text-ink3">{c.channel ? "канал" : "чат"} · id {c.id}</span></span>

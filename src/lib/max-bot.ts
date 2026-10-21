@@ -75,25 +75,36 @@ export async function say(userId: number | string, text: string) {
   await maxCall(botToken(), "POST", `/messages?user_id=${encodeURIComponent(String(userId))}`, { text }).catch((e) => console.error("[max-bot] ответ не отправлен:", (e as Error).message));
 }
 
+/** Запомнить канал/чат, где бот есть. Название и тип не затираем пустыми значениями; added_by сохраняем, если он уже известен. */
+async function rememberChat(chatId: number, isChannel: boolean, addedBy: number | null): Promise<void> {
+  const known = await one<{ title: string }>("select title from kz_max_chats where chat_id=$1", [chatId]);
+  let title = known?.title ?? "";
+  if (!title) { try { title = (await maxCall<{ title?: string }>(botToken(), "GET", `/chats/${chatId}`)).title ?? ""; } catch { /* название подтянем позже */ } }
+  await q(`insert into kz_max_chats(chat_id,title,is_channel,added_by,active) values($1,$2,$3,$4,true)
+           on conflict(chat_id) do update set title=case when $2<>'' then $2 else kz_max_chats.title end,is_channel=$3,added_by=coalesce($4,kz_max_chats.added_by),active=true,updated_at=now()`,
+    [chatId, title, isChannel, addedBy]);
+}
+
 const HELP = (name: string) => `Здравствуйте! Это бот сервиса публикации${name ? ` «${name}»` : ""}.\n\nЧтобы подключить канал: добавьте меня администратором в ваш канал, на сайте нажмите «Получить ключ» и отправьте ключ сюда сообщением.`;
 
 export async function handleUpdate(u: Upd): Promise<void> {
   const t = u.update_type;
   if (t === "bot_added" && u.chat_id != null) {
-    let title = "";
-    try { title = (await maxCall<{ title?: string }>(botToken(), "GET", `/chats/${u.chat_id}`)).title ?? ""; } catch { /* название подтянем позже */ }
-    await q(`insert into kz_max_chats(chat_id,title,is_channel,added_by,active) values($1,$2,$3,$4,true)
-             on conflict(chat_id) do update set title=case when excluded.title<>'' then excluded.title else kz_max_chats.title end,is_channel=excluded.is_channel,added_by=excluded.added_by,active=true,updated_at=now()`,
-      [u.chat_id, title, u.is_channel !== false, u.user?.user_id ?? null]);
+    await rememberChat(u.chat_id, u.is_channel !== false, u.user?.user_id ?? null);
   } else if (t === "bot_removed" && u.chat_id != null) {
     await q("update kz_max_chats set active=false, updated_at=now() where chat_id=$1", [u.chat_id]);
   } else if (t === "chat_title_changed" && u.chat_id != null && u.title) {
     await q("update kz_max_chats set title=$2, updated_at=now() where chat_id=$1", [u.chat_id, u.title]);
+  } else if (t === "bot_admin_permissions_changed" && u.chat_id != null) {
+    // бот уже был в канале до подписки на вебхук: смена его прав (например, включить и выключить «Писать сообщения») возвращает канал в список
+    await rememberChat(u.chat_id, true, null);
   } else if (t === "bot_started") {
     const id = u.user?.user_id; if (id != null) await say(id, HELP(process.env.NEXT_PUBLIC_SITE_NAME ?? ""));
   } else if (t === "message_created") {
     const m = u.message, from = m?.sender?.user_id;
     const ct = m?.recipient?.chat_type;
+    // пост или сообщение в канале/чате, где бот администратор: так узнаём канал, в который бота добавили до подписки на вебхук
+    if ((ct === "channel" || ct === "chat") && m?.recipient?.chat_id != null) { await rememberChat(m.recipient.chat_id, ct === "channel", null); return; }
     console.log("[max-bot] сообщение: chat_type=", ct ?? "нет", "sender=", from ?? "нет");
     // ключ принимаем только в личной переписке: значение chat_type у MAX в документации не уточнено, поэтому чатом и каналом считаем только явные chat/channel
     if (!m || from == null || m.sender?.is_bot || ct === "chat" || ct === "channel") return;
@@ -111,7 +122,7 @@ export async function subscribe(): Promise<string> {
   if (!botConfigured()) throw new Error("Не задан MAX_BOT_TOKEN");
   if (!base) throw new Error("Не задан APP_URL (адрес сайта по https)");
   if (!secret || !/^[a-zA-Z0-9_-]{5,256}$/.test(secret)) throw new Error("MAX_WEBHOOK_SECRET: от 5 до 256 знаков, только латиница, цифры, _ и -");
-  const r = await maxCall<{ success?: boolean; message?: string }>(botToken(), "POST", "/subscriptions", { url: `${base}/api/max/webhook`, update_types: ["bot_added", "bot_removed", "bot_started", "message_created", "chat_title_changed"], secret });
+  const r = await maxCall<{ success?: boolean; message?: string }>(botToken(), "POST", "/subscriptions", { url: `${base}/api/max/webhook`, update_types: ["bot_added", "bot_removed", "bot_started", "message_created", "chat_title_changed", "bot_admin_permissions_changed"], secret });
   if (r.success === false) throw new Error(r.message ?? "MAX не принял подписку");
   return `${base}/api/max/webhook`;
 }
@@ -129,7 +140,7 @@ export async function botState(): Promise<{ ok: boolean; text: string }> {
     const name = me.username ?? me.name ?? "?";
     if (!list.length) return { ok: false, text: `Бот ${name}: вебхук не подключён — нажмите «Подключить вебхук бота MAX» ниже` };
     if (!list.some((x) => x.url === want)) return { ok: false, text: `Бот ${name}: подписка на другой адрес (${list[0].url}), ожидается ${want} — нажмите «Подключить вебхук бота MAX»` };
-    const need = ["bot_added", "message_created"].filter((t) => !list.some((x) => !x.update_types || x.update_types.includes(t)));
+    const need = ["bot_added", "message_created", "bot_admin_permissions_changed"].filter((t) => !list.some((x) => !x.update_types || x.update_types.includes(t)));
     if (need.length) return { ok: false, text: `Бот ${name}: подписка без событий ${need.join(", ")} — нажмите «Подключить вебхук бота MAX»` };
     return { ok: true, text: `Бот ${name}: вебхук подключён (${want})` };
   } catch (e) { return { ok: false, text: `Бот MAX: ${(e as Error).message}` }; }
