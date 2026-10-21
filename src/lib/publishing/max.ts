@@ -1,5 +1,6 @@
 import { PublishError, type Provider } from "./types";
 import { chunk, toPlain } from "./format";
+import { fetchRu } from "../russian-ca";
 import type { Img } from "./types";
 
 /**
@@ -14,7 +15,7 @@ const notReady = (e: unknown) => /not\.ready|not ready|not\.processed/i.test((e 
 
 async function call<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
-  try { res = await fetch(`${API()}${path}`, { method, headers: { Authorization: token, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20_000) }); }
+  try { res = await fetchRu(`${API()}${path}`, { method, headers: { Authorization: token, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20_000) }); }
   catch (e) { throw new PublishError(`MAX недоступен: ${(e as Error).message}`, true); }
   const text = await res.text(); let j: Record<string, unknown> = {}; try { j = JSON.parse(text); } catch { /* не JSON */ }
   if (res.status === 401) throw new PublishError("MAX отклонил токен бота");
@@ -29,7 +30,7 @@ async function upload(token: string, img: Img, n: number): Promise<string> {
   const f = new FormData();
   f.set("data", new Blob([new Uint8Array(img.data)], { type: img.mime }), `image-${n}.jpg`);
   let res: Response;
-  try { res = await fetch(slot.url, { method: "POST", body: f, signal: AbortSignal.timeout(60_000) }); }
+  try { res = await fetchRu(slot.url, { method: "POST", body: f, signal: AbortSignal.timeout(60_000) }); }
   catch (e) { throw new PublishError(`MAX: загрузка картинки не удалась: ${(e as Error).message}`, true); }
   const text = await res.text();
   if (!res.ok) throw new PublishError(`MAX: загрузка картинки ${res.status}: ${text.slice(0, 150)}`, res.status >= 500 || res.status === 429);
