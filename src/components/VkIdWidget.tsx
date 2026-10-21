@@ -17,12 +17,11 @@ function explain(text: string): { msg: string; soft: boolean } {
 /**
  * Официальный виджет VK ID (OneTap) с параметрами из кода кабинета VK: режим Callback, источник LOWCODE.
  * Скругление и высота подогнаны под остальные кнопки сайта. Любой сбой показывает причину, а не прячется;
- * запасная ссылка (вход редиректом) появляется только после настоящей поломки.
+ *
  */
 export function VkIdWidget({ appId, next, canonical }: { appId: string; next: string; canonical?: string }) {
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<{ msg: string; detail?: string } | null>(null);
-  const [fallback, setFallback] = useState(false);
   const [wrongHost, setWrongHost] = useState(false);
   const started = useRef(false);
 
@@ -32,7 +31,7 @@ export function VkIdWidget({ appId, next, canonical }: { appId: string; next: st
     started.current = true;
     let alive = true;
     // iframe кнопки появляется почти сразу; если за 10 секунд его нет — виджет не загрузился
-    const timer = setTimeout(() => { if (alive && !box.current?.querySelector("iframe, button")) { setError({ msg: "Виджет VK ID не загрузился за 10 секунд. Проверьте, что сайт открыт по основному адресу и не блокируется расширениями (блокировщики рекламы часто режут id.vk.ru)." }); setFallback(true); } }, 10_000);
+    const timer = setTimeout(() => { if (alive && !box.current?.querySelector("iframe, button")) { setError({ msg: "Виджет VK ID не загрузился за 10 секунд. Проверьте, что сайт открыт по основному адресу и не блокируется расширениями (блокировщики рекламы часто режут id.vk.ru)." }); } }, 10_000);
 
     (async () => {
       try {
@@ -50,8 +49,8 @@ export function VkIdWidget({ appId, next, canonical }: { appId: string; next: st
           .on(VKID.WidgetEvents.ERROR, (e: { code?: number; text?: string }) => {
             console.error("VKID widget error", e);
             // код 2 — ошибка в процессе входа (закрыли окно, отказ, блокировка окна); 0/1 — виджет не загрузился или сбой VK
-            if (e?.code === 2) { const x = explain(e.text ?? ""); setError({ msg: x.msg, detail: `код ${e.code}: ${e.text}` }); if (!x.soft) setFallback(true); }
-            else { setError({ msg: "Виджет VK ID не смог загрузиться. Обычно это значит, что адрес сайта не добавлен в приложение VK ID или заблокирован расширением браузера.", detail: `код ${e?.code ?? "?"}${e?.text ? `: ${e.text}` : ""}` }); setFallback(true); }
+            if (e?.code === 2) { const x = explain(e.text ?? ""); setError({ msg: x.msg, detail: `код ${e.code}: ${e.text}` }); }
+            else { setError({ msg: "Виджет VK ID не смог загрузиться. Обычно это значит, что адрес сайта не добавлен в приложение VK ID или заблокирован расширением браузера.", detail: `код ${e?.code ?? "?"}${e?.text ? `: ${e.text}` : ""}` }); }
           })
           .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload: { code: string; device_id: string }) => {
             try {
@@ -60,17 +59,17 @@ export function VkIdWidget({ appId, next, canonical }: { appId: string; next: st
               if (!tokens?.access_token) throw new Error("VK не вернул токен");
               const res = await fetch("/api/auth/vk-id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: tokens.access_token, next }) });
               const j = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string; detail?: string };
-              if (!res.ok || !j.ok) { setError({ msg: j.error || "Не удалось войти через VK", detail: j.detail ? `${res.status}: ${j.detail}` : String(res.status) }); setFallback(true); return; }
+              if (!res.ok || !j.ok) { setError({ msg: j.error || "Не удалось войти через VK", detail: j.detail ? `${res.status}: ${j.detail}` : String(res.status) }); return; }
               window.location.assign(j.url || "/app");
             } catch (e) {
               console.error("VKID exchange", e);
               setError({ msg: "VK подтвердил вход, но обмен кода не удался. Чаще всего так бывает, когда домен сайта не указан как «базовый» в приложении VK ID.", detail: (e as Error).message });
-              setFallback(true);
+             
             }
           });
       } catch (e) {
         console.error("VKID init", e);
-        setError({ msg: "Не удалось запустить виджет VK ID.", detail: (e as Error).message }); setFallback(true);
+        setError({ msg: "Не удалось запустить виджет VK ID.", detail: (e as Error).message });
       }
     })();
     return () => { alive = false; clearTimeout(timer); };
@@ -92,7 +91,6 @@ export function VkIdWidget({ appId, next, canonical }: { appId: string; next: st
           {error.detail && <div className="mt-1 break-words text-xs opacity-80">Подробности: {error.detail}</div>}
         </div>
       )}
-      {fallback && <a href="/api/oauth/vk/start" className="mt-2 flex h-11 items-center justify-center rounded-xl bg-[#0077FF] px-4 text-sm font-medium text-white transition hover:bg-[#006AE6]">Войти через VK ID по ссылке</a>}
     </div>
   );
 }
