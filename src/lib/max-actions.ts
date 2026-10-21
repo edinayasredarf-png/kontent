@@ -16,7 +16,7 @@ export async function maxStartLinkAction(brandId: string): Promise<R<{ code: str
 }
 
 /** Опрос: бот уже получил ключ? Когда да — возвращаем каналы, где вы администратор, а бот добавлен. */
-export async function maxLinkStatusAction(code: string): Promise<R<{ status: "pending" | "linked" | "expired"; chats?: MaxChatOpt[] }>> {
+export async function maxLinkStatusAction(code: string): Promise<R<{ status: "pending" | "linked" | "expired"; chats?: MaxChatOpt[]; diag?: string }>> {
   const c = await requireWriter();
   try { return { ok: true, ...(await linkStatus(c.org.id, c.user.id, String(code))) }; } catch (e) { return { ok: false, error: msg(e) }; }
 }

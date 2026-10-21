@@ -38,13 +38,20 @@ export async function isChatAdmin(chatId: string | number, maxUserId: string | n
 export interface MaxChatOpt { id: string; title: string; channel: boolean }
 
 /** Состояние ключа и, когда ключ получен ботом, каналы этого пользователя (где он администратор, а бот добавлен). */
-export async function linkStatus(orgId: string, userId: string, codeIn: string): Promise<{ status: "pending" | "linked" | "expired"; chats?: MaxChatOpt[] }> {
+export async function linkStatus(orgId: string, userId: string, codeIn: string): Promise<{ status: "pending" | "linked" | "expired"; chats?: MaxChatOpt[]; diag?: string }> {
   const l = await one<{ status: string; max_user_id: string | null; live: boolean }>("select status,max_user_id,expires_at > now() live from kz_max_links where org_id=$1 and user_id=$2 and code=$3", [orgId, userId, normCode(codeIn)]);
   if (!l || !l.live || l.status === "used") return { status: "expired" };
   if (l.status === "pending" || !l.max_user_id) return { status: "pending" };
   const rows = await q<{ chat_id: string; title: string; is_channel: boolean }>("select chat_id::text,title,is_channel from kz_max_chats where active order by updated_at desc limit 40");
-  const checked = await Promise.all(rows.map(async (c) => ({ c, ok: await isChatAdmin(c.chat_id, l.max_user_id!).catch(() => false) })));
-  return { status: "linked", chats: checked.filter((x) => x.ok).map(({ c }) => ({ id: c.chat_id, title: c.title || `Канал ${c.chat_id}`, channel: c.is_channel })) };
+  const checked = await Promise.all(rows.map(async (c) => {
+    try { return { c, ok: await isChatAdmin(c.chat_id, l.max_user_id!), err: "" }; }
+    catch (e) { return { c, ok: false, err: (e as Error).message }; }
+  }));
+  const chats = checked.filter((x) => x.ok).map(({ c }) => ({ id: c.chat_id, title: c.title || `Канал ${c.chat_id}`, channel: c.is_channel }));
+  // что именно мы видим: помогает понять, где обрыв (канал не известен боту, бот не админ канала или ваш аккаунт не в списке админов)
+  const parts = [`MAX-аккаунт, приславший ключ: ${l.max_user_id}`, `каналов и чатов, о которых знает бот: ${rows.length}`];
+  for (const x of checked.filter((y) => !y.ok).slice(0, 3)) parts.push(`«${x.c.title || x.c.chat_id}»: ${x.err ? x.err.slice(0, 140) : "этого аккаунта нет в списке администраторов"}`);
+  return { status: "linked", chats, diag: chats.length ? undefined : parts.join(". ") + "." };
 }
 
 /** Создать канал для выбранного чата. Всё перепроверяется на сервере: ключ этого пользователя и организации, админство в чате по данным MAX. */
@@ -142,6 +149,7 @@ export async function botState(): Promise<{ ok: boolean; text: string }> {
     if (!list.some((x) => x.url === want)) return { ok: false, text: `Бот ${name}: подписка на другой адрес (${list[0].url}), ожидается ${want} — нажмите «Подключить вебхук бота MAX»` };
     const need = ["bot_added", "message_created", "bot_admin_permissions_changed"].filter((t) => !list.some((x) => !x.update_types || x.update_types.includes(t)));
     if (need.length) return { ok: false, text: `Бот ${name}: подписка без событий ${need.join(", ")} — нажмите «Подключить вебхук бота MAX»` };
-    return { ok: true, text: `Бот ${name}: вебхук подключён (${want})` };
+    const n = await one<{ n: string; last: string | null }>("select count(*) n, max(updated_at)::text last from kz_max_chats where active").catch(() => null);
+    return { ok: true, text: `Бот ${name}: вебхук подключён (${want}). Каналов и чатов известно: ${n?.n ?? "?"}${n?.last ? `, последнее событие по каналам: ${n.last.slice(0, 16)}` : ""}` };
   } catch (e) { return { ok: false, text: `Бот MAX: ${(e as Error).message}` }; }
 }

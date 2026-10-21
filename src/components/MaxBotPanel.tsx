@@ -10,6 +10,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
   const [code, setCode] = useState("");
   const [state, setState] = useState<"idle" | "pending" | "linked" | "expired" | "done">("idle");
   const [chats, setChats] = useState<MaxChatOpt[]>([]);
+  const [diag, setDiag] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState(false);
@@ -28,7 +29,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
     if (!code) return;
     const r = await maxLinkStatusAction(code).catch(() => null);
     if (!r?.ok) return;
-    setState(r.status); if (r.chats) setChats(r.chats);
+    setState(r.status); if (r.chats) setChats(r.chats); setDiag(r.diag ?? "");
   }, [code]);
   // пока ждём, раз в 3 секунды спрашиваем сервер, получил ли бот ключ
   useEffect(() => {
@@ -79,6 +80,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
                   <button type="button" disabled={!!busy} onClick={() => connect(c)} className="btn btn-ghost !py-1 text-xs">{busy === c.id && <Loader2 size={13} className="animate-spin" />}Подключить</button>
                 </div>
               ))}
+              {chats.length === 0 && diag && <p className="rounded-lg bg-tile px-3 py-2 text-xs text-ink3">Что видит сайт: {diag}</p>}
               <button type="button" onClick={poll} className="btn btn-ghost !px-2.5 !py-1 text-xs"><RefreshCw size={13} />Обновить</button>
             </div>
           )}
