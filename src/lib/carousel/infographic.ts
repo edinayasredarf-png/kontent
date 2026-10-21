@@ -1,3 +1,4 @@
+import { resolveFont, withFont } from "./brand-font";
 import sharp from "sharp";
 import { cleanText, fit, paths, widthOf } from "./text";
 import { decor, inkOn, lum, M, palette, plateFor, prepLogo, W, type CarouselStyle, type Pal } from "./render";
@@ -67,7 +68,11 @@ function body(info: Infographic, p: Pal, ink: string, top: number, bottom: numbe
 }
 
 /** Одна картинка-инфографика 1080×1350: заголовок, подзаголовок, блоки выбранной раскладки, имя бренда и логотип. */
-export async function renderInfographic(o: { info: Infographic; style: CarouselStyle; colors: { hex: string }[]; brandName: string; logo?: Buffer | null }): Promise<{ data: Buffer; mime: string; width: number; height: number }> {
+type InfoOpts = { info: Infographic; style: CarouselStyle; colors: { hex: string }[]; brandName: string; logo?: Buffer | null; font?: string };
+export async function renderInfographic(o: InfoOpts): Promise<{ data: Buffer; mime: string; width: number; height: number }> {
+  return withFont(await resolveFont(o.font), () => renderInfographicInner(o));
+}
+async function renderInfographicInner(o: InfoOpts): Promise<{ data: Buffer; mime: string; width: number; height: number }> {
   const p = palette(o.style, o.colors), ink = p.ink, logo = await prepLogo(o.logo);
   let g = decor(p, H, 0);
   const t = fit(o.info.title, 800, { maxWidth: INNER, maxHeight: 300, maxSize: 82, minSize: 46, maxLines: 4, lh: 1.1 });

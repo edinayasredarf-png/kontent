@@ -1,0 +1,1 @@
+Шрифты распространяются по открытым лицензиям: SIL Open Font License 1.1 (большинство), Apache License 2.0 (Roboto, Open Sans, Roboto Slab, Noto и др.), Ubuntu Font Licence (Ubuntu). Источник файлов: пакеты @fontsource (https://fontsource.org). Тексты лицензий: https://openfontlicense.org, https://www.apache.org/licenses/LICENSE-2.0

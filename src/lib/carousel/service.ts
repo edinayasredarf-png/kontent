@@ -40,7 +40,7 @@ export async function renderForItem(orgId: string, itemId: string, slides: Slide
   if (cover === undefined) coverBuf = oldCover ? (await loadAsset(orgId, oldCover.id))?.data ?? null : null;
   else coverBuf = cover;
 
-  const out = await renderCarousel({ slides, style, colors: kit.colors ?? [], brandName: it.brand, aspect: st.carouselFormat, logo, cover: coverBuf });
+  const out = await renderCarousel({ slides, style, colors: kit.colors ?? [], font: kit.font, brandName: it.brand, aspect: st.carouselFormat, logo, cover: coverBuf });
   // слайды, отредактированные вручную в визуальном редакторе, не перерисовываем, пока их текст не изменился (иначе правка потеряется молча)
   const oldTitles = it.meta?.carousel?.slides ?? [];
   const wantKeep = (it.meta?.carousel?.custom ?? []).filter((pos) => !reset.includes(pos) && pos < slides.length && oldTitles[pos]?.title === slides[pos]?.title);
@@ -73,7 +73,7 @@ export async function renderInfographicForItem(orgId: string, itemId: string, in
   const kit = cleanKit(it.kit);
   const logoRow = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
   const logo = logoRow ? (await loadAsset(orgId, logoRow.id))?.data ?? null : null;
-  const out = await renderInfographic({ info, style, colors: kit.colors ?? [], brandName: it.brand, logo });
+  const out = await renderInfographic({ info, style, colors: kit.colors ?? [], font: kit.font, brandName: it.brand, logo });
   const id = await saveAsset(orgId, it.brand_id, "generated", "infographic.jpg", out, "", { itemId, position: 0 });
   await q("delete from kz_assets where item_id=$1 and org_id=$2 and id <> $3", [itemId, orgId, id]);
   await q("update kz_content_items set meta = meta || jsonb_build_object('infographic', $3::jsonb, 'infographicStyle', $4::text), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(info), style]);

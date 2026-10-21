@@ -6,6 +6,8 @@ import { one } from "@/lib/db";
 import { listAssets, LIMITS } from "@/lib/assets";
 import { cleanKit, SIZES, STYLES } from "@/lib/images";
 import { Form, Field } from "@/components/Form";
+import { ColorSlots } from "@/components/ColorSlots";
+import { FontPicker } from "@/components/FontPicker";
 import { AssetUploader } from "@/components/AssetUploader";
 import { deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
@@ -28,8 +30,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
   const logo = assets.find((a) => a.kind === "logo");
   const products = assets.filter((a) => a.kind === "product"), refs = assets.filter((a) => a.kind === "reference");
   const canEdit = canWrite(c.org.role);
-  const slots = Array.from({ length: 6 }, (_, i) => kit.colors?.[i] ?? null);
-
+  
   return (
     <>
       <Link href="/app/brands" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все бренды</Link>
@@ -48,17 +49,13 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
             <Field label="Конкуренты (не упоминать)"><input name="competitors" defaultValue={(b.rules.competitors ?? []).join(", ")} className="input" /></Field>
 
             <h2 className="border-t border-line pt-5 text-sm font-semibold">Фирменные цвета</h2>
-            <p className="-mt-2 text-xs text-ink2">Включите нужные (до 6). Модель рисует картинки в этой палитре.</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {slots.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-xl bg-tile p-2">
-                  <input type="checkbox" name={`color_on_${i}`} defaultChecked={!!s} aria-label={`Цвет ${i + 1}`} />
-                  <input type="color" name={`color_hex_${i}`} defaultValue={s?.hex ?? "#029cda"} className="size-9 shrink-0 cursor-pointer rounded-lg border-0 bg-transparent p-0" />
-                  <input name={`color_name_${i}`} defaultValue={s?.name ?? ""} placeholder="Название (необязательно)" maxLength={30} className="input !bg-surface !py-1.5 text-xs" />
-                </div>
-              ))}
-            </div>
-            <Field label="Шрифты (для справки команде)"><input name="fonts" defaultValue={kit.fonts} className="input" placeholder="Inter, PT Serif" /></Field>
+            <p className="-mt-2 text-xs text-ink2">До 6 цветов: выберите пипеткой или впишите HEX-код (например #029CDA), образец покажется сразу. Модель рисует картинки в этой палитре, а карусели оформляются в этих цветах.</p>
+            <ColorSlots initial={kit.colors ?? []} />
+
+            <h2 className="border-t border-line pt-5 text-sm font-semibold">Шрифты</h2>
+            <p className="-mt-2 text-xs text-ink2">Шрифт слайдов каруселей и инфографики. Выберите из списка (все с кириллицей) или подключите любой шрифт из Google Fonts.</p>
+            <FontPicker initial={kit.font ?? ""} />
+            <Field label="Заметка о шрифтах для команды (необязательно)"><input name="fonts" defaultValue={kit.fonts} className="input" placeholder="Заголовки Montserrat, текст Inter" /></Field>
 
             <h2 className="border-t border-line pt-5 text-sm font-semibold">Стиль изображений</h2>
             <div className="flex flex-wrap gap-2">

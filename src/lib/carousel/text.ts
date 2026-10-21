@@ -1,4 +1,5 @@
 import opentype from "opentype.js";
+import { activeFont } from "./brand-font";
 import { INTER_CYRILLIC_500, INTER_CYRILLIC_800, INTER_LATIN_500, INTER_LATIN_800 } from "./fonts";
 
 /**
@@ -14,6 +15,8 @@ function parse(b64: string): opentype.Font {
   return opentype.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
 }
 function fonts(w: Weight): Pair {
+  const a = activeFont();
+  if (a) return a[w];
   let p = cache.get(w);
   if (!p) { p = w === 800 ? { latin: parse(INTER_LATIN_800), cyr: parse(INTER_CYRILLIC_800) } : { latin: parse(INTER_LATIN_500), cyr: parse(INTER_CYRILLIC_500) }; cache.set(w, p); }
   return p;

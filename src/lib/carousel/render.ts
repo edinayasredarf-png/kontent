@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { resolveFont, withFont } from "./brand-font";
 import { cleanText, fit, paths, widthOf } from "./text";
 import { fixLayout, parseCompare, parseList, type SlideLayout } from "./layouts";
 
@@ -6,7 +7,7 @@ export interface Slide { title: string; body: string; layout?: SlideLayout }
 export type CarouselStyle = "brand" | "light" | "dark";
 export interface RenderOpts {
   slides: Slide[]; style: CarouselStyle; colors: { hex: string; name?: string }[]; brandName: string;
-  aspect: "square" | "portrait"; logo?: Buffer | null; cover?: Buffer | null;
+  aspect: "square" | "portrait"; logo?: Buffer | null; cover?: Buffer | null; /** Фирменный шрифт из набора бренда (slug каталога или gf:Название). */ font?: string;
 }
 
 export const W = 1080, M = 84;
@@ -172,7 +173,12 @@ async function slideSvg(o: RenderOpts, i: number, H: number, logo: Awaited<Retur
 }
 
 /** Рисует все слайды карусели. Возвращает JPEG-файлы по порядку. */
-export async function renderCarousel(o: RenderOpts): Promise<{ data: Buffer; mime: string; width: number; height: number }[]> {
+type Rendered = { data: Buffer; mime: string; width: number; height: number };
+export async function renderCarousel(o: RenderOpts): Promise<Rendered[]> {
+  if (o.slides.length < 2) throw new Error("В карусели должно быть минимум 2 слайда");
+  return withFont(await resolveFont(o.font), () => renderCarouselInner(o));
+}
+async function renderCarouselInner(o: RenderOpts): Promise<Rendered[]> {
   if (o.slides.length < 2) throw new Error("В карусели должно быть минимум 2 слайда");
   const H = o.aspect === "portrait" ? 1350 : 1080;
   const p = palette(o.style, o.colors), logo = await prepLogo(o.logo);

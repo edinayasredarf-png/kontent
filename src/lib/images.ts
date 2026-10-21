@@ -1,11 +1,13 @@
 import sharp from "sharp";
 import { baseUrl, chat, modelFor } from "./ai";
+import { isFontSpec } from "./carousel/brand-font";
 import { loadAsset, processImage, type AssetRow } from "./assets";
 import { safeFetchBuffer } from "./safefetch";
 
 export interface Kit {
   colors?: { hex: string; name?: string }[];
-  fonts?: string;
+  fonts?: string;           // заметка о шрифтах для команды
+  font?: string;            // шрифт слайдов карусели: slug из каталога или gf:Название (Google Fonts)
   style?: string;           // пресет
   styleNotes?: string;      // свободное описание стиля
   imageMust?: string;       // что всегда есть на картинках
@@ -34,7 +36,7 @@ export function cleanKit(raw: unknown): Kit {
   const t = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
   return {
     colors: Array.isArray(k.colors) ? k.colors.filter((c) => c && HEX.test(String(c.hex))).slice(0, 8).map((c) => ({ hex: String(c.hex).toLowerCase(), name: t(c.name, 30) })) : [],
-    fonts: t(k.fonts, 120), style: k.style && STYLES[k.style] ? k.style : "", styleNotes: t(k.styleNotes, 600),
+    fonts: t(k.fonts, 120), font: isFontSpec(k.font) ? k.font : "", style: k.style && STYLES[k.style] ? k.style : "", styleNotes: t(k.styleNotes, 600),
     imageMust: t(k.imageMust, 300), imageNever: t(k.imageNever, 300),
     aspect: k.aspect && k.aspect in SIZES ? k.aspect : "square",
     logoPos: k.logoPos && ["none", "br", "bl", "tr", "tl"].includes(k.logoPos) ? k.logoPos : "br",

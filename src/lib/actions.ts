@@ -57,12 +57,13 @@ export async function saveBrand(_: unknown, f: FormData) {
   const list = (k: string) => s(f, k).split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
   const rules = JSON.stringify({ forbidden: list("forbidden"), competitors: list("competitors") });
   if (!s(f, "name")) return { error: "Укажите название" };
+  if (id && f.get("color_invalid") === "1") return { error: "Проверьте код цвета: нужен формат #RRGGBB или #RGB" };
   if (id) {
     // 6 слотов цвета; включённые отмечены флажком (у <input type=color> «пустого» значения нет)
     const colors = [0, 1, 2, 3, 4, 5].filter((i) => f.get(`color_on_${i}`) === "on").map((i) => ({ hex: s(f, `color_hex_${i}`), name: s(f, `color_name_${i}`) }));
     const kit = f.has("kit_present") ? JSON.stringify(cleanKit({
       colors,
-      fonts: s(f, "fonts"), style: s(f, "style"), styleNotes: s(f, "styleNotes"), imageMust: s(f, "imageMust"), imageNever: s(f, "imageNever"),
+      fonts: s(f, "fonts"), font: s(f, "font"), style: s(f, "style"), styleNotes: s(f, "styleNotes"), imageMust: s(f, "imageMust"), imageNever: s(f, "imageNever"),
       aspect: s(f, "aspect"), logoPos: s(f, "logoPos"), logoScale: Number(s(f, "logoScale")),
     })) : null;
     await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7,kit=coalesce($8::jsonb,kit) where id=$1 and org_id=$2",
