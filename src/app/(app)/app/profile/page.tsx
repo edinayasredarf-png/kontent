@@ -5,14 +5,21 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { changeEmailAction, changePasswordAction, logoutEverywhereAction, updateNameAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
 import { ThemePicker } from "@/components/ThemePicker";
+import { AvatarUploader } from "@/components/AvatarUploader";
+import { one } from "@/lib/db";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Profile() {
   const c = await requireCtx();
+  const av = await one<{ source: string }>("select source from kz_user_avatars where user_id=$1", [c.user.id]).catch(() => null);
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Профиль и настройки" sub={c.user.email} />
       <div className="grid gap-6">
+        <section className="card p-6">
+          <b className="mb-4 block text-sm">Фото профиля</b>
+          <AvatarUploader id={c.user.id} v={c.user.avatarV} name={c.user.name} email={c.user.email} source={av?.source ?? null} />
+        </section>
         <section className="card p-6">
           <b className="mb-1 block text-sm">Тема оформления</b>
           <p className="mb-4 text-xs text-ink2">Сохраняется в аккаунте и одинакова на всех ваших устройствах.</p>

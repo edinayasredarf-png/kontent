@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <ThemeSync theme={c.user.theme} />
       <PendingBar /><Suspense fallback={null}><NavProgress /></Suspense>
-      <AppShell orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited}
+      <AppShell orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} userId={c.user.id} avatarV={c.user.avatarV} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited}
         balance={rub(c.org.balance_kop)} unlimited={c.org.unlimited} planName={c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name} alerts={Number(a?.n ?? 0)}>
         {children}
       </AppShell>

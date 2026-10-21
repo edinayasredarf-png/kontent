@@ -5,12 +5,15 @@ import { canManageTeam, listTeam, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
 import { inviteAction, removeMemberAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
+import { Avatar } from "@/components/Avatar";
+import { q } from "@/lib/db";
 import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Team() {
   const c = await requireCtx();
   const { members, invites } = await listTeam(c.org.id);
+  const avs = new Map((await q<{ user_id: string; v: string }>("select user_id, extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id = any($1::uuid[])", [members.map((m) => m.user_id)]).catch(() => [])).map((r) => [r.user_id, Number(r.v)]));
   const manage = canManageTeam(c.org.role);
   const lim = c.org.unlimited ? null : PLANS[c.org.plan].members;
   const roles = c.org.role === "owner" ? ["admin", "editor", "viewer"] : ["editor", "viewer"];
@@ -23,7 +26,7 @@ export default async function Team() {
             const editable = manage && m.role !== "owner" && (m.role !== "admin" || c.org.role === "owner") && m.user_id !== c.user.id;
             return (
               <div key={m.user_id} className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 last:border-0">
-                <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{m.name || m.email}{m.user_id === c.user.id && <span className="ml-2 text-xs font-normal text-ink3">это вы</span>}</div><div className="truncate text-xs text-ink3">{m.email}</div></div>
+                <Avatar id={m.user_id} v={avs.get(m.user_id)} name={m.name} email={m.email} className="size-9" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{m.name || m.email}{m.user_id === c.user.id && <span className="ml-2 text-xs font-normal text-ink3">это вы</span>}</div><div className="truncate text-xs text-ink3">{m.email}</div></div>
                 {editable ? (
                   <form action={setRoleAction} className="flex items-center gap-2"><input type="hidden" name="user" value={m.user_id} />
                     <select name="role" defaultValue={m.role} className="input !w-auto !py-1.5 text-xs">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}{!roles.includes(m.role) && <option value={m.role}>{ROLE_LABEL[m.role]}</option>}</select>

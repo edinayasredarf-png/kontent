@@ -23,7 +23,7 @@ const key = () => {
 
 export interface Session { uid: string; org: string; v?: number }
 export interface Ctx {
-  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system" };
+  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system"; avatarV: number | null };
   org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; suspended: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
@@ -126,13 +126,15 @@ async function loadCtx(): Promise<Ctx> {
   if (!s) redirect("/login");
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   // три независимых запроса идут одновременно; безлимит пересчитываем тут же и пишем в базу, только если он изменился
-  const [row, orgs] = await Promise.all([
+  const [row, orgs, av] = await Promise.all([
     one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
       `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role,
               exists(select 1 from kz_memberships m2 join kz_users u2 on u2.id=m2.user_id where m2.org_id=o.id and m2.role='owner' and lower(u2.email)=any($3::text[])) want_unlimited
          from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
         where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org, admins]),
     q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]),
+    // аватарка необязательна: до применения миграции 023 таблицы ещё нет, и приложение должно работать
+    one<{ v: string }>("select extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id=$1", [s.uid]).catch(() => null),
   ]);
   if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
   // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
@@ -142,7 +144,7 @@ async function loadCtx(): Promise<Ctx> {
   // приостановленная организация недоступна её участникам; администратор платформы заходит всегда
   if (row.suspended && !isAdmin) redirect("/suspended");
   return {
-    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme },
+    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme, avatarV: av?.v ? Number(av.v) : null },
     org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited, suspended: row.suspended },
     orgs,
     isAdmin,
@@ -155,4 +157,11 @@ export async function requireWriter(): Promise<Ctx> {
   const c = await requireCtx();
   if (!canWrite(c.org.role)) throw new Error("Недостаточно прав");
   return c;
+}
+
+/** Для маршрутов API, где нет серверных действий: сессия действительна (участник организации, не заблокирован, версия сессии та же). Роль не проверяется. */
+export async function validSession(s: Session): Promise<boolean> {
+  const r = await one<{ disabled: boolean; session_ver: number }>(
+    "select u.disabled,u.session_ver from kz_memberships m join kz_users u on u.id=m.user_id where m.user_id=$1 and m.org_id=$2", [s.uid, s.org]);
+  return !!r && !r.disabled && (s.v ?? 0) === r.session_ver;
 }

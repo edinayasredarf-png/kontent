@@ -602,5 +602,15 @@ create table if not exists kz_max_links (
 );
 create index if not exists max_links_org on kz_max_links(org_id);
 
+-- 023_user_avatars.sql
+-- Аватарки пользователей: загруженная вручную или взятая у Яндекса/VK при входе. Хранится уже уменьшенной (webp 256×256), поэтому таблица лёгкая.
+create table if not exists kz_user_avatars (
+  user_id uuid primary key references kz_users(id) on delete cascade,
+  mime text not null default 'image/webp',
+  data bytea not null,
+  source text not null default 'upload' check (source in ('upload','yandex','vk')),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql') on conflict do nothing;

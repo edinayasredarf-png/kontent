@@ -10,13 +10,13 @@ import { ThemeToggle } from "./ThemeToggle";
 import { NAV } from "./nav";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 import { SubmitButton } from "../SubmitButton";
+import { Avatar } from "../Avatar";
 
 export interface ShellProps {
-  orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; isAdmin: boolean;
+  orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
   free: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; children: React.ReactNode;
 }
 
-const initials = (n: string, e: string) => (n.trim()[0] ?? e[0] ?? "?").toUpperCase();
 
 /** Оболочка кабинета: плавающее меню слева, шапка с поиском и быстрыми действиями, на телефоне меню выезжает поверх страницы. */
 export function AppShell(p: ShellProps) {
@@ -68,7 +68,7 @@ export function AppShell(p: ShellProps) {
       <form action={logoutAction} className={clsx("mb-5 shrink-0", slim ? "px-3" : "px-6")}>
         <div className={clsx("flex items-center rounded-[30px] bg-surface p-3 shadow-soft", slim ? "justify-center" : "justify-between")}>
           <Link href="/app/profile" title="Профиль и безопасность" className="flex min-w-0 items-center gap-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-white">{initials(p.userName, p.email)}</span>
+            <Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-8" />
             {!slim && <span className="truncate text-sm font-semibold">{p.userName || p.email}</span>}
           </Link>
           {!slim && <SubmitButton title="Выйти" aria-label="Выйти" className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-ink hover:bg-accent-soft"><LogOut size={14} /></SubmitButton>}
@@ -91,7 +91,7 @@ export function AppShell(p: ShellProps) {
             <ThemeToggle />
             <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>
             <Link href="/app/settings" aria-label="Настройки" title="Настройки" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Settings size={20} /></Link>
-            <Link href="/app/profile" aria-label="Профиль" title={p.planName} className="grid size-10 place-items-center rounded-full bg-accent text-sm font-semibold text-white">{initials(p.userName, p.email)}</Link>
+            <Link href="/app/profile" aria-label="Профиль" title={p.planName} className="rounded-full"><Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" /></Link>
           </div>
         </header>
         {/* слева резервируется место под панель (140 px свёрнутая, 372 px развёрнутая): справа даём столько же, чтобы колонки по центру стояли по центру окна; на средних экранах поле справа уменьшается, чтобы содержимому осталось не меньше 600 px */}

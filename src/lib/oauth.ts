@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import { createAccount, defaultOrg, type Session } from "./auth";
+import { importProviderAvatar } from "./avatar";
 
 export type Provider = "yandex" | "vk";
 export const PROVIDERS: Provider[] = ["yandex", "vk"];
@@ -36,6 +37,8 @@ export function oauthProblem(p: Provider): string | null {
 
 const VKID = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.ru").replace(/\/+$/, "");
 const YA_OAUTH = () => (process.env.YANDEX_OAUTH_BASE?.trim() || "https://oauth.yandex.ru").replace(/\/+$/, "");
+/** Ссылка на аватарку Яндекса из ответа /info (default_avatar_id); пустой аватар («заглушка») не берём. */
+const yaAvatar = (me: Record<string, unknown>) => (me.default_avatar_id && !me.is_avatar_empty ? `https://avatars.yandex.net/get-yapic/${String(me.default_avatar_id).replace(/[^\w/-]/g, "")}/islands-200` : null);
 const YA_LOGIN = () => (process.env.YANDEX_LOGIN_BASE?.trim() || "https://login.yandex.ru").replace(/\/+$/, "");
 
 /** PKCE (RFC 7636): verifier остаётся у нас в httpOnly-cookie, провайдеру уходит только его SHA-256. Перехваченный код без verifier бесполезен. */
@@ -58,7 +61,7 @@ export const redirectUri = (req: Request, p: Provider) => `${appOrigin(req)}/api
 export function authorizeUrl(req: Request, p: Provider, state: string, challenge?: string): string {
   const c = creds(p)!;
   const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirectUri(req, p), response_type: "code", state });
-  if (p === "yandex") { q.set("scope", "login:email login:info"); return `${YA_OAUTH()}/authorize?${q}`; }
+  if (p === "yandex") { q.set("scope", "login:email login:info login:avatar"); return `${YA_OAUTH()}/authorize?${q}`; }
   q.set("code_challenge", challenge ?? ""); q.set("code_challenge_method", "S256");
   // email у VK ID выдаётся только если право «email» включено в настройках приложения; по умолчанию просим минимум
   const scope = process.env.VK_SCOPE?.trim();
@@ -78,9 +81,9 @@ export async function vkProfileFromToken(accessToken: string): Promise<Profile> 
     body: new URLSearchParams({ client_id: c.id, access_token: accessToken }),
   });
   const me = await json(res, "VK ID user_info");
-  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string };
+  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string; avatar?: string };
   if (!u.user_id) throw new Error("VK ID не вернул user_id");
-  return { id: String(u.user_id), email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() };
+  return { id: String(u.user_id), email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim(), avatar: u.avatar ?? null };
 }
 
 /**
@@ -94,7 +97,7 @@ export async function yandexProfileFromToken(accessToken: string): Promise<Profi
   if (me.client_id && String(me.client_id) !== c.id) throw new Error("Токен выдан другому приложению");
   if (!me.id) throw new Error("Яндекс не вернул id");
   const email = String(me.default_email ?? (me.emails as string[] | undefined)?.[0] ?? "").toLowerCase();
-  return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim() };
+  return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim(), avatar: yaAvatar(me) };
 }
 
 /** Заблокированный администратором пользователь не входит и через Яндекс/VK. */
@@ -103,7 +106,7 @@ async function assertActive(userId: string, run: typeof q = q) {
   if (u?.disabled) throw new Error("Аккаунт заблокирован");
 }
 
-export interface Profile { id: string; email: string | null; name: string }
+export interface Profile { id: string; email: string | null; name: string; avatar?: string | null }
 
 async function json(res: Response, what: string) {
   const j = await res.json().catch(() => ({}));
@@ -120,7 +123,7 @@ export async function fetchProfile(req: Request, p: Provider, code: string, x: {
     const tok = await json(await fetch(`${YA_OAUTH()}/token`, form({ grant_type: "authorization_code", code, client_id: c.id, client_secret: c.secret })), "Яндекс token");
     const me = await json(await fetch(`${YA_LOGIN()}/info?format=json`, { headers: { Authorization: `OAuth ${tok.access_token}` }, signal: t }), "Яндекс info");
     const email = String(me.default_email ?? (me.emails as string[] | undefined)?.[0] ?? "").toLowerCase();
-    return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim() };
+    return { id: String(me.id), email: email || null, name: String(me.real_name ?? me.display_name ?? `${me.first_name ?? ""} ${me.last_name ?? ""}`).trim(), avatar: yaAvatar(me) };
   }
   // VK ID: код + code_verifier + device_id → токен → профиль
   if (!x.verifier || !x.deviceId) throw new Error("VK не вернул device_id или потерян code_verifier");
@@ -129,10 +132,10 @@ export async function fetchProfile(req: Request, p: Provider, code: string, x: {
   })), "VK ID token");
   if (!tok.access_token) throw new Error("VK ID не вернул access_token");
   const me = await json(await fetch(`${VKID()}/oauth2/user_info`, form({ client_id: c.id, access_token: String(tok.access_token) })), "VK ID user_info");
-  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string };
+  const u = (me.user ?? {}) as { user_id?: string | number; first_name?: string; last_name?: string; email?: string; avatar?: string };
   const id = String(u.user_id ?? tok.user_id ?? "");
   if (!id) throw new Error("VK ID не вернул user_id");
-  return { id, email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() };
+  return { id, email: u.email ? String(u.email).toLowerCase() : null, name: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim(), avatar: u.avatar ?? null };
 }
 
 /**
@@ -140,6 +143,13 @@ export async function fetchProfile(req: Request, p: Provider, code: string, x: {
  * подтверждает email); 3) новый — создаём пользователя и организацию. Без email (VK мог не отдать) заводим служебный адрес.
  */
 export async function resolveUser(p: Provider, prof: Profile, refCode?: string): Promise<Session> {
+  const s = await resolveUserInner(p, prof, refCode);
+  // аватарка из профиля провайдера: при регистрации и при каждом входе (пока человек не загрузил свою); сбой на вход не влияет
+  await importProviderAvatar(s.uid, p, prof.avatar);
+  return s;
+}
+
+async function resolveUserInner(p: Provider, prof: Profile, refCode?: string): Promise<Session> {
   const known = await one<{ user_id: string }>("select user_id from kz_oauth_identities where provider=$1 and provider_id=$2", [p, prof.id]);
   if (known) {
     await assertActive(known.user_id);
