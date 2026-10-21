@@ -96,6 +96,7 @@ const HELP = (name: string) => `Здравствуйте! Это бот серв
 
 export async function handleUpdate(u: Upd): Promise<void> {
   const t = u.update_type;
+  console.log("[max-bot] событие", t, "chat_id=", u.chat_id ?? u.message?.recipient?.chat_id ?? "нет", "chat_type=", u.message?.recipient?.chat_type ?? "нет");
   if (t === "bot_added" && u.chat_id != null) {
     await rememberChat(u.chat_id, u.is_channel !== false, u.user?.user_id ?? null);
   } else if (t === "bot_removed" && u.chat_id != null) {
