@@ -8,7 +8,7 @@ import { PRICES, rub } from "@/lib/wallet";
 import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftPublishAction, draftRemoveImageAction, draftReworkImageAction, draftToPlanAction, regenDraftAction, saveDraftTextAction } from "@/lib/draft-actions";
 import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
-import { AutoTextarea } from "@/components/AutoTextarea";
+import { DraftBodyEditor } from "@/components/DraftBodyEditor";
 import { ImagePicker } from "@/components/ImagePicker";
 import { ImageSlot } from "@/components/ImageSlot";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -25,6 +25,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
   const items = await loadDrafts(orgId, ids);
   if (!items.length) return null;
   const fids = [...new Set(items.map((i) => i.factory_id))];
+  const brands = await q<{ id: string; name: string }>("select f.id,b.name from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.id = any($2::uuid[])", [orgId, fids]);
   const [times, dates] = await Promise.all([
     q<{ id: string; t: string | null }>("select id, schedule->'times'->>0 t from kz_factories where org_id=$1 and id = any($2::uuid[])", [orgId, fids]),
     Promise.all(fids.map(async (f) => [f, (await allocateDates(f, 1))[0] ?? ""] as const)),
@@ -57,7 +58,8 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
             ) : (
               <form action={saveDraftTextAction} className="space-y-2">
                 {hid(it.id)}
-                <AutoTextarea name="body" defaultValue={it.body} rows={6} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+                <DraftBodyEditor initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
+                  kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} oneMessageTg={!!process.env.APP_URL?.trim()} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} />
                 <div className="flex flex-wrap items-center gap-2">
                   <SubmitButton className="pill pill-sm">Сохранить текст</SubmitButton>
                   <SubmitButton formAction={regenDraftAction} data-confirm="Переписать материал заново? Текущий текст заменится новым, это платная генерация." data-confirm-ok="Переписать" className="pill pill-sm"><RefreshCw size={13} />Переделать заново{price(priceOf(it.kind))}</SubmitButton>

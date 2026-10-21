@@ -142,7 +142,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <div className="mx-auto mb-6 w-full max-w-[680px] rounded-[28px] bg-surface p-2.5 shadow-float outline outline-1 -outline-offset-1 outline-line">
           <div className="mb-3 flex items-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-sm font-semibold"><Sparkles size={16} />Создать материал</div>
           <div className="px-2 pb-2">
-            <CreateMaterialForm factoryId={id} kinds={[...KINDS]} labels={KIND} defaultKind={sched?.formats?.[0] ?? "post"} createAction={createMaterialsAction} repurposeAction={repurposeAction}
+            <CreateMaterialForm factoryId={id} kinds={[...KINDS]} labels={KIND} defaultKind={sched?.formats?.[0] ?? "post"} createAction={createMaterialsAction} repurposeAction={repurposeAction} editPrice={c.org.unlimited ? "" : rub(PRICES.edit)}
               priceHint={`Каждый выбранный тип стоит как обычно (пост ${rub(PRICES.post)}, карусель ${rub(PRICES.carousel)}, SEO-статья ${rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.`}
               sourcePrice={c.org.unlimited ? "" : `${rub(PRICES.idea)} за материал.`} />
           </div>

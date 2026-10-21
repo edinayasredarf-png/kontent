@@ -51,6 +51,16 @@ export async function logoutAction() { await logout(); redirect("/login"); }
 export async function switchOrgAction(f: FormData) { await switchOrg(s(f, "org")); redirect("/app"); }
 
 // ---------- brands ----------
+/** Положение, размер и отступ логотипа на картинках бренда (блок «Логотип»). */
+export async function saveLogoPlacementAction(brandId: string, pos: string, scale: number, margin: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  const c = await writer();
+  const k = cleanKit({ logoPos: pos as never, logoScale: scale, logoMargin: margin });
+  const r = await q("update kz_brands set kit = coalesce(kit,'{}'::jsonb) || jsonb_build_object('logoPos',$3::text,'logoScale',$4::int,'logoMargin',$5::int) where id=$1 and org_id=$2 returning id", [brandId, c.org.id, k.logoPos, k.logoScale, k.logoMargin]);
+  if (!r.length) return { ok: false, error: "Бренд не найден" };
+  revalidatePath(`/app/brands/${brandId}`);
+  return { ok: true };
+}
+
 export async function saveBrand(_: unknown, f: FormData) {
   const c = await writer();
   const id = s(f, "id");
@@ -61,10 +71,12 @@ export async function saveBrand(_: unknown, f: FormData) {
   if (id) {
     // 6 слотов цвета; включённые отмечены флажком (у <input type=color> «пустого» значения нет)
     const colors = [0, 1, 2, 3, 4, 5].filter((i) => f.get(`color_on_${i}`) === "on").map((i) => ({ hex: s(f, `color_hex_${i}`), name: s(f, `color_name_${i}`) }));
+    // положение и размер логотипа настраиваются в блоке «Логотип», в этой форме их нет: берём сохранённые
+    const prev = cleanKit((await one<{ kit: unknown }>("select kit from kz_brands where id=$1 and org_id=$2", [id, c.org.id]))?.kit);
     const kit = f.has("kit_present") ? JSON.stringify(cleanKit({
       colors,
       fonts: s(f, "fonts"), font: s(f, "font"), style: s(f, "style"), styleNotes: s(f, "styleNotes"), imageMust: s(f, "imageMust"), imageNever: s(f, "imageNever"),
-      aspect: s(f, "aspect"), logoPos: s(f, "logoPos"), logoScale: Number(s(f, "logoScale")),
+      aspect: s(f, "aspect"), logoPos: f.has("logoPos") ? (s(f, "logoPos") as never) : prev.logoPos, logoScale: f.has("logoScale") ? Number(s(f, "logoScale")) : prev.logoScale, logoMargin: prev.logoMargin,
     })) : null;
     await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7,kit=coalesce($8::jsonb,kit) where id=$1 and org_id=$2",
       [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules, kit]);

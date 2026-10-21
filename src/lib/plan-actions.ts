@@ -86,12 +86,28 @@ export async function moveItemDateAction(id: string, date: string): Promise<{ ok
  */
 export async function createMaterialsAction(f: FormData) {
   const c = await requireWriter();
-  const fid = s(f, "factory"), topic = s(f, "topic").slice(0, 300), hook = s(f, "hook").slice(0, 300);
+  const fid = s(f, "factory"), hook = s(f, "hook").slice(0, 300);
+  // в поле можно вставить и короткую идею, и готовый текст: длинное становится исходником (meta.source), а темой — его первая строка
+  const full = s(f, "topic").slice(0, 20000);
+  const asIs = s(f, "textmode") === "asis" && full.length >= 20;
+  const longText = full.length > 300;
+  const topic = longText ? (full.split(/\n/)[0].trim().slice(0, 120) || full.slice(0, 120)) : full;
+  const source = longText && !asIs ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
   const kinds = [...new Set(f.getAll("kinds").map(String).filter((k) => (KINDS as readonly string[]).includes(k)))].slice(0, 6);
-  if (topic.length < 3) return go(fid, { ok: false, error: "Введите тему или запрос (минимум 3 символа)" });
+  if (full.length < 3) return go(fid, { ok: false, error: "Введите тему, идею или текст (минимум 3 символа)" });
   if (!kinds.length) return go(fid, { ok: false, error: "Выберите хотя бы один тип материала" });
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [fid, c.org.id]);
   if (!fac) return go(fid, { ok: false, error: "Завод не найден" });
+  if (asIs) {
+    // готовый текст «как есть»: без ИИ и без списания, сразу в окно материала (можно доработать, посмотреть предпросмотр, опубликовать)
+    const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,body,planned_for,status,meta) values($1,$2,$3,'post',$4,$5,$6,null,'ready',$7::jsonb) returning id",
+      [c.org.id, fid, fac.brand_id, topic, hook, full, JSON.stringify({ manual: true, draft: true, asIs: true })]);
+    const imgErr = await attachUploadToItems(c.org.id, fac.brand_id, f.get("image"), [{ id: row!.id, kind: "post" }]);
+    revalidatePath("/app", "layout");
+    const q = new URLSearchParams({ tab: "create", draft: row!.id });
+    if (imgErr) q.set("err", `Изображение не прикреплено: ${imgErr}`);
+    redirect(`/app/factories/${fid}?${q}`);
+  }
   const now = s(f, "mode") !== "ideas";
   const picked = /^\d{4}-\d{2}-\d{2}$/.test(s(f, "date")) ? s(f, "date") : null;
   // дата не выбрана — ставим автоматически: ближайшие свободные дни по расписанию завода, каждому формату свой
@@ -102,7 +118,7 @@ export async function createMaterialsAction(f: FormData) {
     // «создать сразу» — это черновик: без даты, вне плана и публикации, пока человек не посмотрит и не решит; дату и время спрашиваем при отправке в план.
     // Материалам сверх трёх дата нужна воркеру (они пишутся в фоне), но черновик всё равно остаётся скрытым.
     const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7::date,$8,$9::jsonb) returning id",
-      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify(now ? { manual: true, draft: true } : { manual: true })]);
+      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify({ manual: true, ...(now ? { draft: true } : {}), ...(source ? { source } : {}) })]);
     ids.push(row!.id);
     kindOf.push({ id: row!.id, kind: k });
   }

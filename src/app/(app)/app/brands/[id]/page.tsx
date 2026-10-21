@@ -9,6 +9,7 @@ import { Form, Field } from "@/components/Form";
 import { ColorSlots } from "@/components/ColorSlots";
 import { FontPicker } from "@/components/FontPicker";
 import { AssetUploader } from "@/components/AssetUploader";
+import { LogoPlacement } from "@/components/LogoPlacement";
 import { deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
 import { ShareCard } from "@/components/ShareCard";
@@ -17,7 +18,6 @@ import { listLinks } from "@/lib/share";
 import { SubmitButton } from "@/components/SubmitButton";
 const TONES: Record<string, string> = { professional: "Профессиональный", friendly: "Дружелюбный", humor: "Юмористический", serious: "Серьёзный", inspiring: "Вдохновляющий" };
 const ASPECT: Record<string, string> = { square: "Квадрат 1:1", portrait: "Вертикальный 2:3", landscape: "Горизонтальный 3:2" };
-const POS: Record<string, string> = { br: "Справа внизу", bl: "Слева внизу", tr: "Справа вверху", tl: "Слева вверху", none: "Не накладывать" };
 
 export default async function BrandPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -69,8 +69,6 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
               <Field label="Всегда на картинках"><input name="imageMust" defaultValue={kit.imageMust} className="input" placeholder="например: современный город" /></Field>
               <Field label="Никогда на картинках"><input name="imageNever" defaultValue={kit.imageNever} className="input" placeholder="например: люди в касках, текст" /></Field>
               <Field label="Формат"><select name="aspect" defaultValue={kit.aspect} className="input">{Object.keys(SIZES).map((k) => <option key={k} value={k}>{ASPECT[k]}</option>)}</select></Field>
-              <Field label="Логотип на картинке"><select name="logoPos" defaultValue={kit.logoPos} className="input">{Object.entries(POS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-              <Field label={`Размер логотипа: доля ширины, % (6–30)`}><input name="logoScale" type="number" min={6} max={30} defaultValue={kit.logoScale} className="input" /></Field>
             </div>
           </Form>
         </div>
@@ -87,6 +85,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
             <AssetUploader brandId={id} kind="logo" label={logo ? "Заменить логотип" : "Загрузить логотип"} disabled={!canEdit} />
+            {logo ? <LogoPlacement brandId={id} logoUrl={`/api/assets/${logo.id}`} aspect={kit.aspect ?? "square"} initial={{ pos: kit.logoPos ?? "br", scale: kit.logoScale ?? 14, margin: kit.logoMargin ?? 4 }} disabled={!canEdit} /> : <p className="mt-3 text-xs text-ink3">Загрузите логотип, и здесь можно будет выбрать, где и каким размером он накладывается.</p>}
           </section>
           <Gallery title="Фото продукта" hint="Модель опишет товар и будет держать его внешний вид в картинках." items={products} brandId={id} kind="product" max={LIMITS.product} canEdit={canEdit} />
           <Gallery title="Референсы стиля" hint="Примеры картинок, на которые нужно быть похожими. Из них берётся палитра, свет, композиция." items={refs} brandId={id} kind="reference" max={LIMITS.reference} canEdit={canEdit} />

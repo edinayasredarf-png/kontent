@@ -4,6 +4,9 @@ import { isFontSpec } from "./carousel/brand-font";
 import { loadAsset, processImage, type AssetRow } from "./assets";
 import { safeFetchBuffer } from "./safefetch";
 
+export const LOGO_POSITIONS = ["tl", "tc", "tr", "ml", "mc", "mr", "bl", "bc", "br"] as const;
+export type LogoPos = "none" | (typeof LOGO_POSITIONS)[number];
+
 export interface Kit {
   colors?: { hex: string; name?: string }[];
   fonts?: string;           // заметка о шрифтах для команды
@@ -13,8 +16,9 @@ export interface Kit {
   imageMust?: string;       // что всегда есть на картинках
   imageNever?: string;      // чего не должно быть
   aspect?: "square" | "portrait" | "landscape";
-  logoPos?: "none" | "br" | "bl" | "tr" | "tl";
-  logoScale?: number;       // доля ширины, %
+  logoPos?: LogoPos;        // «ряд+столбец»: t/m/b и l/c/r (tl, tc, tr, ml, mc, mr, bl, bc, br) или none
+  logoScale?: number;       // доля ширины картинки, % (4–40)
+  logoMargin?: number;      // отступ от края, % ширины (1–12)
 }
 
 export const STYLES: Record<string, { label: string; prompt: string }> = {
@@ -39,8 +43,9 @@ export function cleanKit(raw: unknown): Kit {
     fonts: t(k.fonts, 120), font: isFontSpec(k.font) ? k.font : "", style: k.style && STYLES[k.style] ? k.style : "", styleNotes: t(k.styleNotes, 600),
     imageMust: t(k.imageMust, 300), imageNever: t(k.imageNever, 300),
     aspect: k.aspect && k.aspect in SIZES ? k.aspect : "square",
-    logoPos: k.logoPos && ["none", "br", "bl", "tr", "tl"].includes(k.logoPos) ? k.logoPos : "br",
-    logoScale: Math.min(30, Math.max(6, Number(k.logoScale) || 14)),
+    logoPos: k.logoPos && (k.logoPos === "none" || (LOGO_POSITIONS as readonly string[]).includes(k.logoPos)) ? k.logoPos : "br",
+    logoScale: Math.min(40, Math.max(4, Number(k.logoScale) || 14)),
+    logoMargin: Math.min(12, Math.max(1, Number(k.logoMargin) || 4)),
   };
 }
 
@@ -232,9 +237,10 @@ export async function finalizeImage(raw: Buffer, logo: AssetRow | null, kit: Kit
   if (logo && kit.logoPos && kit.logoPos !== "none") {
     const lw = Math.round(w * ((kit.logoScale ?? 14) / 100));
     const l = await sharp(logo.data).resize({ width: lw, height: Math.round(lw * 1.2), fit: "inside" }).png().toBuffer({ resolveWithObject: true });
-    const m = Math.round(w * 0.04);
-    const left = kit.logoPos.endsWith("l") ? m : w - l.info.width - m;
-    const top = kit.logoPos.startsWith("t") ? m : h - l.info.height - m;
+    const m = Math.round(w * ((kit.logoMargin ?? 4) / 100));
+    const row = kit.logoPos[0], col = kit.logoPos[1]; // t/m/b и l/c/r
+    const left = col === "l" ? m : col === "r" ? w - l.info.width - m : Math.round((w - l.info.width) / 2);
+    const top = row === "t" ? m : row === "b" ? h - l.info.height - m : Math.round((h - l.info.height) / 2);
     img = sharp(await img.png().toBuffer()).composite([{ input: l.data, left: Math.max(0, left), top: Math.max(0, top) }]);
   }
   const { data, info } = await img.flatten({ background: "#ffffff" }).jpeg({ quality: 88, mozjpeg: true }).toBuffer({ resolveWithObject: true });

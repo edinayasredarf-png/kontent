@@ -1,9 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Layers, Sparkles } from "lucide-react";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Switch } from "@/components/ui/Switch";
 import { ImagePicker } from "@/components/ImagePicker";
+import { AutoTextarea } from "@/components/AutoTextarea";
+import { AiTextTools } from "@/components/AiTextTools";
+import { NewsPicker } from "@/components/NewsPicker";
 
 const MULTI = "__multi", SOURCE = "__source";
 type Act = (f: FormData) => void | Promise<void>;
@@ -12,11 +15,16 @@ type Act = (f: FormData) => void | Promise<void>;
  * «Создать материал»: один вход для трёх сценариев. Тип материала выбирается в списке: один формат, несколько форматов по одной теме
  * или «из ссылки или текста» — тогда форма меняется: вместо темы ссылка или текст, и сервис разбивает источник на несколько материалов.
  */
-export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, createAction, repurposeAction, priceHint, sourcePrice }: {
+export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, createAction, repurposeAction, priceHint, sourcePrice, editPrice = "" }: {
   factoryId: string; kinds: string[]; labels: Record<string, string>; defaultKind: string;
-  createAction: Act; repurposeAction: Act; priceHint: string; sourcePrice: string;
+  createAction: Act; repurposeAction: Act; priceHint: string; sourcePrice: string; editPrice?: string;
 }) {
   const [type, setType] = useState(defaultKind), [plan, setPlan] = useState(false);
+  const topicRef = useRef<HTMLTextAreaElement>(null);
+  const [topic, setTopicState] = useState(""), [textmode, setTextmode] = useState<"ai" | "asis">("ai");
+  // замена текста из кода (ИИ-правка, выбор новости): обновляем поле и его высоту
+  const setTopic = (t: string) => { setTopicState(t); const el = topicRef.current; if (el) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); } };
+  const longText = topic.length > 300;
   const source = type === SOURCE, multi = type === MULTI;
   return (
     <form action={source ? repurposeAction : createAction} className="space-y-3">
@@ -29,7 +37,23 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
         </>
       ) : (
         <>
-          <input name="topic" required minLength={3} maxLength={300} placeholder="Тема материала (для SEO-статьи — поисковый запрос)" className="input" />
+          <AutoTextarea ref={topicRef} name="topic" required minLength={3} maxLength={20000} rows={2} value={topic} onChange={(e) => setTopicState(e.target.value)}
+            placeholder="Тема, идея или готовый текст целиком. Для SEO-статьи: поисковый запрос" className="input !min-h-[4.5rem] leading-6" />
+          <div className="flex flex-wrap items-center gap-2">
+            <NewsPicker onPick={(n) => { setTopic(`${n.title}\n\n${n.body}`.trim()); setTextmode("ai"); }} />
+            {topic.length > 0 && <span className="ml-auto text-xs text-ink3">Знаков: {topic.length}</span>}
+          </div>
+          {topic.trim().length >= 20 && <AiTextTools getText={() => topicRef.current?.value ?? topic} setText={setTopic} price={editPrice} />}
+          {longText && (
+            <div className="space-y-1.5 rounded-2xl bg-tile p-3">
+              <span className="label">Что сделать с этим текстом</span>
+              <div className="flex flex-wrap gap-2">
+                <label className="chip chip-toggle cursor-pointer !px-3 !py-1.5"><input type="radio" name="textmode" value="ai" checked={textmode === "ai"} onChange={() => setTextmode("ai")} className="hidden" />Написать материал по тексту</label>
+                <label className="chip chip-toggle cursor-pointer !px-3 !py-1.5"><input type="radio" name="textmode" value="asis" checked={textmode === "asis"} onChange={() => { setTextmode("asis"); if (type !== "post" && kinds.includes("post")) setType("post"); }} className="hidden" />Оставить как есть (пост без ИИ, бесплатно)</label>
+              </div>
+              <p className="text-xs text-ink3">{textmode === "asis" ? "Текст станет постом без изменений и откроется в окне: там можно доработать его ИИ и посмотреть, как он выглядит в соцсетях." : "ИИ возьмёт ваш текст за основу: факты и мысли сохранятся, форма подстроится под выбранный формат."}</p>
+            </div>
+          )}
           <input name="hook" maxLength={300} placeholder="Хук или угол (необязательно)" className="input" />
         </>
       )}
