@@ -13,6 +13,7 @@ import { cleanAngles, htmlTitle, htmlToText, MAX_SOURCE, MIN_SOURCE } from "./re
 import { safeFetchText } from "./safefetch";
 import { collectComments, collectMembers, collectStats } from "./engage";
 import { collectCompetitors } from "./competitors";
+import { collectExternal } from "./external-posts";
 import { runFlows } from "./flows/run";
 import { genSeoArticle } from "./seo";
 import { learnings } from "./engage";
@@ -503,6 +504,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   try { const cc = await collectCompetitors(4); rep.errors.push(...cc.errors.slice(0, 2)); } catch (e) { rep.errors.push(`competitors: ${(e as Error).message}`); }
   try { await spawnRepeats(); } catch (e) { rep.errors.push(`repeats: ${(e as Error).message}`); }
   try { const s = await collectStats(40); rep.stats = s.updated; rep.errors.push(...s.errors.slice(0, 3)); } catch (e) { rep.errors.push(`stats: ${(e as Error).message}`); }
+  try { const x = await collectExternal(12); rep.errors.push(...x.errors.slice(0, 2)); } catch (e) { rep.errors.push(`external: ${(e as Error).message}`); }
   try { const m = await collectMembers(20); rep.errors.push(...m.errors.slice(0, 2)); } catch (e) { rep.errors.push(`members: ${(e as Error).message}`); }
   try { const c = await collectComments(15); rep.comments = c.added; rep.errors.push(...c.errors.slice(0, 3)); } catch (e) { rep.errors.push(`comments: ${(e as Error).message}`); }
 

@@ -639,5 +639,36 @@ begin
 end $$;
 create index if not exists kz_competitors_group on kz_competitors(group_id);
 
+-- 026_external_posts.sql
+-- Материалы, опубликованные не через сервис: добавляются по ссылке (VK, MAX, Telegram) и попадают в аналитику.
+create table if not exists kz_external_posts (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  brand_id uuid references kz_brands(id) on delete set null,
+  kind text not null check (kind in ('telegram','vk','max')),
+  url text not null,
+  ext_ref text not null,
+  channel_id uuid references kz_channels(id) on delete set null,
+  author text not null default '',
+  body text not null default '',
+  posted_at timestamptz,
+  last_fetched_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  unique (org_id, kind, ext_ref)
+);
+create index if not exists kz_external_posts_org on kz_external_posts(org_id, created_at desc);
+-- Снимки показателей во времени: из них строится рост просмотров и реакций.
+create table if not exists kz_external_stats (
+  post_id uuid not null references kz_external_posts(id) on delete cascade,
+  fetched_at timestamptz not null default now(),
+  views int not null default 0,
+  likes int not null default 0,
+  comments int not null default 0,
+  reposts int not null default 0,
+  extra jsonb not null default '{}'::jsonb,
+  primary key (post_id, fetched_at)
+);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql') on conflict do nothing;

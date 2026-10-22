@@ -3,6 +3,9 @@ import { requireCtx } from "@/lib/auth";
 import { analytics, membersReport } from "@/lib/engage";
 import { q } from "@/lib/db";
 import { FilterBar } from "@/components/FilterBar";
+import { ExternalPosts } from "@/components/ExternalPosts";
+import { bounds } from "@/lib/range";
+import { canWrite } from "@/lib/auth";
 import { parseRange, rangeLabel, uuidOrEmpty, type Preset } from "@/lib/range";
 import { recommendAction, refreshStatsAction } from "@/lib/engage-actions";
 import { PRICES, rub } from "@/lib/wallet";
@@ -41,6 +44,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
         { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
       ]} />
       <p className="-mt-2 mb-5 text-center text-xs text-ink3">Период: {rangeLabel(rg)}</p>
+      <ExternalPosts orgId={c.org.id} write={canWrite(c.org.role)} from={bounds(rg).from} to={bounds(rg).to} brand={brand} brands={brands} />
       {posts === 0 ? (
         <Empty icon={<BarChart3 />} title={filtered || rg.r !== "all" ? "За выбранный период данных нет" : "Пока нет данных"} text={filtered || rg.r !== "all" ? "Попробуйте другой период или уберите фильтры." : "Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)."} />
       ) : (<>
