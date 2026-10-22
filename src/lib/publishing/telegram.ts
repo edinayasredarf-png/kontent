@@ -75,7 +75,7 @@ export const telegram: Provider = {
       try { first = (await call<{ message_id: number }[]>(token, "sendMediaGroup", f))[0]?.message_id ?? null; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e;
-        warning = `Слайды не отправлены (${(e as Error).message}), пост опубликован текстом`;
+        throw new PublishError(`Пост не опубликован: слайды не отправились (${(e as Error).message})`);
       }
     } else if (input.image || input.images?.length) {
       const one = (input.image ?? input.images![0])!;
@@ -100,7 +100,7 @@ export const telegram: Provider = {
       try { if (first == null) first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e; // временный сбой — повторит воркер, дубль не получится: фото не ушло
-        warning = `Картинка не отправлена (${(e as Error).message}), пост опубликован без неё`;
+        throw new PublishError(`Пост не опубликован: картинка не отправилась (${(e as Error).message})`);
       }
     }
     // Лимит Telegram — 4096 знаков на сообщение; длинные статьи уходят несколькими сообщениями подряд.

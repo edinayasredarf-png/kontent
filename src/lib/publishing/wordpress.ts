@@ -36,7 +36,7 @@ export const wordpress: Provider = {
       try {
         const m = await wp(site, auth, "/media", { method: "POST", headers: { "Content-Type": input.image.mime, "Content-Disposition": `attachment; filename="${a.slug}.jpg"` }, body: new Uint8Array(input.image.data) });
         media = Number(m.id) || undefined;
-      } catch (e) { if ((e as PublishError).retryable) throw e; warning = `Обложка не загружена (${(e as Error).message}), статья опубликована без неё`; }
+      } catch (e) { if ((e as PublishError).retryable) throw e; throw new PublishError(`Статья не опубликована: обложка не загрузилась (${(e as Error).message})`); }
     }
     const post = await wp(site, auth, "/posts", {
       method: "POST", headers: { "Content-Type": "application/json" },

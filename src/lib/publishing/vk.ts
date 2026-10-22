@@ -99,6 +99,11 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
 /** Адрес страницы-карточки для картинки; каждый раз новый, чтобы VK не отдавал запомненный неудачный разбор. */
 const cardUrl = (imageUrl: string) => `${imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?")}&v=${Date.now().toString(36)}`;
 
+/** Подсказка для ошибки «No photo given»: ссылка на карточку, которую можно вставить в пост VK и посмотреть, читает ли он картинку. */
+function vkNoPhotoTip(errs: string[], imageUrl?: string): string {
+  return errs.some((e) => /No photo given/.test(e)) && imageUrl ? ` Проверка: вставьте ссылку ${cardUrl(imageUrl)} в новый пост VK — должна появиться картинка.` : "";
+}
+
 /** Понятная причина, почему VK не принял фото: по каждому способу загрузки. */
 function vkPhotoHint(errs: string[]): string {
   const all = errs.join(" | ");
@@ -137,23 +142,32 @@ export const vk: Provider = {
         // «single»: способ прикрепляет одну ссылку на всё (для карусели — на первый слайд)
         for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(token, id, pic, input.imageUrl));
         const r = await post(ids.join(","));
-        if (up.single) return done(r, pics.length > 1 ? `В VK ушла карточка только с первым слайдом из ${pics.length}: ключ сообщества не позволяет загрузить все. Для всех слайдов нужен ключ пользователя-администратора с правом photos.` : undefined);
+        if (up.single && pics.length > 1) {
+          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
+          throw new PublishError(`Пост не опубликован: ключ сообщества позволяет прикрепить к посту VK только одну картинку, а в материале слайдов: ${pics.length}. Все слайды целиком доступны с ключом пользователя-администратора.`);
+        }
+        if (up.single) return done(r);
         // VK может принять вложение и молча его отбросить: проверяем готовый пост, и если картинки нет — удаляем и пробуем другой способ
         let checkErr = "";
         const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
         const list = Array.isArray(got) ? got : got?.items;
-        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. ${input.imageUrl ? "" : "APP_URL на сервере не виден (проверьте значение и сделайте Redeploy). "}Что не сработало раньше: ${errs.join(" | ") || "—"}.${errs.some((e) => /No photo given/.test(e)) && input.imageUrl ? ` VK не смог прочитать картинку по ссылке-карточке. Проверка: вставьте эту ссылку в новый пост VK — должна появиться картинка: ${cardUrl(input.imageUrl)}` : ""} Способ: ${up.name}`);
+        if (checkErr || !list?.[0]) {
+          // убедиться, что картинка в посте, нельзя: такой пост не оставляем (картинка — часть публикации)
+          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
+          throw new PublishError(`Пост не опубликован: VK не позволил проверить, что картинка прикрепилась (способ: ${up.name}). ${errs.length ? `Что не сработало: ${errs.join(" | ")}. ` : ""}${vkNoPhotoTip(errs, input.imageUrl)}`);
+        }
         if (!(list[0].attachments?.length)) {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
         }
-        return done(r, up.single && pics.length > 1 ? `В VK ушла карточка только с первым слайдом из ${pics.length}: ключ сообщества не позволяет загрузить все. Для всех слайдов нужен ключ пользователя-администратора с правом photos.` : undefined);
+        return done(r);
       } catch (e) {
         if ((e as PublishError).retryable) throw e;
         errs.push(`${up.name}: ${(e as Error).message}`);
       }
     }
-    const r = await post();
-    return done(r, pics.length ? `${pics.length > 1 ? "Слайды не загружены" : "Картинка не загружена"}: ${vkPhotoHint(errs)}. Пост опубликован без ${pics.length > 1 ? "них" : "неё"}.` : undefined);
+    // картинка есть, а прикрепить её не удалось ни одним способом: пост без картинки не публикуем
+    if (pics.length) throw new PublishError(`Пост не опубликован: ${pics.length > 1 ? "слайды не загрузились" : "картинка не загрузилась"} в VK. ${vkPhotoHint(errs)}.${vkNoPhotoTip(errs, input.imageUrl)}`);
+    return done(await post());
   },
 };

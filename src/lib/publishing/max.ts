@@ -68,8 +68,8 @@ export const max: Provider = {
     let warning: string | undefined;
     try { for (let i = 0; i < imgs.length; i++) attachments.push({ type: "image", payload: { token: await upload(token, imgs[i], i + 1) } }); }
     catch (e) {
-      if ((e as PublishError).retryable && !attachments.length && imgs.length) throw e; // временный сбой до первой картинки — воркер повторит весь пост
-      attachments = []; warning = `Картинки не загрузились (${(e as Error).message}) — пост ушёл текстом`;
+      if ((e as PublishError).retryable) throw e; // временный сбой — воркер повторит весь пост, дубля не будет: ничего ещё не отправлено
+      throw new PublishError(`Пост не опубликован: картинки не загрузились (${(e as Error).message})`);
     }
     const parts = chunk(toPlain(input.text), 3900);
     let first = "";

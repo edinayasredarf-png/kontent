@@ -3,7 +3,7 @@ export interface Img { data: Buffer; mime: string }
 /** images — слайды карусели по порядку; image — одиночная картинка поста. */
 export interface Poll { question: string; options: string[]; multi?: boolean }
 export interface PublishInput { text: string; image?: Img; /** Публичная подписанная ссылка на ту же картинку (если задан APP_URL). */ imageUrl?: string; images?: Img[]; article?: Article; /** Опрос: Telegram публикует встроенным опросом, остальные площадки получают его уже в тексте. */ poll?: Poll }
-/** warning — публикация прошла, но что-то (например, картинка) не удалось: пост ушёл без неё. */
+/** warning — публикация прошла, но есть замечание. Картинка к посту в замечания не входит: если её не удалось прикрепить, пост не публикуется (PublishError). */
 export interface PublishOutput { externalId: string; url: string | null; warning?: string }
 
 /** retryable=true — временный сбой (лимиты, 5xx, сеть): воркер повторит позже. */
