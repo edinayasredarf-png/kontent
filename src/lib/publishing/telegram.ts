@@ -4,6 +4,18 @@ import { chunk, toPlain } from "./format";
 /** credentials: token (от @BotFather), target (@username канала или числовой id; бот — админ канала). */
 interface Tg<T> { ok: boolean; result?: T; description?: string; error_code?: number; parameters?: { retry_after?: number } }
 
+/**
+ * Telegram сам скачивает картинку для превью по нашей ссылке. Если ссылка ему недоступна (защита от ботов на хостинге, неверный адрес),
+ * пост вышел бы без картинки. Поэтому заранее проверяем ссылку тем же способом, каким ходит Telegram, и при неудаче шлём фото отдельным сообщением.
+ */
+async function imageReachable(url: string): Promise<boolean> {
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "TelegramBot (like TwitterBot)" }, redirect: "follow", signal: AbortSignal.timeout(8000) });
+    await r.body?.cancel().catch(() => {});
+    return r.ok && /^image\//i.test(r.headers.get("content-type") ?? "");
+  } catch { return false; }
+}
+
 const API = () => (process.env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
 
 async function call<T>(token: string, method: string, body: Record<string, unknown> | FormData): Promise<T> {
@@ -70,7 +82,12 @@ export const telegram: Provider = {
       // подпись к фото — до 1024 знаков; если текст длиннее, фото уходит без подписи, а текст следом
       const fits = plain.length <= 1024;
       // длинный текст не помещается в подпись: одним сообщением — текст с картинкой-превью над ним (по публичной ссылке)
+      let linkOk = false;
       if (!fits && input.imageUrl && plain.length <= 4000) {
+        linkOk = await imageReachable(input.imageUrl);
+        if (!linkOk) warning = "Картинка отправлена отдельным сообщением: Telegram не смог бы скачать её по ссылке сайта (проверьте APP_URL и защиту от ботов на хостинге)";
+      }
+      if (linkOk) {
         try {
           first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain, link_preview_options: { url: input.imageUrl, show_above_text: true, prefer_large_media: true } })).message_id;
           rest = "";
