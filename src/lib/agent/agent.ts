@@ -1,6 +1,7 @@
 import { one, q } from "../db";
 import { aiReady, chat, extractObject } from "../ai";
 import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
+import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
 import { TOOLS, runAuto, runRead, toolByName, validateAction, type Args, type ToolCtx } from "./tools";
 
 /** Разделы сервиса, на которые ассистент может дать кнопку. Всё, чего здесь нет, в ссылки не попадает. */
@@ -23,8 +24,8 @@ export function cleanHref(h: unknown): string | null {
 
 export interface Link { label: string; href: string }
 export interface Action { label: string; tool: string; args: Args; hint: string; done?: string }
-export interface Blocks { links?: Link[]; actions?: Action[] }
-export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string }
+export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[] }
+export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[] }
 
 const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : ""}`).join("\n");
 const sectionDocs = () => Object.entries(SECTIONS).map(([h, l]) => `${h} — ${l}`).join("\n") + "\n/app/factories/<id завода>, /app/brands/<id бренда>, /app/brands/<id бренда>/knowledge (база знаний бренда), /app/flows/<id потока>";
@@ -36,6 +37,9 @@ const SYSTEM = (name: string) => `Ты ассистент платформы «�
 2) финальный ответ: {"final":{"text":"ответ пользователю, абзацы через \\n\\n, списки через «• »","links":[{"label":"Открыть мониторинг","href":"/app/monitor"}],"actions":[{"label":"Включить автопубликацию","tool":"set_factory","args":{"factoryId":"...","autopublish":true}}]}}
 Инструменты:
 ${toolDocs()}
+Карточки: в "final" можно добавить "cards" — что показать в чате прямо внутри ответа, с кнопками и переключателями. Типы:
+{"type":"news","ids":["uuid новости",…]} — сами посты из ленты (до 3; покажи именно те, о которых пишешь в тексте); {"type":"item","ids":[…]} — материалы; {"type":"factory","id":"uuid"} — настройки завода с тумблерами; {"type":"plan","id":"uuid завода"}; {"type":"sources"}; {"type":"analytics","days":7}; {"type":"competitors"}; {"type":"brand","id":"uuid"}; {"type":"channels"}.
+Берёшь uuid только из результатов инструментов. Если пользователь просит создать материал из новости, покажи карточку этой новости: кнопка «Создать материал» в ней. Если просит изменить настройки завода или бренда, покажи карточку завода или бренда: изменения делаются в ней переключателями.
 Правила:
 - Сначала собери данные инструментами (до 4 вызовов), потом дай финальный ответ.
 - Если пользователь просит обновить новости или данные могли устареть, вызови refresh_news.
@@ -50,6 +54,14 @@ const TODAY = () => new Date().toLocaleDateString("ru-RU", { day: "numeric", mon
 export async function loadHistory(orgId: string, userId: string, limit = 40): Promise<ChatMsg[]> {
   const rows = await q<ChatMsg>("select id,role,content,blocks,created_at from kz_chat_messages where org_id=$1 and user_id=$2 order by created_at desc limit $3", [orgId, userId, limit]);
   return rows.reverse();
+}
+/** История чата вместе со свежими данными карточек (ссылки на объекты превращаются в актуальные карточки). */
+export async function loadHistoryWithCards(orgId: string, userId: string, limit = 40): Promise<ChatMsg[]> {
+  const msgs = await loadHistory(orgId, userId, limit);
+  // карточки показываем только у последних ответов: старые остаются текстом, чтобы страница не тяжелела
+  const recent = msgs.filter((m) => m.role === "assistant" && m.blocks?.cards?.length).slice(-6);
+  await Promise.all(recent.map(async (m) => { m.cards = await hydrateCards(orgId, m.blocks.cards); }));
+  return msgs;
 }
 export const clearHistory = (orgId: string, userId: string) => q("delete from kz_chat_messages where org_id=$1 and user_id=$2", [orgId, userId]);
 
@@ -70,6 +82,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   await save(c.orgId, c.userId, "user", m);
   const t0 = Date.now();
   let scratch = "";
+  const got: Record<string, unknown> = {};
   try {
     for (let step = 0; step < 5; step++) {
       if (Date.now() - t0 > 100_000) throw new Error("Слишком долго думаю, спросите короче");
@@ -80,6 +93,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         let res: unknown;
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, (o.args as Args) ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
+        got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;
         continue;
       }
@@ -94,7 +108,8 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         const v = await validateAction(ctx, tool, (a.args as Args) ?? {});
         if (v.ok) actions.push({ label: String(a.label ?? "").slice(0, 80) || tool, tool, args: v.args, hint: v.hint });
       }
-      await save(c.orgId, c.userId, "assistant", text, { links, actions });
+      const cards = await finalCards(c.orgId, cleanRefs((fin as { cards?: unknown } | null)?.cards), got);
+      await save(c.orgId, c.userId, "assistant", text, { links, actions, cards });
       return { ok: true };
     }
     throw new Error("Не получилось сформировать ответ");
@@ -103,6 +118,31 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
     await save(c.orgId, c.userId, "assistant", `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`).catch(() => {});
     return { ok: true };
   }
+}
+
+/**
+ * Карточки к ответу: те, что назвала модель (проверяются по базе), а по вызванным инструментам, которых модель не коснулась, добавляются
+ * обычные (новости, аналитика, заводы…): пользователь видит сами данные, а не только пересказ.
+ */
+async function finalCards(orgId: string, asked: CardRef[], got: Record<string, unknown>): Promise<CardRef[]> {
+  const have = new Set(asked.map((r) => r.t));
+  const out = [...asked];
+  const ids = (v: unknown, n: number) => (Array.isArray(v) ? v : []).map((x) => String((x as { id?: unknown })?.id ?? "")).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, n);
+  const add = (r: CardRef) => { if (!have.has(r.t) || r.t === "factory" || r.t === "brand") { out.push(r); have.add(r.t); } };
+  const news = (got.news as { top?: unknown } | undefined)?.top;
+  if (news && !have.has("news")) { const i = ids(news, 3); if (i.length) add({ t: "news", ids: i }); }
+  if (got.analytics) add({ t: "analytics", days: Number((got.analytics as { days?: number }).days) || 7 });
+  if (got.sources) add({ t: "sources" });
+  if (got.competitors) add({ t: "competitors" });
+  if (got.channels) add({ t: "channels" });
+  if (got.items && !have.has("item")) { const i = ids(got.items, 4); if (i.length) add({ t: "item", ids: i }); }
+  if (got.factories && !have.has("factory")) for (const id of ids(got.factories, 2)) out.push({ t: "factory", id });
+  if (got.brands && !have.has("brand")) for (const id of ids(got.brands, 2)) out.push({ t: "brand", id });
+  if (got.plan && !have.has("plan")) { const f = (got.plan as { factoryId?: string }).factoryId; if (f) add({ t: "plan", id: f }); }
+  // проверка: пустые и чужие карточки не сохраняем
+  const keep: CardRef[] = [];
+  for (const r of out.slice(0, 7)) if ((await hydrateCards(orgId, [r])).length) keep.push(r);
+  return keep.slice(0, 6);
 }
 
 /** Нажатие кнопки-действия: параметры берём из сохранённого сообщения, а не от браузера. */

@@ -7,6 +7,7 @@ import { ArrowRight, ArrowUp, Check, Globe, Loader2, Mic, Pencil, Plus, RotateCc
 import { chatActionRun, clearChatAction, sendChatAction } from "@/lib/agent/actions";
 import { pendingStore } from "@/lib/pending-store";
 import type { ChatMsg } from "@/lib/agent/agent";
+import { ChatCards } from "@/components/ChatCards";
 
 const SUGGEST: { text: string; icon: typeof Pencil }[] = [
   { text: "Что сейчас происходит в моём контент-заводе?", icon: Globe },
@@ -149,6 +150,7 @@ export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; nam
           <div key={m.id} className="text-base leading-7">
             <Text t={m.content} />
             {!!m.blocks.links?.length && <div className="mt-4 flex flex-wrap gap-2">{m.blocks.links.map((l) => <Link key={l.href + l.label} href={l.href} className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-ink hover:border-accent">{l.label}<ArrowRight size={15} /></Link>)}</div>}
+            {!!m.cards?.length && <ChatCards cards={m.cards} />}
             <Actions m={m} />
           </div>
         ))}

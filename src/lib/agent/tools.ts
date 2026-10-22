@@ -17,6 +17,10 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "confirm"; desc: str
   { name: "analytics", kind: "read", desc: "Аналитика публикаций за период: просмотры, реакции, по каналам и форматам, лучшие посты", args: '{"days":7}' },
   { name: "factories", kind: "read", desc: "Заводы: настройки (автопубликация, одобрение идей, картинки), каналы, запас плана, материалы", args: "{}" },
   { name: "items", kind: "read", desc: "Материалы (идеи, готовые, ошибки) по заводу или статусу", args: '{"status":"idea|approved|ready|scheduled|published|failed","factoryId":"uuid","limit":10}' },
+  { name: "competitors", kind: "read", desc: "Конкуренты с итогами по их площадкам: подписчики, публикаций в неделю, просмотры, лучший пост", args: "{}" },
+  { name: "brands", kind: "read", desc: "Бренды: название, описание, аудитория, тон, заводы и каналы бренда", args: "{}" },
+  { name: "channels", kind: "read", desc: "Подключённые каналы публикации (VK, Telegram, MAX…): название, бренд, подпись", args: "{}" },
+  { name: "plan", kind: "read", desc: "Контент-план завода: ближайшие материалы и до какой даты хватает запаса", args: '{"factoryId":"uuid"}' },
   { name: "refresh_news", kind: "auto", desc: "Обновить источники мониторинга прямо сейчас (бесплатно). Вызывай, когда просят обновить, проверить свежее или данные устарели", args: "{}" },
   { name: "set_source_status", kind: "confirm", desc: "Включить или поставить на паузу источник новостей", args: '{"sourceId":"uuid","status":"active|paused"}' },
   { name: "set_factory", kind: "confirm", desc: "Изменить настройки завода: автопубликация по расписанию, режим одобрения идей (manual — вручную, auto — сами), картинки к материалам", args: '{"factoryId":"uuid","autopublish":true,"approval":"manual|auto","images":true}' },
@@ -76,6 +80,22 @@ export async function runRead(ctx: ToolCtx, name: string, a: Args): Promise<unkn
   if (name === "items") {
     const st = ["idea", "approved", "generating", "ready", "scheduled", "published", "failed", "rejected"].includes(String(a.status)) ? String(a.status) : null;
     return q(`select id,kind,topic,status,planned_for,factory_id from kz_content_items where org_id=$1 and ($2::text is null or status=$2) and ($3::uuid is null or factory_id=$3) order by planned_for nulls last, created_at desc limit ${int(a.limit, 10, 1, 25)}`, [o, st, uuid(a.factoryId) || null]);
+  }
+  if (name === "competitors") {
+    const { groupSummaries } = await import("../competitors");
+    return (await groupSummaries(o)).map((g) => ({ id: g.id, name: g.name, platforms: g.platforms.map((p) => p.kind), members: g.members, perWeek: g.perWeek, avgViews: g.avgViews, lastPostAt: g.lastPostAt, bestPost: g.best?.body.slice(0, 160) ?? null }));
+  }
+  if (name === "brands") {
+    return q(`select b.id,b.name,b.description,b.audience,b.tone,(select count(*) from kz_factories f where f.brand_id=b.id) factories,(select count(*) from kz_channels c where c.brand_id=b.id and c.status='active') channels from kz_brands b where b.org_id=$1 order by b.created_at limit 20`, [o]);
+  }
+  if (name === "channels") {
+    return q(`select c.id,c.title,c.kind,b.name brand,c.signature from kz_channels c join kz_brands b on b.id=c.brand_id where c.org_id=$1 and c.status='active' order by c.created_at limit 30`, [o]);
+  }
+  if (name === "plan") {
+    const fid = uuid(a.factoryId) || (await one<{ id: string }>("select id from kz_factories where org_id=$1 order by created_at limit 1", [o]))?.id;
+    if (!fid) return { items: [] };
+    const items = await q(`select id,kind,topic,status,planned_for from kz_content_items where factory_id=$1 and org_id=$2 and status in ('idea','approved','generating','ready','scheduled') and not coalesce((meta->>'draft')::boolean,false) order by planned_for nulls last, created_at limit 10`, [fid, o]);
+    return { factoryId: fid, items };
   }
   throw new Error("Неизвестный инструмент");
 }
