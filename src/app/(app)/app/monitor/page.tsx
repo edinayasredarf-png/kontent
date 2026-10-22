@@ -25,6 +25,7 @@ import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/fe
 import { sourceView } from "@/lib/monitor/display";
 
 import { SubmitButton } from "@/components/SubmitButton";
+import { ScrollKeeper } from "@/components/ScrollKeeper";
 export const maxDuration = 60;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
@@ -58,18 +59,20 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const hasMore = rows.length > PAGE;
   const list = rows.slice(0, PAGE);
   const href = (o: Record<string, string>) => `/app/monitor${filterQuery(f, o)}`;
+  const here = href(page > 1 ? { p: String(page) } : {});
   const since = list.length ? new Date(Math.max(...list.map((r) => new Date(r.fetched_at).getTime()))).toISOString() : new Date().toISOString();
   const noSources = Number(stat[0].n) === 0;
   const write = c.org.role !== "viewer";
 
   return (
     <div className="mx-auto w-full max-w-[600px]">
+      <ScrollKeeper />
       <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
       <nav className="mx-auto -mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
         <Link href={href({ show: "new", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${!inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>Лента</Link>
         <Link href={href({ show: "saved", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}><Heart size={14} className={liked ? "text-bad" : ""} fill={liked ? "currentColor" : "none"} />Понравившееся{liked ? <span className="text-xs font-normal text-ink3">{liked}</span> : null}</Link>
       </nav>
-      {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo="/app/monitor" err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
+      {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={here} err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
       {one(sp.note) && !draftIds.length && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
       {Number(stat[0].err) > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Настройках».</p>}
@@ -139,8 +142,8 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                   {factories.length > 0 ? (
                     <details className="w-full sm:w-auto">
                       <summary className="btn btn-accent !py-1.5 cursor-pointer list-none"><PenLine size={14} />Создать материал из новости</summary>
-                      <form action={createFromNewsAction} className="mt-3 space-y-3 rounded-xl bg-tile p-3">
-                        <input type="hidden" name="id" value={r.id} />
+                      <form action={createFromNewsAction} data-keep-scroll className="mt-3 space-y-3 rounded-xl bg-tile p-3">
+                        <input type="hidden" name="id" value={r.id} /><input type="hidden" name="ret" value={here} />
                         <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}</select></div>
                         <div><span className="label">Какие материалы создать по этой новости</span>
                           <div className="flex flex-wrap gap-2">{MAKE.map((k) => <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === "post"} className="hidden" />{KIND[k]}</label>)}</div></div>

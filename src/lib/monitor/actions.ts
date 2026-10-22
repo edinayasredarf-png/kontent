@@ -123,15 +123,19 @@ export async function createFromNewsAction(f: FormData) {
   const c = await requireWriter();
   const factory = s(f, "factory");
   const now = s(f, "mode") !== "ideas";
+  // страница ленты с текущими фильтрами: к ней возвращаемся, чтобы лента осталась такой же (только внутренние адреса)
+  const ret0 = s(f, "ret");
+  const ret = /^\/app\/monitor(\?[^#\s]*)?$/.test(ret0) && !ret0.includes("draft=") ? ret0 : "/app/monitor";
+  const to = (o: Record<string, string>) => { const u = new URL(ret, "http://x"); for (const [k, v] of Object.entries(o)) u.searchParams.set(k, v); return `${u.pathname}${u.search}`; };
   // «создать сразу» — черновик в окне поверх ленты; «в план» — идеи сразу в плане завода
   const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), now, { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image"), draft: now });
   back();
-  if (!r.ok) redirect(`/app/monitor?err=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(to({ err: r.error }));
   if (now) {
-    const q = new URLSearchParams({ draft: r.ids.join(",") });
-    if (r.error) q.set("err", r.error);
-    else if (r.ids.length > 3) q.set("note", "Первые три материала созданы, остальные пишутся в фоне: они появятся в черновиках завода через несколько минут.");
-    redirect(`/app/monitor?${q}`);
+    const o: Record<string, string> = { draft: r.ids.join(",") };
+    if (r.error) o.err = r.error;
+    else if (r.ids.length > 3) o.note = "Первые три материала созданы, остальные пишутся в фоне: они появятся в черновиках завода через несколько минут.";
+    redirect(to(o));
   }
   redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}`);
 }
