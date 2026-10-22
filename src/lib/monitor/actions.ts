@@ -136,6 +136,30 @@ export async function createFromNewsAction(f: FormData) {
   redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}`);
 }
 
+/**
+ * Из понравившихся новостей — сразу идеи в контент-план завода (до 10 за раз, без генерации, поэтому быстро):
+ * каждая новость даёт идеи выбранных типов, тексты потом создаются из плана как обычно.
+ */
+export async function createFromLikedAction(f: FormData) {
+  const c = await requireWriter();
+  const factory = s(f, "factory");
+  const ids = [...new Set(f.getAll("ids").map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)))].slice(0, 10);
+  const kinds = f.getAll("kinds").map(String);
+  const fail = (m: string) => redirect(`/app/monitor?show=saved&err=${encodeURIComponent(m)}`);
+  if (!ids.length) fail("Отметьте новости, из которых нужно создать материалы");
+  if (!kinds.length) fail("Выберите хотя бы один тип материала");
+  const t0 = Date.now();
+  let made = 0, firstErr = "";
+  for (const id of ids) {
+    if (Date.now() - t0 > 45_000) { firstErr ||= "Часть новостей не обработана: не хватило времени, повторите для оставшихся"; break; }
+    const r = await createFromNews(c.org.id, id, factory, kinds, false, { angle: s(f, "angle"), postType: s(f, "postType") });
+    if (r.ok) made += r.ids.length; else firstErr ||= r.error;
+  }
+  back();
+  if (!made) fail(firstErr || "Не удалось создать материалы");
+  redirect(`/app/factories/${factory}?tab=plan&note=${encodeURIComponent(`Добавлено идей в контент-план: ${made}.${firstErr ? ` ${firstErr}` : ""}`)}`);
+}
+
 /** Сколько новых постов появилось в ленте с момента `since` с учётом фильтра. */
 export async function countNewAction(params: Record<string, string | string[]>, since: string): Promise<{ count: number }> {
   const c = await requireCtx();

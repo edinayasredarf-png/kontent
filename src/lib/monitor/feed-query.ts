@@ -16,7 +16,8 @@ export function parseFilter(sp: Record<string, string | string[] | undefined>): 
 }
 
 export function feedWhere(orgId: string, f: FeedFilter, sinceFetched?: string): { sql: string; args: unknown[] } {
-  const where: string[] = ["i.org_id=$1", "not i.excluded", "i.published_at > now() - ($2||' days')::interval"];
+  // «Понравившееся» не стареет: сердечко ставят, чтобы вернуться позже, поэтому период там не ограничиваем
+  const where: string[] = ["i.org_id=$1", "not i.excluded", f.show === "saved" ? "$2::text is not null" : "i.published_at > now() - ($2||' days')::interval"];
   const args: unknown[] = [orgId, String(f.days)];
   const add = (cond: string, v: unknown) => { args.push(v); where.push(cond.replace("?", `$${args.length}`)); };
   if (f.show === "new") where.push("i.status='new'"); else if (f.show !== "all") add("i.status=?", f.show); else where.push("i.status<>'dismissed'");

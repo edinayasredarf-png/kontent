@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Bookmark, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Radar, ArrowUp } from "lucide-react";
+import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Radar, ArrowUp } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
-import { createFromNewsAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
+import { createFromLikedAction, createFromNewsAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KINDS } from "@/lib/plan";
 import { POST_TYPES } from "@/lib/postsettings";
 import { ANGLES } from "@/lib/monitor/angles";
@@ -43,7 +43,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const freshSince = Number.isNaN(Date.parse(one(sp.fresh))) ? 0 : Date.parse(one(sp.fresh));
   const { sql, args } = feedWhere(c.org.id, f);
 
-  const [rows, sources, kws, factories, stat, brands] = await Promise.all([
+  const [rows, sources, kws, factories, stat, brands, likedN] = await Promise.all([
     q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.fetched_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
              order by ${feedOrder(f)} limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
@@ -52,7 +52,9 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
     q<{ id: string; name: string; brand: string }>("select f.id,f.name,b.name brand from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.status='active' order by f.name", [c.org.id]),
     q<{ n: string; err: string }>("select count(*) n, count(*) filter (where last_error is not null) err from kz_sources where org_id=$1", [c.org.id]),
     q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]),
+    q<{ n: string }>("select count(*) n from kz_feed_items where org_id=$1 and not excluded and status='saved'", [c.org.id]),
   ]);
+  const liked = Number(likedN[0]?.n ?? 0), inLiked = f.show === "saved";
   const hasMore = rows.length > PAGE;
   const list = rows.slice(0, PAGE);
   const href = (o: Record<string, string>) => `/app/monitor${filterQuery(f, o)}`;
@@ -63,6 +65,10 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   return (
     <div className="mx-auto w-full max-w-[600px]">
       <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
+      <nav className="mx-auto -mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
+        <Link href={href({ show: "new", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${!inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>Лента</Link>
+        <Link href={href({ show: "saved", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}><Heart size={14} className={liked ? "text-bad" : ""} fill={liked ? "currentColor" : "none"} />Понравившееся{liked ? <span className="text-xs font-normal text-ink3">{liked}</span> : null}</Link>
+      </nav>
       {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo="/app/monitor" err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
       {one(sp.note) && !draftIds.length && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
@@ -83,7 +89,22 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             </div>
           )}
         </div>}>
-        {list.length === 0 && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
+        {inLiked && list.length === 0 && f.q === "" && f.src.length === 0 && f.kw.length === 0 && !f.only && !f.fit && <Empty icon={<Heart />} title="Пока ничего не понравилось" text="Нажмите сердечко на новости в ленте: она окажется здесь, и из неё можно будет сделать материалы." />}
+        {inLiked && list.length > 0 && write && (
+          factories.length > 0 ? (
+            <form id="liked-bulk" action={createFromLikedAction} className="mb-5 space-y-3 rounded-3xl bg-tile p-4">
+              <div><b className="text-sm">Создать материалы из понравившегося</b><p className="mt-0.5 text-xs text-ink2">Отметьте новости галочками на карточках (до 10 за раз). По каждой в контент-план добавятся идеи выбранных типов, тексты вы создадите оттуда как обычно.</p></div>
+              <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.brand}</option>)}</select></div>
+              <div><span className="label">Какие материалы</span><div className="flex flex-wrap gap-2">{MAKE.map((k) => <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === "post"} className="hidden" />{KIND[k]}</label>)}</div></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="label">Как подать новость</label><select name="angle" defaultValue="retell" className="input !bg-surface">{Object.entries(ANGLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+                <div><label className="label">Стиль написания</label><select name="postType" defaultValue="" className="input !bg-surface"><option value="">По настройкам завода</option>{Object.entries(POST_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+              </div>
+              <SubmitButton className="btn btn-accent !py-2"><PenLine size={15} />Добавить идеи в контент-план</SubmitButton>
+            </form>
+          ) : <p className="mb-5 text-center text-xs text-ink3">Чтобы создавать материалы, заведите завод.</p>
+        )}
+        {list.length === 0 && !inLiked && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
         <FadeList className="space-y-5">
           {list.map((r, idx) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
@@ -98,7 +119,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                 <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs text-ink3">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
               </header>
               <div className="px-2.5 pb-1 pt-3">
-                {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-accent-soft !text-accent-ink">сохранено</span>}</p>}
+                {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-bad-soft !text-bad">понравилось</span>}</p>}
                 <PostText title={r.title} text={text} />
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
                 {(r.kind === "site" || r.kind === "news") && (
@@ -139,9 +160,10 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                       </form>
                     </details>
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}
+                  {inLiked && write && factories.length > 0 && <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" name="ids" value={r.id} form="liked-bulk" />Выбрать</label>}
                   <div className="ml-auto flex items-center gap-1">
                     {!r.url.startsWith("manual:") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
-                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className="grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2" title={r.status === "saved" ? "Убрать из сохранённых" : "Сохранить"}><Bookmark size={14} /></SubmitButton></form>
+                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className={`grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2 ${r.status === "saved" ? "text-bad" : "text-ink2"}`} title={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось: сохранить в «Понравившееся»"} aria-label={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось"} aria-pressed={r.status === "saved"}><Heart size={15} fill={r.status === "saved" ? "currentColor" : "none"} /></SubmitButton></form>
                     <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="dismissed" /><SubmitButton className="grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>
                   </div>
                 </div>

@@ -97,7 +97,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div><p className="label">Период</p><select name="d" defaultValue={String(filter.days)} className="input"><option value="1">Сутки</option><option value="3">3 дня</option><option value="7">Неделя</option><option value="30">Месяц</option></select></div>
-              <div><p className="label">Показывать</p><select name="show" defaultValue={filter.show} className="input"><option value="new">Новые</option><option value="saved">Сохранённые</option><option value="used">Использованные</option><option value="all">Все</option></select></div>
+              <div><p className="label">Показывать</p><select name="show" defaultValue={filter.show} className="input"><option value="new">Новые</option><option value="saved">Понравившиеся</option><option value="used">Использованные</option><option value="all">Все</option></select></div>
               <div><p className="label">Порядок</p><select name="sort" defaultValue={filter.sort} className="input"><option value="date">Сначала свежие</option><option value="match">По совпадению со словами</option></select></div>
             </div>
             <div className="space-y-2.5">
