@@ -38,11 +38,18 @@ async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
   const f = new FormData();
   const ext = /png/.test(img.mime) ? "png" : /gif/.test(img.mime) ? "gif" : "jpg";
   f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), `image.${ext}`);
-  try {
-    const res = await fetch(url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
-    const raw = await res.text();
-    try { return JSON.parse(raw) as T; } catch { throw new PublishError(`ответ загрузки (${res.status}): ${raw.slice(0, 120)}`); }
-  } catch (e) { if (e instanceof PublishError) throw e; throw new PublishError(`загрузка файла: ${(e as Error).message}`, true); }
+  // сервер загрузки VK иногда отвечает не JSON-ом, а страницей ошибки (например, 405 от шлюза): один повтор обычно проходит
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
+      const raw = await res.text();
+      try { return JSON.parse(raw) as T; } catch { throw new PublishError(`ответ загрузки (${res.status}): ${raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}`); }
+    } catch (e) {
+      if (attempt === 0) { await new Promise((r) => setTimeout(r, 1200)); continue; }
+      if (e instanceof PublishError) throw e;
+      throw new PublishError(`загрузка файла: ${(e as Error).message}`, true);
+    }
+  }
 }
 
 /**
