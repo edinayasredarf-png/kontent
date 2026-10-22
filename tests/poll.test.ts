@@ -57,7 +57,7 @@ describe("генерация опроса по выбранному режиму
     process.env.SELFHOSTED_LLM_URL = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`; process.env.SELFHOSTED_LLM_MODEL = "m"; process.env.AUTH_SECRET = "s";
   });
   after(() => { srv.closeAllConnections?.(); srv.close(); });
-  const args = async () => { const { cleanSettings } = await import("../src/lib/postsettings"); return [{ name: "Б", description: "", audience: "", tone: "professional", forbidden: [] }, "продукт", "ниша", "тема", "хук", cleanSettings({})] as const; };
+  const args = async () => { const { cleanSettings } = await import("../src/lib/postsettings"); return [{ name: "Б", description: "", audience: "", tone: "professional", forbidden: [] as string[] }, "продукт", "ниша", "тема", "хук", cleanSettings({})] as [import("../src/lib/ai").BrandCtx, string, string, string, string, ReturnType<typeof cleanSettings>]; };
 
   it("с вариантами: просит ровно N вариантов и возвращает их", async () => {
     const { genPoll } = await import("../src/lib/ai");
