@@ -81,7 +81,7 @@ export function AppShell(p: ShellProps) {
     <div className="min-h-screen">
       {sidebar}
       {drawer && <button type="button" aria-label="Закрыть меню" onClick={() => setDrawer(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
-      <div className={clsx("min-h-screen transition-[padding] duration-200", slim ? "md:pl-[140px]" : "md:pl-[372px]")}>
+      <div className={clsx("min-h-screen transition-[padding] duration-200", slim ? "md:pl-[108px]" : "md:pl-[340px]")}>
         <header className="flex items-center gap-3 px-5 pb-2 pt-4 md:px-10 md:pt-[57px]">
           <button type="button" onClick={() => setDrawer(true)} aria-label="Открыть меню" className="grid size-10 place-items-center rounded-full bg-accent-soft md:hidden"><Menu size={20} /></button>
           <h1 className="text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>
@@ -94,7 +94,7 @@ export function AppShell(p: ShellProps) {
             <Link href="/app/profile" aria-label="Профиль" title={p.planName} className="rounded-full"><Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" /></Link>
           </div>
         </header>
-        {/* колонка по центру свободной области справа от меню: слева и справа от неё одинаковые отступы */}
+        {/* область начинается ровно у правого края меню (20 px поле + 88 или 320 px), поэтому расстояния от меню и от края окна до колонки равны */}
         <main className="px-5 pb-10 pt-4 md:px-10"><div className="mx-auto max-w-[1280px]">{p.children}</div></main>
       </div>
     </div>
