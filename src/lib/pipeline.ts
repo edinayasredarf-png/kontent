@@ -1,4 +1,5 @@
 import { pubImageUrl, publicizeImages } from "./pub-image";
+import { pollText, hasOptions, type PollMeta } from "./poll-format";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
@@ -156,7 +157,7 @@ export async function brandNotes(orgId: string, brandId: string) {
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
 export async function buildItem(orgId: string, itemId: string): Promise<Result> {
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string } }>(
+  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
     `update kz_content_items set status='generating', updated_at=now()
       where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
       returning id,factory_id,kind,topic,hook,meta`, [itemId, orgId]);
@@ -195,8 +196,9 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
       await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
     } else if (item.kind === "poll") {
-      const poll = await genPoll(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
-      await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options })]);
+      const po = item.meta?.pollOpts ?? { mode: "options", count: 4, multi: false };
+      const poll = await genPoll(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source, po);
+      await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('poll',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, poll.caption, JSON.stringify({ question: poll.question, options: poll.options, mode: po.mode === "open" ? "open" : "options", multi: !!po.multi })]);
     } else if (item.kind === "email") {
       const em = await genEmail(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source);
       await q("update kz_content_items set body=$2,meta=(meta-'client') || jsonb_build_object('email',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, em.html, JSON.stringify(em.meta)]);
@@ -327,12 +329,7 @@ async function releaseTimed(): Promise<{ queued: number; errors: string[] }> {
 const MAX_ATTEMPTS = 3;
 
 /** Подпись канала добавляется к постам и каруселям, но не к SEO-статьям и не дважды (если пост уже заканчивается ею). */
-/** Опрос на площадках без встроенных опросов: вопрос и варианты текстом, голосуют цифрой в комментариях. */
-export function pollText(body: string, poll: { question: string; options: string[] } | undefined, channelKind: string): string {
-  if (!poll || channelKind === "telegram") return body;
-  const opts = poll.options.map((o, i) => `${i + 1}. ${o}`).join("\n");
-  return `${body.trim() ? body.trim() + "\n\n" : ""}${poll.question}\n\n${opts}\n\nГолосуйте в комментариях: напишите цифру варианта.`;
-}
+export { pollText };
 
 export function withSignature(body: string, kind: string, signature?: string): string {
   const sig = (signature ?? "").trim();
@@ -352,7 +349,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: { question: string; options: string[] }; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
+    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: PollMeta; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
     const img = infoAsset ? await loadAsset(j.org_id, infoAsset.id) : item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
@@ -366,7 +363,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
-      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {

@@ -59,7 +59,7 @@ export const telegram: Provider = {
       // подводка — обычным сообщением, затем встроенный опрос (анонимный, один ответ)
       if (plain) first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain.slice(0, 4000) })).message_id;
       const opts = input.poll.options.map((t) => ({ text: t.slice(0, 100) })).slice(0, 10);
-      const p = await call<{ message_id: number }>(token, "sendPoll", { chat_id: target, question: input.poll.question.slice(0, 300), options: opts, is_anonymous: true });
+      const p = await call<{ message_id: number }>(token, "sendPoll", { chat_id: target, question: input.poll.question.slice(0, 300), options: opts, is_anonymous: true, ...(input.poll.multi ? { allows_multiple_answers: true } : {}) });
       first ??= p.message_id;
       const handle0 = target.startsWith("@") ? target.slice(1) : null;
       return { externalId: String(first), url: handle0 ? `https://t.me/${handle0}/${first}` : null };

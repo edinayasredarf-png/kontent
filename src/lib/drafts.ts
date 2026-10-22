@@ -13,23 +13,23 @@ export interface ChannelOpt { id: string; title: string; kind: string; on: boole
 
 export interface DraftItem {
   id: string; factory_id: string; kind: string; topic: string; body: string; status: string; image_id: string | null;
-  image_error: string | null; own_image: boolean; slides: string[]; channels: ChannelOpt[]; carousel: { slides: { title: string; body: string; layout?: string }[]; style: string; custom: number[]; design: { color?: string; font?: string; format?: string } } | null; seo: { title?: string; description?: string; slug?: string } | null;
+  image_error: string | null; own_image: boolean; slides: string[]; channels: ChannelOpt[]; carousel: { slides: { title: string; body: string; layout?: string }[]; style: string; custom: number[]; design: { color?: string; font?: string; format?: string } } | null; seo: { title?: string; description?: string; slug?: string } | null; poll: { question: string; options: string[]; mode?: "options" | "open"; multi?: boolean } | null;
 }
 
 /** Материалы окна «Созданное»: только черновики этой организации, в порядке создания. */
 export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftItem[]> {
   if (!ids.length) return [];
-  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo"> & { chan_ids: string[] | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string } } | null }>(
-    `select i.id,i.factory_id,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,i.meta->'carousel' carousel_meta,i.meta->'seo' seo_meta,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
+  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo" | "poll"> & { chan_ids: string[] | null; poll_meta: { question?: string; options?: string[]; mode?: "options" | "open"; multi?: boolean } | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string } } | null }>(
+    `select i.id,i.factory_id,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,i.meta->'carousel' carousel_meta,i.meta->'seo' seo_meta,i.meta->'poll' poll_meta,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
             case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 then array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid) else f.channel_ids end chan_ids
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.org_id=$1 and i.id = any($2::uuid[]) and ${DRAFT.replace(/meta/g, "i.meta")} order by i.created_at`, [orgId, ids]);
   const slides = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [orgId, rows.map((r) => r.id)]);
   const all = await q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 and status='active' order by created_at", [orgId]);
-  return rows.map(({ chan_ids, carousel_meta, seo_meta, ...r }) => {
+  return rows.map(({ chan_ids, carousel_meta, seo_meta, poll_meta, ...r }) => {
     const seo = r.kind === "seo";
     const opts = all.filter((c) => (seo ? SITE_CHANNELS.includes(c.kind) : !ARTICLE_ONLY.includes(c.kind)));
-    return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })), carousel: carousel_meta?.slides ? { slides: carousel_meta.slides, style: carousel_meta.style ?? "brand", custom: carousel_meta.custom ?? [], design: carousel_meta.design ?? {} } : null, seo: seo_meta ? { title: seo_meta.title, description: seo_meta.description, slug: seo_meta.slug } : null };
+    return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })), carousel: carousel_meta?.slides ? { slides: carousel_meta.slides, style: carousel_meta.style ?? "brand", custom: carousel_meta.custom ?? [], design: carousel_meta.design ?? {} } : null, seo: seo_meta ? { title: seo_meta.title, description: seo_meta.description, slug: seo_meta.slug } : null, poll: poll_meta?.question ? { question: poll_meta.question, options: poll_meta.options ?? [], mode: poll_meta.mode, multi: poll_meta.multi } : null };
   });
 }
 

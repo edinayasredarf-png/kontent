@@ -118,7 +118,7 @@ export async function createMaterialsAction(f: FormData) {
     // «создать сразу» — это черновик: без даты, вне плана и публикации, пока человек не посмотрит и не решит; дату и время спрашиваем при отправке в план.
     // Материалам сверх трёх дата нужна воркеру (они пишутся в фоне), но черновик всё равно остаётся скрытым.
     const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7::date,$8,$9::jsonb) returning id",
-      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify({ manual: true, ...(now ? { draft: true } : {}), ...(source ? { source } : {}) })]);
+      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify({ manual: true, ...(now ? { draft: true } : {}), ...(source ? { source } : {}), ...(k === "poll" ? { pollOpts: { mode: s(f, "pollmode") === "open" ? "open" : "options", count: Math.min(6, Math.max(2, Number(s(f, "pollcount")) || 4)), multi: f.get("pollmulti") === "on" } } : {}) })]);
     ids.push(row!.id);
     kindOf.push({ id: row!.id, kind: k });
   }

@@ -220,23 +220,25 @@ export async function genCarousel(b: BrandCtx, product: string, niche: string, t
 /* ───────── опрос и инфографика ───────── */
 export interface PollText { question: string; options: string[]; caption: string }
 /** Опрос для аудитории: вопрос до 250 знаков, 2–6 вариантов до 90 знаков, короткая подводка. Формат Telegram: опрос публикуется встроенным опросом. */
-export async function genPoll(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote): Promise<PollText> {
+export async function genPoll(b: BrandCtx, product: string, niche: string, topic: string, hook: string, st: ContentSettings, source?: SourceNote, opts: { mode?: string; count?: number; multi?: boolean } = {}): Promise<PollText> {
+  const open = opts.mode === "open";
+  const count = Math.min(6, Math.max(2, Math.round(Number(opts.count)) || 4));
   const system = "Ты контент-стратег соцсетей. Пиши по-русски коротко и по делу. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений и markdown.";
   const user = `${brandBlock(b, product, niche)}\nТема опроса: ${topic}\nХук: ${hook}\n` +
     (source ? `\nМатериал-источник: «${source.title}»\n${source.body.slice(0, 3000)}\n` : "") +
-    `\nСделай опрос для аудитории: "question" — вопрос до 250 знаков, на который легко ответить одним нажатием; "options" — от 3 до 5 вариантов ответа до 80 знаков, не пересекающихся, без нумерации; "caption" — подводка к опросу 150–350 знаков (зачем мы спрашиваем и что сделаем с ответами).\n` +
+    `\nСделай опрос для аудитории: "question" — вопрос до 250 знаков, на который легко ответить одним нажатием; ${open ? `"options" — пустой массив [] (это открытый вопрос без вариантов ответа: люди ответят своими словами в комментариях, поэтому вопрос должен быть открытым, а не «да или нет»);` : `"options" — ровно ${count} вариантов ответа до 80 знаков, не пересекающихся, без нумерации;`} "caption" — подводка к опросу 150–350 знаков (зачем мы спрашиваем и что сделаем с ответами).\n` +
     `Правила оформления подводки:\n${styleBlock(st, "poll")}\nФормат: {"question":"...","options":["...","..."],"caption":"..."}`;
   let o: Record<string, unknown> | null = null;
   for (let a = 0; a < 2; a++) {
     o = extractObject(await chat("post", system, a ? user + "\n\nПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕВАЛИДНЫМ JSON. Верни только JSON-объект." : user, { maxTokens: 900, temperature: 0.7, timeoutMs: 40_000 }));
-    if (typeof o?.question === "string" && Array.isArray(o.options) && o.options.length >= 2) break;
+    if (typeof o?.question === "string" && Array.isArray(o.options) && (open || o.options.length >= 2)) break;
     o = null;
   }
   if (!o) throw new Error("Модель не вернула опрос");
   const clip = (v: unknown, k: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, k) : "");
-  const options = [...new Set((o.options as unknown[]).map((x) => clip(x, 90).replace(/^\d+[.)]\s*/, "")).filter(Boolean))].slice(0, 6);
+  const options = open ? [] : [...new Set((o.options as unknown[]).map((x) => clip(x, 90).replace(/^\d+[.)]\s*/, "")).filter(Boolean))].slice(0, 6);
   const question = clip(o.question, 280);
-  if (!question || options.length < 2) throw new Error("В опросе получилось меньше двух вариантов");
+  if (!question || (!open && options.length < 2)) throw new Error("В опросе получилось меньше двух вариантов");
   return { question, options, caption: clip(o.caption, 600) };
 }
 

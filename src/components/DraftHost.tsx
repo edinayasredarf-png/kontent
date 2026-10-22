@@ -5,11 +5,12 @@ import { allocateDates } from "@/lib/plan";
 import { q } from "@/lib/db";
 import { IMAGE_KINDS } from "@/lib/item-images";
 import { PRICES, rub } from "@/lib/wallet";
-import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftPublishAction, draftRemoveImageAction, draftReworkImageAction, draftToPlanAction, regenDraftAction, saveDraftTextAction } from "@/lib/draft-actions";
+import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftPublishAction, draftRemoveImageAction, draftReworkImageAction, draftToPlanAction, regenDraftAction, saveDraftTextAction, saveDraftPollAction } from "@/lib/draft-actions";
 import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { DraftBodyEditor } from "@/components/DraftBodyEditor";
 import { ArticleEditor } from "@/components/ArticleEditor";
+import { PollEditor } from "@/components/PollEditor";
 import { CarouselPanel } from "@/components/CarouselPanel";
 import { cleanKit } from "@/lib/images";
 import { ImagePicker } from "@/components/ImagePicker";
@@ -69,9 +70,11 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
               </div>
               )
             ) : (
-              <form action={saveDraftTextAction} className="space-y-2">
+              <form action={it.kind === "poll" ? saveDraftPollAction : saveDraftTextAction} className="space-y-2">
                 {hid(it.id)}
-                {["seo", "email", "guide"].includes(it.kind)
+                {it.kind === "poll"
+                  ? <PollEditor lead={it.body} poll={it.poll} kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} />
+                  : ["seo", "email", "guide"].includes(it.kind)
                   ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={free} />
                   : <DraftBodyEditor initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
                       kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} oneMessageTg={!!process.env.APP_URL?.trim()} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} kind={it.kind} />}

@@ -25,6 +25,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
   // замена текста из кода (ИИ-правка, выбор новости): обновляем поле и его высоту
   const setTopic = (t: string) => { setTopicState(t); const el = topicRef.current; if (el) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); } };
   const longText = topic.length > 300;
+  const [pollMode, setPollMode] = useState<"options" | "open">("options"), [pollCount, setPollCount] = useState(4);
   const source = type === SOURCE, multi = type === MULTI;
   return (
     <form action={source ? repurposeAction : createAction} className="space-y-3">
@@ -69,6 +70,23 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
           <input name="date" type="date" className="input" title="Дата выхода идеи в плане (если пусто — ближайший свободный день)" aria-label="Дата" />
         ) : null}
       </div>
+      {type === "poll" && !source && (
+        <div className="space-y-2 rounded-2xl bg-tile p-3">
+          <span className="label">Какой опрос сделать</span>
+          <div className="flex flex-wrap gap-2">
+            <label className="chip chip-toggle cursor-pointer !px-3 !py-1.5"><input type="radio" name="pollmode" value="options" checked={pollMode === "options"} onChange={() => setPollMode("options")} className="hidden" />С вариантами ответов</label>
+            <label className="chip chip-toggle cursor-pointer !px-3 !py-1.5"><input type="radio" name="pollmode" value="open" checked={pollMode === "open"} onChange={() => setPollMode("open")} className="hidden" />Открытый вопрос (без вариантов)</label>
+          </div>
+          {pollMode === "options" ? (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-ink2">
+              <label className="flex items-center gap-2">Сколько вариантов
+                <select name="pollcount" value={pollCount} onChange={(e) => setPollCount(Number(e.target.value))} className="input !w-auto !py-1 text-xs">{[2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" name="pollmulti" />Можно выбрать несколько (в Telegram)</label>
+            </div>
+          ) : null}
+          <p className="text-xs text-ink3">{pollMode === "options" ? "В Telegram выйдет встроенный опрос с кнопками, в VK и MAX варианты уйдут текстом, голосовать цифрой в комментариях." : "Только вопрос: люди отвечают своими словами в комментариях. Вопрос будет открытым, не «да или нет»."} Вопрос и варианты можно будет поправить в окне материала.</p>
+        </div>
+      )}
       {multi && (
         <div>
           <span className="label">Какие материалы создать по этой теме</span>

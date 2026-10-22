@@ -28,6 +28,20 @@ export async function saveDraftTextAction(f: FormData) {
   back(f, await saveDraftBody(c.org.id, s(f, "id"), String(f.get("body") ?? "")));
 }
 
+/** Опрос в окне материала: вводный текст, вопрос, варианты (или открытый вопрос без вариантов), «несколько ответов». */
+export async function saveDraftPollAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id");
+  const question = s(f, "question").slice(0, 280);
+  const open = s(f, "mode") === "open";
+  const options = open ? [] : [...new Set(f.getAll("option").map((x) => String(x).trim().slice(0, 90)).filter(Boolean))].slice(0, 10);
+  if (!question) return back(f, { ok: false, error: "Напишите вопрос опроса" });
+  if (!open && options.length < 2) return back(f, { ok: false, error: "Нужно минимум два варианта ответа или выберите «Открытый вопрос»" });
+  const poll = { question, options, mode: open ? "open" : "options", multi: !open && f.get("multi") === "on" };
+  const r = await q("update kz_content_items set body=$3, meta = meta || jsonb_build_object('poll',$4::jsonb), updated_at=now() where id=$1 and org_id=$2 and kind='poll' and coalesce((meta->>'draft')::boolean,false) returning id", [id, c.org.id, String(f.get("body") ?? "").trim().slice(0, 4000), JSON.stringify(poll)]);
+  back(f, r.length ? { ok: true } : { ok: false, error: "Опрос не найден" });
+}
+
 export async function regenDraftAction(f: FormData) {
   const c = await requireWriter();
   back(f, await regenDraft(c.org.id, s(f, "id")));

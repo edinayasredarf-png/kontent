@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toPlain } from "@/lib/publishing/format";
+import { hasOptions, pollText, type PollMeta } from "@/lib/poll-format";
 
 const NETS: { k: string; label: string }[] = [{ k: "telegram", label: "Telegram" }, { k: "vk", label: "ВКонтакте" }, { k: "max", label: "MAX" }];
 const TG_CAPTION = 1024, TG_MSG = 4000, MAX_MSG = 3900, VK_FOLD = 360;
@@ -124,6 +125,48 @@ function StoryPreview({ text, image, name }: { text: string; image?: string; nam
         <p className="text-ink3">Сторис — это вертикальная картинка 9:16 с короткой надписью. В каналы (Telegram, VK, MAX) она уходит как обычная картинка с подписью: публиковать настоящие сторис через ключи каналов площадки не позволяют. Чтобы выложить её сторис в приложении, скачайте картинку и загрузите вручную.</p>
         {image && <a href={`${image}?dl=1`} className="inline-flex items-center gap-1 font-semibold text-accent-ink underline">Скачать картинку для сторис</a>}
       </div>
+    </div>
+  );
+}
+
+/** Опрос: как он выглядит в Telegram (встроенный опрос) и как уйдёт в остальные площадки (вопрос и варианты текстом, голосуют цифрой). */
+export function PollPreview({ lead, poll, kinds, name }: { lead: string; poll: PollMeta; kinds: string[]; name: string }) {
+  const nets = NETS.filter((n) => !kinds.length || kinds.includes(n.k));
+  const list = nets.length ? nets : NETS;
+  const [tab, setTab] = useState(list[0].k);
+  const withOpts = hasOptions(poll);
+  const text = pollText(lead, poll, tab);
+  const warn: string[] = [];
+  if (tab === "telegram" && withOpts && poll.question.length > 300) warn.push("Вопрос длиннее 300 знаков: Telegram обрежет его в опросе.");
+  if (tab === "telegram" && withOpts && poll.options.some((o) => o.length > 100)) warn.push("Вариант длиннее 100 знаков: Telegram обрежет его.");
+  if (tab !== "telegram" && withOpts) warn.push("В этой площадке нет встроенных опросов с кнопками: варианты уйдут текстом, голосовать нужно цифрой в комментариях.");
+  if (!withOpts) warn.push("Открытый вопрос: вариантов нет, люди отвечают своими словами в комментариях.");
+  return (
+    <div className="space-y-3 rounded-2xl bg-tile p-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {list.map((x) => <button key={x.k} type="button" onClick={() => setTab(x.k)} aria-pressed={tab === x.k} className={`chip cursor-pointer !px-3 !py-1 text-xs ${tab === x.k ? "bg-accent-soft text-accent-ink" : ""}`}>{x.label}</button>)}
+      </div>
+      <div className="mx-auto max-w-sm space-y-2 text-[#1c1f23]">
+        {tab === "telegram" && withOpts ? (<>
+          {lead.trim() && <div className="rounded-2xl rounded-bl-md bg-white px-3 py-2 shadow-sm"><div className="text-xs font-semibold text-[#2b7de9]">{name}</div><p className="whitespace-pre-wrap text-[13.5px] leading-5"><Rich text={toPlain(lead)} /></p></div>}
+          <div className="rounded-2xl rounded-bl-md bg-white px-3 py-2.5 shadow-sm">
+            <div className="text-[13.5px] font-semibold leading-5">{poll.question}</div>
+            <div className="mb-2 text-[11px] text-[#818c99]">{poll.multi ? "Анонимный опрос · можно выбрать несколько" : "Анонимный опрос"}</div>
+            <div className="space-y-1.5">{poll.options.map((o, i) => (
+              <div key={i} className="flex items-center gap-2 text-[13px]"><span className={`size-4 shrink-0 border-2 border-[#9aa5b1] ${poll.multi ? "rounded" : "rounded-full"}`} />{o}</div>
+            ))}</div>
+            <div className="mt-2.5 rounded-lg bg-[#eef3fb] py-1.5 text-center text-[13px] font-semibold text-[#2b7de9]">Проголосовать</div>
+          </div>
+        </>) : tab === "vk" ? (
+          <div className="rounded-xl bg-white p-3 shadow-sm">
+            <div className="mb-2 flex items-center gap-2"><span className="grid size-9 place-items-center rounded-full bg-[#0077ff] text-xs font-semibold text-white">{(name[0] ?? "?").toUpperCase()}</span><div><div className="text-[13px] font-semibold">{name}</div><div className="text-[11px] text-[#818c99]">только что</div></div></div>
+            <p className="whitespace-pre-wrap text-[13.5px] leading-5"><Rich text={toPlain(text)} /></p>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white p-1.5 shadow-sm"><div className="px-2 pt-1 text-xs font-semibold text-[#7c3aed]">{name}</div><p className="whitespace-pre-wrap px-2 py-1.5 text-[13.5px] leading-5"><Rich text={toPlain(text)} /></p></div>
+        )}
+      </div>
+      {warn.map((w, i) => <p key={i} className="flex items-start gap-1.5 text-xs text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{w}</p>)}
     </div>
   );
 }
