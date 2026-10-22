@@ -9,6 +9,8 @@ import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftP
 import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { DraftBodyEditor } from "@/components/DraftBodyEditor";
+import { CarouselPanel } from "@/components/CarouselPanel";
+import { cleanKit } from "@/lib/images";
 import { ImagePicker } from "@/components/ImagePicker";
 import { ImageSlot } from "@/components/ImageSlot";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -25,7 +27,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
   const items = await loadDrafts(orgId, ids);
   if (!items.length) return null;
   const fids = [...new Set(items.map((i) => i.factory_id))];
-  const brands = await q<{ id: string; name: string }>("select f.id,b.name from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.id = any($2::uuid[])", [orgId, fids]);
+  const brands = await q<{ id: string; name: string; kit: unknown }>("select f.id,b.name,b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.id = any($2::uuid[])", [orgId, fids]);
   const [times, dates] = await Promise.all([
     q<{ id: string; t: string | null }>("select id, schedule->'times'->>0 t from kz_factories where org_id=$1 and id = any($2::uuid[])", [orgId, fids]),
     Promise.all(fids.map(async (f) => [f, (await allocateDates(f, 1))[0] ?? ""] as const)),
@@ -50,11 +52,21 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
         {ready && (
           <>
             {SLIDE_KINDS.includes(it.kind) ? (
+              it.kind === "carousel" && it.carousel && it.slides.length > 0 ? (
+                <div className="space-y-2">
+                  <CarouselPanel caption={it.body} colors={(cleanKit(brands.find((b) => b.id === it.factory_id)?.kit).colors ?? []).map((x) => x.hex)} itemId={it.id} factoryId={it.factory_id}
+                    meta={{ slides: it.carousel.slides as never, style: it.carousel.style as never, custom: it.carousel.custom, design: it.carousel.design }} assets={it.slides.map((id) => ({ id }))} editable free={free} ret={`${returnTo}${returnTo.includes("?") ? "&" : "?"}draft=${items.map((x) => x.id).join(",")}`} />
+                  <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-3 text-xs text-ink2">{hid(it.id)}
+                    <SubmitButton data-confirm="Пересобрать всю карусель заново? Тексты и слайды будут созданы с нуля, правки пропадут." data-confirm-ok="Пересобрать" className="pill pill-sm"><RefreshCw size={13} />Пересобрать всю карусель{price(priceOf(it.kind))}</SubmitButton>
+                    <span className="text-ink3">С нуля, по теме материала. Если нужно поправить отдельные слайды, используйте редактор выше.</span></form>
+                </div>
+              ) : (
               <div className="space-y-2 rounded-2xl bg-surface p-3">
                 <div className="flex gap-2 overflow-x-auto">{it.slides.slice(0, 10).map((sid) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={sid} src={`/api/assets/${sid}`} alt="" className="h-40 w-auto shrink-0 rounded-xl border border-line" />)}</div>
                 {it.body && <p className="whitespace-pre-wrap text-sm text-ink2">{it.body.slice(0, 600)}</p>}
-                <p className="text-xs text-ink3">Картинки здесь — это слайды. Править их можно в плане завода, после «В контент-план».</p>
+                <p className="text-xs text-ink3">Инфографику можно править в плане завода, после «В контент-план».</p>
               </div>
+              )
             ) : (
               <form action={saveDraftTextAction} className="space-y-2">
                 {hid(it.id)}

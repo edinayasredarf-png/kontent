@@ -2,10 +2,22 @@ import sharp from "sharp";
 import { one, q } from "../db";
 import { loadAsset, saveAsset } from "../assets";
 import { cleanKit } from "../images";
+import { isFontSpec } from "./brand-font";
 import { cleanSettings } from "../postsettings";
 import { fixLayout } from "./layouts";
 import { renderInfographic, type Infographic } from "./infographic";
 import { renderCarousel, type CarouselStyle, type Slide } from "./render";
+
+/** Оформление конкретной карусели поверх набора бренда: основной цвет, шрифт и формат слайдов. Пусто — как у бренда и завода. */
+export interface CarouselDesign { color?: string; font?: string; format?: "portrait" | "square" }
+export function cleanDesign(raw: unknown): CarouselDesign {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  const out: CarouselDesign = {};
+  if (typeof d.color === "string" && /^#[0-9a-f]{6}$/i.test(d.color)) out.color = d.color.toLowerCase();
+  if (typeof d.font === "string" && d.font && isFontSpec(d.font)) out.font = d.font;
+  if (d.format === "portrait" || d.format === "square") out.format = d.format;
+  return out;
+}
 
 export const carouselAssets = (itemId: string) =>
   q<{ id: string; position: number }>("select id,position from kz_assets where item_id=$1 and position>=0 order by position", [itemId]);
@@ -28,11 +40,14 @@ export function cleanSlides(raw: unknown): Slide[] {
  * Рисует слайды и заменяет ими прежние файлы материала. Новые сохраняются до удаления старых — при сбое (например, лимит хранилища)
  * прежняя карусель остаётся целой. cover: undefined — оставить текущий фон обложки, null — убрать, Buffer — новый.
  */
-export async function renderForItem(orgId: string, itemId: string, slides: Slide[], style: CarouselStyle, cover?: Buffer | null, reset: number[] = []): Promise<void> {
-  const it = await one<{ brand_id: string; brief: unknown; brand: string; kit: unknown; meta: { carousel?: { slides?: { title?: string }[]; custom?: number[] } } }>(
+export async function renderForItem(orgId: string, itemId: string, slides: Slide[], style: CarouselStyle, cover?: Buffer | null, reset: number[] = [], designIn?: CarouselDesign): Promise<void> {
+  const it = await one<{ brand_id: string; brief: unknown; brand: string; kit: unknown; meta: { carousel?: { slides?: { title?: string }[]; custom?: number[]; design?: CarouselDesign } } }>(
     `select i.brand_id,i.meta,f.brief,b.name brand,b.kit from kz_content_items i join kz_brands b on b.id=i.brand_id left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) throw new Error("Материал не найден");
   const st = cleanSettings(it.brief), kit = cleanKit(it.kit);
+  // оформление этой карусели: переданное, иначе сохранённое раньше; основной цвет ставим первым в палитре
+  const design = designIn ? cleanDesign(designIn) : cleanDesign(it.meta?.carousel?.design);
+  const palette = design.color ? [{ hex: design.color }, ...(kit.colors ?? []).filter((c) => c.hex !== design.color)] : kit.colors ?? [];
   const logoRow = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
   const logo = logoRow ? (await loadAsset(orgId, logoRow.id))?.data ?? null : null;
   const oldCover = await one<{ id: string }>("select id from kz_assets where item_id=$1 and position=-1", [itemId]);
@@ -40,7 +55,7 @@ export async function renderForItem(orgId: string, itemId: string, slides: Slide
   if (cover === undefined) coverBuf = oldCover ? (await loadAsset(orgId, oldCover.id))?.data ?? null : null;
   else coverBuf = cover;
 
-  const out = await renderCarousel({ slides, style, colors: kit.colors ?? [], font: kit.font, brandName: it.brand, aspect: st.carouselFormat, logo, cover: coverBuf });
+  const out = await renderCarousel({ slides, style, colors: palette, font: design.font || kit.font, brandName: it.brand, aspect: design.format ?? st.carouselFormat, logo, cover: coverBuf });
   // слайды, отредактированные вручную в визуальном редакторе, не перерисовываем, пока их текст не изменился (иначе правка потеряется молча)
   const oldTitles = it.meta?.carousel?.slides ?? [];
   const wantKeep = (it.meta?.carousel?.custom ?? []).filter((pos) => !reset.includes(pos) && pos < slides.length && oldTitles[pos]?.title === slides[pos]?.title);
@@ -62,7 +77,7 @@ export async function renderForItem(orgId: string, itemId: string, slides: Slide
     if (created.length) await q("delete from kz_assets where id = any($1::uuid[]) and org_id=$2", [created, orgId]); // откатываем недозаписанное
     throw e;
   }
-  await q("update kz_content_items set meta = meta || jsonb_build_object('carousel', jsonb_build_object('slides',$3::jsonb,'style',$4::text,'custom',$5::jsonb)), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(slides), style, JSON.stringify([...kept.keys()])]);
+  await q("update kz_content_items set meta = meta || jsonb_build_object('carousel', jsonb_build_object('slides',$3::jsonb,'style',$4::text,'custom',$5::jsonb,'design',$6::jsonb)), updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, JSON.stringify(slides), style, JSON.stringify([...kept.keys()]), JSON.stringify(design)]);
 }
 
 /** Инфографика материала: один файл (position 0), прежний удаляется после сохранения нового. Параметры хранятся в meta.infographic для правки. */

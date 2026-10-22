@@ -8,10 +8,10 @@ import type { SlideLayout } from "@/lib/carousel/layouts";
 import { PRICES, rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
-export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES }
+export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES; design?: { color?: string; font?: string; format?: string } }
 
 /** Слайды карусели у материала: превью, правка текстов с перерисовкой, обложка нейросетью, скачивание архивом. */
-export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [], caption = "" }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[]; caption?: string }) {
+export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [], caption = "", ret = "" }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[]; caption?: string; ret?: string }) {
   return (
     <div className="space-y-3 rounded-xl border border-line p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -28,17 +28,17 @@ export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free,
       {editable && <SlideEditor itemId={itemId} targets={assets.map((a, i) => ({ key: `slide:${i}`, label: `Слайд ${i + 1}${meta.custom?.includes(i) ? " ✎" : ""}`, assetId: a.id }))} colors={colors} />}
       {editable && (meta.custom?.length ?? 0) > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink2">Слайды с ручной правкой не перерисовываются при смене текста:
-          {meta.custom!.map((n) => <form key={n} action={resetSlideAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="pos" value={n} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Вернуть слайд {n + 1}</SubmitButton></form>)}</div>
+          {meta.custom!.map((n) => <form key={n} action={resetSlideAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="pos" value={n} />{ret && <input type="hidden" name="ret" value={ret} />}<SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Вернуть слайд {n + 1}</SubmitButton></form>)}</div>
       )}
       {editable && (<>
         <details className="rounded-xl bg-tile p-3">
           <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тексты слайдов и оформление</summary>
-          <div className="mt-3"><CarouselEditor itemId={itemId} factoryId={factoryId} slides={meta.slides} style={meta.style} styles={CAROUSEL_STYLES} /></div>
+          <div className="mt-3"><CarouselEditor itemId={itemId} factoryId={factoryId} slides={meta.slides} style={meta.style} styles={CAROUSEL_STYLES} ret={ret || undefined} colors={colors} design={meta.design} editPrice={free ? "" : rub(PRICES.edit)} /></div>
         </details>
         <div className="flex flex-wrap gap-2">
-          <form action={carouselCoverAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="mode" value="ai" />
+          <form action={carouselCoverAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="mode" value="ai" />{ret && <input type="hidden" name="ret" value={ret} />}
             <SubmitButton className="btn btn-ghost !py-1.5"><ImageIcon size={14} />Новая обложка нейросетью{free ? "" : ` · ${rub(PRICES.image)}`}</SubmitButton></form>
-          <form action={carouselCoverAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="mode" value="none" />
+          <form action={carouselCoverAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="mode" value="none" />{ret && <input type="hidden" name="ret" value={ret} />}
             <SubmitButton className="btn btn-ghost !py-1.5"><X size={14} />Обложка без картинки</SubmitButton></form>
         </div>
       </>)}
