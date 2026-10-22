@@ -127,7 +127,7 @@ export const vk: Provider = {
         let checkErr = "";
         const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
         const list = Array.isArray(got) ? got : got?.items;
-        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. Чтобы картинка гарантированно была, задайте APP_URL на сервере (тогда она прикрепится ссылкой-карточкой) или подключите ключ пользователя-администратора. Способ: ${up.name}`);
+        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. ${input.imageUrl ? "" : "APP_URL на сервере не виден (проверьте значение и сделайте Redeploy). "}Что не сработало раньше: ${errs.join(" | ") || "—"}. Способ: ${up.name}`);
         if (!(list[0].attachments?.length)) {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
