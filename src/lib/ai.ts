@@ -135,9 +135,33 @@ export async function genPlan(b: BrandCtx, product: string, niche: string, kinds
   return ideas.slice(0, days);
 }
 
+/** Ответ модели для поста без служебного мусора: рассуждения, ограда ```, вводное «Вот текст:», markdown-разметка (в соцсетях она не работает). */
+export function cleanPostText(raw: string, keepMarkdownHeadings = false): string {
+  let t = raw.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
+  t = t.replace(/^```[a-z]*\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  t = t.replace(/^(?:вот|держите|ниже)[^\n:]{0,80}:\s*\n+/i, "").replace(/^(?:текст поста|пост|текст)\s*:\s*\n?/i, "");
+  t = t.replace(/\*\*(.+?)\*\*/gs, "$1").replace(/__(.+?)__/gs, "$1");
+  if (!keepMarkdownHeadings) t = t.replace(/^#{1,6}[ \t]+(.+)$/gm, "$1");
+  return t.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export interface SourceNote { title: string; body: string; url: string }
 
 export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
+  const st = settings ?? cleanSettings({});
+  const text = cleanPostText(await genPostRaw(b, product, niche, topic, hook, kind, source, settings, postType), kind === "article");
+  // сторис и короткий пост не должны выходить за свой объём: один повтор с просьбой сократить, дальше берём как есть
+  const max = kind === "story" ? 400 : kind === "post" && st.length !== "long" ? 1000 : 0;
+  if (max && text.length > max) {
+    try {
+      const again = cleanPostText(await chat("post", "Ты редактор. Сократи текст, сохранив смысл, тон, ссылку и хештеги. Верни только готовый текст без пояснений.", `Нужно уложиться примерно в ${kind === "story" ? 250 : 700} знаков (сейчас ${text.length}).\n\n<<<\n${text}\n>>>`, { maxTokens: 800, temperature: 0.3, timeoutMs: 30_000 }));
+      if (again.length > 20 && again.length < text.length) return again;
+    } catch { /* оставляем длинный вариант: он годится, просто объёмнее */ }
+  }
+  return text;
+}
+
+async function genPostRaw(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
   const st = settings ?? cleanSettings({});
   const len = kind === "article" ? "800–1200 слов, заголовки H2" : kind === "reels" ? "сценарий ролика на 20 сек: хук, 3 кадра, CTA" : kind === "story" ? "текст для сторис: одна мысль и призыв, до 250 знаков, без хештегов" : kind === "contest" ? "пост-конкурс, 500–900 знаков: что разыгрываем, условия участия по шагам, срок, как и когда объявим победителя" : st.length === "long" ? "1200–1800 знаков" : "400–700 знаков";
   const task: AiTask = kind === "article" ? "article" : kind === "carousel" ? "carousel" : kind === "reels" ? "reels" : "post";
