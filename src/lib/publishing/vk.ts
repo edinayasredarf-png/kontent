@@ -79,7 +79,11 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
   { name: "ссылка с картинкой", multi: true, single: true, run: async (_t, _g, _i, imageUrl) => {
     if (!imageUrl) throw new PublishError("не задан APP_URL, публичной ссылки на картинку нет");
     // VK надолго запоминает разбор адреса (в том числе неудачный), поэтому каждый раз даём новый адрес: лишний параметр подпись не меняет
-    return `${imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?")}&v=${Date.now().toString(36)}`;
+    const url = cardUrl(imageUrl);
+    // API сам страницу не читает: без разбора ссылки VK отвечает «No photo given». Просим его разобрать карточку заранее, как при вставке ссылки в пост
+    await fetch(`https://vk.com/share.php?url=${encodeURIComponent(url)}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; vkShare; +http://vk.com/dev/Share)" }, signal: AbortSignal.timeout(8000) }).catch(() => null);
+    await new Promise((r) => setTimeout(r, 1500));
+    return url;
   } },
   { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
@@ -91,6 +95,9 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
     return `photo${saved[0].owner_id}_${saved[0].id}${saved[0].access_key ? `_${saved[0].access_key}` : ""}`;
   } },
 ];
+
+/** Адрес страницы-карточки для картинки; каждый раз новый, чтобы VK не отдавал запомненный неудачный разбор. */
+const cardUrl = (imageUrl: string) => `${imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?")}&v=${Date.now().toString(36)}`;
 
 /** Понятная причина, почему VK не принял фото: по каждому способу загрузки. */
 function vkPhotoHint(errs: string[]): string {
@@ -135,7 +142,7 @@ export const vk: Provider = {
         let checkErr = "";
         const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
         const list = Array.isArray(got) ? got : got?.items;
-        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. ${input.imageUrl ? "" : "APP_URL на сервере не виден (проверьте значение и сделайте Redeploy). "}Что не сработало раньше: ${errs.join(" | ") || "—"}.${errs.some((e) => /No photo given/.test(e)) ? " VK не смог прочитать картинку по ссылке-карточке: в Vercel (Logs, фильтр /api/pub) проверьте, приходят ли запросы от VK и не блокирует ли их Firewall." : ""} Способ: ${up.name}`);
+        if (checkErr || !list?.[0]) return done(r, `Картинка могла не попасть в пост: VK не даёт ключу сообщества проверить это, а фото, загруженные через сообщения, он часто не показывает. ${input.imageUrl ? "" : "APP_URL на сервере не виден (проверьте значение и сделайте Redeploy). "}Что не сработало раньше: ${errs.join(" | ") || "—"}.${errs.some((e) => /No photo given/.test(e)) && input.imageUrl ? ` VK не смог прочитать картинку по ссылке-карточке. Проверка: вставьте эту ссылку в новый пост VK — должна появиться картинка: ${cardUrl(input.imageUrl)}` : ""} Способ: ${up.name}`);
         if (!(list[0].attachments?.length)) {
           await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
