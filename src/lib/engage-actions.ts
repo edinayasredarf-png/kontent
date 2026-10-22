@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { suggestReply } from "./comments";
 import { requireCtx, requireWriter } from "./auth";
 import { q } from "./db";
-import { collectComments, collectStats, recommendations, replyToComment, type Period } from "./engage";
+import { collectComments, collectStats, recommendations, replyToComment, type AFilter } from "./engage";
+import { uuidOrEmpty } from "./range";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -18,10 +19,12 @@ export async function refreshStatsAction() {
 }
 
 // days приходит из bind() на странице, вторым аргументом React добавляет прежнее состояние формы
-export async function recommendAction(days: number, _prev: unknown) {
+export async function recommendAction(f: AFilter, _prev: unknown) {
   const c = await requireCtx();
   if (c.org.role === "viewer") return { error: "Недостаточно прав" };
-  return recommendations(c.org.id, ([7, 30, 0].includes(days) ? days : 30) as Period);
+  // фильтр приходит с клиента: оставляем только даты и идентификаторы нужного вида
+  const d = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  return recommendations(c.org.id, { from: d(f?.from), to: d(f?.to), brand: uuidOrEmpty(f?.brand) || undefined, channel: uuidOrEmpty(f?.channel) || undefined, kind: typeof f?.kind === "string" && /^[a-z]{2,20}$/.test(f.kind) ? f.kind : undefined });
 }
 
 export async function commentStatusAction(f: FormData) {

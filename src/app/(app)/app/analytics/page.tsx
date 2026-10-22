@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
-import { analytics, membersReport, type Period } from "@/lib/engage";
+import { analytics, membersReport } from "@/lib/engage";
+import { q } from "@/lib/db";
+import { FilterBar } from "@/components/FilterBar";
+import { parseRange, rangeLabel, uuidOrEmpty, type Preset } from "@/lib/range";
 import { recommendAction, refreshStatsAction } from "@/lib/engage-actions";
 import { PRICES, rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
@@ -10,23 +12,37 @@ import { Empty, KIND, PageHead } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 
 import { SubmitButton } from "@/components/SubmitButton";
-export default async function Analytics({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
-  const { d } = await searchParams;
-  const days: Period = d === "7" ? 7 : d === "all" ? 0 : 30;
+const PRESETS: [Preset, string][] = [["today", "Сегодня"], ["yesterday", "Вчера"], ["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
+
+export default async function Analytics({ searchParams }: { searchParams: Promise<{ r?: string; d?: string; from?: string; to?: string; brand?: string; channel?: string; kind?: string }> }) {
+  const sp = await searchParams;
   const c = await requireCtx();
-  const [a, members] = await Promise.all([analytics(c.org.id, days), membersReport(c.org.id)]);
+  const rg = parseRange(sp, [...PRESETS.map(([k]) => k), "custom"], "30");
+  const kind = sp.kind && sp.kind in KIND ? sp.kind : "";
+  const [brands, channels] = await Promise.all([
+    q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by created_at", [c.org.id]),
+    q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 order by created_at", [c.org.id]),
+  ]);
+  const brand = brands.some((x) => x.id === uuidOrEmpty(sp.brand)) ? sp.brand! : "", channel = channels.some((x) => x.id === uuidOrEmpty(sp.channel)) ? sp.channel! : "";
+  const filter = { from: rg.from || undefined, to: rg.to || undefined, brand: brand || undefined, channel: channel || undefined, kind: kind || undefined };
+  const [a, members] = await Promise.all([analytics(c.org.id, filter), membersReport(c.org.id)]);
   const posts = Number(a.tot.posts), views = Number(a.tot.views), eng = Number(a.tot.likes) + Number(a.tot.comments) + Number(a.tot.reposts);
   const er = views ? ((eng / views) * 100).toFixed(1) : "0";
   const maxH = Math.max(1, ...a.byHour.map((h) => Number(h.avg)));
-  const periods: [string, string][] = [["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
-  const bound = recommendAction.bind(null, days);
+  const bound = recommendAction.bind(null, filter);
+  const filtered = !!(brand || channel || kind);
   return (
     <>
       <PageHead title="Аналитика" sub="Просмотры и реакции опубликованных постов. Данные обновляются сами." action={
         <form action={refreshStatsAction}><SubmitButton className="btn btn-ghost"><RefreshCw size={15} />Обновить</SubmitButton></form>} />
-      <div className="mb-4 flex gap-1 text-sm">{periods.map(([v, l]) => <Link key={v} href={`/app/analytics?d=${v}`} className={`rounded-lg px-3 py-1.5 ${(days === 0 ? "all" : String(days)) === v ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}</Link>)}</div>
+      <FilterBar path="/app/analytics" presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
+        { name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) },
+        { name: "channel", label: "Канал", all: "Все каналы", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
+        { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
+      ]} />
+      <p className="-mt-2 mb-5 text-center text-xs text-ink3">Период: {rangeLabel(rg)}</p>
       {posts === 0 ? (
-        <Empty icon={<BarChart3 />} title="Пока нет данных" text="Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)." />
+        <Empty icon={<BarChart3 />} title={filtered || rg.r !== "all" ? "За выбранный период данных нет" : "Пока нет данных"} text={filtered || rg.r !== "all" ? "Попробуйте другой период или уберите фильтры." : "Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)."} />
       ) : (<>
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
           {[["Постов", posts.toLocaleString("ru-RU")], ["Просмотров", views.toLocaleString("ru-RU")], ["Реакций", eng.toLocaleString("ru-RU")], ["Вовлечённость", `${er}%`], ...(a.clicks > 0 ? [["Переходов на сайт", a.clicks.toLocaleString("ru-RU")]] : [])].map(([l, v]) => (

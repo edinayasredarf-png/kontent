@@ -5,6 +5,7 @@ import { chat } from "./ai";
 import { aiReady } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
 import { classifyComment } from "./comments";
+import { bounds } from "./range";
 
 /* ───────── разбор адресов опубликованных постов ───────── */
 export function parseVkUrl(url: string): { owner: string; id: string } | null {
@@ -133,30 +134,56 @@ export async function replyToComment(orgId: string, commentId: string, text: str
 
 /* ───────── аналитика ───────── */
 export type Period = 7 | 30 | 0;
-const since = (d: Period) => (d ? `now() - interval '${d} days'` : `'1970-01-01'::timestamptz`);
+/** Фильтр аналитики: период (даты по Москве) и необязательные бренд, канал, формат. */
+export interface AFilter { from?: string; to?: string; brand?: string; channel?: string; kind?: string }
+const ymd = (t: number) => new Date(t + 3 * 3_600_000).toISOString().slice(0, 10);
+const asFilter = (f: AFilter | Period): AFilter => (typeof f === "number" ? (f ? { from: ymd(Date.now() - (f - 1) * 86_400_000) } : {}) : f);
 
-export async function analytics(orgId: string, days: Period) {
+/** Условия для запросов с kz_publications p, kz_content_items i, kz_channels c; параметры идут после $1 (orgId). */
+function cond(f: AFilter) {
+  const bd = bounds(f), params: unknown[] = [];
+  const add = (v: unknown) => { params.push(v); return `$${params.length + 1}`; };
+  let sql = "";
+  if (bd.from) sql += ` and p.published_at >= ${add(bd.from)}::timestamptz`;
+  if (bd.to) sql += ` and p.published_at < ${add(bd.to)}::timestamptz`;
+  if (f.brand) sql += ` and i.brand_id = ${add(f.brand)}::uuid`;
+  if (f.channel) sql += ` and p.channel_id = ${add(f.channel)}::uuid`;
+  if (f.kind) sql += ` and i.kind = ${add(f.kind)}`;
+  return { sql, params, bd };
+}
+
+export async function analytics(orgId: string, filter: AFilter | Period) {
+  const f = asFilter(filter), w = cond(f);
   const base = `from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
-                where p.org_id=$1 and p.status='published' and p.published_at >= ${since(days)}`;
+                where p.org_id=$1 and p.status='published'${w.sql}`;
+  const P = [orgId, ...w.params];
+  // переходы по ссылкам: тот же период и те же фильтры через материал и канал
+  const lp: unknown[] = [orgId]; let lsql = "";
+  if (w.bd.from) { lp.push(w.bd.from); lsql += ` and l.created_at >= $${lp.length}::timestamptz`; }
+  if (w.bd.to) { lp.push(w.bd.to); lsql += ` and l.created_at < $${lp.length}::timestamptz`; }
+  if (f.channel) { lp.push(f.channel); lsql += ` and l.channel_id = $${lp.length}::uuid`; }
+  if (f.brand) { lp.push(f.brand); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.brand_id=$${lp.length}::uuid)`; }
+  if (f.kind) { lp.push(f.kind); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.kind=$${lp.length})`; }
   const [tot, byChannel, byKind, top, byHour, clicksRow] = await Promise.all([
-    one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes),0) likes,coalesce(sum(s.comments),0) comments,coalesce(sum(s.reposts),0) reposts ${base}`, [orgId]),
-    q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select c.kind,c.title,count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by c.kind,c.title order by views desc`, [orgId]),
-    q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select i.kind,count(*) posts,coalesce(sum(s.views),0) views,round(coalesce(avg(s.views),0)) avg,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by i.kind order by avg desc`, [orgId]),
+    one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes),0) likes,coalesce(sum(s.comments),0) comments,coalesce(sum(s.reposts),0) reposts ${base}`, P),
+    q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select c.kind,c.title,count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by c.kind,c.title order by views desc`, P),
+    q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select i.kind,count(*) posts,coalesce(sum(s.views),0) views,round(coalesce(avg(s.views),0)) avg,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by i.kind order by avg desc`, P),
     q<{ topic: string; kind: string; channel: string; url: string | null; published_at: string; views: number; likes: number; comments: number; reposts: number; clicks: string }>(
-      `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, [orgId]),
-    q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, [orgId]),
-    one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1 and l.created_at >= ${since(days)}`, [orgId]),
+      `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, P),
+    q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, P),
+    one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1${lsql}`, lp),
   ]);
   return { tot: tot!, byChannel, byKind, top, byHour, clicks: Number(clicksRow?.n ?? 0) };
 }
 
-export async function recommendations(orgId: string, days: Period): Promise<{ text?: string; error?: string }> {
+export async function recommendations(orgId: string, days: AFilter | Period): Promise<{ text?: string; error?: string }> {
   if (!aiReady()) return { error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const a = await analytics(orgId, days);
   if (Number(a.tot.posts) < 3) return { error: "Для рекомендаций нужно хотя бы 3 опубликованных поста со статистикой. Дайте постам время набрать просмотры." };
+  const w = cond(asFilter(days));
   const worst = await q<{ topic: string; kind: string; views: number }>(
     `select i.topic,i.kind,s.views from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id
-      where p.org_id=$1 and p.status='published' and p.published_at >= ${since(days)} order by s.views asc limit 5`, [orgId]);
+      where p.org_id=$1 and p.status='published'${w.sql} order by s.views asc limit 5`, [orgId, ...w.params]);
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Рекомендации по аналитике"); }
   catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
