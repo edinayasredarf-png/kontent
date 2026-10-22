@@ -3,6 +3,7 @@ import { safeFetchBuffer, safeFetchText } from "../safefetch";
 import { one } from "../db";
 import { open } from "../crypto";
 import { listPosts, maxToken } from "../publishing/max";
+import { vkServiceError } from "../vk-service";
 import { pageIcon, parseTelegramInfo, discoverFeeds, looksLikeFeed, pageTitle, parseFeed, parseTelegram, scrapeLinks, sha, type Item } from "./parse";
 
 export type Kind = "site" | "telegram" | "vk" | "news" | "manual" | "max";
@@ -99,7 +100,7 @@ export async function fetchItems(kind: Kind, ref: string, config: Record<string,
       body: new URLSearchParams({ domain: ref, count: "30", filter: "owner", access_token: token, v: "5.199" }),
     });
     const j = (await res.json().catch(() => ({}))) as { response?: { items?: VkPost[] }; error?: { error_code: number; error_msg: string } };
-    if (j.error) throw new Error(`VK: ${j.error.error_msg} (код ${j.error.error_code})`);
+    if (j.error) throw new Error(vkServiceError(j.error.error_code, j.error.error_msg));
     return (j.response?.items ?? []).flatMap((p) => {
       const text = (p.text || p.copy_history?.[0]?.text || "").replace(/\s+/g, " ").trim();
       if (!text) return [];

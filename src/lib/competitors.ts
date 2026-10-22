@@ -4,9 +4,11 @@ import { aiReady, chat } from "./ai";
 import { parseCount } from "./engage";
 import { allocateDates } from "./plan";
 import { safeFetchText } from "./safefetch";
+import { vkServiceError } from "./vk-service";
+import { fetchItems, resolveSource } from "./monitor/fetchers";
 import { InsufficientFunds, PRICES, charge, refund } from "./wallet";
 
-export type CKind = "telegram" | "vk";
+export type CKind = "telegram" | "vk" | "site";
 export const MAX_COMPETITORS = 10;
 const TG = /^[A-Za-z][A-Za-z0-9_]{3,31}$/, VKD = /^[A-Za-z0-9_.]{2,50}$/;
 
@@ -20,6 +22,12 @@ export function normalizeRef(kind: CKind, input: string): string {
     const name = v.replace(/^https?:\/\/(t\.me|telegram\.me)\/(s\/)?/i, "").replace(/^@/, "").split(/[/?#]/)[0];
     if (!TG.test(name)) throw new Error("Нужен username публичного канала: @name или https://t.me/name");
     return name.toLowerCase();
+  }
+  if (kind === "site") {
+    let u: URL;
+    try { u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`); } catch { throw new Error("Нужен адрес сайта: example.ru или https://example.ru/blog"); }
+    if (!/^https?:$/.test(u.protocol) || !u.hostname.includes(".") || u.username || u.password) throw new Error("Нужен адрес сайта: example.ru или https://example.ru/blog");
+    return `${u.protocol}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, "")}${u.search}`.slice(0, 300);
   }
   const d = v.replace(/^https?:\/\/(m\.)?vk\.(com|ru)\//i, "").split(/[/?#]/)[0];
   if (!VKD.test(d)) throw new Error("Нужна ссылка на сообщество: vk.com/name или vk.com/club123");
@@ -49,7 +57,7 @@ const VK_BASE = () => (process.env.VK_API_BASE?.trim() || "https://api.vk.com").
 async function vk<T>(token: string, method: string, params: Record<string, string>): Promise<T> {
   const res = await fetch(`${VK_BASE()}/method/${method}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: AbortSignal.timeout(15_000), body: new URLSearchParams({ ...params, access_token: token, v: "5.199" }) });
   const j = (await res.json().catch(() => ({}))) as { response?: T; error?: { error_code: number; error_msg: string } };
-  if (j.error) throw new Error(`VK: ${j.error.error_msg} (код ${j.error.error_code})`);
+  if (j.error) throw new Error(vkServiceError(j.error.error_code, j.error.error_msg));
   return j.response as T;
 }
 
@@ -60,8 +68,15 @@ export async function fetchCompetitor(kind: CKind, ref: string): Promise<CFetch>
     if (!f.posts.length) throw new Error("Канал не найден, закрыт или в нём нет текстовых постов");
     return f;
   }
+  if (kind === "site") {
+    // сайт: лента RSS, если она есть, иначе заголовки материалов со страницы; просмотров и подписчиков у сайта нет
+    const r = await resolveSource("site", ref);
+    const items = (await fetchItems("site", r.ref, r.config)).slice(0, 40);
+    if (!items.length) throw new Error("На сайте не нашли материалов: нужна страница со списком новостей или статей либо лента RSS");
+    return { title: r.title, members: null, posts: items.map((i) => ({ ext: i.url, url: i.url, body: (i.body && i.body.length > i.title.length ? i.body : i.title).slice(0, 4000), views: 0, likes: 0, at: i.publishedAt })) };
+  }
   const token = process.env.VK_SERVICE_TOKEN?.trim();
-  if (!token) throw new Error("Для анализа VK на сервере не задан VK_SERVICE_TOKEN");
+  if (!token) throw new Error("Для анализа VK на сервере не задан ключ VK_SERVICE_TOKEN (сервисный ключ приложения VK)");
   const [wall, grp] = await Promise.all([
     vk<{ items?: { id: number; owner_id: number; date: number; text?: string; views?: { count: number }; likes?: { count: number } }[] }>(token, "wall.get", { domain: ref, count: "40", filter: "owner" }),
     vk<{ groups?: { name: string; members_count?: number }[] } | { name: string; members_count?: number }[]>(token, "groups.getById", { group_id: ref, fields: "members_count" }).catch(() => null),
@@ -89,14 +104,14 @@ export async function refreshCompetitor(id: string): Promise<{ ok: true; posts: 
     });
     return { ok: true, posts: f.posts.length };
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 200);
+    const msg = (e as Error).message.slice(0, 400);
     await q("update kz_competitors set last_error=$2, last_fetched_at=now() where id=$1", [c.id, msg]);
     return { ok: false, error: msg };
   }
 }
 
 export async function addCompetitor(orgId: string, brandId: string | null, kind: string, input: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (kind !== "telegram" && kind !== "vk") return { ok: false, error: "Выберите Telegram или VK" };
+  if (kind !== "telegram" && kind !== "vk" && kind !== "site") return { ok: false, error: "Выберите площадку: Telegram, VK или сайт" };
   let ref: string;
   try { ref = normalizeRef(kind, input); } catch (e) { return { ok: false, error: (e as Error).message }; }
   if (brandId && !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [brandId, orgId]))) return { ok: false, error: "Бренд не найден" };
@@ -140,7 +155,7 @@ export async function competitorStats(orgId: string): Promise<CompStat[]> {
 export interface TopPost { id: string; comp: string; kind: string; ext_id: string; url: string; body: string; views: number; at: string }
 export const topCompetitorPosts = (orgId: string, limit = 12) =>
   q<TopPost>(`select p.competitor_id||'|'||p.ext_id id,c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.posted_at at from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
-               where c.org_id=$1 and p.posted_at > now() - interval '60 days' order by p.views desc limit $2`, [orgId, limit]);
+               where c.org_id=$1 and p.posted_at > now() - interval '60 days' order by p.views desc, p.posted_at desc limit $2`, [orgId, limit]);
 
 /** Разбор ИИ: что заходит у конкурентов (форматы, темы, заходы), чем отличаемся и 5 идей для плана. Платно; при сбое возврат. */
 export async function analyzeCompetitors(orgId: string): Promise<{ text?: string; error?: string }> {
