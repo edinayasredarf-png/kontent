@@ -50,6 +50,7 @@ export async function saveContentSettingsAction(f: FormData) {
   const st = cleanSettings({
     postTypes: f.getAll("postTypes").map(String), length: s(f, "length"), examples: String(f.get("examples") ?? ""), link, cta: s(f, "cta"),
     learn: f.get("learn") === "on", linkMode: s(f, "linkMode"), hashtags: s(f, "hashtags"), emoji: s(f, "emoji"), slides: Number(s(f, "slides")), carouselStyle: s(f, "carouselStyle"), carouselCover: s(f, "carouselCover"), carouselFormat: s(f, "carouselFormat"),
+    imgStyle: s(f, "imgStyle"), imgLogo: f.get("imgLogo") === "on", imgLogoPos: s(f, "imgLogoPos"), imgLogoScale: Number(s(f, "imgLogoScale")),
   });
   // служебные поля (выводы, стратегия, подсказка рубрики) в настройках не хранятся: стратегия лежит в brief.strategy отдельно
   const { learnings: _l, strategy: _s, rubricNote: _r, ...persist } = st;

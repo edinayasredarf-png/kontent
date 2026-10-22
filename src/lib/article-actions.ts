@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireWriter } from "./auth";
 import { one, q } from "./db";
 import { saveAsset } from "./assets";
-import { buildImagePrompt, cleanKit, finalizeImage, generateImage, SIZES } from "./images";
+import { buildImagePrompt, cleanKit, finalizeImage, generateImage, loadAsset, LOGO_POSITIONS, SIZES, STYLES } from "./images";
 import { brandNotes } from "./pipeline";
 import { cleanHtml } from "./seo";
 import { charge, InsufficientFunds, PRICES, refund } from "./wallet";
@@ -15,7 +15,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  * Картинка к одному разделу статьи. Клиент вызывает действие по очереди для каждого выбранного раздела (так нет общего долгого запроса и виден прогресс).
  * Деньги списываются заранее и возвращаются при сбое; готовая картинка сразу вставляется в HTML после заголовка раздела и сохраняется.
  */
-export async function sectionImageAction(itemId: string, html: string, h2Index: number, wish: string, aspect: string): Promise<{ ok: true; html: string; assetId: string } | { ok: false; error: string }> {
+export async function sectionImageAction(itemId: string, html: string, h2Index: number, wish: string, aspect: string, o: { style?: string; logo?: boolean; pos?: string; scale?: number } = {}): Promise<{ ok: true; html: string; assetId: string } | { ok: false; error: string }> {
   const c = await requireWriter();
   const it = await one<{ brand_id: string; topic: string; kind: string; status: string; factory_id: string | null }>("select brand_id,topic,kind,status,factory_id from kz_content_items where id=$1 and org_id=$2", [itemId, c.org.id]);
   if (!it || !["seo", "article", "guide"].includes(it.kind)) return { ok: false, error: "Материал не найден" };
@@ -36,9 +36,19 @@ export async function sectionImageAction(itemId: string, html: string, h2Index: 
     const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, c.org.id]);
     if (!brand) throw new Error("Бренд не найден");
     const kit = cleanKit(brand.kit);
-    const prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: title, hook: String(wish ?? "").slice(0, 300), body: section, notes: await brandNotes(c.org.id, it.brand_id) });
+    // единый стиль серии: выбранный, иначе стиль бренда, иначе иллюстрация; он же запоминается в материале для следующих запусков
+    const style = o.style && o.style in STYLES ? o.style : kit.style && kit.style in STYLES ? kit.style : "illustration";
+    const prompt = await buildImagePrompt({ brandName: brand.name, kit: { ...kit, style }, topic: title, hook: String(wish ?? "").slice(0, 300), body: section, notes: await brandNotes(c.org.id, it.brand_id), series: true });
     const raw = await generateImage(prompt, asp);
-    const done = await finalizeImage(raw, null, { ...kit, logoPos: "none" }); // логотип на иллюстрациях статьи не нужен
+    let logo = null;
+    if (o.logo) {
+      const row = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo' order by created_at desc limit 1", [c.org.id, it.brand_id]);
+      if (!row) throw new Error("логотип бренда не загружен: загрузите его в «Брендбуке» или снимите галочку");
+      logo = await loadAsset(c.org.id, row.id);
+    }
+    const pos = (LOGO_POSITIONS as readonly string[]).includes(o.pos ?? "") ? (o.pos as (typeof LOGO_POSITIONS)[number]) : "br";
+    const done = await finalizeImage(raw, logo, { ...kit, logoPos: logo ? pos : "none", logoScale: Math.min(40, Math.max(4, Math.round(Number(o.scale)) || kit.logoScale || 14)) });
+    await q("update kz_content_items set meta = meta || jsonb_build_object('imgStyle',$3::text) where id=$1 and org_id=$2", [itemId, c.org.id, style]);
     const assetId = await saveAsset(c.org.id, it.brand_id, "generated", `${title.slice(0, 50)}.jpg`, done);
     const next = insertAfterH2(src, h2Index, `<figure><img src="/api/assets/${assetId}" alt="${esc(title)}"></figure>`);
     if (!next) throw new Error("не удалось вставить картинку в текст");

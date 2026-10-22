@@ -13,7 +13,11 @@ export interface ContentSettings {
   /** Служебное: текст выводов из статистики, подставляется перед генерацией и не сохраняется. */ learnings: string;
   linkMode: "off" | "utm" | "track";
   slides: number; carouselStyle: keyof typeof CAROUSEL_STYLES; carouselCover: "plain" | "ai"; carouselFormat: "portrait" | "square";
+  /** Картинки к разделам статей: единый стиль (ключ из STYLES, пусто — стиль бренда), логотип поверх, его место и размер (% ширины). */
+  imgStyle: string; imgLogo: boolean; imgLogoPos: string; imgLogoScale: number;
 }
+
+export const LOGO_POS_LABEL: Record<string, string> = { tl: "Слева вверху", tc: "Сверху по центру", tr: "Справа вверху", ml: "Слева по центру", mc: "По центру", mr: "Справа по центру", bl: "Слева внизу", bc: "Снизу по центру", br: "Справа внизу" };
 
 const pick = <T extends string>(v: unknown, allowed: readonly T[], def: T): T => (allowed.includes(v as T) ? (v as T) : def);
 const str = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\r/g, "").trim().slice(0, n) : "");
@@ -36,6 +40,8 @@ export function cleanSettings(raw: unknown): ContentSettings {
     slides: Math.min(10, Math.max(4, Math.round(Number(b.slides)) || 6)),
     carouselStyle: pick(b.carouselStyle, Object.keys(CAROUSEL_STYLES) as (keyof typeof CAROUSEL_STYLES)[], "brand"),
     carouselCover: b.carouselCover === "ai" ? "ai" : "plain", carouselFormat: b.carouselFormat === "square" ? "square" : "portrait",
+    imgStyle: typeof b.imgStyle === "string" && /^[a-z]{3,12}$/.test(b.imgStyle) ? b.imgStyle : "", imgLogo: b.imgLogo === true,
+    imgLogoPos: typeof b.imgLogoPos === "string" && b.imgLogoPos in LOGO_POS_LABEL ? b.imgLogoPos : "br", imgLogoScale: Math.min(40, Math.max(4, Math.round(Number(b.imgLogoScale)) || 14)),
   };
 }
 

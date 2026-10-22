@@ -1,6 +1,7 @@
 import { LINK_MODES } from "@/lib/links";
 import { Settings2 } from "lucide-react";
-import { CAROUSEL_STYLES, EMOJI, HASHTAGS, LENGTHS, POST_TYPES, type ContentSettings } from "@/lib/postsettings";
+import { CAROUSEL_STYLES, EMOJI, HASHTAGS, LENGTHS, LOGO_POS_LABEL, POST_TYPES, type ContentSettings } from "@/lib/postsettings";
+import { STYLES } from "@/lib/images";
 import { saveContentSettingsAction } from "@/lib/carousel/actions";
 import { PRICES, rub } from "@/lib/wallet";
 
@@ -51,6 +52,19 @@ export function ContentSettingsCard({ factoryId, st, free, bare }: { factoryId: 
             <div><label className="label">Обложка</label><Sel name="carouselCover" value={st.carouselCover} opts={{ plain: "Цветная, без картинки", ai: `Фон нейросетью${free ? "" : ` (+${rub(PRICES.image)})`}` }} /></div>
           </div>
           <p className="mt-2 text-xs text-ink3">Тексты на слайдах набираются шрифтом без искажений, цвета и логотип берутся из брендбука. Карусель стоит {free ? "бесплатно для админа" : rub(PRICES.carousel)}.</p>
+        </div>
+        <div className="border-t border-line pt-4">
+          <b className="mb-3 block text-sm">Картинки к статьям</b>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><label className="label">Единый стиль картинок</label><Sel name="imgStyle" value={st.imgStyle} opts={{ "": "Как в брендбуке (если не задан — иллюстрация)", ...Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.label])) }} /><p className="mt-1 text-xs text-ink3">Все картинки одной статьи рисуются в этом стиле и с вашей палитрой, поэтому выглядят как одна серия.</p></div>
+            <div className="space-y-2">
+              <Switch name="imgLogo" defaultChecked={st.imgLogo} label="Добавлять логотип на картинки статей" hint="Перед созданием картинок это можно изменить для каждой отдельно. Нужен загруженный логотип бренда." />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="label">Место логотипа</label><Sel name="imgLogoPos" value={st.imgLogoPos} opts={LOGO_POS_LABEL} /></div>
+                <div><label className="label">Размер, % ширины</label><input type="number" name="imgLogoScale" min={4} max={40} defaultValue={st.imgLogoScale} className="input" /></div>
+              </div>
+            </div>
+          </div>
         </div>
         <SubmitButton className="btn">Сохранить настройки</SubmitButton>
       </form>

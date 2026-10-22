@@ -86,7 +86,7 @@ export async function visionAsk(dataUrl: string, ask: string): Promise<string> {
   return out;
 }
 
-export interface PromptInput { brandName: string; kit: Kit; topic: string; hook: string; body: string; notes: { kind: "reference" | "product"; text: string }[] }
+export interface PromptInput { brandName: string; kit: Kit; topic: string; hook: string; body: string; notes: { kind: "reference" | "product"; text: string }[]; /** Серия картинок: стиль закрепляется в начале промпта, чтобы все были в одной манере. */ series?: boolean }
 
 /** Текстовая модель собирает один связный промпт: тема поста + стиль бренда. Текст на картинке запрещаем — логотип накладываем сами. */
 export async function buildImagePrompt(i: PromptInput): Promise<string> {
@@ -102,7 +102,8 @@ export async function buildImagePrompt(i: PromptInput): Promise<string> {
     (k.imageMust ? `Always include: ${k.imageMust}\n` : "") + (k.imageNever ? `Never include: ${k.imageNever}\n` : "") +
     `Create one image that illustrates the post's idea (a scene or concept, not a poster with words).`,
     { maxTokens: 400, temperature: 0.7 });
-  return `${out.replace(/^["']|["']$/g, "").trim()} No text, no letters, no watermark.`.slice(0, 1800);
+  const lead = i.series && k.style && STYLES[k.style] ? `Art style for the whole series (keep identical across all images): ${STYLES[k.style].prompt}. ` : "";
+  return `${lead}${out.replace(/^["']|["']$/g, "").trim()} No text, no letters, no watermark.`.slice(0, 1800);
 }
 
 function fromDataUri(s: string): Buffer | null {

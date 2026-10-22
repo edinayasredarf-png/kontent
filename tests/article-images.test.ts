@@ -26,4 +26,28 @@ describe("картинки к разделам статьи", () => {
     delete process.env.APP_URL;
     assert.equal(publicizeImages(`<img src="/api/assets/${id}">`), `<img src="/api/assets/${id}">`, "без APP_URL остаётся как есть");
   });
+  it("настройки завода: стиль, логотип, место и размер проходят проверку", async () => {
+    const { cleanSettings } = await import("../src/lib/postsettings");
+    const d = cleanSettings({});
+    assert.deepEqual([d.imgStyle, d.imgLogo, d.imgLogoPos, d.imgLogoScale], ["", false, "br", 14]);
+    const x = cleanSettings({ imgStyle: "photo", imgLogo: true, imgLogoPos: "tl", imgLogoScale: 99 });
+    assert.deepEqual([x.imgStyle, x.imgLogo, x.imgLogoPos, x.imgLogoScale], ["photo", true, "tl", 40]);
+    assert.equal(cleanSettings({ imgLogoPos: "zz", imgStyle: "<x>" }).imgLogoPos, "br");
+    assert.equal(cleanSettings({ imgStyle: "<x>" }).imgStyle, "");
+  });
+  it("логотип накладывается в выбранный угол и не накладывается при «none»", async () => {
+    const sharp = (await import("sharp")).default;
+    const { finalizeImage } = await import("../src/lib/images");
+    const raw = await sharp({ create: { width: 400, height: 400, channels: 3, background: "#ffffff" } }).png().toBuffer();
+    const logoBuf = await sharp({ create: { width: 100, height: 100, channels: 3, background: "#ff0000" } }).png().toBuffer();
+    const logo = { data: logoBuf } as never;
+    const px = async (b: Buffer, x: number, y: number) => { const { data } = await sharp(b).raw().toBuffer({ resolveWithObject: true }); const o = (y * 400 + x) * 3; return [data[o], data[o + 1], data[o + 2]]; };
+    const tl = await finalizeImage(raw, logo, { logoPos: "tl", logoScale: 20, logoMargin: 4 });
+    const none = await finalizeImage(raw, logo, { logoPos: "none" });
+    const [r, g] = await px(tl.data, 40, 40), [r2, g2] = await px(tl.data, 360, 360);
+    assert.ok(r > 200 && g < 80, "в левом верхнем углу красный логотип");
+    assert.ok(r2 > 200 && g2 > 200, "в правом нижнем углу пусто");
+    const [r3, g3] = await px(none.data, 40, 40);
+    assert.ok(r3 > 200 && g3 > 200, "none: логотипа нет");
+  });
 });

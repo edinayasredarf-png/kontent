@@ -8,6 +8,10 @@ import { CopyText } from "./CopyText";
 import { h2Titles, htmlToPlain, safePreviewHtml } from "@/lib/html-text";
 import { sectionImageAction } from "@/lib/article-actions";
 import { SECTION_ASPECTS } from "@/lib/article-lib";
+import { LOGO_POS_LABEL } from "@/lib/postsettings";
+import { STYLE_LABELS } from "@/lib/style-labels";
+
+type ImgOpts = { style: string; hasLogo: boolean; logo: boolean; pos: string; scale: number };
 
 const TABS = [["site", "Как на сайте"], ["plain", "Текст без тегов"], ["html", "HTML"]] as const;
 type Tab = (typeof TABS)[number][0];
@@ -16,7 +20,7 @@ type Tab = (typeof TABS)[number][0];
  * Статья для сайта (SEO, рассылка, гайд): предпросмотр «как на сайте», чистый текст без тегов (его можно скопировать), исходный HTML.
  * Для SEO-статьи и гайда ниже — подбор картинок к разделам: сначала вы выбираете разделы, пожелания и формат, и только потом идёт генерация.
  */
-export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, imagePriceKop, free, lead = null, brandName = "", editPrice = "" }: { itemId: string; kind: string; initial: string; seo: { title?: string; description?: string; slug?: string } | null; title: string; imagePrice: string; imagePriceKop: number; free: boolean; lead?: LeadMeta | null; brandName?: string; editPrice?: string }) {
+export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, imagePriceKop, free, lead = null, brandName = "", editPrice = "", imgOpts = { style: "illustration", hasLogo: false, logo: false, pos: "br", scale: 14 } }: { itemId: string; kind: string; initial: string; seo: { title?: string; description?: string; slug?: string } | null; title: string; imagePrice: string; imagePriceKop: number; free: boolean; lead?: LeadMeta | null; brandName?: string; editPrice?: string; imgOpts?: ImgOpts }) {
   const [html, setHtml] = useState(initial);
   const [tab, setTab] = useState<Tab>("site");
   const plain = useMemo(() => (typeof window === "undefined" ? "" : htmlToPlain(html)), [html]);
@@ -60,17 +64,21 @@ export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, i
       </div>
       <AiTextTools getText={() => html} setText={setHtml} price={free ? "" : "3 ₽"} />
       {kind === "guide" && <LeadMagnetPanel itemId={itemId} initial={lead} brandName={brandName} price={editPrice} />}
-      {(kind === "seo" || kind === "guide") && <SectionImages itemId={itemId} html={html} setHtml={setHtml} priceLabel={imagePrice} priceKop={imagePriceKop} free={free} />}
+      {(kind === "seo" || kind === "guide") && <SectionImages itemId={itemId} html={html} setHtml={setHtml} priceLabel={imagePrice} priceKop={imagePriceKop} free={free} opts={imgOpts} />}
     </div>
   );
 }
 
 /** Подбор картинок к разделам: что, где и в каком формате делаем, и только потом генерация (по одной, с прогрессом). */
-function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free }: { itemId: string; html: string; setHtml: (h: string) => void; priceLabel: string; priceKop: number; free: boolean }) {
+function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free, opts }: { itemId: string; html: string; setHtml: (h: string) => void; priceLabel: string; priceKop: number; free: boolean; opts: ImgOpts }) {
   const heads = useMemo(() => (typeof window === "undefined" ? [] : h2Titles(html)), [html]);
   const [pick, setPick] = useState<Set<number>>(new Set());
   const [wish, setWish] = useState<Record<number, string>>({});
   const [aspect, setAspect] = useState<keyof typeof SECTION_ASPECTS>("landscape");
+  const [style, setStyle] = useState(opts.style);
+  const [logoOn, setLogoOn] = useState<Record<number, boolean>>({});
+  const [pos, setPos] = useState(opts.pos), [scale, setScale] = useState(opts.scale);
+  const logoFor = (i: number) => opts.hasLogo && (logoOn[i] ?? opts.logo);
   const [ask, setAsk] = useState(false);
   const [run, setRun] = useState<{ done: number; total: number; cur: string } | null>(null);
   const [res, setRes] = useState<Record<number, "ok" | string>>({});
@@ -86,7 +94,7 @@ function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free }: { 
     for (let n = 0; n < list.length; n++) {
       const i = list[n];
       setRun({ done: n, total: list.length, cur: heads[i] });
-      const r = await sectionImageAction(itemId, cur, i, wish[i] ?? "", aspect).catch(() => null);
+      const r = await sectionImageAction(itemId, cur, i, wish[i] ?? "", aspect, { style, logo: logoFor(i), pos, scale }).catch(() => null);
       if (!r?.ok) { setRes((x) => ({ ...x, [i]: r && !r.ok ? r.error : "Не удалось выполнить" })); break; }
       cur = r.html; setHtml(cur); setRes((x) => ({ ...x, [i]: "ok" }));
     }
@@ -103,12 +111,28 @@ function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free }: { 
         <button type="button" onClick={() => setPick(new Set())} className="chip cursor-pointer !px-2.5 !py-0.5">Снять</button>
         <select value={aspect} onChange={(e) => setAspect(e.target.value as keyof typeof SECTION_ASPECTS)} aria-label="Формат картинок" className="input ml-auto !w-auto !py-1 text-xs">{Object.entries(SECTION_ASPECTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </div>
+      <div className="space-y-2 rounded-xl bg-surface p-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-ink2" htmlFor="img-style">Единый стиль всех картинок:</label>
+          <select id="img-style" value={style} onChange={(e) => setStyle(e.target.value)} disabled={!!run} className="input !w-auto !py-1 text-xs">{Object.entries(STYLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          <span className="text-ink3">Стиль запоминается для статьи, и следующие картинки получатся такими же.</span>
+        </div>
+        {opts.hasLogo
+          ? <div className="flex flex-wrap items-center gap-2">
+              <span className="text-ink2">Логотип на картинках:</span>
+              <select value={pos} onChange={(e) => setPos(e.target.value)} disabled={!!run} aria-label="Место логотипа" className="input !w-auto !py-1 text-xs">{Object.entries(LOGO_POS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+              <label className="flex items-center gap-1.5 text-ink2">размер <input type="range" min={4} max={40} value={scale} disabled={!!run} onChange={(e) => setScale(Number(e.target.value))} className="w-24" /> {scale}%</label>
+              <span className="text-ink3">Включается галочкой «С логотипом» у каждой картинки; по умолчанию — как в настройках завода.</span>
+            </div>
+          : <p className="text-ink3">Логотип на картинки добавить нельзя: он не загружен. Загрузите его в «Брендбуке».</p>}
+      </div>
       <div className="space-y-1.5">
         {heads.map((h, i) => (
           <div key={i} className="rounded-xl bg-surface p-2.5">
             <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" checked={pick.has(i)} disabled={!!run} onChange={() => toggle(i)} className="mt-1" /><span className="min-w-0 flex-1"><b className="font-semibold">{h || `Раздел ${i + 1}`}</b>
               {hasImage(i) && <span className="ml-2 text-xs text-good">картинка есть (будет заменена)</span>}
               {res[i] === "ok" && <CheckCircle2 size={14} className="ml-1.5 inline text-good" />}</span></label>
+            {pick.has(i) && opts.hasLogo && <label className="ml-6 mt-1 flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" checked={logoFor(i)} disabled={!!run} onChange={(e) => setLogoOn((m) => ({ ...m, [i]: e.target.checked }))} />С логотипом ({LOGO_POS_LABEL[pos].toLowerCase()})</label>}
             {pick.has(i) && <input value={wish[i] ?? ""} onChange={(e) => setWish((w) => ({ ...w, [i]: e.target.value }))} maxLength={300} disabled={!!run} placeholder="Что изобразить (необязательно): например «бригада осматривает дерево»" className="input mt-1.5 !bg-tile !py-1.5 text-xs" />}
             {res[i] && res[i] !== "ok" && <p className="mt-1 text-xs text-bad">{res[i]}</p>}
           </div>
@@ -118,7 +142,7 @@ function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free }: { 
       {!run && !ask && <button type="button" onClick={() => setAsk(true)} disabled={count === 0} className="btn btn-accent !py-2"><ImagePlus size={15} />Создать картинки{count ? ` (${count})` : ""}{count && !free ? ` · ${rub(total)}` : ""}</button>}
       {ask && (
         <div className="space-y-2 rounded-xl bg-surface p-3 text-sm">
-          <p>Будет создано картинок: <b>{count}</b>{free ? "" : <> на сумму <b>{rub(total)}</b></>}. Формат: {SECTION_ASPECTS[aspect].toLowerCase()}. Картинка встанет сразу после заголовка раздела, прежняя (если есть) заменится.</p>
+          <p>Будет создано картинок: <b>{count}</b>{free ? "" : <> на сумму <b>{rub(total)}</b></>}. Формат: {SECTION_ASPECTS[aspect].toLowerCase()}. Стиль: {STYLE_LABELS[style]?.toLowerCase() ?? style}. Логотип: {[...pick].filter(logoFor).length ? `на ${[...pick].filter(logoFor).length} из ${count}` : "не добавляем"}. Картинка встанет сразу после заголовка раздела, прежняя (если есть) заменится.</p>
           <div className="flex gap-2"><button type="button" onClick={go} className="btn btn-accent !py-1.5">Создать</button><button type="button" onClick={() => setAsk(false)} className="btn btn-ghost !py-1.5">Изменить выбор</button></div>
         </div>
       )}
