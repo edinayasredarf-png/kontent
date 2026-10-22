@@ -38,17 +38,21 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
 
   return (
     <>
-      <Link href="/app/flows" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все потоки</Link>
-      <PageHead title={flow.name} sub={`${flow.brand} · ${st.mode === "auto" ? "публикует автоматически" : "каждая новость ждёт вашего одобрения"}`} action={write && (
-        <div className="flex gap-2">
-          <form action={toggleFlowAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="tab" value={tab} /><SubmitButton className="btn">{flow.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Включить</>}</SubmitButton></form>
-          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Удалить поток? Очередь, отбракованные и история отбора будут удалены. Это действие нельзя отменить." className="btn btn-danger" title="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
-        </div>)} />
-      {sp.err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
-      {sp.note && <p className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
-      {flow.note && <p className="mb-4 rounded-xl bg-warn-soft px-4 py-3 text-sm text-warn">{flow.note}</p>}
-      {flow.status !== "active" && <p className="mb-4 rounded-xl bg-tile px-4 py-3 text-sm text-ink2">Поток на паузе: новости не обрабатываются. Проверьте настройки и нажмите «Включить».</p>}
-      <div className="mb-4 flex flex-wrap gap-1 text-sm">{TABS.map(([k, l]) => <Link key={k} href={`/app/flows/${id}?t=${k}`} className={`rounded-lg px-3 py-1.5 ${tab === k ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}{counts[k] ? <span className="ml-1.5 text-xs text-ink3">{counts[k]}</span> : null}</Link>)}</div>
+      <Link href="/app/flows" className="mb-1 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все потоки</Link>
+      <PageHead title={flow.name} sub={`${flow.brand} · ${st.mode === "auto" ? "публикует автоматически" : "каждая новость ждёт вашего одобрения"}`} />
+      <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+        <nav className="inline-flex max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar">{TABS.map(([k, l]) => (
+          <Link key={k} href={`/app/flows/${id}?t=${k}`} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>{l}{counts[k] ? <span className="text-xs font-normal text-ink3">{counts[k]}</span> : null}</Link>
+        ))}</nav>
+        {write && <>
+          <form action={toggleFlowAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="tab" value={tab} /><SubmitButton className="pill">{flow.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Включить</>}</SubmitButton></form>
+          <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Удалить поток? Очередь, отбракованные и история отбора будут удалены. Это действие нельзя отменить." className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить поток" aria-label="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
+        </>}
+      </div>
+      {sp.err && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
+      {sp.note && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
+      {flow.note && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">{flow.note}</p>}
+      {flow.status !== "active" && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-tile px-4 py-3 text-sm text-ink2">Поток на паузе: новости не обрабатываются. Проверьте настройки и нажмите «Включить».</p>}
       {tab === "pending" && <Pending flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
       {tab === "queued" && <Published flowId={id} lim={lim} />}
       {tab === "rejected" && <Rejected flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
@@ -60,7 +64,7 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
 
 type Hid = (item: string) => React.ReactNode;
 
-const COL = "mx-auto w-full max-w-[600px]";
+const COL = "mx-auto w-full max-w-[680px]";
 const SRC = "s.kind,s.title source,s.ref,s.config";
 type Src = { kind: Kind; source: string; ref: string; config: Record<string, unknown> | null };
 const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.ref, config: r.config });
@@ -189,49 +193,57 @@ async function Settings({ flowId, name, st, sourceIds, channelIds, orgId, write 
   ]);
   const chip = "chip cursor-pointer !px-3 !py-1.5 chip-toggle";
   return (
-    <form action={saveFlowSettingsAction} className="card max-w-3xl space-y-6 p-5">
+    <form action={saveFlowSettingsAction} className="space-y-4 pb-16">
       <input type="hidden" name="id" value={flowId} />
-      <fieldset disabled={!write} className="space-y-6">
-        <div><label className="label">Название потока</label><input name="name" defaultValue={name} maxLength={80} className="input" /></div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div><span className="label">Откуда берём</span><div className="space-y-1">{sources.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="sources" value={s.id} defaultChecked={sourceIds.includes(s.id)} /><span className="chip">{KIND_LABEL[s.kind]}</span><span className="truncate">{s.title}</span></label>)}</div></div>
-          <div><span className="label">Куда публикуем</span><div className="space-y-1">{channels.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="channels" value={s.id} defaultChecked={channelIds.includes(s.id)} /><span className="chip">{SUPPORTED_CHANNELS[s.kind] ?? s.kind}</span><span className="truncate">{s.title}</span></label>)}</div></div>
-        </div>
+      <fieldset disabled={!write} className="space-y-4">
+        <Sec title="Основное">
+          <div><label className="label">Название потока</label><input name="name" defaultValue={name} maxLength={80} className="input" /></div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-3"><label className="label">Режим</label><select name="mode" defaultValue={st.mode} className="input"><option value="approve">Сначала на одобрение (рекомендуем)</option><option value="auto">Публиковать автоматически</option></select></div>
+            <div className="sm:col-span-2"><label className="label">Брать новости не старше, часов</label><input name="maxAgeHours" type="number" min={1} max={168} defaultValue={st.maxAgeHours} className="input" /></div>
+            <div><label className="label">Мин. «нашесть», 0–10</label><input name="minFit" type="number" min={0} max={10} defaultValue={st.minFit} className="input" /></div>
+          </div>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="dedupe" defaultChecked={st.dedupe} className="mt-1" />Не публиковать дубли (одно событие из разных источников берём один раз)</label>
+        </Sec>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div><label className="label">Режим</label><select name="mode" defaultValue={st.mode} className="input"><option value="approve">Сначала на одобрение (рекомендуем)</option><option value="auto">Публиковать автоматически</option></select></div>
-          <div><label className="label">Брать новости не старше, часов</label><input name="maxAgeHours" type="number" min={1} max={168} defaultValue={st.maxAgeHours} className="input" /></div>
-          <div><label className="label">Минимальная «нашесть», 0–10</label><input name="minFit" type="number" min={0} max={10} defaultValue={st.minFit} className="input" /></div>
-        </div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="dedupe" defaultChecked={st.dedupe} />Не публиковать дубли (одно событие из разных источников берём один раз)</label>
+        <Sec title="Откуда берём и куда публикуем">
+          <div><span className="label">Откуда берём</span><div className="max-h-72 space-y-0.5 overflow-y-auto rounded-2xl bg-tile p-2">{sources.map((s) => <label key={s.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-surface"><input type="checkbox" name="sources" value={s.id} defaultChecked={sourceIds.includes(s.id)} /><span className="chip shrink-0">{KIND_LABEL[s.kind]}</span><span className="min-w-0 flex-1 truncate">{s.title}</span></label>)}</div></div>
+          <div><span className="label">Куда публикуем</span><div className="space-y-0.5 rounded-2xl bg-tile p-2">{channels.map((s) => <label key={s.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-surface"><input type="checkbox" name="channels" value={s.id} defaultChecked={channelIds.includes(s.id)} /><span className="chip shrink-0">{SUPPORTED_CHANNELS[s.kind] ?? s.kind}</span><span className="min-w-0 flex-1 truncate">{s.title}</span></label>)}</div></div>
+        </Sec>
 
-        <div><span className="label">Какие типы берём</span><div className="flex flex-wrap gap-2">{["news", "announcement", "joke"].map((k) => <label key={k} className={chip}><input type="checkbox" name="types" value={k} defaultChecked={st.types.includes(k)} className="hidden" />{TYPES[k]}</label>)}</div><p className="mt-1 text-xs text-ink3">Реклама и мусор отсеиваются всегда.</p></div>
-        <div><span className="label">Темы (пусто — любые)</span><div className="flex flex-wrap gap-2">{TOPICS.map((k) => <label key={k} className={chip}><input type="checkbox" name="topics" value={k} defaultChecked={st.topics.includes(k)} className="hidden" />{k}</label>)}</div></div>
-        <div><span className="label">Масштаб (пусто — любой)</span><div className="flex flex-wrap gap-2">{Object.entries(SCOPES).map(([k, v]) => <label key={k} className={chip}><input type="checkbox" name="scopes" value={k} defaultChecked={st.scopes.includes(k)} className="hidden" />{v}</label>)}</div></div>
-        <div><label className="label">Регион или город (через запятую, пусто — любой)</label><input name="geo" defaultValue={st.geo} className="input" placeholder="Смоленск, Смоленская область" /><p className="mt-1 text-xs text-ink3">Локальные и региональные новости других мест отсекаются. Федеральные и мировые проходят по фильтру масштаба.</p></div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <Sec title="Что отбираем">
+          <div><span className="label">Какие типы берём</span><div className="flex flex-wrap gap-2">{["news", "announcement", "joke"].map((k) => <label key={k} className={chip}><input type="checkbox" name="types" value={k} defaultChecked={st.types.includes(k)} className="hidden" />{TYPES[k]}</label>)}</div><p className="mt-1 text-xs text-ink3">Реклама и мусор отсеиваются всегда.</p></div>
+          <div><span className="label">Темы (пусто — любые)</span><div className="flex flex-wrap gap-2">{TOPICS.map((k) => <label key={k} className={chip}><input type="checkbox" name="topics" value={k} defaultChecked={st.topics.includes(k)} className="hidden" />{k}</label>)}</div></div>
+          <div><span className="label">Масштаб (пусто — любой)</span><div className="flex flex-wrap gap-2">{Object.entries(SCOPES).map(([k, v]) => <label key={k} className={chip}><input type="checkbox" name="scopes" value={k} defaultChecked={st.scopes.includes(k)} className="hidden" />{v}</label>)}</div></div>
+          <div><label className="label">Регион или город (через запятую, пусто — любой)</label><input name="geo" defaultValue={st.geo} className="input" placeholder="Смоленск, Смоленская область" /><p className="mt-1 text-xs text-ink3">Локальные и региональные новости других мест отсекаются. Федеральные и мировые проходят по фильтру масштаба.</p></div>
+          <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Брать только со словами (через запятую)</label><input name="include" defaultValue={st.include.join(", ")} className="input" /></div>
-          <div><label className="label">Стоп-слова: такие новости режем</label><input name="exclude" defaultValue={st.exclude.join(", ")} className="input" /></div>
-        </div>
+          <div><label className="label">Стоп-слова: такие новости режем</label><input name="exclude" defaultValue={st.exclude.join(", ")} className="input" /></div></div>
+        </Sec>
 
-        <div><label className="label">Голос канала</label><textarea name="tone" defaultValue={st.tone} rows={2} maxLength={600} className="input text-sm" placeholder="Например: ироничный, разговорный, короткие абзацы, без канцелярита" /></div>
-        <div><label className="label">Примеры ваших лучших постов</label><textarea name="examples" defaultValue={st.examples} rows={5} maxLength={3000} className="input text-sm" placeholder="Вставьте 2–3 поста, на которые нужно быть похожими" /></div>
-
-        <div className="grid gap-4 md:grid-cols-2">
+        <Sec title="Как пишем">
+          <div><label className="label">Голос канала</label><textarea name="tone" defaultValue={st.tone} rows={2} maxLength={600} className="input text-sm" placeholder="Например: ироничный, разговорный, короткие абзацы, без канцелярита" /></div>
+          <div><label className="label">Примеры ваших лучших постов</label><textarea name="examples" defaultValue={st.examples} rows={5} maxLength={3000} className="input text-sm" placeholder="Вставьте 2–3 поста, на которые нужно быть похожими" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Картинки</label><select name="images" defaultValue={st.images} className="input"><option value="none">Без картинок</option><option value="own">Своя картинка нейросетью (по цене картинки)</option><option value="original">Картинка из источника (риск по правам)</option></select></div>
-          <div><label className="label">Ссылка на источник в посте</label><select name="source" defaultValue={st.source} className="input"><option value="none">Не добавлять</option><option value="link">Добавлять «Источник: ссылка»</option></select></div>
-        </div>
-        <p className="rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Пересказ нейросетью не снимает авторские права автоматически: факты свободны, а тексты, фото и видео защищены. Берите источники, которые разрешают перепечатку, или свои каналы. Картинки из источников используйте только с разрешения владельца. Ответственность за публикацию лежит на владельце потока.</p>
+          <div><label className="label">Ссылка на источник в посте</label><select name="source" defaultValue={st.source} className="input"><option value="none">Не добавлять</option><option value="link">Добавлять «Источник: ссылка»</option></select></div></div>
+          <p className="rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Пересказ нейросетью не снимает авторские права автоматически: факты свободны, а тексты, фото и видео защищены. Берите источники, которые разрешают перепечатку, или свои каналы. Картинки из источников используйте только с разрешения владельца. Ответственность за публикацию лежит на владельце потока.</p>
+        </Sec>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <Sec title="Расписание">
+          <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Не больше постов в день</label><input name="dailyCap" type="number" min={1} max={200} defaultValue={st.dailyCap} className="input" /></div>
           <div><label className="label">Пауза между постами, мин</label><input name="minGapMin" type="number" min={0} max={720} defaultValue={st.minGapMin} className="input" /></div>
           <div><label className="label">Тихие часы с (МСК)</label><input name="quietFrom" type="number" min={0} max={23} defaultValue={st.quietFrom} className="input" /></div>
-          <div><label className="label">до (МСК)</label><input name="quietTo" type="number" min={0} max={23} defaultValue={st.quietTo} className="input" /></div>
-        </div>
-        <p className="text-xs text-ink3">Лимит, паузы и тихие часы применяются в автоматическом режиме. При ручном одобрении вы сами решаете, когда публиковать.</p>
-        {write && <SubmitButton className="btn">Сохранить настройки</SubmitButton>}
+          <div><label className="label">до (МСК)</label><input name="quietTo" type="number" min={0} max={23} defaultValue={st.quietTo} className="input" /></div></div>
+          <p className="text-xs text-ink3">Лимит, паузы и тихие часы применяются в автоматическом режиме. При ручном одобрении вы сами решаете, когда публиковать.</p>
+        </Sec>
+        {write && <div className="flex justify-center"><SubmitButton className="btn">Сохранить настройки</SubmitButton></div>}
       </fieldset>
     </form>
   );
+}
+
+function Sec({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="card mx-auto w-full max-w-[680px] space-y-4 p-5"><h2 className="text-base font-semibold">{title}</h2>{children}</section>;
 }
