@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Download, FileText, ImagePlus, Loader2 } from "lucide-react";
+import { CheckCircle2, Download, FileText, ImagePlus, Loader2, Send } from "lucide-react";
 import { LeadMagnetPanel } from "./LeadMagnetPanel";
 import type { LeadMeta } from "@/lib/lead-magnet";
 import { AiTextTools } from "./AiTextTools";
@@ -87,19 +87,23 @@ function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free, opts
   const count = pick.size, total = priceKop * count;
   const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽`;
 
-  async function go() {
+  async function runList(list: number[]) {
     setAsk(false);
-    const list = [...pick].sort((a, b) => a - b);
     let cur = html;
     for (let n = 0; n < list.length; n++) {
       const i = list[n];
       setRun({ done: n, total: list.length, cur: heads[i] });
+      setRes((x) => { const y = { ...x }; delete y[i]; return y; });
       const r = await sectionImageAction(itemId, cur, i, wish[i] ?? "", aspect, { style, logo: logoFor(i), pos, scale }).catch(() => null);
       if (!r?.ok) { setRes((x) => ({ ...x, [i]: r && !r.ok ? r.error : "Не удалось выполнить" })); break; }
       cur = r.html; setHtml(cur); setRes((x) => ({ ...x, [i]: "ok" }));
     }
-    setRun(null); setPick(new Set());
+    setRun(null);
   }
+  const go = async () => { const list = [...pick].sort((a, b) => a - b); await runList(list); setPick(new Set()); };
+  /** Отправка пожелания у одного раздела: сразу пересоздаёт картинку только для него (кнопка справа или Enter). */
+  const redo = (i: number) => { if (!run) void runList([i]); };
+
   if (!heads.length) return <p className="rounded-2xl bg-tile p-3 text-xs text-ink3">Картинки к разделам можно создать, когда в статье есть заголовки второго уровня (H2).</p>;
   return (
     <div className="space-y-3 rounded-2xl bg-tile p-3">
@@ -132,8 +136,13 @@ function SectionImages({ itemId, html, setHtml, priceLabel, priceKop, free, opts
             <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" checked={pick.has(i)} disabled={!!run} onChange={() => toggle(i)} className="mt-1" /><span className="min-w-0 flex-1"><b className="font-semibold">{h || `Раздел ${i + 1}`}</b>
               {hasImage(i) && <span className="ml-2 text-xs text-good">картинка есть (будет заменена)</span>}
               {res[i] === "ok" && <CheckCircle2 size={14} className="ml-1.5 inline text-good" />}</span></label>
-            {pick.has(i) && opts.hasLogo && <label className="ml-6 mt-1 flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" checked={logoFor(i)} disabled={!!run} onChange={(e) => setLogoOn((m) => ({ ...m, [i]: e.target.checked }))} />С логотипом ({LOGO_POS_LABEL[pos].toLowerCase()})</label>}
-            {pick.has(i) && <input value={wish[i] ?? ""} onChange={(e) => setWish((w) => ({ ...w, [i]: e.target.value }))} maxLength={300} disabled={!!run} placeholder="Что изобразить (необязательно): например «бригада осматривает дерево»" className="input mt-1.5 !bg-tile !py-1.5 text-xs" />}
+            {opts.hasLogo && <label className="ml-6 mt-1 flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" checked={logoFor(i)} disabled={!!run} onChange={(e) => setLogoOn((m) => ({ ...m, [i]: e.target.checked }))} />С логотипом ({LOGO_POS_LABEL[pos].toLowerCase()})</label>}
+            <div className="relative mt-1.5">
+              <input value={wish[i] ?? ""} onChange={(e) => setWish((w) => ({ ...w, [i]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); redo(i); } }} maxLength={300} disabled={!!run}
+                placeholder={hasImage(i) ? "Что изменить в картинке: Enter — создать заново" : "Что изобразить (необязательно), Enter — создать"} className="input !bg-tile !py-1.5 !pr-11 text-xs" />
+              <button type="button" onClick={() => redo(i)} disabled={!!run} aria-label={`Создать картинку заново: ${h}`} title={`Создать картинку для этого раздела${free ? "" : ` · ${priceLabel}`}`}
+                className="absolute right-1 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full bg-accent text-white disabled:opacity-50">{run?.cur === h ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
+            </div>
             {res[i] && res[i] !== "ok" && <p className="mt-1 text-xs text-bad">{res[i]}</p>}
           </div>
         ))}
