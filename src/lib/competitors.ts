@@ -53,6 +53,9 @@ export function parseTelegramChannel(html: string, name: string): CFetch {
   return { title, members, posts };
 }
 
+/** Текст поста с сохранением абзацев; упоминания VK «[club123|Название]» превращаются в обычное название. */
+export const cleanPostText = (t: string) => t.replace(/\[(?:club|public|id)\d+\|([^\]]+)\]/g, "$1").replace(/\r/g, "").replace(/[ \t\u00a0]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+
 const VK_BASE = () => (process.env.VK_API_BASE?.trim() || "https://api.vk.com").replace(/\/+$/, "");
 async function vk<T>(token: string, method: string, params: Record<string, string>): Promise<T> {
   const res = await fetch(`${VK_BASE()}/method/${method}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: AbortSignal.timeout(15_000), body: new URLSearchParams({ ...params, access_token: token, v: "5.199" }) });
@@ -78,13 +81,13 @@ export async function fetchCompetitor(kind: CKind, ref: string): Promise<CFetch>
   const token = process.env.VK_SERVICE_TOKEN?.trim();
   if (!token) throw new Error("Для анализа VK на сервере не задан ключ VK_SERVICE_TOKEN (сервисный ключ приложения VK)");
   const [wall, grp] = await Promise.all([
-    vk<{ items?: { id: number; owner_id: number; date: number; text?: string; views?: { count: number }; likes?: { count: number } }[] }>(token, "wall.get", { domain: ref, count: "40", filter: "owner" }),
+    vk<{ items?: { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; views?: { count: number }; likes?: { count: number } }[] }>(token, "wall.get", { domain: ref, count: "40", filter: "owner" }),
     vk<{ groups?: { name: string; members_count?: number }[] } | { name: string; members_count?: number }[]>(token, "groups.getById", { group_id: ref, fields: "members_count" }).catch(() => null),
   ]);
   const g = Array.isArray(grp) ? grp[0] : grp?.groups?.[0];
-  const posts = (wall.items ?? []).filter((p) => p.text?.trim()).map((p) => {
+  const posts = (wall.items ?? []).map((p) => ({ ...p, text: p.text?.trim() ? p.text : p.copy_history?.[0]?.text })).filter((p) => p.text?.trim()).map((p) => {
     const url = `https://vk.com/wall${p.owner_id}_${p.id}`;
-    return { ext: url, url, body: p.text!.replace(/\s+/g, " ").trim().slice(0, 4000), views: p.views?.count ?? 0, likes: p.likes?.count ?? 0, at: new Date(p.date * 1000) };
+    return { ext: url, url, body: cleanPostText(p.text!).slice(0, 8000), views: p.views?.count ?? 0, likes: p.likes?.count ?? 0, at: new Date(p.date * 1000) };
   });
   if (!posts.length) throw new Error("Сообщество не найдено, закрыто или без текстовых записей");
   return { title: g?.name ?? `VK ${ref}`, members: g?.members_count ?? null, posts };
@@ -99,7 +102,7 @@ export async function refreshCompetitor(id: string): Promise<{ ok: true; posts: 
     await tx(async (run) => {
       for (const p of f.posts) await run(
         `insert into kz_competitor_posts(competitor_id,ext_id,url,body,views,likes,posted_at,fetched_at) values($1,$2,$3,$4,$5,$6,$7,now())
-         on conflict(competitor_id,ext_id) do update set views=excluded.views,likes=excluded.likes,fetched_at=now()`, [c.id, p.ext, p.url, p.body, p.views, p.likes, p.at.toISOString()]);
+         on conflict(competitor_id,ext_id) do update set views=excluded.views,likes=excluded.likes,body=excluded.body,fetched_at=now()`, [c.id, p.ext, p.url, p.body, p.views, p.likes, p.at.toISOString()]);
       await run("update kz_competitors set title=$2, members=coalesce($3,members), last_fetched_at=now(), last_error=null where id=$1", [c.id, f.title.slice(0, 120), f.members]);
     });
     return { ok: true, posts: f.posts.length };

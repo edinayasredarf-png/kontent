@@ -12,6 +12,7 @@ import { PlatformPicker } from "@/components/PlatformPicker";
 import { PageHead } from "@/components/ui";
 import { ModalButton } from "@/components/ui/ModalButton";
 import { PostCard, RoundIcon } from "@/components/ui/PostCard";
+import { PostText } from "@/components/monitor/PostText";
 import { SubmitButton } from "@/components/SubmitButton";
 
 const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("ru-RU"));
@@ -102,7 +103,7 @@ export default async function Competitor({ params, searchParams }: { params: Pro
                     <select name="factory" className="input !w-auto !py-1 text-xs">{factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
                   </Form>
                 ) : undefined}>
-                <p className="line-clamp-4 whitespace-pre-wrap text-sm">{t.body}</p>
+                <PostText title="" text={t.body} />
               </PostCard>
             ))}
           </div>

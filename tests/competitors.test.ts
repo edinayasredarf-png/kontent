@@ -36,6 +36,10 @@ describe("адрес сайта и ошибки VK", () => {
     assert.throws(() => normalizeRef("site", "localhost"));
     assert.throws(() => normalizeRef("site", "https://user:pw@a.ru"));
   });
+  it("текст поста VK: абзацы сохраняются, упоминания превращаются в названия", async () => {
+    const { cleanPostText } = await import("../src/lib/competitors");
+    assert.equal(cleanPostText("Привет!  Заказчик - [club161294771|Министерство лесного хозяйства]\r\n\r\n\n\nВ ходе работ"), "Привет! Заказчик - Министерство лесного хозяйства\n\nВ ходе работ");
+  });
   it("код 27 объясняется по-русски, без технического «Group authorization failed»", async () => {
     const { vkServiceError } = await import("../src/lib/vk-service");
     const t = vkServiceError(27, "Group authorization failed");
