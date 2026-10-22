@@ -208,12 +208,6 @@ input[type=date]:not([data-native]) { cursor: pointer; }
 /* стрелка списка: свой значок с отступом от края вместо системного */
 select.input:not([multiple]) { appearance: none; -webkit-appearance: none; padding-right: 2.75rem; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1.05rem center; background-size: 1rem; }
 
-/* правое поле зеркалит левое резервирование под боковую панель (см. AppShell) */
-@media (min-width: 1024px) {
-  .shell-main-slim { padding-right: clamp(40px, calc(100vw - 780px), 180px); }
-  .shell-main-wide { padding-right: clamp(40px, calc(100vw - 1012px), 412px); }
-}
-
 /* окно подтверждения удаления (UiEnhancer, кнопки с data-confirm) */
 .ui-confirm { position: fixed; inset: 0; z-index: 140; display: grid; place-items: center; padding: 1rem; }
 .ui-confirm-back { position: absolute; inset: 0; background: rgba(11,16,48,.5); backdrop-filter: blur(2px); animation: ui-pop .15s ease-out; }
