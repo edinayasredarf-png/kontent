@@ -15,8 +15,8 @@ export function AutoModal({ title, closeHref, children }: { title: string; close
     setClosing(true); // окно плавно гаснет, а переход на страницу без параметра идёт параллельно, позиция ленты не меняется
     // переход на страницу без параметра убирает окно с сервера, поэтому начинаем его после того, как анимация закончилась
     setTimeout(() => { router.replace(closeHref, { scroll: false }); setClosed(true); }, 200);
-    // если переход не состоялся, уходим жёстко
-    setTimeout(() => { const s = location.search; if (s.includes("draft=") || s.includes("item=")) location.assign(closeHref); }, 2200);
+    // если переход затянулся (медленная сеть), повторяем его мягко, без перезагрузки страницы
+    setTimeout(() => { const q = location.search; if (q.includes("draft=") || q.includes("item=")) router.replace(closeHref, { scroll: false }); }, 3000);
   };
   return <Modal title={title} wide onClose={close} closing={closing}>{children}</Modal>;
 }

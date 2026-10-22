@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Copy, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { maxConnectChatAction, maxLinkStatusAction, maxStartLinkAction } from "@/lib/max-actions";
@@ -6,6 +7,7 @@ import type { MaxChatOpt } from "@/lib/max-bot";
 
 /** Подключение канала MAX через общего бота сервиса: ключ → отправка боту → выбор канала. Всё проверяется на сервере. */
 export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; botName: string; factoryId?: string }) {
+  const router = useRouter();
   const root = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("");
   const [state, setState] = useState<"idle" | "pending" | "linked" | "expired" | "done">("idle");
@@ -44,7 +46,7 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
     setBusy("");
     if (!r?.ok) { setMsg({ ok: false, text: r ? r.error : "Не удалось подключить" }); return; }
     setState("done"); setMsg({ ok: true, text: `Канал «${r.title}» подключён.` });
-    setTimeout(() => window.location.reload(), 1200);
+    setTimeout(() => router.refresh(), 1200);
   };
   const copy = async () => { try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* буфер недоступен */ } };
 

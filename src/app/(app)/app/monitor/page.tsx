@@ -25,7 +25,6 @@ import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/fe
 import { sourceView } from "@/lib/monitor/display";
 
 import { SubmitButton } from "@/components/SubmitButton";
-import { ScrollKeeper } from "@/components/ScrollKeeper";
 export const maxDuration = 60;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
@@ -66,7 +65,6 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="mx-auto w-full max-w-[600px]">
-      <ScrollKeeper />
       <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
       <nav className="mx-auto -mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
         <Link href={href({ show: "new", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${!inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>Лента</Link>

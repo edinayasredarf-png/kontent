@@ -7,11 +7,13 @@ import { ThemeSync } from "@/components/ThemeSync";
 import { PendingBar } from "@/components/PendingBar";
 import { NavProgress } from "@/components/NavProgress";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const sess = await readSession();
+  const navCollapsed = (await cookies()).get("lt_nav")?.value === "1";
   // число «горящих» дел для колокольчика: ошибки публикации, идеи на одобрении, новые комментарии
   const [c, a] = await Promise.all([requireCtx(), one<{ n: string }>(
     `select ((select count(*) from kz_publications where org_id=$1 and status='failed' and created_at > now() - interval '7 days')
@@ -21,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <ThemeSync theme={c.user.theme} />
       <PendingBar /><Suspense fallback={null}><NavProgress /></Suspense>
-      <AppShell orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} userId={c.user.id} avatarV={c.user.avatarV} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited}
+      <AppShell orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} userId={c.user.id} avatarV={c.user.avatarV} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited} initialCollapsed={navCollapsed}
         balance={rub(c.org.balance_kop)} unlimited={c.org.unlimited} planName={c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name} alerts={Number(a?.n ?? 0)}>
         {children}
       </AppShell>

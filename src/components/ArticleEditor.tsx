@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useServerDraft } from "@/lib/draft-store";
 import { CheckCircle2, Download, FileText, ImagePlus, Loader2, Send } from "lucide-react";
 import { LeadMagnetPanel } from "./LeadMagnetPanel";
 import type { LeadMeta } from "@/lib/lead-magnet";
@@ -21,13 +22,21 @@ type Tab = (typeof TABS)[number][0];
  * Для SEO-статьи и гайда ниже — подбор картинок к разделам: сначала вы выбираете разделы, пожелания и формат, и только потом идёт генерация.
  */
 export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, imagePriceKop, free, lead = null, brandName = "", editPrice = "", imgOpts = { style: "illustration", hasLogo: false, logo: false, pos: "br", scale: 14 } }: { itemId: string; kind: string; initial: string; seo: { title?: string; description?: string; slug?: string } | null; title: string; imagePrice: string; imagePriceKop: number; free: boolean; lead?: LeadMeta | null; brandName?: string; editPrice?: string; imgOpts?: ImgOpts }) {
-  const [html, setHtml] = useState(initial);
+  const [html, setHtml0] = useState(initial);
+  const draft = useServerDraft(`article:${itemId}`, initial);
+  // любое изменение текста запоминается в браузере до нажатия «Сохранить текст»
+  const setHtml = (h: string) => { setHtml0(h); draft.remember(h); };
   const [tab, setTab] = useState<Tab>("site");
   const plain = useMemo(() => (typeof window === "undefined" ? "" : htmlToPlain(html)), [html]);
   const preview = useMemo(() => (typeof window === "undefined" ? "" : safePreviewHtml(html)), [html]);
   const heading = seo?.title || title;
   return (
     <div className="space-y-3">
+      {draft.restored != null && (
+        <p className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Найден несохранённый текст статьи из прошлого раза.
+          <button type="button" onClick={() => { setHtml(draft.restored!); draft.hide(); }} className="font-semibold underline">Вернуть мою правку</button>
+          <button type="button" onClick={draft.drop} className="underline">Оставить сохранённый</button></p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {TABS.map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k} className={`chip cursor-pointer !px-3 !py-1 text-xs ${tab === k ? "bg-accent-soft text-accent-ink" : ""}`}>{l}</button>)}
         <span className="ml-auto flex flex-wrap items-center gap-2"><CopyText text={plain} label="Копировать текст" /><CopyText text={html} label="Копировать HTML" /></span>

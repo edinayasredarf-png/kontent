@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { clearDraft, useStored } from "@/lib/draft-store";
 import { Layers, Sparkles } from "lucide-react";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Switch } from "@/components/ui/Switch";
@@ -19,16 +20,16 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
   factoryId: string; kinds: string[]; labels: Record<string, string>; defaultKind: string;
   createAction: Act; repurposeAction: Act; priceHint: string; sourcePrice: string; editPrice?: string;
 }) {
-  const [type, setType] = useState(defaultKind), [plan, setPlan] = useState(false);
+  const [type, setType] = useStored<string>(`create:${factoryId}:type`, defaultKind), [plan, setPlan] = useState(false);
   const topicRef = useRef<HTMLTextAreaElement>(null);
-  const [topic, setTopicState] = useState(""), [textmode, setTextmode] = useState<"ai" | "asis">("ai");
+  const [topic, setTopicState] = useStored<string>(`create:${factoryId}:topic`, ""), [textmode, setTextmode] = useStored<"ai" | "asis">(`create:${factoryId}:mode`, "ai");
   // замена текста из кода (ИИ-правка, выбор новости): обновляем поле и его высоту
   const setTopic = (t: string) => { setTopicState(t); const el = topicRef.current; if (el) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); } };
   const longText = topic.length > 300;
   const [pollMode, setPollMode] = useState<"options" | "open">("options"), [pollCount, setPollCount] = useState(4);
   const source = type === SOURCE, multi = type === MULTI;
   return (
-    <form action={source ? repurposeAction : createAction} className="space-y-3">
+    <form action={source ? repurposeAction : createAction} onSubmit={() => { clearDraft(`create:${factoryId}:topic`); clearDraft(`create:${factoryId}:type`); clearDraft(`create:${factoryId}:mode`); }} className="space-y-3">
       <input type="hidden" name="factory" value={factoryId} />
       {!source && !multi && <input type="hidden" name="kinds" value={type} />}
       {source ? (

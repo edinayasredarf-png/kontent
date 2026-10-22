@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useStored } from "@/lib/draft-store";
 import { ArrowRight, ArrowUp, Check, Globe, Loader2, Mic, Pencil, Plus, RotateCcw, Square } from "lucide-react";
 import { chatActionRun, clearChatAction, sendChatAction } from "@/lib/agent/actions";
 import { pendingStore } from "@/lib/pending-store";
@@ -65,7 +66,7 @@ type SR = { start(): void; stop(): void; lang: string; interimResults: boolean; 
 export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<ChatMsg[]>(initial);
-  const [text, setText] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
+  const [text, setText] = useStored<string>("chat-input", ""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
   const [hello, setHello] = useState("Здравствуйте!");
   const end = useRef<HTMLDivElement>(null), area = useRef<HTMLTextAreaElement>(null), sr = useRef<SR | null>(null);
   useEffect(() => setHello(greet(name)), [name]);

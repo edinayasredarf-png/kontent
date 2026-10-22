@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Bell, LogOut, Menu, PanelLeft, Settings, Wallet, X } from "lucide-react";
 import { Logo } from "../Logo";
@@ -11,20 +11,23 @@ import { NAV } from "./nav";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 import { SubmitButton } from "../SubmitButton";
 import { Avatar } from "../Avatar";
+import { ScrollKeeper } from "../ScrollKeeper";
+import { sweepDrafts } from "@/lib/draft-store";
 
 export interface ShellProps {
   orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
-  free: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; children: React.ReactNode;
+  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; children: React.ReactNode;
 }
 
 
 /** Оболочка кабинета: плавающее меню слева, шапка с поиском и быстрыми действиями, на телефоне меню выезжает поверх страницы. */
 export function AppShell(p: ShellProps) {
   const path = usePathname();
-  const [collapsed, setCollapsed] = useState(false), [drawer, setDrawer] = useState(false);
-  useEffect(() => { try { setCollapsed(localStorage.getItem("lt_nav") === "1"); } catch { /* без запоминания */ } }, []);
+  // состояние меню приходит с сервера из cookie: так первая отрисовка сразу правильной ширины, без «прыжка» после загрузки
+  const [collapsed, setCollapsed] = useState(!!p.initialCollapsed), [drawer, setDrawer] = useState(false);
+  useEffect(() => { sweepDrafts(); }, []);
   useEffect(() => { setDrawer(false); }, [path]);
-  const toggle = () => setCollapsed((c) => { try { localStorage.setItem("lt_nav", c ? "0" : "1"); } catch { /* ок */ } return !c; });
+  const toggle = () => setCollapsed((c) => { try { document.cookie = `lt_nav=${c ? "0" : "1"}; path=/; max-age=31536000; samesite=lax`; } catch { /* ок */ } return !c; });
   const slim = collapsed && !drawer;
   const title = path === "/app" ? "Чат" : "";
 
@@ -79,6 +82,7 @@ export function AppShell(p: ShellProps) {
 
   return (
     <div className="min-h-screen">
+      <Suspense fallback={null}><ScrollKeeper /></Suspense>
       {sidebar}
       {drawer && <button type="button" aria-label="Закрыть меню" onClick={() => setDrawer(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
       <div className={clsx("min-h-screen transition-[padding] duration-200", slim ? "md:pl-[108px]" : "md:pl-[340px]")}>
