@@ -48,7 +48,7 @@ export async function genStrategy(orgId: string, factoryId: string): Promise<{ o
       `select i.topic,s.views from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id
         where i.factory_id=$1 and p.status='published' order by s.views desc limit 5`, [factoryId]);
     const comp = await q<{ body: string; views: number }>(
-      `select cp.body,cp.views from kz_competitor_posts cp join kz_competitors c on c.id=cp.competitor_id where c.org_id=$1 and (c.brand_id=$2 or c.brand_id is null) order by cp.views desc limit 5`, [orgId, fac.brand_id]).catch(() => []);
+      `select cp.body,cp.views from kz_competitor_posts cp join kz_competitors c on c.id=cp.competitor_id join kz_competitor_groups g on g.id=c.group_id where c.org_id=$1 and (g.brand_id=$2 or g.brand_id is null) order by cp.views desc limit 5`, [orgId, fac.brand_id]).catch(() => []);
     const user = `${brandBlock(brandOf(fac), fac.product, fac.niche)}\nФорматы завода: ${fac.formats.join(", ")}\n` +
       (top.length ? `Лучшие материалы бренда по просмотрам:\n${top.map((t) => `- ${t.topic} (${t.views})`).join("\n")}\n` : "") +
       (comp.length ? `Что заходит у конкурентов:\n${comp.map((t) => `- ${t.body.slice(0, 120)} (${t.views} просм.)`).join("\n")}\n` : "") +

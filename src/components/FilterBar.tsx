@@ -9,13 +9,13 @@ export interface FilterSelect { name: string; label: string; all: string; value:
  * Панель фильтров: быстрые периоды («Сегодня», «Вчера»…), выбор дат в календаре и выпадающие списки.
  * Всё применяется сразу, без кнопки; состояние живёт в адресе страницы (период — r, from, to; списки — по имени).
  */
-export function FilterBar({ path, presets, r, from, to, selects, keep = {} }: {
-  path: string; presets: [string, string][]; r: string; from: string; to: string; selects: FilterSelect[]; keep?: Record<string, string>;
+export function FilterBar({ path, presets, r, from, to, selects, keep = {}, search }: {
+  path: string; presets: [string, string][]; r: string; from: string; to: string; selects: FilterSelect[]; keep?: Record<string, string>; search?: { name: string; value: string; placeholder: string };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [s, setS] = useState({ r, from, to, sel: Object.fromEntries(selects.map((x) => [x.name, x.value])) as Record<string, string> });
-  useEffect(() => { setS({ r, from, to, sel: Object.fromEntries(selects.map((x) => [x.name, x.value])) }); }, [r, from, to, selects]);
+  const [s, setS] = useState({ r, from, to, sel: { ...Object.fromEntries(selects.map((x) => [x.name, x.value])), ...(search ? { [search.name]: search.value } : {}) } as Record<string, string> });
+  useEffect(() => { setS({ r, from, to, sel: { ...Object.fromEntries(selects.map((x) => [x.name, x.value])), ...(search ? { [search.name]: search.value } : {}) } }); }, [r, from, to, selects, search]);
   const [openCal, setOpenCal] = useState(r === "custom");
   const go = (n: typeof s) => {
     setS(n);
@@ -43,14 +43,15 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {} }: {
           <label className="flex items-center gap-2 text-ink2">по <input type="date" value={s.to} min={s.from || undefined} onChange={(e) => go({ ...s, r: "custom", to: e.target.value })} className="input !w-auto !py-2" aria-label="Конец периода" /></label>
         </div>
       )}
-      {selects.length > 0 && (
+      {(selects.length > 0 || search) && (
         <div className="flex flex-wrap items-center justify-center gap-2">
+          {search && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={() => { if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
           {selects.map((x) => (
             <select key={x.name} value={s.sel[x.name] ?? ""} onChange={(e) => go({ ...s, sel: { ...s.sel, [x.name]: e.target.value } })} aria-label={x.label} className={sel}>
               <option value="">{x.all}</option>{x.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           ))}
-          {filtered && <button type="button" onClick={() => go({ ...s, sel: Object.fromEntries(selects.map((x) => [x.name, ""])) })} className="pill pill-sm"><X size={13} />Сбросить</button>}
+          {filtered && <button type="button" onClick={() => go({ ...s, sel: Object.fromEntries([...selects.map((x) => x.name), ...(search ? [search.name] : [])].map((k) => [k, ""])) })} className="pill pill-sm"><X size={13} />Сбросить</button>}
         </div>
       )}
     </div>

@@ -110,18 +110,35 @@ export async function refreshCompetitor(id: string): Promise<{ ok: true; posts: 
   }
 }
 
-export async function addCompetitor(orgId: string, brandId: string | null, kind: string, input: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export const MAX_PLATFORMS = 6;
+export const KIND_NAME: Record<CKind, string> = { telegram: "Telegram", vk: "VK", site: "Сайт" };
+
+/** Добавляет площадку к конкуренту (группе) и сразу загружает её посты. При сбое загрузки площадка не сохраняется. */
+export async function addPlatform(orgId: string, groupId: string, kind: string, input: string): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
   if (kind !== "telegram" && kind !== "vk" && kind !== "site") return { ok: false, error: "Выберите площадку: Telegram, VK или сайт" };
   let ref: string;
   try { ref = normalizeRef(kind, input); } catch (e) { return { ok: false, error: (e as Error).message }; }
-  if (brandId && !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [brandId, orgId]))) return { ok: false, error: "Бренд не найден" };
-  const n = await one<{ n: string }>("select count(*) n from kz_competitors where org_id=$1", [orgId]);
-  if (Number(n!.n) >= MAX_COMPETITORS) return { ok: false, error: `Не больше ${MAX_COMPETITORS} конкурентов — удалите ненужных` };
-  const row = await one<{ id: string }>("insert into kz_competitors(org_id,brand_id,kind,ref,title) values($1,$2,$3,$4,$5) on conflict(org_id,kind,ref) do nothing returning id", [orgId, brandId, kind, ref, ref]);
-  if (!row) return { ok: false, error: "Этот источник уже добавлен" };
+  if (!(await one("select 1 from kz_competitor_groups where id=$1 and org_id=$2", [groupId, orgId]))) return { ok: false, error: "Конкурент не найден" };
+  const n = await one<{ n: string }>("select count(*) n from kz_competitors where group_id=$1", [groupId]);
+  if (Number(n!.n) >= MAX_PLATFORMS) return { ok: false, error: `У одного конкурента не больше ${MAX_PLATFORMS} площадок` };
+  const row = await one<{ id: string }>("insert into kz_competitors(org_id,group_id,kind,ref,title) values($1,$2,$3,$4,$5) on conflict(org_id,kind,ref) do nothing returning id", [orgId, groupId, kind, ref, ref]);
+  if (!row) return { ok: false, error: "Эта площадка уже добавлена (у этого или другого конкурента)" };
   const r = await refreshCompetitor(row.id);
   if (!r.ok) { await q("delete from kz_competitors where id=$1", [row.id]); return { ok: false, error: r.error }; }
-  return { ok: true };
+  const t = await one<{ title: string }>("select title from kz_competitors where id=$1", [row.id]);
+  return { ok: true, title: t?.title ?? ref };
+}
+
+/** Новый конкурент: группа с именем и первой площадкой. Имя не задано — берём название площадки. Не получилось загрузить — группа не создаётся. */
+export async function addCompetitor(orgId: string, brandId: string | null, kind: string, input: string, name = ""): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  if (brandId && !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [brandId, orgId]))) return { ok: false, error: "Бренд не найден" };
+  const n = await one<{ n: string }>("select count(*) n from kz_competitor_groups where org_id=$1", [orgId]);
+  if (Number(n!.n) >= MAX_COMPETITORS) return { ok: false, error: `Не больше ${MAX_COMPETITORS} конкурентов — удалите ненужных` };
+  const g = await one<{ id: string }>("insert into kz_competitor_groups(org_id,brand_id,name) values($1,$2,$3) returning id", [orgId, brandId, name.trim().slice(0, 80) || "Без названия"]);
+  const r = await addPlatform(orgId, g!.id, kind, input);
+  if (!r.ok) { await q("delete from kz_competitor_groups where id=$1", [g!.id]); return r; }
+  if (!name.trim()) await q("update kz_competitor_groups set name=$2 where id=$1", [g!.id, r.title.slice(0, 80)]);
+  return { ok: true, id: g!.id };
 }
 
 /** Воркер: раз в 12 часов обновляем всех конкурентов, по несколько за проход. */
@@ -134,14 +151,14 @@ export async function collectCompetitors(limit = 6): Promise<{ updated: number; 
   return out;
 }
 
-export interface CompStat { id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: number; perWeek: number; avgViews: number; erPct: number | null; bestHour: number | null }
+export interface CompStat { gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: number; perWeek: number; avgViews: number; erPct: number | null; bestHour: number | null }
 
 export async function competitorStats(orgId: string): Promise<CompStat[]> {
-  const rows = await q<{ id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: string; avgv: string | null }>(
-    `select c.id,c.kind,c.ref,c.title,c.members,c.last_error,c.last_fetched_at,c.brand_id,
+  const rows = await q<{ gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: string; avgv: string | null }>(
+    `select c.id,c.group_id,c.kind,c.ref,c.title,c.members,c.last_error,c.last_fetched_at,g.brand_id,g.name gname,
             (select count(*) from kz_competitor_posts p where p.competitor_id=c.id and p.posted_at > now() - interval '30 days') posts30,
             (select round(avg(views)) from kz_competitor_posts p where p.competitor_id=c.id and p.posted_at > now() - interval '30 days') avgv
-       from kz_competitors c where c.org_id=$1 order by c.created_at`, [orgId]);
+       from kz_competitors c join kz_competitor_groups g on g.id=c.group_id where c.org_id=$1 order by g.created_at, c.created_at`, [orgId]);
   const hours = await q<{ competitor_id: string; h: number; v: string }>(
     `select competitor_id, extract(hour from posted_at at time zone 'Europe/Moscow')::int as h, avg(views) v from kz_competitor_posts where posted_at > now() - interval '60 days'
       and competitor_id in (select id from kz_competitors where org_id=$1) group by 1,2`, [orgId]);
@@ -154,7 +171,7 @@ export async function competitorStats(orgId: string): Promise<CompStat[]> {
 
 export interface TopPost { id: string; comp: string; kind: string; ext_id: string; url: string; body: string; views: number; at: string }
 export const topCompetitorPosts = (orgId: string, limit = 12) =>
-  q<TopPost>(`select p.competitor_id||'|'||p.ext_id id,c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.posted_at at from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
+  q<TopPost>(`select p.competitor_id||'|'||p.ext_id id,g.name||' · '||c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.posted_at at from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id join kz_competitor_groups g on g.id=c.group_id
                where c.org_id=$1 and p.posted_at > now() - interval '60 days' order by p.views desc, p.posted_at desc limit $2`, [orgId, limit]);
 
 /** Разбор ИИ: что заходит у конкурентов (форматы, темы, заходы), чем отличаемся и 5 идей для плана. Платно; при сбое возврат. */
@@ -170,7 +187,7 @@ export async function analyzeCompetitors(orgId: string): Promise<{ text?: string
   catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
   try {
     const data = [
-      `Конкуренты: ${stats.map((s) => `${s.title} (${s.members ?? "?"} подписчиков, ${s.perWeek} постов в неделю, в среднем ${s.avgViews} просмотров${s.bestHour != null ? `, лучшее время ${s.bestHour}:00 МСК` : ""})`).join("; ")}`,
+      `Конкуренты: ${stats.map((s) => `${s.gname} / ${KIND_NAME[s.kind]} ${s.title} (${s.kind === "site" ? `${s.perWeek} материалов в неделю` : `${s.members ?? "?"} подписчиков, ${s.perWeek} постов в неделю, в среднем ${s.avgViews} просмотров`}${s.bestHour != null ? `, лучшее время ${s.bestHour}:00 МСК` : ""})`).join("; ")}`,
       `Лучшие посты конкурентов:\n${top.map((t) => `- [${t.comp}, ${t.views} просм.] ${t.body.slice(0, 220)}`).join("\n")}`,
       own?.avg ? `У нас в среднем ${own.avg} просмотров на пост за 30 дней.` : "У нас пока мало статистики.",
       mine.length ? `Наши лучшие посты:\n${mine.map((m) => `- ${m.topic} (${m.views})`).join("\n")}` : "",
@@ -195,4 +212,58 @@ export async function competitorPostToPlan(orgId: string, postKey: string, facto
   const source = { title: `Пост конкурента «${p.title}»`, url: p.url, body: `${p.body}\n\nВАЖНО: это чужой пост. Возьми только идею и общие факты, напиши полностью своими словами с позиции нашего бренда, ничего не копируя.` };
   await q("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,meta) values($1,$2,$3,'post',$4,'',$5,$6)", [orgId, factoryId, fac.brand_id, topic, d, JSON.stringify({ source, fromCompetitor: true })]);
   return { ok: true };
+}
+
+
+export interface GroupSummary {
+  id: string; name: string; brand_id: string | null; platforms: CompStat[];
+  members: number | null; perWeek: number; posts30: number; avgViews: number; bestHour: number | null; lastPostAt: string | null; errors: number;
+  best: { body: string; views: number; kind: CKind } | null;
+}
+
+/** Конкуренты с итогами по всем их площадкам: для главного экрана. Подписчики и просмотры считаются только по соцсетям, у сайта их нет. */
+export async function groupSummaries(orgId: string): Promise<GroupSummary[]> {
+  const [groups, stats, last, best] = await Promise.all([
+    q<{ id: string; name: string; brand_id: string | null }>("select id,name,brand_id from kz_competitor_groups where org_id=$1 order by created_at", [orgId]),
+    competitorStats(orgId),
+    q<{ group_id: string; at: string }>("select c.group_id, max(p.posted_at) at from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id where c.org_id=$1 group by 1", [orgId]),
+    q<{ group_id: string; body: string; views: number; kind: CKind }>(
+      `select distinct on (c.group_id) c.group_id,p.body,p.views,c.kind from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
+        where c.org_id=$1 and p.posted_at > now() - interval '60 days' order by c.group_id, p.views desc, p.posted_at desc`, [orgId]),
+  ]);
+  return groups.map((g) => {
+    const pl = stats.filter((s) => s.group_id === g.id);
+    const social = pl.filter((s) => s.kind !== "site");
+    const members = social.some((s) => s.members != null) ? social.reduce((a, s) => a + (s.members ?? 0), 0) : null;
+    const views = social.filter((s) => s.avgViews > 0);
+    const top = [...social].sort((a, b) => b.avgViews - a.avgViews)[0];
+    return {
+      ...g, platforms: pl, members,
+      perWeek: Math.round(pl.reduce((a, s) => a + s.perWeek, 0) * 10) / 10, posts30: pl.reduce((a, s) => a + s.posts30, 0),
+      avgViews: views.length ? Math.round(views.reduce((a, s) => a + s.avgViews, 0) / views.length) : 0,
+      bestHour: top?.bestHour ?? pl.find((s) => s.bestHour != null)?.bestHour ?? null,
+      lastPostAt: last.find((l) => l.group_id === g.id)?.at ?? null, errors: pl.filter((s) => s.last_error).length,
+      best: best.find((b) => b.group_id === g.id) ?? null,
+    };
+  });
+}
+
+export interface PostFilter { platform: string; from: string | null; to: string | null; sort: "date" | "views"; q: string; limit: number }
+
+/** Посты и материалы всех площадок конкурента с фильтрами. */
+export async function groupPosts(orgId: string, groupId: string, f: PostFilter) {
+  const args: unknown[] = [orgId, groupId]; let where = "";
+  const add = (v: unknown) => { args.push(v); return `$${args.length}`; };
+  if (f.platform) where += ` and c.id=${add(f.platform)}::uuid`;
+  if (f.from) where += ` and p.posted_at >= ${add(f.from)}::timestamptz`;
+  if (f.to) where += ` and p.posted_at < ${add(f.to)}::timestamptz`;
+  if (f.q) {
+    const esc = f.q.replace(/[%_\\]/g, "\\$&"), cap = esc.charAt(0).toUpperCase() + esc.slice(1).toLowerCase();
+    where += ` and p.body ilike any(${add([...new Set([esc, esc.toLowerCase(), esc.toUpperCase(), cap])].map((x) => `%${x}%`))}::text[])`;
+  }
+  const rows = await q<TopPost & { platform: string }>(
+    `select p.competitor_id||'|'||p.ext_id id,c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.likes,p.posted_at at,c.id platform from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
+      where c.org_id=$1 and c.group_id=$2${where} order by ${f.sort === "views" ? "p.views desc, p.posted_at desc" : "p.posted_at desc"} limit ${Math.min(300, f.limit) + 1}`, args);
+  const more = rows.length > f.limit; if (more) rows.length = f.limit;
+  return { rows, more };
 }

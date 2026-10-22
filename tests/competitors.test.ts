@@ -68,14 +68,25 @@ describe("сайт в базе", { skip: skipDb }, () => {
     orgId = (await db.one<{ id: string }>("insert into kz_orgs(name) values('comp-test') returning id"))!.id;
   });
   after(async () => { const db = await import("../src/lib/db"); await db.q("delete from kz_orgs where id=$1", [orgId]); });
-  it("добавление сайта сохраняет материалы, повтор не дублирует", async () => {
-    const { addCompetitor, competitorStats } = await import("../src/lib/competitors");
+  it("конкурент с несколькими площадками: добавление, повтор, итоги, удаление группы", async () => {
+    const { addCompetitor, addPlatform, groupSummaries, groupPosts } = await import("../src/lib/competitors");
     const db = await import("../src/lib/db");
-    assert.deepEqual(await addCompetitor(orgId, null, "site", `${base}/blog`), { ok: true });
-    const again = await addCompetitor(orgId, null, "site", `${base}/blog/`);
-    assert.equal(again.ok, false);
-    const st = await competitorStats(orgId);
-    assert.equal(st.length, 1); assert.equal(st[0].kind, "site"); assert.equal(st[0].title, "Блог конкурента");
-    assert.equal(Number((await db.one<{ n: string }>("select count(*) n from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id where c.org_id=$1", [orgId]))!.n), 2);
+    const r = await addCompetitor(orgId, null, "site", `${base}/blog`, "Мой конкурент");
+    assert.ok(r.ok); if (!r.ok) return;
+    assert.equal((await addPlatform(orgId, r.id, "site", `${base}/blog/`)).ok, false, "та же площадка повторно");
+    const vkTry = await addPlatform(orgId, r.id, "vk", "datumgroup");
+    assert.equal(vkTry.ok, false, "VK с ключом сообщества не добавляется");
+    const sum = (await groupSummaries(orgId)).find((g) => g.id === r.id)!;
+    assert.equal(sum.name, "Мой конкурент"); assert.equal(sum.platforms.length, 1); assert.equal(sum.members, null);
+    assert.equal(sum.posts30 >= 0, true);
+    const all = await groupPosts(orgId, r.id, { platform: "", from: null, to: null, sort: "date", q: "", limit: 20 });
+    assert.equal(all.rows.length, 2);
+    assert.equal((await groupPosts(orgId, r.id, { platform: "", from: null, to: null, sort: "date", q: "ЦИФРЫ", limit: 20 })).rows.length, 1, "поиск без учёта регистра");
+    assert.equal((await groupPosts(orgId, r.id, { platform: "", from: null, to: null, sort: "date", q: "", limit: 1 })).more, true);
+    const none = await addCompetitor(orgId, null, "vk", "datumgroup", "Только VK");
+    assert.equal(none.ok, false);
+    assert.equal(Number((await db.one<{ n: string }>("select count(*) n from kz_competitor_groups where org_id=$1", [orgId]))!.n), 1, "группа при неудаче не остаётся");
+    await db.q("delete from kz_competitor_groups where id=$1", [r.id]);
+    assert.equal(Number((await db.one<{ n: string }>("select count(*) n from kz_competitors where org_id=$1", [orgId]))!.n), 0, "площадки удаляются вместе с группой");
   });
 });
