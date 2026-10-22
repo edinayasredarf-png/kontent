@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { cleanKit } from "@/lib/images";
+import { pdfOf } from "@/lib/pdf";
 import { docxOf, fileBase, isHtmlKind, markdownOf, plainOf, type ExportItem } from "@/lib/exporter";
 import { emailHtml, guideHtml } from "@/lib/docs";
 import { cleanHtml } from "@/lib/seo";
@@ -13,7 +14,7 @@ export const maxDuration = 30;
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const send = (data: BodyInit, type: string, name: string) => new NextResponse(data, { headers: { "Content-Type": type, "Content-Disposition": `attachment; filename="${name}"`, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" } });
 
-/** Скачать материал: ?format=txt | md | docx | html | zip. ZIP — текст (txt, md) и картинки материала. Только участникам организации. */
+/** Скачать материал: ?format=txt | md | docx | pdf | html | zip. ZIP — текст (txt, md) и картинки материала. Только участникам организации. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await readSession();
@@ -28,6 +29,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (fmt === "txt") return send("﻿" + plainOf(it) + "\n", "text/plain; charset=utf-8", `${base}.txt`);
   if (fmt === "md") return send("﻿" + markdownOf(it), "text/markdown; charset=utf-8", `${base}.md`);
   if (fmt === "docx") return send(await docxOf(it) as BodyInit, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", `${base}.docx`);
+  if (fmt === "pdf") {
+    const brand = { name: row.brand, color: cleanKit(row.kit).colors?.[0]?.hex ?? "#029cda" };
+    try { return send(await pdfOf(it, brand) as BodyInit, "application/pdf", `${base}.pdf`); }
+    catch (e) { return new NextResponse(`Не удалось собрать PDF: ${(e as Error).message}`, { status: 500 }); }
+  }
   if (fmt === "html") {
     const brand = { name: row.brand, color: cleanKit(row.kit).colors?.[0]?.hex ?? "#029cda" };
     let html: string | null = null;
@@ -45,5 +51,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!slides.length && row.image_id) { const img = await one<{ data: Buffer }>("select data from kz_assets where id=$1 and org_id=$2", [row.image_id, s.org]); if (img) zip.file("image.jpg", img.data); }
     return send(await zip.generateAsync({ type: "uint8array", compression: "STORE" }) as BodyInit, "application/zip", `${base}.zip`);
   }
-  return new NextResponse("Формат: txt, md, docx, html или zip", { status: 400 });
+  return new NextResponse("Формат: txt, md, docx, pdf, html или zip", { status: 400 });
 }

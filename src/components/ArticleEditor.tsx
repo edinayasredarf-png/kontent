@@ -1,6 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
+import { CheckCircle2, Download, FileText, ImagePlus, Loader2 } from "lucide-react";
+import { LeadMagnetPanel } from "./LeadMagnetPanel";
+import type { LeadMeta } from "@/lib/lead-magnet";
 import { AiTextTools } from "./AiTextTools";
 import { CopyText } from "./CopyText";
 import { h2Titles, htmlToPlain, safePreviewHtml } from "@/lib/html-text";
@@ -14,7 +16,7 @@ type Tab = (typeof TABS)[number][0];
  * Статья для сайта (SEO, рассылка, гайд): предпросмотр «как на сайте», чистый текст без тегов (его можно скопировать), исходный HTML.
  * Для SEO-статьи и гайда ниже — подбор картинок к разделам: сначала вы выбираете разделы, пожелания и формат, и только потом идёт генерация.
  */
-export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, imagePriceKop, free }: { itemId: string; kind: string; initial: string; seo: { title?: string; description?: string; slug?: string } | null; title: string; imagePrice: string; imagePriceKop: number; free: boolean }) {
+export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, imagePriceKop, free, lead = null, brandName = "", editPrice = "" }: { itemId: string; kind: string; initial: string; seo: { title?: string; description?: string; slug?: string } | null; title: string; imagePrice: string; imagePriceKop: number; free: boolean; lead?: LeadMeta | null; brandName?: string; editPrice?: string }) {
   const [html, setHtml] = useState(initial);
   const [tab, setTab] = useState<Tab>("site");
   const plain = useMemo(() => (typeof window === "undefined" ? "" : htmlToPlain(html)), [html]);
@@ -50,7 +52,14 @@ export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, i
         <textarea name="body" value={html} onChange={(e) => setHtml(e.target.value)} rows={14} spellCheck={false} className="input !rounded-2xl !bg-surface font-mono text-xs leading-5" aria-label="HTML статьи" />
         <p className="text-xs text-ink3">Разрешены заголовки H2–H4, абзацы, списки, ссылки, таблицы, картинки. Остальное при сохранении убирается.</p>
       </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-tile p-3 text-xs text-ink2">
+        <b className="flex items-center gap-1.5 text-sm"><FileText size={15} />Скачать документ</b>
+        <a href={`/api/export/${itemId}/file?format=docx`} className="btn btn-ghost !py-1.5"><Download size={14} />Word (.docx)</a>
+        <a href={`/api/export/${itemId}/file?format=pdf`} className="btn btn-ghost !py-1.5"><Download size={14} />PDF</a>
+        <span className="text-ink3">Берётся последний сохранённый текст: если правили, сначала нажмите «Сохранить текст».</span>
+      </div>
       <AiTextTools getText={() => html} setText={setHtml} price={free ? "" : "3 ₽"} />
+      {kind === "guide" && <LeadMagnetPanel itemId={itemId} initial={lead} brandName={brandName} price={editPrice} />}
       {(kind === "seo" || kind === "guide") && <SectionImages itemId={itemId} html={html} setHtml={setHtml} priceLabel={imagePrice} priceKop={imagePriceKop} free={free} />}
     </div>
   );

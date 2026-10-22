@@ -16,6 +16,7 @@ export function DocPanel({ itemId, factoryId, kind, email, guide, html, editable
         <div className="ml-auto flex flex-wrap gap-2">
           <a href={view} target="_blank" rel="noreferrer noopener" className="btn btn-ghost !py-1.5"><ExternalLink size={14} />{kind === "email" ? "Просмотр" : "Открыть и сохранить как PDF"}</a>
           <a href={`${view}?as=file`} className="btn btn-ghost !py-1.5"><Download size={14} />Скачать HTML</a>
+          {kind === "guide" && <><a href={`/api/export/${itemId}/file?format=pdf`} className="btn btn-ghost !py-1.5"><Download size={14} />PDF</a><a href={`/api/export/${itemId}/file?format=docx`} className="btn btn-ghost !py-1.5"><Download size={14} />Word</a></>}
           {kind === "email" && <CopyHtml url={`${view}?as=file`} />}
         </div>
       </div>
