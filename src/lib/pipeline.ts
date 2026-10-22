@@ -1,4 +1,4 @@
-import { pubImageUrl } from "./pub-image";
+import { pubImageUrl, publicizeImages } from "./pub-image";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
@@ -148,7 +148,7 @@ export async function repurposeSource(orgId: string, factoryId: string, o: { url
 }
 
 /** Описания референсов и фото продукта бренда — они попадают в промпт картинки как «видение стиля». */
-async function brandNotes(orgId: string, brandId: string) {
+export async function brandNotes(orgId: string, brandId: string) {
   const rows = await q<{ kind: "reference" | "product"; note: string }>(
     "select kind,note from kz_assets where org_id=$1 and brand_id=$2 and kind in ('reference','product') and note<>'' order by created_at limit 8", [orgId, brandId]);
   return rows.map((n) => ({ kind: n.kind, text: n.note }));
@@ -254,10 +254,10 @@ export async function setCarouselCover(orgId: string, itemId: string, mode: "ai"
  * списалось бы дважды. Любой сбой после списания — возврат денег.
  */
 export async function buildImage(orgId: string, itemId: string, customPrompt?: string): Promise<Result> {
-  const it = await one<{ id: string; brand_id: string; topic: string; hook: string; body: string; image_id: string | null }>(
+  const it = await one<{ id: string; brand_id: string; topic: string; hook: string; body: string; image_id: string | null; kind: string }>(
     `update kz_content_items set meta = meta || jsonb_build_object('imageBusy', extract(epoch from now())::bigint), updated_at=now()
       where id=$1 and org_id=$2 and ((meta->>'imageBusy') is null or (meta->>'imageBusy')::bigint < extract(epoch from now())::bigint - 300)
-      returning id,brand_id,topic,hook,body,image_id`, [itemId, orgId]);
+      returning id,brand_id,topic,hook,body,image_id,kind`, [itemId, orgId]);
   if (!it) return { ok: false, error: "Картинка уже создаётся или материал недоступен" };
   const release = () => q("update kz_content_items set meta = meta - 'imageBusy' where id=$1", [it.id]);
   const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]);
@@ -269,11 +269,11 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
     const kit = cleanKit(brand.kit);
     let prompt = customPrompt?.trim();
     if (!prompt) {
-      prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: it.topic, hook: it.hook, body: it.body, notes: await brandNotes(orgId, it.brand_id) });
+      prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: it.topic, hook: it.kind === "story" ? `${it.hook} Vertical 9:16 story composition: a clear subject in the middle, calm areas at the top and bottom for interface and text overlay.`.trim() : it.hook, body: it.body, notes: await brandNotes(orgId, it.brand_id) });
     }
-    const raw = await generateImage(prompt, kit.aspect ?? "square");
+    const raw = await generateImage(prompt, it.kind === "story" ? "portrait" : kit.aspect ?? "square");
     const logo = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
-    const done = await finalizeImage(raw, logo ? await loadAsset(orgId, logo.id) : null, kit);
+    const done = await finalizeImage(raw, logo ? await loadAsset(orgId, logo.id) : null, kit, { story: it.kind === "story" });
     const assetId = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 60)}.jpg`, done);
     await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError') || jsonb_build_object('imagePrompt',$3::text), updated_at=now() where id=$1", [it.id, assetId, prompt]);
     if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]); // прежняя версия не копится в БД
@@ -366,7 +366,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
-      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: item.body } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: outText, poll: item?.meta?.poll && ch.kind === "telegram" ? item.meta.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
     } catch (e) {

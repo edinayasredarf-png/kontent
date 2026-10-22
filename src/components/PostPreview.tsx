@@ -33,7 +33,8 @@ function Photos({ urls, rounded = "rounded-xl" }: { urls: string[]; rounded?: st
  * Предпросмотр: как текст и картинки выглядят в Telegram, ВКонтакте и MAX. Правила те же, что при публикации: подпись к фото в Telegram до 1024 знаков,
  * длинный текст делится на сообщения, в ВК длинный текст сворачивается. Это образец, а не точная копия: мессенджеры меняют оформление.
  */
-export function PostPreview({ text, images, kinds, oneMessageTg, name }: { text: string; images: string[]; kinds: string[]; oneMessageTg: boolean; name: string }) {
+export function PostPreview({ text, images, kinds, oneMessageTg, name, kind }: { text: string; images: string[]; kinds: string[]; oneMessageTg: boolean; name: string; kind?: string }) {
+  if (kind === "story") return <StoryPreview text={text} image={images[0]} name={name} />;
   const nets = NETS.filter((n) => !kinds.length || kinds.includes(n.k));
   const list = nets.length ? nets : NETS;
   const [tab, setTab] = useState(list[0].k);
@@ -97,6 +98,32 @@ export function PostPreview({ text, images, kinds, oneMessageTg, name }: { text:
         </div>
       )}
       {warn.map((w, i) => <p key={i} className="flex items-start gap-1.5 text-xs text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{w}</p>)}
+    </div>
+  );
+}
+
+/** Сторис: вертикальный кадр 9:16 с короткой надписью поверх картинки. Это образец того, что получится в приложении площадки. */
+function StoryPreview({ text, image, name }: { text: string; image?: string; name: string }) {
+  const plain = toPlain(text), n = plain.length;
+  return (
+    <div className="space-y-3 rounded-2xl bg-tile p-3">
+      <div className="flex items-center gap-2 text-xs"><span className="font-semibold text-ink2">Как это будет выглядеть как сторис</span><span className="ml-auto text-ink3">Знаков: {n}</span></div>
+      <div className="mx-auto w-[220px]">
+        <div className="relative aspect-[9/16] overflow-hidden rounded-[26px] border-4 border-black/80 bg-gradient-to-br from-[#3a5bff] via-[#7a4dff] to-[#ff7a4d] shadow-lg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {image && <img src={image} alt="" className="absolute inset-0 size-full object-cover" />}
+          <div className="absolute inset-x-2 top-2 h-0.5 rounded bg-white/90" />
+          <div className="absolute inset-x-2 top-4 flex items-center gap-1.5 text-white"><span className="grid size-6 place-items-center rounded-full bg-white/90 text-[10px] font-bold text-black">{(name[0] ?? "?").toUpperCase()}</span><span className="text-[11px] font-semibold drop-shadow">{name}</span><span className="text-[10px] opacity-80">только что</span><span className="ml-auto text-xs opacity-90">✕</span></div>
+          {plain && <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 rounded-xl bg-black/55 p-3 text-center text-[13px] font-semibold leading-5 text-white backdrop-blur-[2px]"><Rich text={plain.length > 250 ? `${plain.slice(0, 247)}…` : plain} /></div>}
+          <div className="absolute inset-x-3 bottom-3 flex items-center gap-2"><span className="flex-1 rounded-full border border-white/70 px-3 py-1.5 text-[11px] text-white/90">Отправить сообщение</span><span className="text-white">♡</span></div>
+        </div>
+      </div>
+      <div className="space-y-1.5 text-xs">
+        {n > 250 && <p className="flex items-start gap-1.5 text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />Текст длинный для сторис: на экране помещается около 250 знаков, остальное обрежется. Сократите его (кнопка «Сократить» выше).</p>}
+        {!image && <p className="flex items-start gap-1.5 text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />У сторис нет картинки. Создайте её или прикрепите свою: нужен вертикальный кадр 9:16.</p>}
+        <p className="text-ink3">Сторис — это вертикальная картинка 9:16 с короткой надписью. В каналы (Telegram, VK, MAX) она уходит как обычная картинка с подписью: публиковать настоящие сторис через ключи каналов площадки не позволяют. Чтобы выложить её сторис в приложении, скачайте картинку и загрузите вручную.</p>
+        {image && <a href={`${image}?dl=1`} className="inline-flex items-center gap-1 font-semibold text-accent-ink underline">Скачать картинку для сторис</a>}
+      </div>
     </div>
   );
 }

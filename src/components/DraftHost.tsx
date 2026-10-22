@@ -9,6 +9,7 @@ import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftP
 import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { DraftBodyEditor } from "@/components/DraftBodyEditor";
+import { ArticleEditor } from "@/components/ArticleEditor";
 import { CarouselPanel } from "@/components/CarouselPanel";
 import { cleanKit } from "@/lib/images";
 import { ImagePicker } from "@/components/ImagePicker";
@@ -70,8 +71,10 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
             ) : (
               <form action={saveDraftTextAction} className="space-y-2">
                 {hid(it.id)}
-                <DraftBodyEditor initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
-                  kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} oneMessageTg={!!process.env.APP_URL?.trim()} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} />
+                {["seo", "email", "guide"].includes(it.kind)
+                  ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={free} />
+                  : <DraftBodyEditor initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
+                      kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} oneMessageTg={!!process.env.APP_URL?.trim()} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} kind={it.kind} />}
                 <div className="flex flex-wrap items-center gap-2">
                   <SubmitButton className="pill pill-sm">Сохранить текст</SubmitButton>
                   <SubmitButton formAction={regenDraftAction} data-confirm="Переписать материал заново? Текущий текст заменится новым, это платная генерация." data-confirm-ok="Переписать" className="pill pill-sm"><RefreshCw size={13} />Переделать заново{price(priceOf(it.kind))}</SubmitButton>

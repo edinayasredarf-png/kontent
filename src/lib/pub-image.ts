@@ -12,3 +12,8 @@ export function checkPubSig(id: string, s: string): boolean {
   const a = Buffer.from(sig(id)), b = Buffer.from(s);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+/** Картинки статьи лежат у нас за входом (/api/assets/…). Для публикации на сайт заменяем их подписанными публичными ссылками (нужен APP_URL). */
+export function publicizeImages(html: string): string {
+  return html.replace(/src="\/api\/assets\/([0-9a-f-]{36})"/gi, (m, id: string) => { const u = pubImageUrl(id); return u ? `src="${u}"` : m; });
+}

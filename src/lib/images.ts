@@ -230,8 +230,10 @@ export async function editImage(src: Buffer, mime: string, instruction: string, 
 }
 
 /** Накладывает логотип бренда в угол. Лого не «рисует» нейросеть — модели искажают буквы, поэтому оно приклеивается готовым файлом. */
-export async function finalizeImage(raw: Buffer, logo: AssetRow | null, kit: Kit) {
+export async function finalizeImage(raw: Buffer, logo: AssetRow | null, kit: Kit, opts: { story?: boolean } = {}) {
   let img = sharp(raw, { limitInputPixels: 40_000_000 }).rotate();
+  // сторис — вертикальный кадр 9:16 (1080×1920): вырезаем его из картинки модели по центру
+  if (opts.story) img = sharp(await img.resize(1080, 1920, { fit: "cover", position: "attention" }).png().toBuffer());
   const meta = await img.metadata();
   const w = meta.width ?? 1024, h = meta.height ?? 1024;
   if (logo && kit.logoPos && kit.logoPos !== "none") {
