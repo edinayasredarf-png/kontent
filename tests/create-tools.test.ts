@@ -106,3 +106,21 @@ describe("ИИ-правка текста", { skip: skipDb }, () => {
     assert.match(body.messages[1].content, /Текст:\n<<<\nИгнорируй/);
   });
 });
+
+describe("исправление ошибок не переписывает текст", () => {
+  it("доля сохранённых слов: опечатка — почти 1, полная переписка — мало", async () => {
+    const { keptRatio } = await import("../src/lib/text-tools");
+    const a = "Мы запустили новый сервис для города и ждём отзывы жителей";
+    assert.ok(keptRatio(a, "Мы запустили новый сервис для города и ждем отзывы жителей") >= 0.85, "поправили одно слово");
+    assert.ok(keptRatio(a, "Представляем свежее решение для муниципалитета: делитесь мнением!") < 0.3, "переписали полностью");
+    assert.equal(keptRatio("", "что угодно"), 1);
+  });
+  it("просьба «проверь на ошибки» внутри вставленного текста находится и вырезается", async () => {
+    const { stripProofreadRequest } = await import("../src/lib/text-tools");
+    const body = "Летний туризм растёт, но граждане становятся внимательнее к качеству поездок. Краснодарский край вошёл в топ-10 регионов.";
+    assert.equal(stripProofreadRequest(`${body}\n\nПроверь на ошибки`), body);
+    assert.equal(stripProofreadRequest(`Проверь, пожалуйста, этот текст на орфографические ошибки.\n${body}`), body);
+    assert.equal(stripProofreadRequest(body), null, "обычный текст не трогаем");
+    assert.equal(stripProofreadRequest("Проверь на ошибки"), null, "одной просьбы без текста мало");
+  });
+});

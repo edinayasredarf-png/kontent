@@ -1,4 +1,5 @@
 "use server";
+import { aiEditText, stripProofreadRequest } from "./text-tools";
 import { allocateDates } from "./plan";
 import { attachUploadToItems } from "./item-images";
 import { revalidatePath } from "next/cache";
@@ -88,8 +89,15 @@ export async function createMaterialsAction(f: FormData) {
   const c = await requireWriter();
   const fid = s(f, "factory"), hook = s(f, "hook").slice(0, 300);
   // в поле можно вставить и короткую идею, и готовый текст: длинное становится исходником (meta.source), а темой — его первая строка
-  const full = s(f, "topic").slice(0, 20000);
-  const asIs = s(f, "textmode") === "asis" && full.length >= 20;
+  let full = s(f, "topic").slice(0, 20000);
+  let asIs = s(f, "textmode") === "asis" && full.length >= 20;
+  // «…вставленный текст… проверь на ошибки»: это просьба исправить текст, а не написать по нему новый пост
+  const proof = !asIs ? stripProofreadRequest(full) : null;
+  if (proof) {
+    const r = await aiEditText(c.org.id, proof, "fix");
+    if (!r.ok) return go(fid, { ok: false, error: r.error });
+    full = r.text; asIs = true;
+  }
   const longText = full.length > 300;
   const topic = longText ? (full.split(/\n/)[0].trim().slice(0, 120) || full.slice(0, 120)) : full;
   const source = longText && !asIs ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
