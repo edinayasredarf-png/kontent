@@ -1,7 +1,7 @@
 import { one, q } from "../db";
 import { aiEditText, isEditOp, type EditOp } from "../text-tools";
 import { cleanHtml } from "../seo";
-import { buildImage, buildItem } from "../pipeline";
+import { buildImage, buildItem, reapplyLogo } from "../pipeline";
 import { createFromNews } from "../monitor/news";
 import { reworkItemImage } from "../item-images";
 import { LOGO_POSITIONS, type LogoPos } from "../images";
@@ -111,6 +111,21 @@ export async function imageForMaterial(orgId: string, a: Args): Promise<ActResul
   if (!it) return { ok: false, text: "Не нашёл материал. Уточните, для какого нужна картинка" };
   if (it.status === "published") return { ok: false, text: "Материал уже опубликован: картинку не изменить" };
   const op = String(a.op ?? "new"), prompt = clip(a.prompt, 600);
+  if (op === "logo") {
+    const lp = String(a.logoPos ?? ""), scale = Number(a.logoScale), margin = Number(a.logoMargin);
+    const over: { logoPos?: LogoPos; logoScale?: number; logoMargin?: number } = {};
+    if (lp === "none" || (LOGO_POSITIONS as readonly string[]).includes(lp)) over.logoPos = lp as LogoPos;
+    if (scale > 0) over.logoScale = Math.min(40, Math.max(4, Math.round(scale)));
+    if (margin > 0) over.logoMargin = Math.min(12, Math.max(1, Math.round(margin)));
+    if (!Object.keys(over).length) return { ok: false, text: "Не понял, что менять в логотипе: положение, размер или отступ" };
+    const r = await reapplyLogo(orgId, id, over);
+    if (!r.ok) return { ok: false, text: r.needRegen ? `${r.error}. Могу создать картинку заново с нужным логотипом (платно, как новая картинка)` : r.error };
+    if (a.forBrand === true) {
+      const brand = await one<{ brand_id: string }>("select brand_id from kz_content_items where id=$1", [id]);
+      if (brand) await q("update kz_brands set kit = coalesce(kit,'{}'::jsonb) || $3::jsonb where id=$1 and org_id=$2", [brand.brand_id, orgId, JSON.stringify({ ...(over.logoPos ? { logoPos: over.logoPos } : {}), ...(over.logoScale ? { logoScale: over.logoScale } : {}), ...(over.logoMargin ? { logoMargin: over.logoMargin } : {}) })]);
+    }
+    return { ok: true, text: `Логотип изменён${a.forBrand === true ? " и сохранён для бренда" : ""}`, itemIds: [id] };
+  }
   if (op === "rework") {
     const r = await reworkItemImage(orgId, id, prompt);
     return r.ok ? { ok: true, text: "Изображение доработано", itemIds: [id] } : { ok: false, text: r.error };

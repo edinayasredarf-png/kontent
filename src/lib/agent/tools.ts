@@ -23,7 +23,11 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "plan", kind: "read", desc: "Контент-план завода: ближайшие материалы и до какой даты хватает запаса", args: '{"factoryId":"uuid"}' },
   { name: "write", kind: "act", desc: "НАПИСАТЬ материал прямо сейчас (платно, выполняется сразу, результат покажется в чате). Вызывай, когда пользователь просит написать, создать, сделать пост, статью, SEO-статью, карусель, сторис, а также когда просит сделать другой формат из уже написанного. Источник: newsId (новость из инструмента news), или url (ссылка, которую прислал пользователь), или topic (своя тема), или itemId (прежний материал)", args: '{"kind":"post|article|seo|carousel|story","newsId":"uuid","url":"https://…","topic":"тема","itemId":"uuid","instructions":"пожелания: тон, длина, акценты","factoryId":"uuid, если заводов несколько"}' },
   { name: "rewrite", kind: "act", desc: "ПЕРЕПИСАТЬ текст показанного материала по просьбе пользователя (платно, сразу): подлиннее, короче, проще, в другом тоне или по произвольному описанию", args: '{"itemId":"uuid","op":"shorten|expand|simple|friendly|formal|hook|polish|custom","instruction":"что изменить (для custom)"}' },
-  { name: "image", kind: "act", desc: "КАРТИНКА материала (платно, сразу): new — создать, redo — создать заново (можно сменить формат или положение логотипа), rework — доработать текущую по описанию. Формат: square (квадрат), portrait (вертикальный), landscape (горизонтальный). Логотип: tl,tc,tr,ml,mc,mr,bl,bc,br или none (убрать)", args: '{"itemId":"uuid","op":"new|redo|rework","prompt":"описание или правка","aspect":"square|portrait|landscape","logoPos":"br"}' },
+  { name: "image", kind: "act", desc: "КАРТИНКА материала (платно, сразу): new — создать, redo — создать заново (можно сменить формат или положение логотипа), rework — доработать саму картинку по описанию (НЕ для логотипа!), logo — изменить логотип на картинке: положение, размер (logoScale в % ширины, 4–40, обычно 14; «увеличить» = умножить текущий на 1.5), отступ (logoMargin 1–12). Логотип меняется кодом из брендбука, быстро и бесплатно; forBrand=true — запомнить размер и положение для всех будущих картинок бренда. Формат: square (квадрат), portrait (вертикальный), landscape (горизонтальный). Логотип: tl,tc,tr,ml,mc,mr,bl,bc,br или none (убрать)", args: '{"itemId":"uuid","op":"new|redo|rework|logo","prompt":"описание или правка","aspect":"square|portrait|landscape","logoPos":"br","logoScale":14,"logoMargin":4,"forBrand":false}' },
+  { name: "site", kind: "read", desc: "Прочитать сайт по ссылке (главная и страницы «о компании», «услуги», «контакты»): чтобы предложить заполнение бренда и завода", args: '{"url":"https://…"}' },
+  { name: "search", kind: "read", desc: "Поиск в интернете по запросу: когда нужно узнать о компании, нише или аудитории то, чего нет на сайте", args: '{"query":"…"}' },
+  { name: "save_brand", kind: "act", desc: "СОХРАНИТЬ бренд (бесплатно, сразу): создать (без brandId, нужно name) или обновить переданные поля. Вызывай, когда пользователь сказал заполнить, сохранить, поменять, или согласился с твоим предложением. Не вызывай, пока ты только предлагаешь текст", args: '{"brandId":"uuid или пусто для нового","name":"","description":"чем занимается компания","audience":"кто клиенты","tone":"тон общения","forbidden":["что нельзя писать"],"competitors":["конкуренты"],"style":"minimal|futurism|corporate|popart|pastel|dark|photo|illustration","styleNotes":"описание стиля картинок","imageMust":"что всегда на картинках","imageNever":"чего не должно быть","colors":["#RRGGBB"]}' },
+  { name: "save_factory", kind: "act", desc: "СОХРАНИТЬ контент-завод (бесплатно, сразу): создать (без factoryId, нужны brandId и name) или обновить переданные поля. Расписание: days — дни недели 0..6 (0 воскресенье), times — «ЧЧ:ММ»", args: '{"factoryId":"uuid или пусто для нового","brandId":"uuid","name":"","niche":"ниша","product":"что продаём, главные выгоды","formats":["post","carousel","story","article","seo"],"days":[1,3,5],"times":["10:00"]}' },
   { name: "refresh_news", kind: "auto", desc: "Обновить источники мониторинга прямо сейчас (бесплатно). Вызывай, когда просят обновить, проверить свежее или данные устарели", args: "{}" },
   { name: "set_source_status", kind: "confirm", desc: "Включить или поставить на паузу источник новостей", args: '{"sourceId":"uuid","status":"active|paused"}' },
   { name: "set_factory", kind: "confirm", desc: "Изменить настройки завода: автопубликация по расписанию, режим одобрения идей (manual — вручную, auto — сами), картинки к материалам", args: '{"factoryId":"uuid","autopublish":true,"approval":"manual|auto","images":true}' },
@@ -75,7 +79,7 @@ export async function runRead(ctx: ToolCtx, name: string, a: Args): Promise<unkn
     return { days, total, byChannel, byKind, top };
   }
   if (name === "factories") {
-    return q(`select f.id,f.name,b.name brand,f.status,f.autopublish,f.approval,coalesce((f.brief->>'images')::boolean,false) images,coalesce(array_length(f.channel_ids,1),0) channels,
+    return q(`select f.id,f.name,b.name brand,f.brand_id,f.niche,f.product,f.formats,f.schedule,f.status,f.autopublish,f.approval,coalesce((f.brief->>'images')::boolean,false) images,coalesce(array_length(f.channel_ids,1),0) channels,
         (select max(planned_for) from kz_content_items i where i.factory_id=f.id and i.status in ('idea','approved','ready','scheduled')) plan_until,
         (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='idea') ideas, (select count(*) from kz_content_items i where i.factory_id=f.id and i.status in ('ready','scheduled')) ready
         from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 order by f.created_at limit 20`, [o]);
@@ -89,7 +93,7 @@ export async function runRead(ctx: ToolCtx, name: string, a: Args): Promise<unkn
     return (await groupSummaries(o)).map((g) => ({ id: g.id, name: g.name, platforms: g.platforms.map((p) => p.kind), members: g.members, perWeek: g.perWeek, avgViews: g.avgViews, lastPostAt: g.lastPostAt, bestPost: g.best?.body.slice(0, 160) ?? null }));
   }
   if (name === "brands") {
-    return q(`select b.id,b.name,b.description,b.audience,b.tone,(select count(*) from kz_factories f where f.brand_id=b.id) factories,(select count(*) from kz_channels c where c.brand_id=b.id and c.status='active') channels from kz_brands b where b.org_id=$1 order by b.created_at limit 20`, [o]);
+    return q(`select b.id,b.name,b.description,b.audience,b.tone,b.rules,b.kit->>'style' style,b.kit->>'styleNotes' style_notes,b.kit->>'imageMust' image_must,b.kit->>'imageNever' image_never,b.kit->'colors' colors,b.kit->>'logoPos' logo_pos,b.kit->>'logoScale' logo_scale,(select count(*) from kz_factories f where f.brand_id=b.id) factories,(select count(*) from kz_channels c where c.brand_id=b.id and c.status='active') channels from kz_brands b where b.org_id=$1 order by b.created_at limit 20`, [o]);
   }
   if (name === "channels") {
     return q(`select c.id,c.title,c.kind,b.name brand,c.signature from kz_channels c join kz_brands b on b.id=c.brand_id where c.org_id=$1 and c.status='active' order by c.created_at limit 30`, [o]);
@@ -100,6 +104,8 @@ export async function runRead(ctx: ToolCtx, name: string, a: Args): Promise<unkn
     const items = await q(`select id,kind,topic,status,planned_for from kz_content_items where factory_id=$1 and org_id=$2 and status in ('idea','approved','generating','ready','scheduled') and not coalesce((meta->>'draft')::boolean,false) order by planned_for nulls last, created_at limit 10`, [fid, o]);
     return { factoryId: fid, items };
   }
+  if (name === "site") return (await import("./setup")).inspectSite(clip(a.url, 300));
+  if (name === "search") return (await import("./setup")).webSearch(clip(a.query, 160));
   throw new Error("Неизвестный инструмент");
 }
 
@@ -174,11 +180,13 @@ export async function runConfirmed(ctx: ToolCtx, name: string, a: Args): Promise
 }
 
 /** Письменные действия (написать, переписать, картинка). Выполняются по прямой просьбе в чате, не по кнопке: результат сразу показывается. */
-export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<import("./writer").ActResult> {
+export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<import("./setup").SetupResult> {
   if (ctx.role === "viewer") return { ok: false, text: "У вашей роли нет прав на это действие" };
   const w = await import("./writer");
   if (name === "write") return w.writeMaterial(ctx.orgId, a);
   if (name === "rewrite") return w.rewriteMaterial(ctx.orgId, a);
   if (name === "image") return w.imageForMaterial(ctx.orgId, a);
+  if (name === "save_brand") return (await import("./setup")).saveBrandInfo(ctx.orgId, a);
+  if (name === "save_factory") return (await import("./setup")).saveFactoryInfo(ctx.orgId, a);
   return { ok: false, text: "Неизвестное действие" };
 }

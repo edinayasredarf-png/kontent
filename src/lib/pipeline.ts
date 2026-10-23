@@ -23,7 +23,7 @@ import { strategyOf } from "./strategy";
 import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
-import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, type LogoPos } from "./images";
+import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, rawCopy, type LogoPos } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
 export interface FactoryRow {
@@ -278,7 +278,12 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
     const logo = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
     const done = await finalizeImage(raw, logo ? await loadAsset(orgId, logo.id) : null, kit, { story: it.kind === "story" });
     const assetId = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 60)}.jpg`, done);
-    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError') || jsonb_build_object('imagePrompt',$3::text), updated_at=now() where id=$1", [it.id, assetId, prompt]);
+    // исходник без логотипа (position -2 — не слайд): по нему логотип потом меняется кодом, без новой генерации
+    let rawId: string | null = null;
+    try { rawId = await saveAsset(orgId, it.brand_id, "generated", "исходник", await rawCopy(raw), "исходник без логотипа", { itemId: it.id, position: -2 }); } catch { /* лимит хранилища: логотип тогда меняется только пересозданием */ }
+    const oldRaw = await one<{ r: string | null }>("select meta->>'imageRawId' r from kz_content_items where id=$1", [it.id]);
+    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
+    if (oldRaw?.r) await q("delete from kz_assets where id=$1 and org_id=$2", [oldRaw.r, orgId]);
     if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]); // прежняя версия не копится в БД
     return { ok: true };
   } catch (e) {
@@ -518,4 +523,28 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   // отчёт последнего прохода — для раздела «Система» в админке платформы (виден, работает ли cron)
   await q("insert into kz_kv(key,value) values('last_tick',$1) on conflict(key) do update set value=excluded.value, updated_at=now()", [JSON.stringify({ ...rep, ms: Date.now() - t0 })]).catch(() => {});
   return rep;
+}
+
+
+/** Логотип на готовой картинке: положение, размер, отступ. Только код, без нейросети и без денег: берётся исходник без логотипа и накладывается логотип из брендбука. */
+export async function reapplyLogo(orgId: string, itemId: string, over: { logoPos?: LogoPos; logoScale?: number; logoMargin?: number }): Promise<{ ok: true } | { ok: false; error: string; needRegen?: boolean }> {
+  const it = await one<{ brand_id: string; kind: string; image_id: string | null; raw: string | null; rawFor: string | null }>(
+    "select brand_id,kind,image_id,meta->>'imageRawId' raw,meta->>'imageRawFor' \"rawFor\" from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
+  if (!it?.image_id) return { ok: false, error: "У материала нет картинки" };
+  if (!it.raw || it.rawFor !== it.image_id) return { ok: false, error: "Для этой картинки нет исходника без логотипа (она создана раньше или заменена вручную)", needRegen: true };
+  const [raw, brand, logoRow] = await Promise.all([
+    loadAsset(orgId, it.raw),
+    one<{ kit: unknown }>("select kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]),
+    one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]),
+  ]);
+  if (!raw) return { ok: false, error: "Исходник картинки не найден", needRegen: true };
+  if (!logoRow) return { ok: false, error: "В брендбуке нет логотипа: загрузите его в разделе «Бренды»" };
+  const base = cleanKit(brand?.kit);
+  const kit = cleanKit({ ...base, ...(over.logoPos ? { logoPos: over.logoPos } : {}), ...(over.logoScale ? { logoScale: over.logoScale } : {}), ...(over.logoMargin ? { logoMargin: over.logoMargin } : {}) });
+  const done = await finalizeImage(raw.data, await loadAsset(orgId, logoRow.id), kit, { story: it.kind === "story" });
+  const topic = (await one<{ topic: string }>("select topic from kz_content_items where id=$1", [itemId]))?.topic ?? "";
+  const assetId = await saveAsset(orgId, it.brand_id, "generated", `${topic.slice(0, 60)}.jpg`, done);
+  await q("update kz_content_items set image_id=$2, meta = meta || jsonb_build_object('imageRawFor',$2::text), updated_at=now() where id=$1", [itemId, assetId]);
+  await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
+  return { ok: true };
 }

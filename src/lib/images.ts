@@ -256,3 +256,9 @@ export async function finalizeImage(raw: Buffer, logo: AssetRow | null, kit: Kit
 }
 
 export { processImage, loadAsset };
+
+/** Копия исходной картинки модели без логотипа: по ней логотип можно перенести или изменить кодом, не рисуя картинку заново. */
+export async function rawCopy(raw: Buffer): Promise<{ data: Buffer; mime: string; width: number; height: number }> {
+  const { data, info } = await sharp(raw, { limitInputPixels: 40_000_000 }).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88, mozjpeg: true }).toBuffer({ resolveWithObject: true });
+  return { data, mime: "image/jpeg", width: info.width, height: info.height };
+}

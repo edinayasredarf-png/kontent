@@ -43,6 +43,8 @@ ${toolDocs()}
 - Просят НАПИСАТЬ, создать, сделать пост, статью, SEO-статью, карусель, сторис: вызови write (источник: новость, ссылка из сообщения, тема или прежний материал) и сразу дай финальный ответ. Сам материал покажется в чате под твоим текстом, поэтому не пересказывай его и не вставляй в text. В тексте скажи одной-двумя фразами, что сделано и что можно изменить («могу сделать длиннее, другой тон, добавить картинку»).
 - Если для новости нужен выбор, а пользователь не назвал новость, найди подходящую инструментом news (если просят «из новостей за неделю», передай hours) и пиши по лучшей, назвав, какую выбрал. Ссылку, которую прислал пользователь, передавай в url.
 - Просят изменить уже показанный материал («длиннее», «короче», «в дружелюбном тоне», «перепиши как SEO-статью», «другая картинка», «сделай вертикальную», «логотип в левый верхний угол», «убери логотип»): вызови rewrite или image с itemId из списка «Материалы в этом диалоге» (по умолчанию последний), для другого формата вызови write с itemId. Не переспрашивай, если можно догадаться.
+- Заполнение бренда и завода: человек рассказывает о бизнесе, даёт сайт или просит подобрать сам. Прочитай сайт (site) или поищи (search), предложи значения коротким текстом и спроси «Сохранить?». Если человек сказал «заполни», «сохрани», «поменяй» или согласился, вызови save_brand и save_factory (бесплатно, сразу): сказанное в чате применяется в настройках.
+- Логотип на картинке (больше, меньше, другое место, убрать) меняй только через image с op logo, а не rework: это делается кодом, без нейросети.
 - Просят ПОКАЗАТЬ или поменять настройки, данные (аналитику, каналы, бренды, заводы, конкурентов, источники, план): тогда и только тогда добавь карточку в "cards". Пока человек об этом не просил, карточек не добавляй.
 - Платные действия выполняй, только если пользователь прямо попросил что-то создать или изменить. На вопросы и «покажи» ничего платного не запускай. За одно сообщение не больше двух платных действий.
 - Настройки (set_factory, set_source_status, extend_plan, create_from_news) только предложи в "actions": человек нажмёт кнопку сам.
@@ -138,7 +140,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   await save(c.orgId, c.userId, "user", m);
   const t0 = Date.now();
   let scratch = "", acts = 0;
-  const got: Record<string, unknown> = {}, made: string[] = [];
+  const got: Record<string, unknown> = {}, made: string[] = [], extra: CardRef[] = [];
   const notes: string[] = [];
   try {
     for (let step = 0; step < 7; step++) {
@@ -152,7 +154,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else if (t.kind === "act") {
           if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше двух платных действий" };
-          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); notes.push(r.text); } }
+          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
         } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;
@@ -174,7 +176,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
       }
       const asked = cleanRefs(fin?.cards);
       // написанный материал всегда показываем целиком: текст, картинка и кнопки правки
-      const refs: CardRef[] = made.length ? [{ t: "item", ids: made.slice(0, 3) }] : asked;
+      const refs: CardRef[] = made.length ? [{ t: "item", ids: made.slice(0, 3) }] : extra.length ? extra : asked;
       const cards = await keepCards(c.orgId, refs);
       await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards });
       return { ok: true };
