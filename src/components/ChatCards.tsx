@@ -55,13 +55,16 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
   const on = it.channels.filter((c) => c.on);
   return (
     <div className={box}>
-      <div className="mb-2 flex flex-wrap items-center gap-2"><span className="chip">{it.kindLabel}</span><b className="min-w-0 flex-1 text-sm">{it.topic}</b>{it.factoryName && <span className="text-xs text-ink3">{it.factoryName}</span>}</div>
+      <div className="mb-2 flex flex-wrap items-center gap-2"><span className="chip">{it.kindLabel}</span><b className="min-w-0 flex-1 truncate text-sm">{it.topic}</b>{it.factoryName && <span className="text-xs text-ink3">{it.factoryName}</span>}</div>
       {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="ml-1 font-semibold text-accent-ink underline">Обновить</button></p>}
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
-          {it.imageId && /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/assets/${it.imageId}`} alt="" className="mb-2 max-h-56 w-full rounded-xl object-cover" />}
-          {it.kind === "seo" ? <div className="max-h-96 overflow-y-auto rounded-2xl bg-tile p-4 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
-            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          {it.imageId && /* eslint-disable-next-line @next/next/no-img-element */ <a href={`/api/assets/${it.imageId}`} target="_blank" rel="noreferrer" title="Открыть картинку" className="block shrink-0"><img src={`/api/assets/${it.imageId}`} alt="" className="size-36 rounded-xl object-cover sm:size-40" /></a>}
+          <div className="min-w-0 flex-1">
+          {it.kind === "seo" ? <div className="max-h-60 overflow-y-auto rounded-2xl bg-tile p-3 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
+            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input max-h-60 overflow-y-auto !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
+          </div></div>
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>Знаков: {body.length}</span>
             <button type="button" onClick={() => setPrev((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-2.5 !py-0.5">{prev ? <EyeOff size={12} className="mr-1" /> : <Eye size={12} className="mr-1" />}Как будет выглядеть</button></div>
@@ -221,6 +224,7 @@ function BrandCard({ c, replace }: { c: Extract<Card, { t: "brand" }>; replace: 
     <div className={`${box} space-y-2`}>
       <div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Бренд</b>{c.colors.slice(0, 5).map((x) => <span key={x} className="size-4 rounded-full ring-1 ring-line" style={{ background: x }} />)}<Link href={`/app/brands/${c.id}`} className="text-xs text-accent-ink underline">Брендбук</Link></div>
       {inp("name", "Название")}{inp("description", "Описание", true)}{inp("audience", "Аудитория", true)}{inp("tone", "Тон общения")}
+      {c.extra.length > 0 && <dl className="space-y-1 rounded-xl bg-tile p-3 text-xs">{c.extra.map((x) => <div key={x.label}><dt className="text-ink3">{x.label}</dt><dd className="text-ink">{x.value}</dd></div>)}</dl>}
       {dirty && <div className="flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardSaveBrandAction(c.id, f), (r) => { if (r.card?.t === "brand") replace(r.card); })} className="btn btn-accent !py-1.5 text-sm">{busy && <Loader2 size={14} className="animate-spin" />}Сохранить</button><button type="button" onClick={() => setF({ name: c.name, description: c.description, audience: c.audience, tone: c.tone })} className="btn btn-ghost !py-1.5 text-sm">Отменить</button></div>}
       <Msg m={msg} />
     </div>

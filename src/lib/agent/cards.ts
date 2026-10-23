@@ -3,7 +3,7 @@ import { loadDrafts, type DraftItem } from "../drafts";
 import { analytics } from "../engage";
 import { groupSummaries } from "../competitors";
 import { cleanSettings, type ContentSettings } from "../postsettings";
-import { cleanKit } from "../images";
+import { cleanKit, STYLES } from "../images";
 import { KIND } from "../kinds";
 
 /**
@@ -24,7 +24,7 @@ export type Card =
   | { t: "sources"; sources: { id: string; title: string; kind: string; status: string; error: string | null; news24: number }[] }
   | { t: "analytics"; days: number; posts: number; views: number; reactions: number; er: string; channels: { title: string; kind: string; posts: number; views: number }[]; top: { topic: string; kind: string; views: number; url: string | null }[] }
   | { t: "competitors"; groups: { id: string; name: string; platforms: string[]; members: number | null; perWeek: number; avgViews: number; lastPostAt: string | null; best: string | null }[] }
-  | { t: "brand"; id: string; name: string; description: string; audience: string; tone: string; colors: string[] }
+  | { t: "brand"; id: string; name: string; description: string; audience: string; tone: string; colors: string[]; extra: { label: string; value: string }[] }
   | { t: "plan"; id: string; name: string; until: string | null; items: { id: string; kind: string; topic: string; status: string; date: string | null }[] }
   | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] };
 
@@ -119,8 +119,12 @@ export async function hydrateCards(orgId: string, refs: CardRef[] | undefined): 
         const g = await groupSummaries(orgId);
         c = g.length ? { t: "competitors", groups: g.slice(0, 8).map((x) => ({ id: x.id, name: x.name, platforms: x.platforms.map((p) => p.kind), members: x.members, perWeek: x.perWeek, avgViews: x.avgViews, lastPostAt: x.lastPostAt, best: x.best?.body.slice(0, 160) ?? null })) } : null;
       } else if (r.t === "brand") {
-        const b = await one<{ id: string; name: string; description: string; audience: string; tone: string; kit: unknown }>("select id,name,description,audience,tone,kit from kz_brands where id=$1 and org_id=$2", [r.id, orgId]);
-        c = b ? { t: "brand", id: b.id, name: b.name, description: b.description, audience: b.audience, tone: b.tone, colors: (cleanKit(b.kit).colors ?? []).map((x) => x.hex) } : null;
+        const b = await one<{ id: string; name: string; description: string; audience: string; tone: string; kit: unknown; rules: { forbidden?: string[]; competitors?: string[] } | null }>("select id,name,description,audience,tone,kit,rules from kz_brands where id=$1 and org_id=$2", [r.id, orgId]);
+        c = b ? { t: "brand", id: b.id, name: b.name, description: b.description, audience: b.audience, tone: b.tone, colors: (cleanKit(b.kit).colors ?? []).map((x) => x.hex), extra: (() => {
+          const k = cleanKit(b.kit), r = b.rules ?? {};
+          return [["Стиль картинок", [k.style ? STYLES[k.style]?.label : "", k.styleNotes].filter(Boolean).join(". ")], ["Всегда на картинках", k.imageMust ?? ""], ["Не должно быть на картинках", k.imageNever ?? ""],
+            ["Нельзя писать", (r.forbidden ?? []).join(", ")], ["Конкуренты", (r.competitors ?? []).join(", ")]].filter((x) => x[1]).map((x) => ({ label: x[0], value: x[1] }));
+        })() } : null;
       } else if (r.t === "plan") {
         const f = await one<{ id: string; name: string }>("select id,name from kz_factories where id=$1 and org_id=$2", [r.id, orgId]);
         if (f) {
