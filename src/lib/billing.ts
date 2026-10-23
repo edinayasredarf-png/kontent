@@ -6,7 +6,7 @@ import { q } from "./db";
  * ставится при входе в кабинет и в момент списания денег, а вызов нейросети, который идёт следом, берёт его оттуда сам — передавать
  * ничего вручную не нужно. Стоимость считается по прайсу моделей, который заполняет администратор.
  */
-export interface UsageCtx { orgId?: string; userId?: string; reason?: string; ref?: string; /** безлимит или пробный доступ: деньги за это не получены */ free?: boolean; /** доля вызова, оплаченная подарочными деньгами */ bonusShare?: number }
+export interface UsageCtx { /** сколько списано в этом запросе (копейки, номинально; возвраты вычитаются) */ spent?: number; orgId?: string; userId?: string; reason?: string; ref?: string; /** безлимит или пробный доступ: деньги за это не получены */ free?: boolean; /** доля вызова, оплаченная подарочными деньгами */ bonusShare?: number }
 const als = new AsyncLocalStorage<UsageCtx>();
 
 /**

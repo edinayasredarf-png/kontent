@@ -4,6 +4,8 @@ import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
 import type { ActResult } from "./writer";
 import { loadAsset } from "../assets";
+import { createThread, currentThread, threadsReady } from "./threads";
+import { setUsageCtx, usageStore } from "../billing";
 import { visionAsk } from "../images";
 import { TOOLS, runAct, runAuto, runRead, toolByName, validateAction, type Args, type ToolCtx } from "./tools";
 
@@ -29,7 +31,7 @@ export interface Link { label: string; href: string }
 export interface Action { label: string; tool: string; args: Args; hint: string; done?: string }
 export interface ChatFile { id: string; name: string; kind: "image" | "doc" }
 export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[]; files?: ChatFile[] }
-export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[] }
+export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[]; cost_kop?: number }
 
 const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : t.kind === "act" ? " [выполняется сразу, платно]" : ""}`).join("\n");
 const sectionDocs = () => Object.entries(SECTIONS).map(([h, l]) => `${h} — ${l}`).join("\n") + "\n/app/factories/<id завода>, /app/brands/<id бренда>, /app/brands/<id бренда>/knowledge (база знаний бренда), /app/flows/<id потока>";
@@ -61,13 +63,16 @@ ${sectionDocs()}
 
 const TODAY = () => new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-export async function loadHistory(orgId: string, userId: string, limit = 40): Promise<ChatMsg[]> {
-  const rows = await q<ChatMsg>("select id,role,content,blocks,created_at from kz_chat_messages where org_id=$1 and user_id=$2 order by created_at desc limit $3", [orgId, userId, limit]);
+export async function loadHistory(orgId: string, userId: string, limit = 40, threadId: string | null = null): Promise<ChatMsg[]> {
+  const t = threadId && (await threadsReady());
+  const rows = t
+    ? await q<ChatMsg>("select id,role,content,blocks,created_at,cost_kop from kz_chat_messages where org_id=$1 and user_id=$2 and thread_id=$4 order by created_at desc limit $3", [orgId, userId, limit, threadId])
+    : await q<ChatMsg>("select id,role,content,blocks,created_at from kz_chat_messages where org_id=$1 and user_id=$2 order by created_at desc limit $3", [orgId, userId, limit]);
   return rows.reverse();
 }
 /** История чата вместе со свежими данными карточек (ссылки на объекты превращаются в актуальные карточки). */
-export async function loadHistoryWithCards(orgId: string, userId: string, limit = 40): Promise<ChatMsg[]> {
-  const msgs = await loadHistory(orgId, userId, limit);
+export async function loadHistoryWithCards(orgId: string, userId: string, limit = 40, threadId: string | null = null): Promise<ChatMsg[]> {
+  const msgs = await loadHistory(orgId, userId, limit, threadId);
   // карточки показываем только у последних ответов: старые остаются текстом, чтобы страница не тяжелела
   const recent = msgs.filter((m) => m.role === "assistant" && m.blocks?.cards?.length).slice(-6);
   await Promise.all(recent.map(async (m) => { m.cards = await hydrateCards(orgId, m.blocks.cards); }));
@@ -75,8 +80,12 @@ export async function loadHistoryWithCards(orgId: string, userId: string, limit 
 }
 export const clearHistory = (orgId: string, userId: string) => q("delete from kz_chat_messages where org_id=$1 and user_id=$2", [orgId, userId]);
 
-async function save(orgId: string, userId: string, role: "user" | "assistant", content: string, blocks: Blocks = {}) {
-  await q("insert into kz_chat_messages(org_id,user_id,role,content,blocks) values($1,$2,$3,$4,$5)", [orgId, userId, role, content, JSON.stringify(blocks)]);
+async function save(orgId: string, userId: string, role: "user" | "assistant", content: string, blocks: Blocks = {}, threadId: string | null = null, cost = 0) {
+  if (threadId) {
+    await q("insert into kz_chat_messages(org_id,user_id,role,content,blocks,thread_id,cost_kop) values($1,$2,$3,$4,$5,$6,$7)", [orgId, userId, role, content, JSON.stringify(blocks), threadId, Math.round(cost)]);
+    // название диалога — начало первого вопроса; свежие диалоги поднимаются наверх списка
+    await q("update kz_chat_threads set updated_at=now(), title=case when title='Новый диалог' and $2='user' then $3 else title end where id=$1", [threadId, role, content.replace(/\s+/g, " ").slice(0, 60)]);
+  } else await q("insert into kz_chat_messages(org_id,user_id,role,content,blocks) values($1,$2,$3,$4,$5)", [orgId, userId, role, content, JSON.stringify(blocks)]);
 }
 
 const cut = (v: unknown, n = 5500) => { const s = JSON.stringify(v); return s.length > n ? s.slice(0, n) + "…(обрезано)" : s; };
@@ -119,8 +128,10 @@ export function cleanReply(t: string): string {
 }
 
 /** Материалы, показанные в последних ответах: ассистент подставляет их id, когда человек говорит «сделай длиннее» или «другая картинка». */
-async function recentItems(orgId: string, userId: string): Promise<string> {
-  const rows = await q<{ blocks: Blocks }>("select blocks from kz_chat_messages where org_id=$1 and user_id=$2 and role='assistant' order by created_at desc limit 6", [orgId, userId]);
+async function recentItems(orgId: string, userId: string, thread: string | null): Promise<string> {
+  const rows = thread
+    ? await q<{ blocks: Blocks }>("select blocks from kz_chat_messages where org_id=$1 and user_id=$2 and thread_id=$3 and role='assistant' order by created_at desc limit 6", [orgId, userId, thread])
+    : await q<{ blocks: Blocks }>("select blocks from kz_chat_messages where org_id=$1 and user_id=$2 and role='assistant' order by created_at desc limit 6", [orgId, userId]);
   const ids: string[] = [];
   for (const r of rows) for (const c of r.blocks?.cards ?? []) if (c.t === "item") for (const id of c.ids) if (!ids.includes(id)) ids.push(id);
   if (!ids.length) return "";
@@ -132,7 +143,7 @@ async function recentItems(orgId: string, userId: string): Promise<string> {
 
 const MAX_ACTS = 2;
 
-export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = []): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = [], threadIn: string | null = null): Promise<{ ok: true; threadId?: string } | { ok: false; error: string }> {
   const m = message.trim();
   if (!m) return { ok: false, error: "Напишите сообщение" };
   if (m.length > 1500) return { ok: false, error: "Сообщение слишком длинное (до 1500 знаков)" };
@@ -153,10 +164,12 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   }
   const attached = attach.length ? `Вложения:\n${attach.join("\n")}\n\n` : "";
   const ctx: ToolCtx = { orgId: c.orgId, role: c.role };
-  const hist = (await loadHistory(c.orgId, c.userId, 8)).map((h) => `${h.role === "user" ? "Пользователь" : "Ассистент"}: ${h.content.slice(0, 1200)}`).join("\n");
-  const shown = await recentItems(c.orgId, c.userId);
+  const thread = (await threadsReady()) ? (threadIn ? await currentThread(c.orgId, c.userId, threadIn) : null) ?? (await createThread(c.orgId, c.userId)) : null;
+  setUsageCtx({ spent: 0 });
+  const hist = (await loadHistory(c.orgId, c.userId, 8, thread)).map((h) => `${h.role === "user" ? "Пользователь" : "Ассистент"}: ${h.content.slice(0, 1200)}`).join("\n");
+  const shown = await recentItems(c.orgId, c.userId, thread);
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
-  await save(c.orgId, c.userId, "user", m, files.length ? { files } : {});
+  await save(c.orgId, c.userId, "user", m, files.length ? { files } : {}, thread);
   const t0 = Date.now();
   let scratch = "", acts = 0;
   const got: Record<string, unknown> = {}, made: string[] = [], extra: CardRef[] = [];
@@ -199,16 +212,16 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
       // написанный материал всегда показываем целиком: текст, картинка и кнопки правки
       const refs: CardRef[] = made.length ? [{ t: "item", ids: made.slice(0, 3) }] : extra.length ? extra : asked;
       const cards = await keepCards(c.orgId, refs);
-      await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards });
-      return { ok: true };
+      await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards }, thread, usageStore().spent ?? 0);
+      return { ok: true, threadId: thread ?? undefined };
     }
     throw new Error("Не получилось сформировать ответ");
   } catch (e) {
     await refund(c.orgId, PRICES.idea, "Чат: ошибка ответа").catch(() => {});
     // материал мог успеть создаться: показываем его, даже если ответ не сложился
     const cards = made.length ? await keepCards(c.orgId, [{ t: "item", ids: made.slice(0, 3) }]) : [];
-    await save(c.orgId, c.userId, "assistant", made.length ? `${notes.join(". ")}. Ответ получился не до конца, но материал готов.` : `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`, cards.length ? { cards } : {}).catch(() => {});
-    return { ok: true };
+    await save(c.orgId, c.userId, "assistant", made.length ? `${notes.join(". ")}. Ответ получился не до конца, но материал готов.` : `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`, cards.length ? { cards } : {}, thread, usageStore().spent ?? 0).catch(() => {});
+    return { ok: true, threadId: thread ?? undefined };
   }
 }
 

@@ -1,5 +1,5 @@
 import { q, tx } from "./db";
-import { actionOf, setUsageCtx } from "./billing";
+import { actionOf, setUsageCtx, usageStore } from "./billing";
 
 export const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
@@ -63,10 +63,11 @@ export async function charge(orgId: string, kop: number, reason: string, ref?: s
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, -kop, reason, ref ?? null]);
   });
   // вызовы нейросети после бесплатного списания отмечаются как «без выручки»
-  setUsageCtx({ free, bonusShare: kop > 0 ? bonusTaken / kop : 0 });
+  setUsageCtx({ free, bonusShare: kop > 0 ? bonusTaken / kop : 0, spent: (usageStore().spent ?? 0) + kop });
 }
 
 export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
+  setUsageCtx({ spent: Math.max(0, (usageStore().spent ?? 0) - kop) });
   const c = await billingCols();
   await tx(async (run) => {
     // не начисляем возврат за списание, которого не было

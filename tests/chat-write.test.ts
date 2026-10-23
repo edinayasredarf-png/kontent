@@ -6,6 +6,7 @@ import http from "node:http";
 const skipDb = !process.env.TEST_DATABASE_URL && "нет TEST_DATABASE_URL";
 let server: http.Server, org = "", user = "", factory = "", brand = "";
 let script: (sys: string, user: string) => string = () => "";
+let tid: string | null = null;
 
 describe("чат: написать и изменить материал", { skip: skipDb }, () => {
   before(async () => {
@@ -48,9 +49,9 @@ describe("чат: написать и изменить материал", { skip
       }
       return "Готовый текст поста про запуск сервиса.\n\nПодробности на сайте. #сервис";
     };
-    const r = await askAgent({ orgId: org, userId: user, userName: "Тест", role: "owner" }, "напиши пост про запуск нового сервиса");
-    assert.ok(r.ok);
-    const m = (await loadHistoryWithCards(org, user, 5)).filter((x) => x.role === "assistant").pop()!;
+    const r = await askAgent({ orgId: org, userId: user, userName: "Тест", role: "owner" }, "напиши пост про запуск нового сервиса", [], tid);
+    assert.ok(r.ok); tid = r.ok ? r.threadId ?? null : null;
+    const m = (await loadHistoryWithCards(org, user, 5, tid)).filter((x) => x.role === "assistant").pop()!;
     const kinds = (m.cards ?? []).map((c) => c.t);
     assert.deepEqual(kinds, ["item"], "показан материал, карточка завода, которую модель добавила сама, отброшена: " + JSON.stringify(kinds));
     const it = (m.cards![0] as { items: { body: string; topic: string }[] }).items[0];
@@ -68,11 +69,28 @@ describe("чат: написать и изменить материал", { skip
       }
       return "Расширенный текст поста: больше деталей о запуске сервиса, примеры и польза для клиентов.";
     };
-    const r = await askAgent({ orgId: org, userId: user, userName: "Тест", role: "owner" }, "сделай подлиннее");
+    const r = await askAgent({ orgId: org, userId: user, userName: "Тест", role: "owner" }, "сделай подлиннее", [], tid);
     assert.ok(r.ok);
-    const m = (await loadHistoryWithCards(org, user, 5)).filter((x) => x.role === "assistant").pop()!;
+    const m = (await loadHistoryWithCards(org, user, 5, tid)).filter((x) => x.role === "assistant").pop()!;
     assert.equal(m.content, "Сделал подлиннее.");
     assert.ok((m.cards![0] as { items: { body: string }[] }).items[0].body.startsWith("Расширенный текст"));
+  });
+
+  it("диалоги ищутся по тексту, версия материала возвращается", async () => {
+    const { listThreads } = await import("../src/lib/agent/threads");
+    const { listVersions, restoreVersion } = await import("../src/lib/versions");
+    const { q } = await import("../src/lib/db");
+    const all = await listThreads(org, user);
+    assert.ok(all.length >= 1 && all.some((t) => t.id === tid), "диалог в списке");
+    assert.equal((await listThreads(org, user, "подлиннее")).some((t) => t.id === tid), true, "поиск по тексту сообщения");
+    assert.equal((await listThreads(org, user, "несуществующее-слово-xyz")).length, 0);
+    const item = (await q<{ id: string; body: string }>("select id,body from kz_content_items where org_id=$1 order by created_at desc limit 1", [org]))[0];
+    const vs = await listVersions(org, item.id);
+    assert.ok(vs.length >= 1, "перед правкой текста сохранена версия");
+    const r = await restoreVersion(org, item.id, vs[0].id);
+    assert.ok(r.ok);
+    const back = (await q<{ body: string }>("select body from kz_content_items where id=$1", [item.id]))[0].body;
+    assert.ok(back.includes("запуск сервиса") && !back.startsWith("Расширенный"), back);
   });
 
   it("наблюдателю платные действия не выполняются", async () => {

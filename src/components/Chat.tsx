@@ -3,10 +3,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useStored } from "@/lib/draft-store";
-import { ArrowRight, ArrowUp, Check, FileText, Globe, Loader2, Mic, Paperclip, Pencil, Plus, RotateCcw, Square, X } from "lucide-react";
-import { chatActionRun, clearChatAction, sendChatAction } from "@/lib/agent/actions";
+import { MessageSquare, Search, Trash2, ArrowRight, ArrowUp, Check, FileText, Globe, Loader2, Mic, Paperclip, Pencil, Plus, RotateCcw, Square, X } from "lucide-react";
+import { chatActionRun, clearChatAction, newThreadAction, searchThreadsAction, sendChatAction } from "@/lib/agent/actions";
 import { pendingStore } from "@/lib/pending-store";
 import type { ChatMsg } from "@/lib/agent/agent";
+import type { Thread } from "@/lib/agent/threads";
 import { ChatCards } from "@/components/ChatCards";
 
 const SUGGEST: { text: string; icon: typeof Pencil }[] = [
@@ -64,7 +65,7 @@ function Actions({ m }: { m: ChatMsg }) {
 
 type SR = { start(): void; stop(): void; lang: string; interimResults: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 
-export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string; price?: string }) {
+export function Chat({ initial, name, free, autoAsk, price = "", threads: threadsIn = [], threadId = null }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string; price?: string; threads?: Thread[]; threadId?: string | null }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<ChatMsg[]>(initial);
   const [text, setText] = useStored<string>("chat-input", ""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
@@ -77,6 +78,32 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
 
   const [files, setFiles] = useState<{ id: string; name: string; kind: "image" | "doc" }[]>([]), [upl, setUpl] = useState(0), [drag, setDrag] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
+  const [threads, setThreads] = useState<Thread[]>(threadsIn), [dlg, setDlg] = useState(false), [find, setFind] = useState("");
+  useEffect(() => setThreads(threadsIn), [threadsIn]);
+  useEffect(() => { if (!dlg) return; const t = setTimeout(() => { void searchThreadsAction(find).then(setThreads).catch(() => {}); }, 250); return () => clearTimeout(t); }, [find, dlg]);
+  const total = msgs.reduce((a, m) => a + (m.cost_kop ?? 0), 0);
+  const rubs = (k: number) => `${(Math.round(k) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
+  const bar = (
+    <div className="relative mb-2 flex items-center justify-end gap-3 text-xs text-ink2">
+      {!free && total > 0 && <span title="Сколько потрачено в этом диалоге">Диалог: {rubs(total)}</span>}
+      <button type="button" onClick={() => setDlg((v) => !v)} className="flex items-center gap-1.5 hover:text-ink"><MessageSquare size={13} />Диалоги{threads.length ? ` (${threads.length})` : ""}</button>
+      <button type="button" onClick={async () => { const id = await newThreadAction(); setMsgs([]); router.push(id ? `/app?t=${id}` : "/app"); router.refresh(); }} className="flex items-center gap-1.5 hover:text-ink"><RotateCcw size={13} />Новый чат</button>
+      {threadId && msgs.length > 0 && <button type="button" aria-label="Удалить диалог" title="Удалить диалог" onClick={async () => { if (!confirm("Удалить этот диалог?")) return; await clearChatAction(threadId); setMsgs([]); router.push("/app"); router.refresh(); }} className="hover:text-bad"><Trash2 size={13} /></button>}
+      {dlg && (
+        <div className="absolute right-0 top-7 z-30 w-80 rounded-2xl border border-line bg-surface p-2 shadow-float">
+          <label className="mb-1 flex items-center gap-2 rounded-xl bg-tile px-3 py-1.5"><Search size={13} /><input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Поиск по диалогам" className="w-full bg-transparent text-sm outline-none" /></label>
+          <div className="max-h-72 overflow-y-auto">
+            {threads.length === 0 && <p className="px-3 py-3 text-sm text-ink3">Ничего не найдено</p>}
+            {threads.map((t) => (
+              <button key={t.id} type="button" onClick={() => { setDlg(false); router.push(`/app?t=${t.id}`); }} className={`block w-full rounded-xl px-3 py-2 text-left hover:bg-accent-soft ${t.id === threadId ? "bg-accent-soft" : ""}`}>
+                <span className="block truncate text-sm text-ink">{t.title}</span>
+                <span className="block text-[11px] text-ink3">{new Date(t.updated_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}{!free && t.cost_kop > 0 ? ` · ${rubs(t.cost_kop)}` : ""}</span>
+              </button>))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
   async function upload(list: FileList | File[] | null) {
     const arr = Array.from(list ?? []).slice(0, 4 - files.length);
     if (!arr.length) return;
@@ -97,7 +124,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
     const sent = files;
     setErr(""); setText(""); setFiles([]); setBusy(true); pendingStore.inc();
     setMsgs((x) => [...x, { id: "tmp-" + Date.now(), role: "user", content: m, blocks: sent.length ? { files: sent } : {}, created_at: new Date().toISOString() }]);
-    try { const r = await sendChatAction(m, sent.map((f) => f.id)); if (r.error) setErr(r.error); router.refresh(); }
+    try { const r = await sendChatAction(m, sent.map((f) => f.id), threadId); if (r.error) setErr(r.error); if (r.threadId && r.threadId !== threadId) router.replace(`/app?t=${r.threadId}`); router.refresh(); }
     catch { setErr("Нет связи с сервером. Попробуйте ещё раз."); } finally { setBusy(false); pendingStore.dec(); }
   }
   function mic() {
@@ -161,6 +188,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/mark-watermark.svg" alt="" aria-hidden className="pointer-events-none absolute left-1/2 top-0 h-[588px] -translate-x-1/2 select-none opacity-90" />
         <div className="relative w-full max-w-[808px] px-2">
+          {threads.length > 0 && bar}
           <h2 className="text-center text-2xl font-bold">{hello}</h2>
           <p className="mb-8 mt-2 text-center text-base text-ink2">Сегодня отличный день, чтобы создать отличный контент</p>
           {composer}
@@ -175,7 +203,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
   }
   return (
     <div className="mx-auto flex min-h-[calc(100vh-190px)] w-full max-w-[808px] flex-col">
-      <div className="mb-2 flex justify-end"><button type="button" onClick={async () => { await clearChatAction(); setMsgs([]); router.refresh(); }} className="flex items-center gap-1.5 text-xs text-ink2 hover:text-ink"><RotateCcw size={13} />Новый чат</button></div>
+      {bar}
       <div className="flex-1 space-y-6 pb-6">
         {msgs.map((m) => m.role === "user" ? (
           <div key={m.id} className="flex justify-end"><div className="max-w-[85%] rounded-3xl bg-accent-soft px-5 py-3 text-base">
@@ -186,6 +214,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
             <Text t={m.content} />
             {!!m.blocks.links?.length && <div className="mt-4 flex flex-wrap gap-2">{m.blocks.links.map((l) => <Link key={l.href + l.label} href={l.href} className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-ink hover:border-accent">{l.label}<ArrowRight size={15} /></Link>)}</div>}
             {!!m.cards?.length && <ChatCards cards={m.cards} />}
+            {!free && (m.cost_kop ?? 0) > 0 && <p className="mt-2 text-[11px] text-ink3">Стоимость ответа: {rubs(m.cost_kop ?? 0)}</p>}
             <Actions m={m} />
           </div>
         ))}
