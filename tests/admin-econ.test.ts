@@ -40,7 +40,7 @@ describe("в базе", { skip: skipDb }, () => {
   after(async () => {
     const db = await import("../src/lib/db");
     await db.q("delete from kz_ai_usage where org_id=$1", [org]); await db.q("delete from kz_orgs where id=$1", [org]); await db.q("delete from kz_users where id=$1", [user]);
-    await db.q("delete from kz_ai_models where model='test-model'"); await db.q("delete from kz_price_overrides");
+    await db.q("delete from kz_ai_models where model in ('test-model','no-price-model')"); await db.q("delete from kz_price_overrides");
   });
 
   it("цены администратора меняют PRICES на месте, возврат к умолчанию убирает переопределение", async () => {

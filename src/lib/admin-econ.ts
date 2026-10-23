@@ -2,6 +2,7 @@ import { q, one, tx } from "./db";
 import { ACTIONS, actionOf, resetModelPrices } from "./billing";
 import { DEFAULT_PRICES, ensurePrices, PRICES, type PriceKey } from "./wallet";
 import { audit } from "./admin";
+import { addDays, expenseTotals, expensesByDay, listExpenses } from "./expenses";
 
 type Actor = { id: string; email: string };
 type R = { ok: true; message?: string } | { ok: false; error: string };
@@ -147,7 +148,9 @@ export async function econByAction(r: Range, orgId: string | null): Promise<Acti
   const get = (k: string) => { if (!map.has(k)) map.set(k, { action: k, label: ACTIONS[k] ?? k, ops: 0, charged: 0, refunded: 0, calls: 0, cost: 0, tokens: 0, images: 0 }); return map.get(k)!; };
   for (const t of tx_) {
     const k = t.action && t.action !== "refund" ? t.action : t.action === "refund" ? "refund" : actionOf(t.reason);
-    const e = get(k === "refund" ? "other" : k);
+    // возвраты — отдельная строка: они уменьшают выручку, но не относятся к конкретному действию
+    if (k === "refund") { const e = get("refund"); e.refunded += num(t.refunded); continue; }
+    const e = get(k);
     e.charged += num(t.charged); e.refunded += num(t.refunded); e.ops += num(t.ops);
   }
   for (const u of use) { const e = get(u.action === "refund" ? "other" : u.action); e.calls += num(u.calls); e.cost += num(u.cost); e.tokens += num(u.tokens); e.images += num(u.images); }
@@ -172,4 +175,51 @@ export async function orgEconInfo(orgId: string) {
   const until = await one<{ until: string | null }>("select unlimited_until until from kz_orgs where id=$1", [orgId]).catch(() => null);
   const members = await q<{ user_id: string; email: string; name: string; role: string }>("select u.id user_id,u.email,u.name,m.role from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=$1 order by m.role, u.email", [orgId]);
   return { org: o, until: until?.until ?? null, members };
+}
+
+/* ───────── прибыль и потери ───────── */
+export interface Pnl { revenue: number; charged: number; refunded: number; aiCost: number; lostFree: number; lostRefunded: number; unpriced: number; expenses: number; expenseBy: Record<string, number>; gross: number; profit: number }
+
+const dayOf = (iso: string | null, fallback: string) => (iso ? new Date(Date.parse(iso) + 3 * 3_600_000).toISOString().slice(0, 10) : fallback);
+/** Границы периода в календарных днях по Москве: пустые — от первой записи и до сегодня (но не больше 92 дней в таблице по дням). */
+export async function periodDays(r: Range): Promise<{ from: string; to: string }> {
+  const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const first = await one<{ d: string | null }>("select to_char(least((select min(created_at) from kz_wallet_tx), (select min(created_at) from kz_ai_usage)) at time zone 'Europe/Moscow','YYYY-MM-DD') d").catch(() => null);
+  return { from: dayOf(r.from, first?.d ?? today), to: r.to ? addDays(dayOf(r.to, today), -1) : today };
+}
+
+/** Заработали и потеряли за период: выручка − затраты на нейросети − прочие расходы. «Потери»: затраты на ИИ, которые не принесли денег. */
+export async function econPnl(r: Range): Promise<Pnl> {
+  const a1: unknown[] = [], a2: unknown[] = [];
+  const w1 = where("created_at", r, a1), w2 = where("created_at", r, a2);
+  const [ch] = await q<{ charged: string; refunded: string }>(`select coalesce(sum(case when amount_kop<0 then -amount_kop end),0) charged, coalesce(sum(case when amount_kop>0 and reason like 'Возврат:%' then amount_kop end),0) refunded from kz_wallet_tx where reason not like '%администратором%'${w1}`, a1);
+  const [ai] = await q<{ cost: string; free: string; refunded: string; unpriced: string }>(
+    `select coalesce(sum(cost_kop),0) cost, coalesce(sum(cost_kop) filter (where no_revenue='free'),0) free, coalesce(sum(cost_kop) filter (where no_revenue='refunded'),0) refunded, count(*) filter (where not priced) unpriced from kz_ai_usage where true${w2}`, a2)
+    .catch(async () => q<{ cost: string; free: string; refunded: string; unpriced: string }>(`select coalesce(sum(cost_kop),0) cost, 0 free, 0 refunded, count(*) filter (where not priced) unpriced from kz_ai_usage where true${w2}`, a2));
+  const { from, to } = await periodDays(r);
+  const ex = expenseTotals(await listExpenses(), from, to);
+  const charged = num(ch?.charged), refunded = num(ch?.refunded), aiCost = num(ai?.cost);
+  const revenue = charged - refunded, gross = revenue - aiCost;
+  return { revenue, charged, refunded, aiCost, lostFree: num(ai?.free), lostRefunded: num(ai?.refunded), unpriced: num(ai?.unpriced), expenses: ex.total, expenseBy: ex.byCategory, gross, profit: gross - ex.total };
+}
+
+export interface DayRow { day: string; revenue: number; aiCost: number; expenses: number; profit: number }
+
+/** По дням: выручка, затраты на нейросети, прочие расходы и прибыль (дни по Москве, не больше 92 последних дней периода). */
+export async function econByDay(r: Range): Promise<{ rows: DayRow[]; cut: boolean }> {
+  const { from, to } = await periodDays(r);
+  const lim = addDays(to, -91);
+  const start = from < lim ? lim : from;
+  const b = { from: new Date(`${start}T00:00:00+03:00`).toISOString(), to: new Date(Date.parse(`${to}T00:00:00+03:00`) + 86_400_000).toISOString() };
+  const [rev, ai] = await Promise.all([
+    q<{ d: string; v: string }>(`select to_char(created_at at time zone 'Europe/Moscow','YYYY-MM-DD') d, coalesce(sum(case when amount_kop<0 then -amount_kop when reason like 'Возврат:%' then -amount_kop end),0) v from kz_wallet_tx where reason not like '%администратором%' and created_at >= $1 and created_at < $2 group by 1`, [b.from, b.to]),
+    q<{ d: string; v: string }>(`select to_char(created_at at time zone 'Europe/Moscow','YYYY-MM-DD') d, coalesce(sum(cost_kop),0) v from kz_ai_usage where created_at >= $1 and created_at < $2 group by 1`, [b.from, b.to]),
+  ]);
+  const ex = expensesByDay(await listExpenses(), start, to);
+  const rows: DayRow[] = [];
+  for (let d = to; d >= start; d = addDays(d, -1)) {
+    const revenue = num(rev.find((x) => x.d === d)?.v), aiCost = num(ai.find((x) => x.d === d)?.v), expenses = ex.get(d) ?? 0;
+    rows.push({ day: d, revenue, aiCost, expenses, profit: revenue - aiCost - expenses });
+  }
+  return { rows, cut: from < lim };
 }

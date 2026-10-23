@@ -4,6 +4,7 @@ import { requireAdmin } from "./admin";
 import { deleteModelPrice, resetPrices, saveModelPrice, savePrices, setUnlimitedUntil } from "./admin-econ";
 import { DEFAULT_PRICES } from "./wallet";
 import { listGatewayModels } from "./ai";
+import { addExpense, deleteExpense } from "./expenses";
 import { addGatewayModels } from "./timeweb-prices";
 import { importTimewebLogs } from "./timeweb-logs";
 
@@ -77,4 +78,16 @@ export async function importLogsAction(_: unknown, f: FormData) {
       ...r.models.map((m) => `• ${m.model}: ${m.calls} запросов, факт ${rubFmt(m.cost)}${m.ours != null ? `, наш учёт ${rubFmt(m.ours)}` : ""}${m.failed ? `, ошибок ${m.failed}` : ""}`),
       r.priced.length ? `Ставки из логов записаны для моделей без цены: ${r.priced.join(", ")}.` : "Новых ставок не потребовалось: у моделей из логов уже есть цены."].join("\n") };
   } catch (e) { return { error: (e as Error).message }; }
+}
+
+export async function addExpenseAction(_: unknown, f: FormData) {
+  const c = await requireAdmin();
+  const r = await addExpense(c.user, { title: s(f, "title"), category: s(f, "category"), rub: rubNum(s(f, "amount") || "x"), date: s(f, "date"), recurring: s(f, "recurring"), endOn: s(f, "endOn"), note: s(f, "note") });
+  revalidatePath("/app/admin/expenses"); revalidatePath("/app/admin/economy");
+  return out(r);
+}
+export async function deleteExpenseAction(f: FormData): Promise<void> {
+  const c = await requireAdmin();
+  await deleteExpense(c.user, s(f, "id"));
+  revalidatePath("/app/admin/expenses"); revalidatePath("/app/admin/economy");
 }

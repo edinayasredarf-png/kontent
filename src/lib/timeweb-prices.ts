@@ -7,7 +7,7 @@ import { resetModelPrices } from "./billing";
  * у моделей изображений по картинке — за штуку. Названия — как в кабинете; к id модели в шлюзе они сопоставляются по набору слов,
  * поэтому неоднозначные названия (одно имя с двумя ценами) автоматически не подставляются.
  */
-export interface TwPrice { name: string; in: number; out: number; image?: number }
+export interface TwPrice { name: string; in: number; out: number; image?: number; /** размещение у Timeweb (в кабинете отмечено значком): нужно, чтобы различить две цены у одного названия */ tw?: boolean }
 export const TIMEWEB_PRICES: TwPrice[] = [
   { name: "DeepSeek V4 Flash", in: 59, out: 178 }, { name: "Claude 4.6 Sonnet", in: 405, out: 2025 }, { name: "GPT-5.5", in: 676, out: 4050 }, { name: "Gemini 3.1 Flash Lite", in: 34, out: 203 },
   { name: "GPT 4o", in: 675, out: 2700 }, { name: "GPT 4.1 mini", in: 54, out: 216 }, { name: "GPT 4.1", in: 270, out: 1080 }, { name: "Text Embedding 3 Large", in: 45, out: 0 }, { name: "Grok Code Fast", in: 27, out: 203 },
@@ -29,22 +29,35 @@ export const TIMEWEB_PRICES: TwPrice[] = [
   { name: "Claude Opus 5.5", in: 540, out: 2700 }, { name: "GPT-6 Sol", in: 270, out: 1350 }, { name: "GPT-6 Luna", in: 14, out: 68 }, { name: "GPT-6.1 Sol", in: 270, out: 1350 }, { name: "Claude 5.5 Haiku", in: 14, out: 68 },
   { name: "Claude 5.5 Sonnet", in: 270, out: 1350 }, { name: "Gemini 3.5 Flash Lite", in: 41, out: 338 }, { name: "Qwen 3.8 Flash", in: 20, out: 63 }, { name: "Nano Banana 2.1", in: 203, out: 4050 },
   { name: "Gemini 4 Argon", in: 270, out: 1350 }, { name: "MiMo V2.6 Pro", in: 59, out: 117 }, { name: "MiMo V2.6 Flash", in: 19, out: 38 }, { name: "MiMo V2.6 Pro UltraSpeed", in: 587, out: 1175 }, { name: "Gemini 3 Pro Image", in: 270, out: 16200 },
-  // в кабинете у этих названий по две цены (разные размещения): автоматически не подставляются, цену нужно выбрать вручную
-  { name: "GLM 5.2", in: 189, out: 594 }, { name: "GLM 5.2", in: 267, out: 1120 }, { name: "Kimi K2.6", in: 236, out: 979 }, { name: "Kimi K2.6", in: 128, out: 540 }, { name: "GLM 5.3", in: 189, out: 594 }, { name: "GLM 5.3", in: 267, out: 1120 },
+  // в кабинете у этих названий по две цены (у провайдера и размещение у Timeweb): различаются по префиксу id (timeweb/… или нет)
+  { name: "GLM 5.2", in: 189, out: 594 }, { name: "GLM 5.2", in: 267, out: 1120, tw: true }, { name: "Kimi K2.6", in: 236, out: 979, tw: true }, { name: "Kimi K2.6", in: 128, out: 540 }, { name: "GLM 5.3", in: 189, out: 594 }, { name: "GLM 5.3", in: 267, out: 1120, tw: true },
 ];
+
+/** Id модели в шлюзе, у которых название в кабинете записано иначе. */
+const ALIASES: Record<string, string> = {
+  "yandex/aliceai-llm-latest": "Alice AI LLM", "yandex/yandexgpt-lite": "YandexGPT 5.1 Lite", "yandex/text-embeddings-v2-doc": "Yandex Text Embeddings (doc)", "yandex/text-embeddings-v2-query": "Yandex Text Embeddings (query)",
+  "gemini/gemini-nano-banana-2.1": "Nano Banana 2.1", "jev-latest": "Jev", "timeweb/gemma4:31b": "Gemma 4",
+};
 
 /** Набор слов названия или id модели: без провайдера до «/», версии «4-6» и «4.6» считаются одним, скобки и регистр не важны. */
 export function wordsOf(s: string): string {
   const base = s.includes("/") ? s.slice(s.lastIndexOf("/") + 1) : s;
-  const t = base.toLowerCase().replace(/(\d)[-_](\d)/g, "$1.$2").replace(/[\[\]()]/g, " ").split(/[^a-z0-9.]+/).filter(Boolean);
+  // «qwen3.5» и «Qwen 3.5», «flux-2» и «FLUX.2», «4-6» и «4.6» — одно и то же
+  const t = base.toLowerCase().replace(/(\d)[-_](\d)/g, "$1.$2").replace(/([a-z])\.?(\d)/g, "$1 $2").replace(/[\[\]()]/g, " ").split(/[^a-z0-9.]+/).map((x) => x.replace(/^\.+|\.+$/g, "")).filter(Boolean);
   return [...new Set(t)].sort().join(" ");
 }
 
-/** Цена для id модели из шлюза: однозначное совпадение по словам; иначе null (и признак «неоднозначно»). */
+/** Цена для id модели из шлюза: совпадение по набору слов; при двух ценах у одного названия выбирается по префиксу (timeweb/… — размещение у Timeweb). */
 export function priceForModel(id: string): { price: TwPrice | null; ambiguous: boolean } {
-  const w = wordsOf(id);
+  const alias = ALIASES[id.toLowerCase()];
+  const w = wordsOf(alias ?? id);
   const hits = TIMEWEB_PRICES.filter((p) => wordsOf(p.name) === w);
   if (hits.length === 1) return { price: hits[0], ambiguous: false };
+  if (hits.length > 1) {
+    const hosted = id.toLowerCase().startsWith("timeweb/");
+    const pick = hits.filter((p) => !!p.tw === hosted);
+    if (pick.length === 1) return { price: pick[0], ambiguous: false };
+  }
   return { price: null, ambiguous: hits.length > 1 };
 }
 
@@ -53,13 +66,14 @@ export interface PullResult { total: number; added: number; priced: number; unpr
 
 /** Заводит в прайсе моделей все модели шлюза. Уже заполненные не трогаем; новым подставляем цену из прайса Timeweb, если она однозначна. */
 export async function addGatewayModels(actor: Actor, ids: string[]): Promise<PullResult> {
-  const have = new Set((await q<{ model: string }>("select model from kz_ai_models")).map((r) => r.model));
+  // «есть» — только модели с заполненной ценой; строки с нулями (добавленные раньше без цены) заполняются, если цена нашлась
+  const have = new Set((await q<{ model: string }>("select model from kz_ai_models where in_per_m_kop>0 or out_per_m_kop>0 or per_image_kop>0 or per_call_kop>0")).map((r) => r.model));
   const res: PullResult = { total: ids.length, added: 0, priced: 0, unpriced: [], ambiguous: [], kept: 0 };
   for (const id of ids) {
     if (have.has(id)) { res.kept++; continue; }
     const { price, ambiguous } = priceForModel(id);
     // цены кабинета в рублях за 1 млн; у нас они хранятся в копейках
-    await q("insert into kz_ai_models(model,in_per_m_kop,out_per_m_kop,per_image_kop,per_call_kop,note) values($1,$2,$3,$4,0,$5) on conflict(model) do nothing",
+    await q("insert into kz_ai_models(model,in_per_m_kop,out_per_m_kop,per_image_kop,per_call_kop,note) values($1,$2,$3,$4,0,$5) on conflict(model) do update set in_per_m_kop=excluded.in_per_m_kop,out_per_m_kop=excluded.out_per_m_kop,per_image_kop=excluded.per_image_kop,note=excluded.note,updated_at=now() where kz_ai_models.in_per_m_kop=0 and kz_ai_models.out_per_m_kop=0 and kz_ai_models.per_image_kop=0 and kz_ai_models.per_call_kop=0",
       [id, (price?.in ?? 0) * 100, (price?.out ?? 0) * 100, (price?.image ?? 0) * 100, price ? "из прайса Timeweb (кабинет, 23.10.2026)" : ambiguous ? "у названия две цены в кабинете: выберите вручную" : "цены нет в прайсе: заполните вручную"]);
     res.added++;
     if (price) res.priced++; else if (ambiguous) res.ambiguous.push(id); else res.unpriced.push(id);

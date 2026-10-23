@@ -720,5 +720,26 @@ alter table kz_wallet_tx add column if not exists action text;
 -- Безлимит на срок (для тестирования): до этого момента списаний нет.
 alter table kz_orgs add column if not exists unlimited_until timestamptz;
 
+-- 028_expenses_losses.sql
+-- Прибыль и потери: прочие расходы бизнеса и пометка вызовов нейросети, которые не принесли денег.
+
+-- Дополнительные расходы (сервер, домены, подписки…): разовые или ежемесячные (тогда считаются по дням, пока не указана дата окончания).
+create table if not exists kz_expenses (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  category text not null default 'other',
+  amount_kop bigint not null check (amount_kop >= 0),
+  spent_on date not null,
+  recurring text not null default 'once' check (recurring in ('once','monthly')),
+  end_on date,
+  note text not null default '',
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists kz_expenses_date on kz_expenses(spent_on);
+
+-- Вызов нейросети, за который мы ничего не получили: 'free' — безлимит или пробный доступ, 'refunded' — генерация не удалась и деньги вернулись клиенту.
+alter table kz_ai_usage add column if not exists no_revenue text;
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql') on conflict do nothing;

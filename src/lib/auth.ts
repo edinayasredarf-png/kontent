@@ -6,7 +6,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
-import { setUsageCtx } from "./billing";
+import { setUsageCtx, usageStore } from "./billing";
 import { ensurePrices } from "./wallet";
 import { isSchemaError } from "./errors";
 import { LEGAL_VERSION } from "./legal";
@@ -117,6 +117,7 @@ export async function switchOrg(orgId: string) {
 
 /** Контекст запроса. Единственная точка, откуда берётся org_id — все запросы данных обязаны брать его отсюда. */
 export async function requireCtx(): Promise<Ctx> {
+  usageStore(); // общий контекст учёта расходов создаётся тут, а организация и пользователь вписываются в него после загрузки
   try { return await loadCtxOnce(); }
   catch (e) { if (isSchemaError(e)) redirect("/update-required"); throw e; }
 }

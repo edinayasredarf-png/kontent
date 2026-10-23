@@ -40,19 +40,22 @@ async function billingCols() {
 export class InsufficientFunds extends Error {}
 
 export async function charge(orgId: string, kop: number, reason: string, ref?: string) {
+  // дальнейшие вызовы нейросети в этом запросе учитываются на эту организацию и это действие; ставится до первого await, чтобы контекст дошёл до вызывающего
+  setUsageCtx({ orgId, reason, ref, free: false });
   await ensurePrices();
-  // дальнейшие вызовы нейросети в этом запросе учитываются на эту организацию и это действие
-  setUsageCtx({ orgId, reason, ref });
   const c = await billingCols();
+  let free = false;
   await tx(async (run) => {
     const [o] = await run<{ balance_kop: string; unlimited: boolean; timed: boolean }>(
       `select balance_kop,unlimited,${c.until ? "(unlimited_until is not null and unlimited_until > now())" : "false"} timed from kz_orgs where id=$1 for update`, [orgId]);
-    if (o?.unlimited || o?.timed) return; // админ платформы или пробный безлимит: генерация бесплатна, баланс не трогаем
+    if (o?.unlimited || o?.timed) { free = true; return; } // админ платформы или пробный безлимит: генерация бесплатна, баланс не трогаем
     if (!o || Number(o.balance_kop) < kop) throw new InsufficientFunds();
     await run("update kz_orgs set balance_kop=balance_kop-$2 where id=$1", [orgId, kop]);
     if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,$5)", [orgId, -kop, reason, ref ?? null, actionOf(reason)]);
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, -kop, reason, ref ?? null]);
   });
+  // вызовы нейросети после бесплатного списания отмечаются как «без выручки»
+  setUsageCtx({ free });
 }
 
 export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
@@ -65,4 +68,6 @@ export async function refund(orgId: string, kop: number, reason: string, ref?: s
     if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,'refund')", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
   });
+  // нейросеть для этой операции мы уже оплатили, а деньги вернули клиенту: затраты помечаются как потеря
+  if (ref) await q("update kz_ai_usage set no_revenue='refunded' where org_id=$1 and ref=$2 and no_revenue is null and created_at > now() - interval '45 minutes'", [orgId, ref]).catch(() => null);
 }

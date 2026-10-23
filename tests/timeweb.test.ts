@@ -21,7 +21,12 @@ describe("сопоставление моделей шлюза с прайсом
     assert.equal(p("black-forest-labs/flux.2-pro")!.image, 4.05);
     assert.equal(p("OpenAI/GPT-5.6-Luna")!.out, 162);
     assert.equal(priceForModel("anthropic/claude-sonnet-4-5").price, null, "нет в прайсе — не подставляем чужую");
-    assert.deepEqual(priceForModel("zai/glm-5.2"), { price: null, ambiguous: true }, "две цены у названия — выбор вручную");
+    assert.deepEqual([p("zai/glm-5.2")!.in, p("zai/glm-5.2")!.out], [189, 594], "у провайдера — обычная цена");
+    assert.deepEqual([p("timeweb/glm-5.3")!.in, p("timeweb/glm-5.3")!.out], [267, 1120], "размещение у Timeweb — своя цена");
+    assert.deepEqual([p("timeweb/kimi-k2.6")!.in, p("moonshot/kimi-k2.6")!.in], [236, 128]);
+    assert.equal(p("black_forest_labs/flux-2-pro")!.image, 4.05, "flux-2 и FLUX.2 — одно");
+    assert.equal(p("dashscope/qwen3.5-flash")!.in, 14, "qwen3.5 и Qwen 3.5 — одно");
+    assert.equal(p("yandex/yandexgpt-lite")!.in, 210, "псевдоним");
     assert.equal(priceForModel("openai/gpt-6").price, null, "не путает близкие названия");
   });
 });
@@ -53,8 +58,13 @@ describe("в базе", { skip: skipDb }, () => {
     const db = await import("../src/lib/db");
     await db.q("insert into kz_ai_models(model,in_per_m_kop,out_per_m_kop) values('anthropic/claude-haiku-4-5',111,222)");
     const r = await addGatewayModels(actor, ["anthropic/claude-sonnet-5", "anthropic/claude-haiku-4-5", "zai/glm-5.2", "tw/unknown-model"]);
-    assert.deepEqual([r.total, r.added, r.priced, r.kept], [4, 3, 1, 1]);
-    assert.deepEqual(r.ambiguous, ["zai/glm-5.2"]); assert.deepEqual(r.unpriced, ["tw/unknown-model"]);
+    assert.deepEqual([r.total, r.added, r.priced, r.kept], [4, 3, 2, 1]);
+    assert.deepEqual(r.ambiguous, []); assert.deepEqual(r.unpriced, ["tw/unknown-model"]);
+    // повторное нажатие заполняет строки, добавленные раньше с нулями, и не трогает заполненные
+    await db.q("update kz_ai_models set in_per_m_kop=0,out_per_m_kop=0 where model='zai/glm-5.2'");
+    const again = await addGatewayModels(actor, ["zai/glm-5.2", "anthropic/claude-sonnet-5"]);
+    assert.deepEqual([again.added, again.priced, again.kept], [1, 1, 1]);
+    assert.equal(Number((await db.one<{ i: string }>("select in_per_m_kop i from kz_ai_models where model='zai/glm-5.2'"))!.i), 18900);
     const m = await db.one<{ i: string; o: string }>("select in_per_m_kop i,out_per_m_kop o from kz_ai_models where model='anthropic/claude-sonnet-5'");
     assert.deepEqual([Number(m!.i), Number(m!.o)], [40500, 202500], "405 ₽ и 2025 ₽ за 1 млн в копейках");
     const kept = await db.one<{ i: string }>("select in_per_m_kop i from kz_ai_models where model='anthropic/claude-haiku-4-5'");
