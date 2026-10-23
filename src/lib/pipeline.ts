@@ -29,7 +29,7 @@ import { loadAsset, processImage, saveAsset } from "./assets";
 
 export interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
-  description: string; audience: string; tone: string; rules: { forbidden?: string[] }; brand_name: string;
+  description: string; audience: string; tone: string; rules: { forbidden?: string[]; notes?: string[] }; brand_name: string;
   brief: { images?: boolean }; kit: unknown; kb_profile?: unknown; kb_style?: unknown;
 }
 
@@ -39,7 +39,7 @@ export async function loadFactory(orgId: string, id: string): Promise<FactoryRow
        from kz_factories f join kz_brands b on b.id=f.brand_id left join kz_brand_kb k on k.brand_id=b.id where f.id=$1 and f.org_id=$2`, [id, orgId]);
 }
 /** Бренд для подсказки модели; с базой знаний (профиль и стиль), отобранной под тему. */
-export const brandOf = (r: FactoryRow, topic = ""): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [], kb: r.kb_profile || r.kb_style ? kbBlock(cleanProfile(r.kb_profile), cleanStyle(r.kb_style), topic) : undefined });
+export const brandOf = (r: FactoryRow, topic = ""): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [], notes: r.rules?.notes ?? [], kb: r.kb_profile || r.kb_style ? kbBlock(cleanProfile(r.kb_profile), cleanStyle(r.kb_style), topic) : undefined });
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>

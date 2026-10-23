@@ -93,6 +93,27 @@ describe("чат: написать и изменить материал", { skip
     assert.ok(back.includes("запуск сервиса") && !back.startsWith("Расширенный"), back);
   });
 
+  it("серия идёт в план, правило бренда запоминается и попадает в запрет, варианты применяются", async () => {
+    const { runAct } = await import("../src/lib/agent/tools");
+    const { q } = await import("../src/lib/db");
+    const ctx = { orgId: org, role: "owner" };
+    script = () => JSON.stringify([{ topic: "Идея 1", hook: "a", kind: "post" }, { topic: "Идея 2", hook: "b", kind: "post" }, { topic: "Идея 3", hook: "c", kind: "post" }]);
+    const ser = await runAct(ctx, "series", { topic: "осень", days: 3 });
+    assert.ok(ser.ok, ser.text);
+    assert.equal(Number((await q<{ n: string }>("select count(*) n from kz_content_items where org_id=$1 and topic like 'Идея %'", [org]))[0].n), 3);
+    const rem = await runAct(ctx, "remember", { rule: "не писать про цены", kind: "forbidden" });
+    assert.ok(rem.ok);
+    const rules = (await q<{ rules: { forbidden: string[] } }>("select rules from kz_brands where id=$1", [brand]))[0].rules;
+    assert.ok(rules.forbidden.includes("не писать про цены"));
+    const item = (await q<{ id: string }>("select id from kz_content_items where org_id=$1 and topic not like 'Идея %' order by created_at desc limit 1", [org]))[0].id;
+    script = () => JSON.stringify(["Заголовок А", "Заголовок Б"]);
+    const v = await runAct(ctx, "variants", { itemId: item, what: "headline", count: 2 });
+    assert.ok(v.ok, v.text);
+    const { applyVariant } = await import("../src/lib/agent/extras");
+    assert.ok((await applyVariant(org, item, "headline", "Заголовок Б")).ok);
+    assert.ok((await q<{ body: string }>("select body from kz_content_items where id=$1", [item]))[0].body.startsWith("Заголовок Б"));
+  });
+
   it("наблюдателю платные действия не выполняются", async () => {
     const { runAct } = await import("../src/lib/agent/tools");
     const r = await runAct({ orgId: org, role: "viewer" }, "write", { kind: "post", topic: "x" });

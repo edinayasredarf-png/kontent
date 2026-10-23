@@ -155,3 +155,11 @@ export async function cardItemRewriteFragmentAction(id: string, fragment: string
   const r = await rewriteFragment(c.org.id, id, String(fragment ?? "").slice(0, 3000), String(instruction ?? "").slice(0, 400));
   return r.ok ? { ok: true, note: r.text, card: await itemCard(c.org.id, id) } : fail(r.text);
 }
+
+/** Применить выбранный вариант заголовка, первой строки или поста. */
+export async function cardPickVariantAction(itemId: string, what: string, text: string): Promise<R> {
+  const c = await requireWriter();
+  const { applyVariant } = await import("./extras");
+  const r = await applyVariant(c.org.id, itemId, what === "post" || what === "hook" ? what : "headline", String(text ?? ""));
+  return r.ok ? { ok: true, note: "Вариант применён" } : fail(r.error ?? "Не получилось");
+}

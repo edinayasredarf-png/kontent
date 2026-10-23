@@ -14,7 +14,8 @@ import { KIND } from "../kinds";
  */
 export type CardRef =
   | { t: "news"; ids: string[] } | { t: "item"; ids: string[] } | { t: "factory"; id: string } | { t: "sources" } | { t: "analytics"; days: number }
-  | { t: "competitors" } | { t: "brand"; id: string } | { t: "plan"; id: string } | { t: "channels" };
+  | { t: "competitors" } | { t: "brand"; id: string } | { t: "plan"; id: string } | { t: "channels" }
+  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] };
 
 export interface ChannelOpt { id: string; title: string; kind: string; on: boolean }
 export interface NewsRow { id: string; title: string; text: string; source: string; sourceKind: string; url: string; at: string; liked: boolean; used: boolean; fit: number | null }
@@ -27,7 +28,8 @@ export type Card =
   | { t: "competitors"; groups: { id: string; name: string; platforms: string[]; members: number | null; perWeek: number; avgViews: number; lastPostAt: string | null; best: string | null }[] }
   | { t: "brand"; id: string; name: string; description: string; audience: string; tone: string; colors: string[]; extra: { label: string; value: string }[] }
   | { t: "plan"; id: string; name: string; until: string | null; items: { id: string; kind: string; topic: string; status: string; date: string | null }[] }
-  | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] };
+  | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] }
+  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] };
 
 export interface ItemRow { versions: { id: string; at: string; note: string; hasImage: boolean; chars: number }[]; slides: string[]; id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
 
@@ -136,6 +138,12 @@ export async function hydrateCards(orgId: string, refs: CardRef[] | undefined): 
           const until = await one<{ d: string | null }>("select max(planned_for) d from kz_content_items where factory_id=$1 and status in ('idea','approved','ready','scheduled')", [f.id]);
           c = { t: "plan", id: f.id, name: f.name, until: dayStr(until?.d ?? null), items: items.map((i) => ({ id: i.id, kind: i.kind, topic: i.topic, status: i.status, date: dayStr(i.planned_for) })) };
         }
+      } else if (r.t === "variants") {
+        const ok = await one("select 1 from kz_content_items where id=$1 and org_id=$2 and status<>'published'", [r.itemId, orgId]);
+        c = ok && r.options.length ? { t: "variants", itemId: r.itemId, what: r.what, options: r.options } : null;
+      } else if (r.t === "image") {
+        const have = await q<{ id: string }>("select id from kz_assets where org_id=$1 and id = any($2::uuid[]) and mime like 'image/%'", [orgId, r.ids.filter((x) => UUID.test(x))]);
+        c = have.length ? { t: "image", ids: have.map((x) => x.id) } : null;
       } else if (r.t === "channels") {
         const rows = await q<{ id: string; title: string; kind: string; brand: string; signature: string }>("select c.id,c.title,c.kind,b.name brand,c.signature from kz_channels c join kz_brands b on b.id=c.brand_id where c.org_id=$1 and c.status='active' order by c.created_at", [orgId]);
         c = rows.length ? { t: "channels", channels: rows } : null;

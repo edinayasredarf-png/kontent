@@ -9,7 +9,7 @@ import { AutoTextarea } from "@/components/AutoTextarea";
 import { EMOJI, HASHTAGS, LENGTHS } from "@/lib/postsettings";
 import type { Card, ItemRow } from "@/lib/agent/cards";
 import {
-  cardCreateFromNewsAction, cardExtendPlanAction, cardItemChannelsAction, cardItemDiscardAction, cardItemPublishAction, cardItemRegenAction, cardItemRestoreAction, cardItemRewriteFragmentAction, cardItemSaveAction, cardItemToPlanAction,
+  cardCreateFromNewsAction, cardExtendPlanAction, cardItemChannelsAction, cardItemDiscardAction, cardItemPublishAction, cardItemRegenAction, cardPickVariantAction, cardItemRestoreAction, cardItemRewriteFragmentAction, cardItemSaveAction, cardItemToPlanAction,
   cardLikeNewsAction, cardRefreshAction, cardSaveBrandAction, cardSaveFactoryAction, cardSaveSignatureAction, cardSetSourceAction, type FactoryPatch,
 } from "@/lib/agent/card-actions";
 
@@ -281,6 +281,27 @@ function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c
   );
 }
 
+function VariantsCard({ c }: { c: Extract<Card, { t: "variants" }> }) {
+  const { busy, msg, run } = useRun();
+  const [done, setDone] = useState<number | null>(null);
+  const label = c.what === "post" ? "Варианты поста" : c.what === "hook" ? "Варианты первой строки" : "Варианты заголовка";
+  return (
+    <div className={`${box} space-y-2`}>
+      <b className="block text-sm">{label}</b>
+      {c.options.map((o, n) => (
+        <div key={n} className={`rounded-xl p-3 text-sm ${done === n ? "bg-good-soft" : "bg-tile"}`}>
+          <p className="whitespace-pre-wrap leading-6">{o}</p>
+          <div className="mt-2 flex items-center gap-2">
+            {done === n ? <span className="flex items-center gap-1 text-xs text-good"><Check size={13} />Применено</span>
+              : <button type="button" disabled={!!busy} onClick={() => run(`v${n}`, () => cardPickVariantAction(c.itemId, c.what, o), () => setDone(n))} className="btn btn-accent !py-1 text-xs">{busy === `v${n}` && <Loader2 size={12} className="animate-spin" />}Взять этот</button>}
+            <button type="button" onClick={() => void navigator.clipboard?.writeText(o)} className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5 text-xs"><Copy size={12} className="mr-1" />Копировать</button>
+          </div>
+        </div>))}
+      <Msg m={msg} />
+    </div>
+  );
+}
+
 function ChannelsCard({ c, replace }: { c: Extract<Card, { t: "channels" }>; replace: (c: Card) => void }) {
   const { busy, msg, run } = useRun();
   const [sig, setSig] = useState<Record<string, string>>({});
@@ -312,6 +333,8 @@ export function ChatCards({ cards }: { cards: Card[] }) {
         if (c.t === "competitors") return <CompetitorsCard key={k} c={c} />;
         if (c.t === "brand") return <BrandCard key={k} c={c} replace={swap(i)} />;
         if (c.t === "plan") return <PlanCard key={k} c={c} replace={swap(i)} />;
+        if (c.t === "variants") return <VariantsCard key={k} c={c} />;
+        if (c.t === "image") return <div key={k} className="flex flex-wrap gap-3">{c.ids.map((id) => <DlImage key={id} id={id} className="max-h-[480px] max-w-full rounded-xl object-contain" />)}</div>;
         return <ChannelsCard key={k} c={c} replace={swap(i)} />;
       })}
     </div>

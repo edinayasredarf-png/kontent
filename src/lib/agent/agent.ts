@@ -49,10 +49,12 @@ ${toolDocs()}
 - Если для новости нужен выбор, а пользователь не назвал новость, найди подходящую инструментом news (если просят «из новостей за неделю», передай hours) и пиши по лучшей, назвав, какую выбрал. Ссылку, которую прислал пользователь, передавай в url.
 - Просят изменить уже показанный материал («длиннее», «короче», «в дружелюбном тоне», «перепиши как SEO-статью», «другая картинка», «сделай вертикальную», «логотип в левый верхний угол», «убери логотип»): вызови rewrite или image с itemId из списка «Материалы в этом диалоге» (по умолчанию последний), для другого формата вызови write с itemId. Не переспрашивай, если можно догадаться.
 - Заполнение бренда и завода: человек рассказывает о бизнесе, даёт сайт или просит подобрать сам. Прочитай сайт (site) или поищи (search), предложи значения коротким текстом и спроси «Сохранить?». Если человек сказал «заполни», «сохрани», «поменяй» или согласился, вызови save_brand и save_factory (бесплатно, сразу): сказанное в чате применяется в настройках.
+- Цены операций (₽): пост %PRICE_POST%, карусель %PRICE_CAROUSEL%, SEO-статья %PRICE_SEO%, картинка %PRICE_IMAGE%, идея плана %PRICE_PLAN%. Если действие дороже примерно 50 ₽ (серия из 5 и более материалов, картинки ко всем разделам, несколько материалов подряд), СНАЧАЛА назови итоговую цену и спроси «Делаем?», и выполни после согласия. Мелкие операции делай сразу.
+- Серия, неделя контента, план по теме: series. Несколько вариантов на выбор: variants. «Поставь на завтра в 10», «опубликуй в VK и Telegram»: schedule и publish (публикуй только по прямой просьбе, перед публикацией убедись, что материал тот). «Не пиши про…», «всегда добавляй…»: remember. «Убери надпись с картинки», «смени фон» на присланной картинке: edit_image. «Почему этот пост сработал», «сделай как лучший»: top_posts, потом объясни или вызови write с темой лучшего поста.
 - Логотип на картинке (больше, меньше, другое место, убрать) меняй только через image с op logo, а не rework: это делается кодом, без нейросети.
 - Вложения пользователя (картинки и документы) описаны в блоке «Вложения». Что с ними делать, определи по просьбе: «сделай в таком стиле» или «вот референс»: используй описание стиля в prompt для image (op new/redo) или в instructions для write; «поставь эту картинку в пост»: write с imageAssetId или image с op use; «напиши по этому документу»: write с fileId; «это наш логотип»: set_logo; «заполни бренд по документу»: save_brand/save_factory по тексту документа; «что на картинке», «проанализируй»: просто ответь текстом. Если непонятно, что сделать с файлом, коротко спроси.
 - Просят ПОКАЗАТЬ или поменять настройки, данные (аналитику, каналы, бренды, заводы, конкурентов, источники, план): тогда и только тогда добавь карточку в "cards". Пока человек об этом не просил, карточек не добавляй.
-- Платные действия выполняй, только если пользователь прямо попросил что-то создать или изменить. На вопросы и «покажи» ничего платного не запускай. За одно сообщение не больше двух платных действий.
+- Платные действия выполняй, только если пользователь прямо попросил что-то создать или изменить. На вопросы и «покажи» ничего платного не запускай. За одно сообщение не больше трёх платных действий.
 - Настройки (set_factory, set_source_status, extend_plan, create_from_news) только предложи в "actions": человек нажмёт кнопку сам.
 - Если инструмент вернул ошибку, объясни человеку простыми словами, что делать дальше.
 - "links" давай только когда они реально нужны (например «Открыть календарь» после постановки в план), не больше двух, и не давай, если ответ уже содержит материал или карточку. Разрешены только адреса:
@@ -141,7 +143,8 @@ async function recentItems(orgId: string, userId: string, thread: string | null)
   return lines.length ? `Материалы в этом диалоге:\n${lines.join("\n")}\n\n` : "";
 }
 
-const MAX_ACTS = 2;
+const MAX_ACTS = 3;
+const rubP = (k: number) => String(Math.round(k) / 100).replace(".", ",");
 
 export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = [], threadIn: string | null = null): Promise<{ ok: true; threadId?: string } | { ok: false; error: string }> {
   const m = message.trim();
@@ -179,14 +182,14 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
     for (let step = 0; step < 7; step++) {
       if (Date.now() - t0 > 240_000) throw new Error("Слишком долго думаю, попробуйте короче");
       const last = step >= 6;
-      const raw = await chat("assistant", SYSTEM(c.userName), `Сегодня ${TODAY()}.\n${shown}${attached}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
+      const raw = await chat("assistant", SYSTEM(c.userName).replace("%PRICE_POST%", rubP(PRICES.post)).replace("%PRICE_CAROUSEL%", rubP(PRICES.carousel)).replace("%PRICE_SEO%", rubP(PRICES.seo)).replace("%PRICE_IMAGE%", rubP(PRICES.image)).replace("%PRICE_PLAN%", rubP(PRICES.plan_day)), `Сегодня ${TODAY()}.\n${shown}${attached}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
       const o = parseReply(raw);
       if (o?.tool && !last) {
         const t = toolByName(o.tool);
         let res: unknown;
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else if (t.kind === "act") {
-          if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше двух платных действий" };
+          if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше трёх платных действий" };
           else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
         } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
