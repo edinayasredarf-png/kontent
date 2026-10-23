@@ -26,12 +26,12 @@ export async function ensurePrices(force = false): Promise<void> {
 }
 
 /** Умеет ли база новые поля учёта (после миграции 027); проверка раз в минуту, чтобы старая схема не ломала списания. */
-let colsAt = 0, cols = { action: false, until: false };
-async function billingCols() {
+let colsAt = 0, cols = { action: false, until: false, bonus: false };
+export async function billingCols() {
   if (Date.now() - colsAt < 60_000) return cols;
   try {
-    const r = await q<{ c: string }>("select table_name||'.'||column_name c from information_schema.columns where (table_name='kz_wallet_tx' and column_name='action') or (table_name='kz_orgs' and column_name='unlimited_until')");
-    cols = { action: r.some((x) => x.c === "kz_wallet_tx.action"), until: r.some((x) => x.c === "kz_orgs.unlimited_until") };
+    const r = await q<{ c: string }>("select table_name||'.'||column_name c from information_schema.columns where (table_name='kz_wallet_tx' and column_name in ('action','bonus_part')) or (table_name='kz_orgs' and column_name='unlimited_until')");
+    cols = { action: r.some((x) => x.c === "kz_wallet_tx.action"), until: r.some((x) => x.c === "kz_orgs.unlimited_until"), bonus: r.some((x) => x.c === "kz_wallet_tx.bonus_part") };
   } catch { /* оставляем прежнее */ }
   colsAt = Date.now();
   return cols;
@@ -44,18 +44,26 @@ export async function charge(orgId: string, kop: number, reason: string, ref?: s
   setUsageCtx({ orgId, reason, ref, free: false });
   await ensurePrices();
   const c = await billingCols();
-  let free = false;
+  let free = false, bonusTaken = 0;
   await tx(async (run) => {
     const [o] = await run<{ balance_kop: string; unlimited: boolean; timed: boolean }>(
       `select balance_kop,unlimited,${c.until ? "(unlimited_until is not null and unlimited_until > now())" : "false"} timed from kz_orgs where id=$1 for update`, [orgId]);
     if (o?.unlimited || o?.timed) { free = true; return; } // админ платформы или пробный безлимит: генерация бесплатна, баланс не трогаем
     if (!o || Number(o.balance_kop) < kop) throw new InsufficientFunds();
     await run("update kz_orgs set balance_kop=balance_kop-$2 where id=$1", [orgId, kop]);
-    if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,$5)", [orgId, -kop, reason, ref ?? null, actionOf(reason)]);
+    // подарочные деньги (бонус при регистрации, подарки администратора) тратятся первыми и выручкой не считаются
+    let take = 0;
+    if (c.bonus) {
+      const [p] = await run<{ pot: string }>(`select coalesce(sum(amount_kop) filter (where credit_kind in ('bonus','gift') or reason='Бонус при регистрации'),0) - coalesce(sum(bonus_part),0) pot from kz_wallet_tx where org_id=$1`, [orgId]);
+      take = Math.min(Math.max(0, Number(p?.pot ?? 0)), kop);
+    }
+    bonusTaken = take;
+    if (c.bonus) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part) values($1,$2,$3,$4,$5,$6)", [orgId, -kop, reason, ref ?? null, actionOf(reason), take]);
+    else if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,$5)", [orgId, -kop, reason, ref ?? null, actionOf(reason)]);
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, -kop, reason, ref ?? null]);
   });
   // вызовы нейросети после бесплатного списания отмечаются как «без выручки»
-  setUsageCtx({ free });
+  setUsageCtx({ free, bonusShare: kop > 0 ? bonusTaken / kop : 0 });
 }
 
 export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
@@ -65,7 +73,14 @@ export async function refund(orgId: string, kop: number, reason: string, ref?: s
     const [o] = await run<{ unlimited: boolean; timed: boolean }>(`select unlimited,${c.until ? "(unlimited_until is not null and unlimited_until > now())" : "false"} timed from kz_orgs where id=$1`, [orgId]);
     if (o?.unlimited || o?.timed) return;
     await run("update kz_orgs set balance_kop=balance_kop+$2 where id=$1", [orgId, kop]);
-    if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,'refund')", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
+    // если исходное списание частично шло из подарочных денег, возврат возвращает эту долю обратно в подарочный остаток
+    let part = 0;
+    if (c.bonus && ref) {
+      const [orig] = await run<{ bonus_part: string; amount_kop: string }>("select bonus_part,amount_kop from kz_wallet_tx where org_id=$1 and ref=$2 and amount_kop<0 order by created_at desc limit 1", [orgId, ref]);
+      if (orig && Number(orig.bonus_part) > 0) part = Math.min(Number(orig.bonus_part), Math.round((Number(orig.bonus_part) * kop) / -Number(orig.amount_kop)));
+    }
+    if (c.bonus) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part) values($1,$2,$3,$4,'refund',$5)", [orgId, kop, `Возврат: ${reason}`, ref ?? null, -part]);
+    else if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,'refund')", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
   });
   // нейросеть для этой операции мы уже оплатили, а деньги вернули клиенту: затраты помечаются как потеря

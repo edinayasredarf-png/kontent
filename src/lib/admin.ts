@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireCtx, type Ctx } from "./auth";
 import { one, q, tx } from "./db";
 import { PLANS, type PlanKey } from "./plans";
+import { billingCols } from "./wallet";
 
 /** Все админские действия начинаются отсюда: доступ только у email из PLATFORM_ADMIN_EMAILS, проверка на сервере при каждом вызове. */
 export async function requireAdmin(): Promise<Ctx> {
@@ -67,7 +68,7 @@ export async function orgDetail(id: string) {
 }
 
 /** Ручное пополнение или списание. Баланс меняется под блокировкой строки, отрицательным не становится, запись попадает и в журнал баланса, и в аудит. */
-export async function adjustBalance(actor: { id: string; email: string }, orgId: string, rub: number, reason: string): Promise<R> {
+export async function adjustBalance(actor: { id: string; email: string }, orgId: string, rub: number, reason: string, kind: "paid" | "gift" = "paid"): Promise<R> {
   if (!UUID.test(orgId)) return { ok: false, error: "Организация не найдена" };
   const kop = Math.round(rub * 100);
   if (!Number.isFinite(rub) || kop === 0) return { ok: false, error: "Укажите сумму, не равную нулю" };
@@ -79,7 +80,10 @@ export async function adjustBalance(actor: { id: string; email: string }, orgId:
     if (!o) return { ok: false as const, error: "Организация не найдена" };
     if (Number(o.balance_kop) + kop < 0) return { ok: false as const, error: "Баланс не может стать отрицательным" };
     await run("update kz_orgs set balance_kop=balance_kop+$2 where id=$1", [orgId, kop]);
-    await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,$2,$3)", [orgId, kop, `${kop > 0 ? "Пополнение" : "Списание"} администратором: ${why.slice(0, 200)}`]);
+    // пополнение — деньги клиента (paid) или подарок/компенсация (gift): подарочные деньги тратятся первыми и выручкой не считаются
+    const hasKind = kop > 0 && (await billingCols()).bonus;
+    if (hasKind) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,credit_kind) values($1,$2,$3,$4)", [orgId, kop, `Пополнение администратором: ${why.slice(0, 200)}`, kind]);
+    else await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,$2,$3)", [orgId, kop, `${kop > 0 ? "Пополнение" : "Списание"} администратором: ${why.slice(0, 200)}`]);
     await run("insert into kz_audit(actor_id,actor_email,action,target_type,target_id,details) values($1,$2,'balance.adjust','org',$3,$4)", [actor.id, actor.email, orgId, JSON.stringify({ kop, reason: why })]);
     return { ok: true as const, message: `Баланс ${kop > 0 ? "пополнен" : "уменьшен"} на ${(Math.abs(kop) / 100).toLocaleString("ru-RU")} ₽` };
   });

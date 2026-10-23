@@ -18,7 +18,7 @@ async function origin() {
 export async function adjustBalanceAction(_: unknown, f: FormData) {
   const c = await requireAdmin();
   const rub = Number(s(f, "amount").replace(",", ".").replace(/\s/g, ""));
-  return done(await adjustBalance(c.user, s(f, "org"), rub, s(f, "reason")), `/app/admin/orgs/${s(f, "org")}`);
+  return done(await adjustBalance(c.user, s(f, "org"), rub, s(f, "reason"), s(f, "kind") === "gift" ? "gift" : "paid"), `/app/admin/orgs/${s(f, "org")}`);
 }
 export async function setPlanAction(_: unknown, f: FormData) {
   const c = await requireAdmin();

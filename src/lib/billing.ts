@@ -6,7 +6,7 @@ import { q } from "./db";
  * ставится при входе в кабинет и в момент списания денег, а вызов нейросети, который идёт следом, берёт его оттуда сам — передавать
  * ничего вручную не нужно. Стоимость считается по прайсу моделей, который заполняет администратор.
  */
-export interface UsageCtx { orgId?: string; userId?: string; reason?: string; ref?: string; /** безлимит или пробный доступ: деньги за это не получены */ free?: boolean }
+export interface UsageCtx { orgId?: string; userId?: string; reason?: string; ref?: string; /** безлимит или пробный доступ: деньги за это не получены */ free?: boolean; /** доля вызова, оплаченная подарочными деньгами */ bonusShare?: number }
 const als = new AsyncLocalStorage<UsageCtx>();
 
 /**
@@ -78,5 +78,6 @@ export async function recordUsage(u: UsageInput): Promise<void> {
     const ins = await q<{ id: string }>(`insert into kz_ai_usage(org_id,user_id,action,reason,ref,kind,task,model,tokens_in,tokens_out,images,cost_kop,priced) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`,
       [ctx.orgId ?? null, ctx.userId ?? null, actionOf(ctx.reason ?? ""), (ctx.reason ?? "").slice(0, 200), ctx.ref ?? null, u.kind, u.task, u.model.slice(0, 120), tokensIn, tokensOut, images, cost, !!p]);
     if (ctx.free && ins[0]) await q("update kz_ai_usage set no_revenue='free' where id=$1", [ins[0].id]).catch(() => null);
+    else if ((ctx.bonusShare ?? 0) > 0 && ins[0]) await q("update kz_ai_usage set bonus_share=$2 where id=$1", [ins[0].id, Math.min(1, ctx.bonusShare!)]).catch(() => null);
   } catch { /* учёт необязателен */ }
 }

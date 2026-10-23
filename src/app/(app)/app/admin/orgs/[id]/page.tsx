@@ -50,6 +50,7 @@ export default async function OrgPage({ params }: { params: Promise<{ id: string
             <Form action={adjustBalanceAction} submit="Применить">
               <input type="hidden" name="org" value={org.id} />
               <Field label="Сумма, ₽"><input name="amount" required inputMode="decimal" placeholder="500 или -200" className="input" /></Field>
+              <Field label="Что это"><select name="kind" className="input"><option value="paid">Оплата клиента (деньги получены)</option><option value="gift">Подарок, компенсация или тест (не выручка)</option></select></Field>
               <Field label="Причина"><input name="reason" required minLength={3} maxLength={200} placeholder="Оплата по счёту №12 / компенсация" className="input" /></Field>
             </Form>
           </section>

@@ -40,21 +40,24 @@ export default async function Economy({ searchParams }: { searchParams: Promise<
       <p className="-mt-2 mb-5 text-center text-xs text-ink3">Период: {rangeLabel(rg)}</p>
       <section className="card mb-6 p-5">
         <b className="mb-1 block text-sm">Заработали и потеряли за период</b>
-        <p className="mb-4 text-xs text-ink2">{prev ? <>Рядом с суммами — изменение к прошлому периоду ({prevLabel}). </> : "Для «Всё время» сравнения нет. "}Прибыль = списано с клиентов − вернули клиентам − затраты на нейросети − прочие расходы (сервер, домены и т. д., раздел «Расходы»).</p>
+        <p className="mb-4 text-xs text-ink2">{prev ? <>Рядом с суммами — изменение к прошлому периоду ({prevLabel}). </> : "Для «Всё время» сравнения нет. "}Прибыль = списано с клиентов − вернули клиентам − затраты на нейросети − прочие расходы (сервер, домены и т. д.).</p>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="space-y-1.5 text-sm">
-            {([["Списано с клиентов", pnl.charged, "", pnlPrev?.charged, false], ["Вернули клиентам (ошибки)", -pnl.refunded, "text-bad", pnlPrev ? -pnlPrev.refunded : undefined, false], ["Выручка", pnl.revenue, "font-semibold", pnlPrev?.revenue, false], ["Затраты на нейросети", -pnl.aiCost, "", pnlPrev ? -pnlPrev.aiCost : undefined, false], ["Маржа после нейросетей", pnl.gross, "font-semibold", pnlPrev?.gross, false], ["Прочие расходы", -pnl.expenses, "", pnlPrev ? -pnlPrev.expenses : undefined, false]] as [string, number, string, number | undefined, boolean][]).map(([l, v, c, was]) => (
+            {([["Списано с платных денег клиентов", pnl.charged, "", pnlPrev?.charged, false], ["Вернули клиентам (ошибки)", -pnl.refunded, "text-bad", pnlPrev ? -pnlPrev.refunded : undefined, false], ["Выручка", pnl.revenue, "font-semibold", pnlPrev?.revenue, false], ["Затраты на нейросети", -pnl.aiCost, "", pnlPrev ? -pnlPrev.aiCost : undefined, false], ["Маржа после нейросетей", pnl.gross, "font-semibold", pnlPrev?.gross, false], ["Прочие расходы", -pnl.expenses, "", pnlPrev ? -pnlPrev.expenses : undefined, false]] as [string, number, string, number | undefined, boolean][]).map(([l, v, c, was]) => (
               // у затрат (отрицательные суммы) изменение показываем по размеру затрат: выросли — плохо
               <div key={l} className={`flex items-baseline justify-between gap-2 border-b border-line pb-1.5 ${c}`}><span>{l}</span><span className="text-right">{k(v)}{v < 0 || c === "text-bad" ? delta(-v, was === undefined ? undefined : -was, true) : delta(v, was)}</span></div>))}
+            {(pnl.bonusUsed > 0 || pnl.lostBonus > 0) && <p className="rounded-lg bg-tile px-3 py-1.5 text-xs text-ink2">Клиенты потратили {k(pnl.bonusUsed)} подарочных денег (бонус при регистрации, подарки). Это не выручка и в доход не входит.</p>}
             <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-base font-semibold ${pnl.profit >= 0 ? "bg-good-soft text-good" : "bg-bad-soft text-bad"}`}><span>{pnl.profit >= 0 ? "Прибыль" : "Убыток"}</span><span className="text-right">{k(pnl.profit)}{pnl.revenue > 0 ? ` · ${Math.round((pnl.profit / pnl.revenue) * 100)}%` : ""}{delta(pnl.profit, pnlPrev?.profit)}</span></div>
           </div>
           <div className="rounded-2xl bg-tile p-4 text-sm">
             <b className="mb-2 block text-xs font-semibold text-ink2">Потери: затраты на нейросети, которые не принесли денег</b>
-            <div className="flex justify-between"><span>Бесплатный безлимит и тест</span><b>{k(pnl.lostFree)}</b></div>
+            <div className="flex justify-between"><span>Подарочные деньги (бонус 100 ₽, подарки)</span><b>{k(pnl.lostBonus)}</b></div>
+            <div className="mt-1 flex justify-between"><span>Безлимит (администраторы, тестовый доступ)</span><b>{k(pnl.lostFree)}</b></div>
             <div className="mt-1 flex justify-between"><span>Ошибки генерации (деньги вернули)</span><b>{k(pnl.lostRefunded)}</b></div>
-            <div className="mt-1 flex justify-between border-t border-line pt-1.5"><span>Итого потеряли</span><b className="text-bad">{k(pnl.lostFree + pnl.lostRefunded)}</b></div>
+            <div className="mt-1 flex justify-between border-t border-line pt-1.5"><span>Итого потеряли</span><b className="text-bad">{k(pnl.lostFree + pnl.lostRefunded + pnl.lostBonus)}</b></div>
             {Object.keys(pnl.expenseBy).length > 0 && <div className="mt-3 border-t border-line pt-2"><b className="mb-1 block text-xs font-semibold text-ink2">Прочие расходы по категориям</b>{Object.entries(pnl.expenseBy).map(([c, v]) => <div key={c} className="flex justify-between text-xs"><span>{EXPENSE_CATEGORIES[c]}</span><span>{k(v)}</span></div>)}</div>}
-            <p className="mt-3 text-xs text-ink3">Потери считаются с момента применения миграции 028. Токены: вх. {tok(t.tin)} / исх. {tok(t.tout)}, вызовов {t.calls.toLocaleString("ru-RU")}.</p>
+            <p className="mt-3 text-xs"><a href="/app/admin/expenses" className="font-semibold text-accent-ink underline">Внести расходы: сервер, домены, подписки →</a> (разовые и повторяющиеся: неделя, месяц, квартал, год)</p>
+            <p className="mt-2 text-xs text-ink3">Потери считаются с момента применения миграций 028 и 029. Токены: вх. {tok(t.tin)} / исх. {tok(t.tout)}, вызовов {t.calls.toLocaleString("ru-RU")}.</p>
           </div>
         </div>
       </section>
@@ -86,7 +89,7 @@ export default async function Economy({ searchParams }: { searchParams: Promise<
               <tr key={r.id ?? "sys"} className="border-t border-line">
                 <td className="px-5 py-2.5">{r.id ? <Link href={`/app/admin/economy/${r.id}?${new URLSearchParams({ r: rg.r, ...(rg.from ? { from: rg.from } : {}), ...(rg.to ? { to: rg.to } : {}) })}`} className="font-medium hover:underline">{r.name}</Link> : <span className="font-medium">{r.name}</span>}
                   <div className="text-xs text-ink3">{r.owner}{r.plan ? ` · ${r.plan}` : ""}{r.unlimited && <span className="chip ml-1.5">безлимит</span>}{r.until && <span className="chip ml-1.5 !bg-good-soft !text-good">пробный безлимит до {new Date(r.until).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>}</div></td>
-                <td className="px-2 py-2.5 text-right">{k(rev)}</td><td className="px-2 py-2.5 text-right">{k(r.cost)}{r.unpriced > 0 && <span title="есть вызовы без цены модели" className="text-warn"> *</span>}</td>
+                <td className="px-2 py-2.5 text-right">{k(rev)}{r.bonusUsed > 0 && <div className="text-xs text-ink3">+ из подарка {k(r.bonusUsed)}</div>}</td><td className="px-2 py-2.5 text-right">{k(r.cost)}{r.unpriced > 0 && <span title="есть вызовы без цены модели" className="text-warn"> *</span>}</td>
                 <td className={`px-2 py-2.5 text-right font-medium ${m < 0 ? "text-bad" : "text-good"}`}>{k(m)}<div className="text-xs font-normal text-ink3">{pct(m, rev)}</div></td>
                 <td className="px-2 py-2.5 text-right">{r.calls.toLocaleString("ru-RU")}</td><td className="px-2 py-2.5 text-right text-xs">{tok(r.tokensIn)} / {tok(r.tokensOut)}{r.images > 0 && <div className="text-ink3">картинок: {r.images}</div>}</td>
                 <td className="px-5 py-2.5 text-right text-xs text-ink2">{rub(r.balance)}</td></tr>); })}

@@ -12,7 +12,7 @@ export function ActionTable({ rows, title }: { rows: Awaited<ReturnType<typeof e
         <tbody>
           {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-6 text-center text-ink2">Пока нет данных.</td></tr>}
           {rows.map((r) => { const rev = r.charged - r.refunded, m = rev - r.cost; return (
-            <tr key={r.action} className="border-t border-line"><td className="px-5 py-2">{r.label}</td><td className="px-2 py-2 text-right">{r.ops.toLocaleString("ru-RU")}</td><td className="px-2 py-2 text-right">{rub(rev)}</td><td className="px-2 py-2 text-right">{r.calls.toLocaleString("ru-RU")}</td><td className="px-2 py-2 text-right">{rub(Math.round(r.cost))}</td>
+            <tr key={r.action} className="border-t border-line"><td className="px-5 py-2">{r.label}</td><td className="px-2 py-2 text-right">{r.ops.toLocaleString("ru-RU")}</td><td className="px-2 py-2 text-right">{rub(rev)}{r.bonus > 0 && <div className="text-xs text-ink3">+ из подарка {rub(r.bonus)}</div>}</td><td className="px-2 py-2 text-right">{r.calls.toLocaleString("ru-RU")}</td><td className="px-2 py-2 text-right">{rub(Math.round(r.cost))}</td>
               <td className={`px-2 py-2 text-right font-medium ${m < 0 ? "text-bad" : ""}`}>{rub(Math.round(m))}<div className="text-xs font-normal text-ink3">{pct(m, rev)}</div></td>
               <td className="px-5 py-2 text-right text-xs">{r.ops ? `${rub(Math.round(rev / r.ops))} / ${rub(Math.round(r.cost / r.ops))}` : "—"}</td></tr>); })}
         </tbody>
