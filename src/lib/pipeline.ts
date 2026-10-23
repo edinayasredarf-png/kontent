@@ -23,7 +23,7 @@ import { strategyOf } from "./strategy";
 import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
-import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES } from "./images";
+import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, type LogoPos } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
 export interface FactoryRow {
@@ -256,7 +256,7 @@ export async function setCarouselCover(orgId: string, itemId: string, mode: "ai"
  * Картинка к материалу. Захват через meta.imageBusy защищает от двойного клика и параллельного воркера: без него
  * списалось бы дважды. Любой сбой после списания — возврат денег.
  */
-export async function buildImage(orgId: string, itemId: string, customPrompt?: string): Promise<Result> {
+export async function buildImage(orgId: string, itemId: string, customPrompt?: string, over: { aspect?: "square" | "portrait" | "landscape"; logoPos?: LogoPos } = {}): Promise<Result> {
   const it = await one<{ id: string; brand_id: string; topic: string; hook: string; body: string; image_id: string | null; kind: string }>(
     `update kz_content_items set meta = meta || jsonb_build_object('imageBusy', extract(epoch from now())::bigint), updated_at=now()
       where id=$1 and org_id=$2 and ((meta->>'imageBusy') is null or (meta->>'imageBusy')::bigint < extract(epoch from now())::bigint - 300)
@@ -269,7 +269,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
   try { await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id); }
   catch (e) { await release(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   try {
-    const kit = cleanKit(brand.kit);
+    const kit = { ...cleanKit(brand.kit), ...(over.aspect ? { aspect: over.aspect } : {}), ...(over.logoPos ? { logoPos: over.logoPos } : {}) };
     let prompt = customPrompt?.trim();
     if (!prompt) {
       prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: it.topic, hook: it.kind === "story" ? `${it.hook} Vertical 9:16 story composition: a clear subject in the middle, calm areas at the top and bottom for interface and text overlay.`.trim() : it.hook, body: it.body, notes: await brandNotes(orgId, it.brand_id) });

@@ -11,11 +11,11 @@ import { ChatCards } from "@/components/ChatCards";
 
 const SUGGEST: { text: string; icon: typeof Pencil }[] = [
   { text: "Что сейчас происходит в моём контент-заводе?", icon: Globe },
-  { text: "Создай пост из новостей за вчера, связанных с нашим брендом", icon: Pencil },
+  { text: "Напиши пост по самой подходящей новости за неделю", icon: Pencil },
   { text: "Проанализируй посты за неделю", icon: Pencil },
   { text: "Покажи последние новости из моих источников за вчера", icon: Globe },
 ];
-const TEMPLATES = ["Обнови новости и покажи главное", "Какие идеи ждут моего одобрения?", "Включи автопубликацию в заводе", "Продли контент-план на 7 дней", "Почему не публикуются посты?"];
+const TEMPLATES = ["Напиши пост по самой подходящей новости за неделю", "Напиши SEO-статью по ссылке: ", "Обнови новости и покажи главное", "Какие идеи ждут моего одобрения?", "Включи автопубликацию в заводе", "Продли контент-план на 7 дней", "Почему не публикуются посты?"];
 
 const greet = (name: string) => {
   const h = new Date().getHours();
@@ -106,7 +106,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
             {menu && (
               <div className="absolute bottom-11 left-0 z-20 w-72 rounded-2xl border border-line bg-surface p-1 shadow-float">
                 <p className="px-3 py-1.5 text-xs text-ink2">Быстрые запросы</p>
-                {TEMPLATES.map((t) => <button key={t} type="button" onClick={() => { setMenu(false); send(t); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-accent-soft">{t}</button>)}
+                {TEMPLATES.map((t) => <button key={t} type="button" onClick={() => { setMenu(false); if (t.endsWith(": ")) { setText(t); area.current?.focus(); } else send(t); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-accent-soft">{t}</button>)}
               </div>
             )}
           </div>
@@ -118,7 +118,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
         </div>
       </div>
       {err && <p className="mt-2 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
-      <p className="mt-2 text-center text-xs text-ink3">{free ? "Ответы бесплатны для админа." : `Ответ ассистента стоит ${price}, обновление новостей бесплатно.`} Платные действия выполняются только после вашего нажатия.</p>
+      <p className="mt-2 text-center text-xs text-ink3">{free ? "Ответы бесплатны для админа." : `Ответ ассистента стоит ${price}, обновление новостей бесплатно.`} Когда вы просите написать или изменить материал, он создаётся сразу, цена списывается за каждую операцию.</p>
     </div>
   );
 
@@ -154,7 +154,7 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
             <Actions m={m} />
           </div>
         ))}
-        {busy && <div className="flex items-center gap-2 text-sm text-ink2"><Loader2 size={16} className="animate-spin text-accent" />Смотрю данные вашего контент-завода…</div>}
+        {busy && <div className="flex items-center gap-2 text-sm text-ink2"><Loader2 size={16} className="animate-spin text-accent" />Работаю над ответом, написание может занять до минуты…</div>}
         <div ref={end} />
       </div>
       <div className="sticky bottom-4 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent pt-4">{composer}</div>

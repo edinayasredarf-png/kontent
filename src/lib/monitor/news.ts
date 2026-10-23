@@ -139,7 +139,7 @@ export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonl
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей
  * (первые три в этом запросе, остальные уйдут в очередь воркера), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
  */
-export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
+export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; note?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
   const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; status: string; source: string }>(
@@ -150,7 +150,7 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
   if (!it.full_text) await enrichItem(orgId, itemId); // не получилось — работаем с анонсом
   const full = (await one<{ full_text: string | null }>("select full_text from kz_feed_items where id=$1", [itemId]))?.full_text ?? null;
   const text = bestText({ title: it.title, body: it.body, full_text: full });
-  const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + text.slice(0, 8000) };
+  const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + (opts.note ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${opts.note}\n\n` : "") + text.slice(0, 8000) };
   // дата не выбрана — ближайшие свободные дни по расписанию завода
   const picked = opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;
   const dates = picked ? ks.map(() => picked) : await allocateDates(factoryId, ks.length);

@@ -60,7 +60,8 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
           {it.imageId && /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/assets/${it.imageId}`} alt="" className="mb-2 max-h-56 w-full rounded-xl object-cover" />}
-          {it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
+          {it.kind === "seo" ? <div className="max-h-96 overflow-y-auto rounded-2xl bg-tile p-4 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
+            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>Знаков: {body.length}</span>
             <button type="button" onClick={() => setPrev((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-2.5 !py-0.5">{prev ? <EyeOff size={12} className="mr-1" /> : <Eye size={12} className="mr-1" />}Как будет выглядеть</button></div>

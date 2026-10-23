@@ -10,7 +10,7 @@ const int = (v: unknown, d: number, min: number, max: number) => Math.min(max, M
 const clip = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
 
 /** Справочник для модели: что умеют инструменты. «read» выполняются сразу, «confirm» только предлагаются кнопкой и выполняются после нажатия пользователем. */
-export const TOOLS: { name: string; kind: "read" | "auto" | "confirm"; desc: string; args: string }[] = [
+export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; desc: string; args: string }[] = [
   { name: "overview", kind: "read", desc: "Сводка по аккаунту: бренды, заводы, каналы, материалы по статусам, проблемы (ошибки публикации, идеи на одобрении, скорое окончание плана)", args: "{}" },
   { name: "news", kind: "read", desc: "Новости из мониторинга за период, лучшие по совпадению с ключевыми словами; также число новостей по источникам", args: '{"hours":48,"limit":12,"query":"необязательное слово в заголовке"}' },
   { name: "sources", kind: "read", desc: "Источники мониторинга: статус, когда обновлялись, ошибки, сколько новостей за сутки", args: "{}" },
@@ -21,6 +21,9 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "confirm"; desc: str
   { name: "brands", kind: "read", desc: "Бренды: название, описание, аудитория, тон, заводы и каналы бренда", args: "{}" },
   { name: "channels", kind: "read", desc: "Подключённые каналы публикации (VK, Telegram, MAX…): название, бренд, подпись", args: "{}" },
   { name: "plan", kind: "read", desc: "Контент-план завода: ближайшие материалы и до какой даты хватает запаса", args: '{"factoryId":"uuid"}' },
+  { name: "write", kind: "act", desc: "НАПИСАТЬ материал прямо сейчас (платно, выполняется сразу, результат покажется в чате). Вызывай, когда пользователь просит написать, создать, сделать пост, статью, SEO-статью, карусель, сторис, а также когда просит сделать другой формат из уже написанного. Источник: newsId (новость из инструмента news), или url (ссылка, которую прислал пользователь), или topic (своя тема), или itemId (прежний материал)", args: '{"kind":"post|article|seo|carousel|story","newsId":"uuid","url":"https://…","topic":"тема","itemId":"uuid","instructions":"пожелания: тон, длина, акценты","factoryId":"uuid, если заводов несколько"}' },
+  { name: "rewrite", kind: "act", desc: "ПЕРЕПИСАТЬ текст показанного материала по просьбе пользователя (платно, сразу): подлиннее, короче, проще, в другом тоне или по произвольному описанию", args: '{"itemId":"uuid","op":"shorten|expand|simple|friendly|formal|hook|polish|custom","instruction":"что изменить (для custom)"}' },
+  { name: "image", kind: "act", desc: "КАРТИНКА материала (платно, сразу): new — создать, redo — создать заново (можно сменить формат или положение логотипа), rework — доработать текущую по описанию. Формат: square (квадрат), portrait (вертикальный), landscape (горизонтальный). Логотип: tl,tc,tr,ml,mc,mr,bl,bc,br или none (убрать)", args: '{"itemId":"uuid","op":"new|redo|rework","prompt":"описание или правка","aspect":"square|portrait|landscape","logoPos":"br"}' },
   { name: "refresh_news", kind: "auto", desc: "Обновить источники мониторинга прямо сейчас (бесплатно). Вызывай, когда просят обновить, проверить свежее или данные устарели", args: "{}" },
   { name: "set_source_status", kind: "confirm", desc: "Включить или поставить на паузу источник новостей", args: '{"sourceId":"uuid","status":"active|paused"}' },
   { name: "set_factory", kind: "confirm", desc: "Изменить настройки завода: автопубликация по расписанию, режим одобрения идей (manual — вручную, auto — сами), картинки к материалам", args: '{"factoryId":"uuid","autopublish":true,"approval":"manual|auto","images":true}' },
@@ -167,5 +170,15 @@ export async function runConfirmed(ctx: ToolCtx, name: string, a: Args): Promise
     const r = await buildPlan(o, String(a.factoryId), Number(a.days));
     return r.ok ? { ok: true, text: `План продлён на ${a.days} дн.`, href: `/app/factories/${a.factoryId}?view=list` } : { ok: false, text: r.error };
   }
+  return { ok: false, text: "Неизвестное действие" };
+}
+
+/** Письменные действия (написать, переписать, картинка). Выполняются по прямой просьбе в чате, не по кнопке: результат сразу показывается. */
+export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<import("./writer").ActResult> {
+  if (ctx.role === "viewer") return { ok: false, text: "У вашей роли нет прав на это действие" };
+  const w = await import("./writer");
+  if (name === "write") return w.writeMaterial(ctx.orgId, a);
+  if (name === "rewrite") return w.rewriteMaterial(ctx.orgId, a);
+  if (name === "image") return w.imageForMaterial(ctx.orgId, a);
   return { ok: false, text: "Неизвестное действие" };
 }

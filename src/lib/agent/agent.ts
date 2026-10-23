@@ -2,7 +2,8 @@ import { one, q } from "../db";
 import { aiReady, chat, extractObject } from "../ai";
 import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
-import { TOOLS, runAuto, runRead, toolByName, validateAction, type Args, type ToolCtx } from "./tools";
+import type { ActResult } from "./writer";
+import { TOOLS, runAct, runAuto, runRead, toolByName, validateAction, type Args, type ToolCtx } from "./tools";
 
 /** Разделы сервиса, на которые ассистент может дать кнопку. Всё, чего здесь нет, в ссылки не попадает. */
 export const SECTIONS: Record<string, string> = {
@@ -27,27 +28,30 @@ export interface Action { label: string; tool: string; args: Args; hint: string;
 export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[] }
 export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[] }
 
-const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : ""}`).join("\n");
+const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : t.kind === "act" ? " [выполняется сразу, платно]" : ""}`).join("\n");
 const sectionDocs = () => Object.entries(SECTIONS).map(([h, l]) => `${h} — ${l}`).join("\n") + "\n/app/factories/<id завода>, /app/brands/<id бренда>, /app/brands/<id бренда>/knowledge (база знаний бренда), /app/flows/<id потока>";
 
-const SYSTEM = (name: string) => `Ты ассистент платформы «Контент-завод» и главный помощник по контенту компании. Обращайся к пользователю по имени (${name || "без имени"}) на «вы». Отвечай по-русски, дружелюбно, по делу, без воды.
-Ты видишь, что происходит в аккаунте, через инструменты. Данные берёшь только из результатов инструментов: цифры и названия не выдумывай. Если инструмент вернул пусто, так и скажи.
-Каждый ответ — ОДИН JSON-объект, без пояснений вне JSON. Два вида:
+const SYSTEM = (name: string) => `Ты ассистент платформы «Контент-завод»: помогаешь вести контент компании. Обращайся к пользователю по имени (${name || "без имени"}) на «вы». Отвечай по-русски, дружелюбно, коротко, без воды и без технических слов (никаких id, JSON, названий инструментов в тексте).
+Ты видишь данные аккаунта через инструменты. Цифры и названия берёшь только из результатов инструментов, не выдумываешь.
+Каждый твой ответ — ОДИН JSON-объект и ничего вне него. Два вида:
 1) вызвать инструмент: {"tool":"имя","args":{...}}
-2) финальный ответ: {"final":{"text":"ответ пользователю, абзацы через \\n\\n, списки через «• »","links":[{"label":"Открыть мониторинг","href":"/app/monitor"}],"actions":[{"label":"Включить автопубликацию","tool":"set_factory","args":{"factoryId":"...","autopublish":true}}]}}
+2) финальный ответ: {"final":{"text":"текст для человека; абзацы через \\n\\n, списки через «• »","links":[],"actions":[],"cards":[]}}
+В "text" пиши обычный текст: кавычки внутри экранируй (\\"), а лучше используй «ёлочки».
 Инструменты:
 ${toolDocs()}
-Карточки: в "final" можно добавить "cards" — что показать в чате прямо внутри ответа, с кнопками и переключателями. Типы:
-{"type":"news","ids":["uuid новости",…]} — сами посты из ленты (до 3; покажи именно те, о которых пишешь в тексте); {"type":"item","ids":[…]} — материалы; {"type":"factory","id":"uuid"} — настройки завода с тумблерами; {"type":"plan","id":"uuid завода"}; {"type":"sources"}; {"type":"analytics","days":7}; {"type":"competitors"}; {"type":"brand","id":"uuid"}; {"type":"channels"}.
-Берёшь uuid только из результатов инструментов. Если пользователь просит создать материал из новости, покажи карточку этой новости: кнопка «Создать материал» в ней. Если просит изменить настройки завода или бренда, покажи карточку завода или бренда: изменения делаются в ней переключателями.
-Правила:
-- Сначала собери данные инструментами (до 4 вызовов), потом дай финальный ответ.
-- Если пользователь просит обновить новости или данные могли устареть, вызови refresh_news.
-- Если из запроса понятно, какую настройку включить или что создать, предложи это в "actions" (кнопка), а не обещай, что уже сделал. Платные действия называй платными. Только действия-предложения из списка, с настоящими id из результатов инструментов.
-- В "links" давай 1–3 кнопки на разделы, где можно посмотреть подробности. Разрешены только такие адреса:
+КАК РАБОТАТЬ:
+- Просят НАПИСАТЬ, создать, сделать пост, статью, SEO-статью, карусель, сторис: вызови write (источник: новость, ссылка из сообщения, тема или прежний материал) и сразу дай финальный ответ. Сам материал покажется в чате под твоим текстом, поэтому не пересказывай его и не вставляй в text. В тексте скажи одной-двумя фразами, что сделано и что можно изменить («могу сделать длиннее, другой тон, добавить картинку»).
+- Если для новости нужен выбор, а пользователь не назвал новость, найди подходящую инструментом news (если просят «из новостей за неделю», передай hours) и пиши по лучшей, назвав, какую выбрал. Ссылку, которую прислал пользователь, передавай в url.
+- Просят изменить уже показанный материал («длиннее», «короче», «в дружелюбном тоне», «перепиши как SEO-статью», «другая картинка», «сделай вертикальную», «логотип в левый верхний угол», «убери логотип»): вызови rewrite или image с itemId из списка «Материалы в этом диалоге» (по умолчанию последний), для другого формата вызови write с itemId. Не переспрашивай, если можно догадаться.
+- Просят ПОКАЗАТЬ или поменять настройки, данные (аналитику, каналы, бренды, заводы, конкурентов, источники, план): тогда и только тогда добавь карточку в "cards". Пока человек об этом не просил, карточек не добавляй.
+- Платные действия выполняй, только если пользователь прямо попросил что-то создать или изменить. На вопросы и «покажи» ничего платного не запускай. За одно сообщение не больше двух платных действий.
+- Настройки (set_factory, set_source_status, extend_plan, create_from_news) только предложи в "actions": человек нажмёт кнопку сам.
+- Если инструмент вернул ошибку, объясни человеку простыми словами, что делать дальше.
+- "links" давай только когда они реально нужны (например «Открыть календарь» после постановки в план), не больше двух, и не давай, если ответ уже содержит материал или карточку. Разрешены только адреса:
 ${sectionDocs()}
-- Если чего-то в платформе нет, честно скажи. Не давай юридических и финансовых советов.
-- Ответ короткий: до 150 слов, если не просят подробнее.`;
+Карточки (type): news {"ids":[uuid…]} до 3 постов ленты; item {"ids":[…]} материалы; factory {"id"}; brand {"id"}; plan {"id"}; analytics {"days":1|7|30|90}; sources; competitors; channels. uuid берёшь только из результатов инструментов.
+Если чего-то нет в платформе, честно скажи. Юридических и финансовых советов не давай. Ответ до 120 слов.`;
+
 
 const TODAY = () => new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
@@ -71,6 +75,57 @@ async function save(orgId: string, userId: string, role: "user" | "assistant", c
 
 const cut = (v: unknown, n = 5500) => { const s = JSON.stringify(v); return s.length > n ? s.slice(0, n) + "…(обрезано)" : s; };
 
+
+/** Объект из ответа модели. Модель иногда присылает «почти JSON» (перенос строки внутри текста, неэкранированные кавычки): чиним, а в крайнем случае достаём текст вручную. Сырой JSON человеку не показываем никогда. */
+export function parseReply(raw: string): { tool?: string; args?: Args; final?: { text: string; links?: unknown; actions?: unknown; cards?: unknown } } | null {
+  const direct = extractObject(raw);
+  if (direct) return normalize(direct);
+  // чиним переносы строк внутри строк
+  let out = "", inStr = false, esc = false;
+  for (const ch of raw.replace(/```(?:json)?/g, "")) {
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === "\\" && inStr) { out += ch; esc = true; continue; }
+    if (ch === '"') inStr = !inStr;
+    out += inStr && ch === "\n" ? "\\n" : inStr && ch === "\r" ? "" : inStr && ch === "\t" ? " " : ch;
+  }
+  const fixed = extractObject(out);
+  if (fixed) return normalize(fixed);
+  // последний шанс: вытаскиваем текст и блоки регулярками
+  const m = raw.match(/"text"\s*:\s*"([\s\S]*?)"\s*(?:,\s*"(?:links|cards|actions)"|\}\s*\}?\s*$)/);
+  if (m) {
+    const grab = (k: string) => { const g = raw.match(new RegExp(`"${k}"\\s*:\\s*(\\[[\\s\\S]*?\\])\\s*(?:,\\s*"|\\}\\s*\\}?\\s*$)`)); try { return g ? JSON.parse(g[1]) : undefined; } catch { return undefined; } };
+    return { final: { text: m[1], links: grab("links"), cards: grab("cards"), actions: grab("actions") } };
+  }
+  return null;
+}
+function normalize(o: Record<string, unknown>) {
+  if (typeof o.tool === "string") return { tool: o.tool, args: (o.args as Args) ?? {} };
+  const f = (o.final ?? o) as { text?: unknown; links?: unknown; actions?: unknown; cards?: unknown };
+  return typeof f.text === "string" ? { final: { text: f.text, links: f.links, actions: f.actions, cards: f.cards } } : null;
+}
+/** Текст ответа без остатков разметки: литеральные «\n», хвост из JSON, лишние пробелы. */
+export function cleanReply(t: string): string {
+  let x = t.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+  const cut = x.search(/["”]?\s*,\s*"(?:links|cards|actions)"\s*:/);
+  if (cut > 0) x = x.slice(0, cut);
+  x = x.replace(/^\s*\{\s*"final"\s*:\s*\{\s*"text"\s*:\s*"?/, "").replace(/["”]?\s*\}\s*\}?\s*$/, "");
+  return x.replace(/\n{3,}/g, "\n\n").trim().slice(0, 4000);
+}
+
+/** Материалы, показанные в последних ответах: ассистент подставляет их id, когда человек говорит «сделай длиннее» или «другая картинка». */
+async function recentItems(orgId: string, userId: string): Promise<string> {
+  const rows = await q<{ blocks: Blocks }>("select blocks from kz_chat_messages where org_id=$1 and user_id=$2 and role='assistant' order by created_at desc limit 6", [orgId, userId]);
+  const ids: string[] = [];
+  for (const r of rows) for (const c of r.blocks?.cards ?? []) if (c.t === "item") for (const id of c.ids) if (!ids.includes(id)) ids.push(id);
+  if (!ids.length) return "";
+  const list = await q<{ id: string; kind: string; topic: string; image: boolean }>("select id,kind,topic,image_id is not null image from kz_content_items where org_id=$1 and id = any($2::uuid[])", [orgId, ids.slice(0, 5)]);
+  const by = new Map(list.map((x) => [x.id, x]));
+  const lines = ids.slice(0, 5).map((id) => by.get(id)).filter((x): x is NonNullable<typeof x> => !!x).map((x, i) => `${i === 0 ? "(последний) " : ""}${x.id}: ${x.kind}, «${x.topic.slice(0, 70)}», картинка ${x.image ? "есть" : "нет"}`);
+  return lines.length ? `Материалы в этом диалоге:\n${lines.join("\n")}\n\n` : "";
+}
+
+const MAX_ACTS = 2;
+
 export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const m = message.trim();
   if (!m) return { ok: false, error: "Напишите сообщение" };
@@ -78,29 +133,38 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const ctx: ToolCtx = { orgId: c.orgId, role: c.role };
   const hist = (await loadHistory(c.orgId, c.userId, 8)).map((h) => `${h.role === "user" ? "Пользователь" : "Ассистент"}: ${h.content.slice(0, 1200)}`).join("\n");
+  const shown = await recentItems(c.orgId, c.userId);
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await save(c.orgId, c.userId, "user", m);
   const t0 = Date.now();
-  let scratch = "";
-  const got: Record<string, unknown> = {};
+  let scratch = "", acts = 0;
+  const got: Record<string, unknown> = {}, made: string[] = [];
+  const notes: string[] = [];
   try {
-    for (let step = 0; step < 5; step++) {
-      if (Date.now() - t0 > 100_000) throw new Error("Слишком долго думаю, спросите короче");
-      const raw = await chat("assistant", SYSTEM(c.userName), `Сегодня ${TODAY()}.\n${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${step >= 4 ? "\nБольше инструменты вызывать нельзя: дай финальный ответ." : ""}`, { maxTokens: 1200, temperature: 0.3, timeoutMs: 40_000 });
-      const o = extractObject(raw);
-      if (o && typeof o.tool === "string" && step < 4) {
+    for (let step = 0; step < 7; step++) {
+      if (Date.now() - t0 > 240_000) throw new Error("Слишком долго думаю, попробуйте короче");
+      const last = step >= 6;
+      const raw = await chat("assistant", SYSTEM(c.userName), `Сегодня ${TODAY()}.\n${shown}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
+      const o = parseReply(raw);
+      if (o?.tool && !last) {
         const t = toolByName(o.tool);
         let res: unknown;
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
-        else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, (o.args as Args) ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
+        else if (t.kind === "act") {
+          if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше двух платных действий" };
+          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); notes.push(r.text); } }
+        } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;
         continue;
       }
-      const fin = (o?.final ?? o) as { text?: unknown; links?: unknown; actions?: unknown } | null;
-      const text = typeof fin?.text === "string" && fin.text.trim() ? fin.text.replace(/\\n/g, "\n").trim().slice(0, 4000) : (o ? "" : raw.trim().slice(0, 4000));
+      const fin = o?.final;
+      let text = fin ? cleanReply(fin.text) : "";
+      // модель не следует формату: показываем её текст без разметки, а если и его нет — просим ещё раз
+      if (!fin) { const bare = cleanReply(raw.replace(/^\s*\{[\s\S]*$/, "")); if (bare && !/^[{\[]/.test(bare)) text = bare; }
+      if (!text && made.length) text = notes.join(". ");
       if (!text) { scratch += "\nНужен финальный ответ в формате {\"final\":{...}}.\n"; continue; }
-      const links = (Array.isArray(fin?.links) ? fin!.links as { label?: unknown; href?: unknown }[] : []).map((l) => ({ label: String(l?.label ?? "").slice(0, 60), href: cleanHref(l?.href) })).filter((l): l is Link => !!l.label && !!l.href).slice(0, 4);
+      const links = (Array.isArray(fin?.links) ? fin!.links as { label?: unknown; href?: unknown }[] : []).map((l) => ({ label: String(l?.label ?? "").slice(0, 60), href: cleanHref(l?.href) })).filter((l): l is Link => !!l.label && !!l.href).slice(0, 2);
       const actions: Action[] = [];
       for (const a of (Array.isArray(fin?.actions) ? fin!.actions as { label?: unknown; tool?: unknown; args?: unknown }[] : []).slice(0, 4)) {
         const tool = String(a?.tool ?? "");
@@ -108,41 +172,32 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         const v = await validateAction(ctx, tool, (a.args as Args) ?? {});
         if (v.ok) actions.push({ label: String(a.label ?? "").slice(0, 80) || tool, tool, args: v.args, hint: v.hint });
       }
-      const cards = await finalCards(c.orgId, cleanRefs((fin as { cards?: unknown } | null)?.cards), got);
-      await save(c.orgId, c.userId, "assistant", text, { links, actions, cards });
+      const asked = cleanRefs(fin?.cards);
+      // написанный материал всегда показываем целиком: текст, картинка и кнопки правки
+      const refs: CardRef[] = made.length ? [{ t: "item", ids: made.slice(0, 3) }] : asked;
+      const cards = await keepCards(c.orgId, refs);
+      await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards });
       return { ok: true };
     }
     throw new Error("Не получилось сформировать ответ");
   } catch (e) {
     await refund(c.orgId, PRICES.idea, "Чат: ошибка ответа").catch(() => {});
-    await save(c.orgId, c.userId, "assistant", `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`).catch(() => {});
+    // материал мог успеть создаться: показываем его, даже если ответ не сложился
+    const cards = made.length ? await keepCards(c.orgId, [{ t: "item", ids: made.slice(0, 3) }]) : [];
+    await save(c.orgId, c.userId, "assistant", made.length ? `${notes.join(". ")}. Ответ получился не до конца, но материал готов.` : `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`, cards.length ? { cards } : {}).catch(() => {});
     return { ok: true };
   }
 }
 
-/**
- * Карточки к ответу: те, что назвала модель (проверяются по базе), а по вызванным инструментам, которых модель не коснулась, добавляются
- * обычные (новости, аналитика, заводы…): пользователь видит сами данные, а не только пересказ.
- */
-async function finalCards(orgId: string, asked: CardRef[], got: Record<string, unknown>): Promise<CardRef[]> {
-  const have = new Set(asked.map((r) => r.t));
-  const out = [...asked];
-  const ids = (v: unknown, n: number) => (Array.isArray(v) ? v : []).map((x) => String((x as { id?: unknown })?.id ?? "")).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, n);
-  const add = (r: CardRef) => { if (!have.has(r.t) || r.t === "factory" || r.t === "brand") { out.push(r); have.add(r.t); } };
-  const news = (got.news as { top?: unknown } | undefined)?.top;
-  if (news && !have.has("news")) { const i = ids(news, 3); if (i.length) add({ t: "news", ids: i }); }
-  if (got.analytics) add({ t: "analytics", days: Number((got.analytics as { days?: number }).days) || 7 });
-  if (got.sources) add({ t: "sources" });
-  if (got.competitors) add({ t: "competitors" });
-  if (got.channels) add({ t: "channels" });
-  if (got.items && !have.has("item")) { const i = ids(got.items, 4); if (i.length) add({ t: "item", ids: i }); }
-  if (got.factories && !have.has("factory")) for (const id of ids(got.factories, 2)) out.push({ t: "factory", id });
-  if (got.brands && !have.has("brand")) for (const id of ids(got.brands, 2)) out.push({ t: "brand", id });
-  if (got.plan && !have.has("plan")) { const f = (got.plan as { factoryId?: string }).factoryId; if (f) add({ t: "plan", id: f }); }
-  // проверка: пустые и чужие карточки не сохраняем
+/** Оставляем только карточки с реальными данными: пустые и чужие не сохраняем. */
+async function keepCards(orgId: string, refs: CardRef[]): Promise<CardRef[]> {
   const keep: CardRef[] = [];
-  for (const r of out.slice(0, 7)) if ((await hydrateCards(orgId, [r])).length) keep.push(r);
-  return keep.slice(0, 6);
+  const seen = new Set<string>();
+  for (const r of refs.slice(0, 5)) {
+    const k = JSON.stringify(r); if (seen.has(k)) continue; seen.add(k);
+    if ((await hydrateCards(orgId, [r])).length) keep.push(r);
+  }
+  return keep;
 }
 
 /** Нажатие кнопки-действия: параметры берём из сохранённого сообщения, а не от браузера. */
