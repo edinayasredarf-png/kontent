@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, Circle, Eye, Flame, Send, Sparkles, Wallet2 } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { canWrite, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PLANS, fmtLimit } from "@/lib/plans";
 import { rub } from "@/lib/wallet";
@@ -70,7 +70,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <PageHead title={`Здравствуйте, ${c.user.name || "коллега"}`} sub={c.org.name} action={<Link href="/app/factories/new" className="btn btn-accent">Создать завод</Link>} />
+      <PageHead title={`Здравствуйте, ${c.user.name || "коллега"}`} sub={c.org.name} action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn btn-accent">Создать завод</Link> : undefined} />
       <div className="mb-4 flex gap-1 text-sm">{periods.map(([v, l]) => <Link key={v} href={`/app/overview?d=${v}`} className={`rounded-lg px-3 py-1.5 ${(days === 0 ? "all" : String(days)) === v ? "bg-tile font-medium" : "text-ink2 hover:bg-tile/60"}`}>{l}</Link>)}</div>
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map(({ l, v, i: I, s }) => (

@@ -77,7 +77,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
 
       {noSources ? (
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
-          action={<Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link>} />
+          action={write ? <Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link> : undefined} />
       ) : (<FeedToolbar filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />

@@ -1,5 +1,5 @@
 import { Rocket } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { PRICES, rub } from "@/lib/wallet";
 import { Form, Field } from "@/components/Form";
 import { LiaChat } from "@/components/LiaChat";
@@ -9,7 +9,7 @@ import { PageHead } from "@/components/ui";
 export const maxDuration = 90;
 
 export default async function Assistant() {
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   return (
     <>
       <PageHead title="Лия" sub="Помощница: отвечает на вопросы по платформе и запускает завод по описанию бизнеса." />

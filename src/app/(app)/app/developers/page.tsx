@@ -1,5 +1,5 @@
 import { KeyRound, Trash2 } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { listKeys, RATE_PER_MINUTE } from "@/lib/apikeys";
 import { canManageTeam } from "@/lib/team";
 import { createKeyAction, revokeKeyAction } from "@/lib/apikeys-actions";
@@ -23,7 +23,7 @@ const ENDPOINTS: [string, string, string][] = [
 ];
 
 export default async function Developers() {
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   const keys = await listKeys(c.org.id);
   const can = canManageTeam(c.org.role);
   return (

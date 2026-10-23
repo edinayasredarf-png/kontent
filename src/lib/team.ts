@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { one, q, tx } from "./db";
 import { PLANS, type PlanKey } from "./plans";
+import { can } from "./roles";
 
 export const ROLE_LABEL: Record<string, string> = { owner: "Владелец", admin: "Администратор", editor: "Редактор", viewer: "Наблюдатель" };
 export const ROLE_HINT: Record<string, string> = {
@@ -9,11 +10,11 @@ export const ROLE_HINT: Record<string, string> = {
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 type R = { ok: true; link?: string } | { ok: false; error: string };
 
-export const canManageTeam = (role: string) => role === "owner" || role === "admin";
+export const canManageTeam = (role: string) => can(role, "manage");
 
 export async function listTeam(orgId: string) {
   const members = await q<{ user_id: string; email: string; name: string; role: string }>(
-    `select m.user_id,u.email,u.name,m.role from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=$1 order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, u.email`, [orgId]);
+    `select m.user_id,u.email,u.name,m.role from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=$1 and u.email not like 'guest-%@guest.invalid' order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, u.email`, [orgId]);
   const invites = await q<{ id: string; email: string | null; role: string; expires_at: string }>(
     "select id,email,role,expires_at from kz_invites where org_id=$1 and accepted_at is null and expires_at > now() order by created_at desc", [orgId]);
   return { members, invites };
@@ -21,7 +22,7 @@ export async function listTeam(orgId: string) {
 
 async function seatsUsed(orgId: string): Promise<number> {
   const r = await one<{ n: string }>(
-    `select (select count(*) from kz_memberships where org_id=$1) + (select count(*) from kz_invites where org_id=$1 and accepted_at is null and expires_at > now()) n`, [orgId]);
+    `select (select count(*) from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=$1 and u.email not like 'guest-%@guest.invalid') + (select count(*) from kz_invites where org_id=$1 and accepted_at is null and expires_at > now()) n`, [orgId]);
   return Number(r!.n);
 }
 

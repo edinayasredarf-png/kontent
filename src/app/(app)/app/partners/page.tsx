@@ -1,11 +1,11 @@
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { newRefCode } from "@/lib/auth";
 import { ensureRefCode, referralStats } from "@/lib/account";
 import { headers } from "next/headers";
 import { PageHead } from "@/components/ui";
 
 export default async function Partners() {
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   const code = await ensureRefCode(c.user.id, newRefCode);
   const st = await referralStats(c.user.id);
   const h = await headers();

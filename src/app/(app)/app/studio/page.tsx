@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BarChart3, Bookmark, CalendarRange, FileText, Folder, Image as Img, Lightbulb, Mic, PenLine, Rocket, Wand2, Clapperboard, Layers } from "lucide-react";
 import { Heart } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { favoriteTools, toggleFavoriteAction } from "@/lib/studio-actions";
 import { TOOLS } from "@/lib/studio";
 import { TAGS } from "@/lib/studio-catalog";
@@ -15,7 +15,7 @@ const TAG_CLS: Record<string, string> = { Текст: "bg-accent-soft text-accen
 
 export default async function Studio({ searchParams }: { searchParams: Promise<{ tag?: string; fav?: string }> }) {
   const sp = await searchParams;
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   const favs = await favoriteTools(c.user.id);
   const tag = (TAGS as readonly string[]).includes(sp.tag ?? "") ? sp.tag! : "";
   const onlyFav = sp.fav === "1";

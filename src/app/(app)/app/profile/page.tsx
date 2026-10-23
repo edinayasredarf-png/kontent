@@ -1,4 +1,5 @@
 import { LogOut } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requireCtx } from "@/lib/auth";
 import { Form, Field } from "@/components/Form";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -11,6 +12,7 @@ import { one } from "@/lib/db";
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Profile() {
   const c = await requireCtx();
+  if (c.user.guest) redirect("/app/overview");
   const av = await one<{ source: string }>("select source from kz_user_avatars where user_id=$1", [c.user.id]).catch(() => null);
   return (
     <div className="mx-auto w-full max-w-3xl">

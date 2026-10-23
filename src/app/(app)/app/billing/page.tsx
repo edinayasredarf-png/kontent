@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PLANS, fmtLimit } from "@/lib/plans";
 import { rub } from "@/lib/wallet";
@@ -8,7 +8,7 @@ import { PageHead } from "@/components/ui";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Billing() {
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   const tx = await q<{ id: string; amount_kop: string; reason: string; created_at: string }>(
     "select id,amount_kop,reason,created_at from kz_wallet_tx where org_id=$1 order by created_at desc limit 30", [c.org.id]);
   const free = process.env.ALLOW_FREE_PLAN_SWITCH === "1";

@@ -24,8 +24,9 @@ const key = () => {
 };
 
 export interface Session { uid: string; org: string; v?: number }
+import { can } from "./roles";
 export interface Ctx {
-  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system"; avatarV: number | null };
+  user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system"; avatarV: number | null; guest: boolean };
   org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; unlimitedUntil: string | null; suspended: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
@@ -147,18 +148,38 @@ async function loadCtx(): Promise<Ctx> {
   // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
   // её бесплатной не делает. Пересчитываем при каждом запросе: убрали email из списка — безлимит снимется.
   if (row.unlimited !== row.want_unlimited) { await q("update kz_orgs set unlimited=$2 where id=$1", [s.org, row.want_unlimited]); row.unlimited = row.want_unlimited; }
+  // гость по ссылке — служебный наблюдатель; срок ссылки проверяем на каждом запросе, до миграции 030 таблицы ещё нет
+  let guest = false;
+  if (row.role === "viewer") {
+    const g = await one<{ expired: boolean }>("select (expires_at is not null and expires_at < now()) expired from kz_guest_links where user_id=$1", [s.uid]).catch(() => null);
+    if (g) { if (g.expired) redirect("/login"); guest = true; }
+  }
   const isAdmin = admins.includes(row.email.toLowerCase());
   // приостановленная организация недоступна её участникам; администратор платформы заходит всегда
   if (row.suspended && !isAdmin) redirect("/suspended");
   return {
-    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme, avatarV: av?.v ? Number(av.v) : null },
+    user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme, avatarV: av?.v ? Number(av.v) : null, guest },
     org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited || !!tu?.until, unlimitedUntil: tu?.until ?? null, suspended: row.suspended },
     orgs,
     isAdmin,
   };
 }
 
-export function canWrite(role: string) { return role !== "viewer"; }
+export function canWrite(role: string) { return can(role, "write"); }
+
+/** Подключения, команда, ключи, деньги: владелец и администратор. */
+export async function requireManager(): Promise<Ctx> {
+  const c = await requireCtx();
+  if (!can(c.org.role, "manage")) throw new Error("Недостаточно прав: это доступно владельцу и администратору");
+  return c;
+}
+
+/** Для страниц: если роли не хватает — вернуть человека в кабинет, а не показывать пустую форму. */
+export async function pageCtx(cap: "write" | "manage" | "owner"): Promise<Ctx> {
+  const c = await requireCtx();
+  if (!can(c.org.role, cap)) redirect(c.org.role === "viewer" ? "/app/overview" : "/app");
+  return c;
+}
 
 export async function requireWriter(): Promise<Ctx> {
   const c = await requireCtx();

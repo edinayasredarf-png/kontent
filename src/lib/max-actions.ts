@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { requireWriter } from "./auth";
+import { requireManager } from "./auth";
 import { requireAdmin, audit } from "./admin";
 import { q } from "./db";
 import { botConfigured, connectChat, linkStatus, newLink, subscribe, type MaxChatOpt } from "./max-bot";
@@ -10,20 +10,20 @@ const msg = (e: unknown) => ((e as Error).message || "Ошибка").slice(0, 30
 
 /** Шаг 2: выдаём одноразовый ключ (действует 30 минут) для выбранного бренда. */
 export async function maxStartLinkAction(brandId: string): Promise<R<{ code: string; expiresAt: string }>> {
-  const c = await requireWriter();
+  const c = await requireManager();
   if (!botConfigured()) return { ok: false, error: "Бот MAX пока не настроен на сервере" };
   try { return { ok: true, ...(await newLink(c.org.id, c.user.id, String(brandId))) }; } catch (e) { return { ok: false, error: msg(e) }; }
 }
 
 /** Опрос: бот уже получил ключ? Когда да — возвращаем каналы, где вы администратор, а бот добавлен. */
 export async function maxLinkStatusAction(code: string): Promise<R<{ status: "pending" | "linked" | "expired"; chats?: MaxChatOpt[]; diag?: string }>> {
-  const c = await requireWriter();
+  const c = await requireManager();
   try { return { ok: true, ...(await linkStatus(c.org.id, c.user.id, String(code))) }; } catch (e) { return { ok: false, error: msg(e) }; }
 }
 
 /** Шаг 3: подключить выбранный канал. Если окно открыто из настроек завода, канал сразу включается в публикацию этого завода. */
 export async function maxConnectChatAction(code: string, chatId: string, factoryId?: string): Promise<R<{ title: string }>> {
-  const c = await requireWriter();
+  const c = await requireManager();
   try {
     const r = await connectChat(c.org.id, c.user.id, String(code), String(chatId));
     if (!r.ok) return r;

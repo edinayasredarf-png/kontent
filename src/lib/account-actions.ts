@@ -7,7 +7,8 @@ import { cookies } from "next/headers";
 import { q } from "./db";
 import { changeEmail, changePassword, updateName } from "./account";
 import { setTheme } from "./account";
-import { acceptInvite, createInvite, removeMember, revokeInvite, setRole } from "./team";
+import { createGuestLink, revokeGuestLink } from "./guest";
+import { acceptInvite, canManageTeam, createInvite, removeMember, revokeInvite, setRole } from "./team";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 
@@ -21,6 +22,7 @@ async function origin() {
 
 export async function updateNameAction(_: unknown, f: FormData) {
   const c = await requireCtx();
+  if (c.user.guest) return { error: "Гостевой доступ нельзя менять: он только для просмотра" };
   const r = await updateName(c.user.id, s(f, "name"));
   if (!r.ok) return { error: r.error };
   revalidatePath("/app", "layout");
@@ -29,6 +31,7 @@ export async function updateNameAction(_: unknown, f: FormData) {
 
 export async function changeEmailAction(_: unknown, f: FormData) {
   const c = await requireCtx();
+  if (c.user.guest) return { error: "Гостевой доступ нельзя менять: он только для просмотра" };
   const r = await changeEmail(c.user.id, s(f, "email"), s(f, "password"));
   if (!r.ok) return { error: r.error };
   revalidatePath("/app", "layout");
@@ -37,6 +40,7 @@ export async function changeEmailAction(_: unknown, f: FormData) {
 
 export async function changePasswordAction(_: unknown, f: FormData) {
   const c = await requireCtx();
+  if (c.user.guest) return { error: "Гостевой доступ нельзя менять: он только для просмотра" };
   const r = await changePassword(c.user.id, s(f, "current"), s(f, "next"), s(f, "confirm"));
   if (!r.ok) return { error: r.error };
   // все прежние сессии аннулированы — текущему устройству выдаём новую, чтобы не выкидывать пользователя
@@ -46,6 +50,7 @@ export async function changePasswordAction(_: unknown, f: FormData) {
 
 export async function logoutEverywhereAction() {
   const c = await requireCtx();
+  if (c.user.guest) { await logout(); redirect("/login"); }
   await q("update kz_users set session_ver=session_ver+1 where id=$1", [c.user.id]);
   await logout();
   redirect("/login");
@@ -81,6 +86,7 @@ export async function removeMemberAction(f: FormData) {
 
 export async function acceptInviteAction(f: FormData) {
   const c = await requireCtx();
+  if (c.user.guest) redirect(`/invite/${encodeURIComponent(s(f, "token"))}?err=${encodeURIComponent("Гостевой доступ нельзя использовать для принятия приглашения: войдите под своим аккаунтом")}`);
   const r = await acceptInvite(s(f, "token"), { id: c.user.id, email: c.user.email });
   if (!r.ok) redirect(`/invite/${encodeURIComponent(s(f, "token"))}?err=${encodeURIComponent(r.error)}`);
   (await cookies()).set(await sessionCookie({ uid: c.user.id, org: r.orgId }));
@@ -95,4 +101,20 @@ export async function setThemeAction(theme: string) {
   (await cookies()).set("lt_theme", theme, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
   revalidatePath("/app", "layout");
   return {};
+}
+
+export async function createGuestLinkAction(_: unknown, f: FormData) {
+  const c = await requireCtx();
+  if (!canManageTeam(c.org.role)) return { error: "Гостевые ссылки создают владелец и администратор" };
+  const r = await createGuestLink(c.org.id, c.user.id, s(f, "label"), s(f, "expiry"), await origin());
+  if (!r.ok) return { error: r.error };
+  revalidatePath("/app/team");
+  return { ok: `Ссылка для просмотра без регистрации (покажется один раз, скопируйте сейчас): ${r.link}` };
+}
+
+export async function revokeGuestLinkAction(f: FormData) {
+  const c = await requireCtx();
+  if (!canManageTeam(c.org.role)) return;
+  await revokeGuestLink(c.org.id, s(f, "id"));
+  revalidatePath("/app/team");
 }

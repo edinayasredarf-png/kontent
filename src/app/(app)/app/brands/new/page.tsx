@@ -1,3 +1,4 @@
+import { pageCtx } from "@/lib/auth";
 import { Form, Field } from "@/components/Form";
 import { saveBrand } from "@/lib/actions";
 import { PageHead } from "@/components/ui";
@@ -6,7 +7,8 @@ import { NICHES } from "@/lib/niches";
 
 const PRESETS = Object.entries(NICHES).map(([key, n]) => ({ key, name: n.name, values: { description: n.brand.description, audience: n.brand.audience, tone: n.brand.tone, forbidden: n.brand.forbidden } }));
 
-export default function NewBrand() {
+export default async function NewBrand() {
+  await pageCtx("write");
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PageHead title="Новый бренд" sub="Чем точнее профиль, тем меньше правок после генерации." />

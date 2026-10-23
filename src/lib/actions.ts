@@ -12,6 +12,7 @@ import { AI_TASKS, saveRoute, type AiTask } from "./ai";
 import { buildImage, buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
 import { cleanKit, describeImage } from "./images";
 import { loadAsset } from "./assets";
+import { can as canManage0 } from "./roles";
 import { cleanHtml, slugify } from "./seo";
 import { open, seal } from "./crypto";
 import { NICHES } from "./niches";
@@ -19,6 +20,13 @@ import { cleanSettings } from "./postsettings";
 import { providerFor } from "./publishing";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+
+/** Подключение и удаление каналов (токены, пароли): владелец и администратор. */
+async function manager(): Promise<Ctx> {
+  const c = await requireCtx();
+  if (!canManage0(c.org.role, "manage")) throw new Error("Недостаточно прав: каналы подключают владелец и администратор");
+  return c;
+}
 
 async function writer(): Promise<Ctx> {
   const c = await requireCtx();
@@ -235,7 +243,7 @@ function channelCred(f: FormData): { kind: string; cred: Record<string, string> 
 
 /** Проверка введённых данных без сохранения: токен рабочий, бот — админ канала, сообщество существует. */
 export async function checkChannelAction(f: FormData): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  await writer();
+  await manager();
   const { kind, cred } = channelCred(f);
   const prov = providerFor(kind);
   if (!prov) return { ok: false, error: "Этот тип канала пока не поддерживается" };
@@ -246,7 +254,7 @@ export async function checkChannelAction(f: FormData): Promise<{ ok: true; name:
 
 /** Повторная проверка уже подключённого канала: не отозван ли токен, не убрали ли бота из администраторов. */
 export async function checkSavedChannelAction(id: string): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  const c = await writer();
+  const c = await manager();
   const r = await one<{ kind: string; credentials: unknown }>("select kind,credentials from kz_channels where id=$1 and org_id=$2", [String(id), c.org.id]);
   if (!r) return { ok: false, error: "Канал не найден" };
   const prov = providerFor(r.kind);
@@ -255,7 +263,7 @@ export async function checkSavedChannelAction(id: string): Promise<{ ok: true; n
 }
 
 export async function saveChannel(_: unknown, f: FormData) {
-  const c = await writer();
+  const c = await manager();
   if (!(await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]))) return { error: "Выберите бренд" };
   const { kind, cred } = channelCred(f);
   const prov = providerFor(kind);
@@ -275,7 +283,7 @@ export async function saveChannel(_: unknown, f: FormData) {
 }
 /** Подсказка для подключения MAX: каналы и чаты, о которых боту приходили события. Токен вводится в форме, в базе не сохраняется. */
 export async function discoverMaxAction(token: string): Promise<{ ok: true; chats: { id: string; title: string; channel: boolean }[] } | { ok: false; error: string }> {
-  await writer();
+  await manager();
   const t = String(token ?? "").trim();
   if (t.length < 10) return { ok: false, error: "Сначала вставьте токен бота" };
   try {
@@ -292,7 +300,7 @@ export async function saveSignatureAction(f: FormData) {
 }
 
 export async function deleteChannel(f: FormData) {
-  const c = await writer();
+  const c = await manager();
   await q("delete from kz_channels where id=$1 and org_id=$2", [s(f, "id"), c.org.id]);
   revalidatePath("/app/channels");
 }

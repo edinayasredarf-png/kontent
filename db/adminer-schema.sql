@@ -768,5 +768,22 @@ update kz_wallet_tx w set bonus_part = least(b.b, greatest(0, t.cum)) - least(b.
 alter table kz_expenses drop constraint if exists kz_expenses_recurring_check;
 alter table kz_expenses add constraint kz_expenses_recurring_check check (recurring in ('once','weekly','monthly','quarterly','yearly')) not valid;
 
+-- 030_guest_links.sql
+-- Гостевые ссылки: просмотр кабинета без регистрации. За каждой ссылкой стоит служебный пользователь с ролью «наблюдатель»,
+-- поэтому все ограничения для этой роли работают без отдельного кода. Удаление ссылки удаляет и служебного пользователя.
+create table if not exists kz_guest_links (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  user_id uuid not null references kz_users(id) on delete cascade,
+  label text not null default '',
+  token_hash text not null unique,
+  expires_at timestamptz,
+  created_by uuid references kz_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+create index if not exists kz_guest_links_org on kz_guest_links(org_id);
+create index if not exists kz_guest_links_user on kz_guest_links(user_id);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql') on conflict do nothing;

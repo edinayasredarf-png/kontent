@@ -1,9 +1,11 @@
 import { Trash2, X } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
+import { can, ROLE_MATRIX } from "@/lib/roles";
+import { EXPIRY, listGuestLinks } from "@/lib/guest";
 import { PLANS, fmtLimit } from "@/lib/plans";
 import { canManageTeam, listTeam, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
-import { inviteAction, removeMemberAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
+import { createGuestLinkAction, inviteAction, removeMemberAction, revokeGuestLinkAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
 import { PageHead } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { q } from "@/lib/db";
@@ -11,8 +13,8 @@ import { ModalButton } from "@/components/ui/ModalButton";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Team() {
-  const c = await requireCtx();
-  const { members, invites } = await listTeam(c.org.id);
+  const c = await pageCtx("write");
+  const [{ members, invites }, guests] = await Promise.all([listTeam(c.org.id), listGuestLinks(c.org.id)]);
   const avs = new Map((await q<{ user_id: string; v: string }>("select user_id, extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id = any($1::uuid[])", [members.map((m) => m.user_id)]).catch(() => [])).map((r) => [r.user_id, Number(r.v)]));
   const manage = canManageTeam(c.org.role);
   const lim = c.org.unlimited ? null : PLANS[c.org.plan].members;
@@ -59,6 +61,43 @@ export default async function Team() {
           ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
           </ModalButton>
         </div>
+        {manage && (
+          <section className="mt-8">
+            <h3 className="mb-1 text-base font-semibold">Гостевые ссылки</h3>
+            <p className="mb-3 text-sm text-ink2">Для тех, кому нужно только посмотреть: клиент, инвестор, коллега. По ссылке открывается кабинет без регистрации и пароля. Изменять, создавать, публиковать и тратить деньги гость не может, баланс, команду и настройки он не видит.</p>
+            <div className="card">
+              {guests.length === 0 && <p className="px-5 py-4 text-sm text-ink3">Ссылок пока нет.</p>}
+              {guests.map((g) => (
+                <div key={g.id} className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 last:border-0">
+                  <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{g.label || "Гость"}</div>
+                    <div className="text-xs text-ink3">{g.last_used_at ? `открывали ${new Date(g.last_used_at).toLocaleDateString("ru-RU")}` : "ещё не открывали"}</div></div>
+                  <span className="text-xs text-ink3">{g.expires_at ? `до ${new Date(g.expires_at).toLocaleDateString("ru-RU")}` : "без срока"}</span>
+                  <form action={revokeGuestLinkAction}><input type="hidden" name="id" value={g.id} /><SubmitButton data-confirm="Отозвать ссылку? Гость сразу потеряет доступ." data-confirm-ok="Отозвать" className="text-ink3 hover:text-bad" aria-label="Отозвать ссылку"><Trash2 size={15} /></SubmitButton></form>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-center">
+              <ModalButton label="Гостевая ссылка" title="Ссылка для просмотра без регистрации">
+                <Form action={createGuestLinkAction} submit="Создать ссылку">
+                  <Field label="Кому (для себя)"><input name="label" className="input" maxLength={60} placeholder="Например: клиент Иванов" /></Field>
+                  <Field label="Срок действия"><select name="expiry" className="input" defaultValue="30">{Object.entries(EXPIRY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+                  <p className="text-xs text-ink3">Ссылка показывается один раз. Если откроете её сами в этом же браузере, она заменит вашу сессию: проверяйте в режиме инкогнито.</p>
+                </Form>
+              </ModalButton>
+            </div>
+          </section>
+        )}
+        <section className="mt-8">
+          <h3 className="mb-3 text-base font-semibold">Кто что может</h3>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-ink3"><th className="px-5 py-3 font-normal">Действие</th>{["viewer", "editor", "admin", "owner"].map((r) => <th key={r} className="px-2 py-3 text-center font-normal">{ROLE_LABEL[r]}</th>)}</tr></thead>
+              <tbody>{ROLE_MATRIX.map((r) => (
+                <tr key={r.what} className="border-t border-line"><td className="px-5 py-2.5">{r.what}</td>
+                  {["viewer", "editor", "admin", "owner"].map((role) => <td key={role} className="px-2 py-2.5 text-center">{can(role, r.cap) ? <span className="text-good">✓</span> : <span className="text-ink3">—</span>}</td>)}</tr>))}</tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </>
   );

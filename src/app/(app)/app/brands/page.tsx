@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Building2, Plus } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PageHead, Empty } from "@/components/ui";
 
@@ -8,7 +8,7 @@ export default async function Brands() {
   const c = await requireCtx();
   const rows = await q<{ id: string; name: string; description: string; tone: string; factories: string }>(
     `select b.id,b.name,b.description,b.tone,(select count(*) from kz_factories f where f.brand_id=b.id) factories from kz_brands b where b.org_id=$1 order by b.created_at`, [c.org.id]);
-  const add = <Link href="/app/brands/new" className="pill"><Plus size={16} />Добавить бренд</Link>;
+  const add = !canWrite(c.org.role) ? null : <Link href="/app/brands/new" className="pill"><Plus size={16} />Добавить бренд</Link>;
   return (
     <>
       <PageHead title="Бренды" sub="Компании, для которых вы делаете контент. У каждой — свой тон, правила и каналы." />

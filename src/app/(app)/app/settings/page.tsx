@@ -27,6 +27,15 @@ export default async function Settings() {
       { href: "/app/developers", title: "API и интеграции", text: "Ключи доступа, webhook, подключение из других сервисов", icon: Plug },
     ] },
   ];
+  // что видит каждая роль: наблюдатель — почти ничего, редактор — без команды и ключей
+  const hide: Record<string, string[]> = {
+    viewer: ["/app/channels", "/app/billing", "/app/team", "/app/partners", "/app/assistant", "/app/developers", "/app/monitor/settings", "/app/brands"],
+    editor: ["/app/developers"],
+  };
+  const hidden = c.user.guest ? [...(hide.viewer ?? []), "/app/profile"] : hide[c.org.role] ?? [];
+  for (const g of groups) g.rows = g.rows.filter((r) => !hidden.includes(r.href));
+  const shown = groups.filter((g) => g.rows.length > 0);
+  groups.length = 0; groups.push(...shown);
   if (c.isAdmin) groups.push({ title: "Администрирование", rows: [
     { href: "/app/admin", title: "Администрирование платформы", text: "Организации, пользователи, журнал", icon: ShieldCheck },
     { href: "/app/settings/ai", title: "Настройки ИИ", text: "Какая нейросеть какую задачу выполняет", icon: Cpu },

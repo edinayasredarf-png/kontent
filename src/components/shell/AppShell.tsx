@@ -8,6 +8,8 @@ import { Logo } from "../Logo";
 import { Search } from "./Search";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV } from "./nav";
+import { RoleProvider, READONLY_HINT } from "./RoleContext";
+import { Eye } from "lucide-react";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 import { SubmitButton } from "../SubmitButton";
 import { Avatar } from "../Avatar";
@@ -16,7 +18,7 @@ import { sweepDrafts } from "@/lib/draft-store";
 
 export interface ShellProps {
   orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
-  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; children: React.ReactNode;
+  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; role: string; guest: boolean; children: React.ReactNode;
 }
 
 
@@ -29,6 +31,31 @@ export function AppShell(p: ShellProps) {
   useEffect(() => { setDrawer(false); }, [path]);
   const toggle = () => setCollapsed((c) => { try { document.cookie = `lt_nav=${c ? "0" : "1"}; path=/; max-age=31536000; samesite=lax`; } catch { /* ок */ } return !c; });
   const slim = collapsed && !drawer;
+  const viewer = p.role === "viewer";
+  // наблюдателю нет ассистента, ИИ-инструментов и подключений: вместо чата — сводка
+  const nav = viewer ? NAV.filter((n) => !["/app/studio", "/app/channels"].includes(n.href)).map((n) => (n.href === "/app" ? { ...n, href: "/app/overview", label: "Сводка", exact: false } : n)) : NAV;
+  // запасная защита: даже если какая-то форма не знает про роль, отправка из режима просмотра не уйдёт на сервер
+  useEffect(() => {
+    if (!viewer) return;
+    const stop = (e: Event) => {
+      const f = e.target as HTMLFormElement;
+      if (f?.tagName !== "FORM" || (f.getAttribute("method") ?? "").toLowerCase() === "get" || f.hasAttribute("data-allow-readonly")) return;
+      e.preventDefault(); e.stopPropagation(); alert(READONLY_HINT);
+    };
+    document.addEventListener("submit", stop, true);
+    // кнопки действий, которые вызывают сервер напрямую (ИИ-панели, редакторы): блокируем и подсказываем причину
+    const SEL = "main button.btn-accent, main button.btn-ghost, main button[type=submit]";
+    const sweep = () => document.querySelectorAll<HTMLButtonElement>(SEL).forEach((b) => {
+      if (b.dataset.roChecked || b.closest("[data-allow-readonly]") || b.closest("[role=dialog] [data-close]")) return;
+      b.dataset.roChecked = "1";
+      if ((b.form?.getAttribute("method") ?? "").toLowerCase() === "get") return;
+      b.disabled = true; b.title = READONLY_HINT; b.setAttribute("aria-disabled", "true");
+    });
+    sweep();
+    const mo = new MutationObserver(sweep);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => { document.removeEventListener("submit", stop, true); mo.disconnect(); };
+  }, [viewer]);
   const title = path === "/app" ? "Чат" : "";
 
   const sidebar = (
@@ -39,12 +66,12 @@ export function AppShell(p: ShellProps) {
         {slim ? <PanelBtn onClick={toggle} label="Развернуть меню" /> : <><Logo h={44} /><span className="hidden md:block"><PanelBtn onClick={toggle} label="Свернуть меню" /></span><button type="button" onClick={() => setDrawer(false)} aria-label="Закрыть меню" className="md:hidden"><X size={20} /></button></>}
       </div>
       {!slim && p.orgs.length > 1 && (
-        <form action={switchOrgAction} className="px-6 pt-4">
+        <form action={switchOrgAction} data-allow-readonly className="px-6 pt-4">
           <select name="org" defaultValue={p.orgId} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="input !rounded-full !py-2">{p.orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
         </form>
       )}
       <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 py-6">
-        {NAV.map(({ href, label, icon: Icon, ...rest }) => {
+        {nav.map(({ href, label, icon: Icon, ...rest }) => {
           const on = "exact" in rest && rest.exact ? path === href : path.startsWith(href);
           const pro = "pro" in rest && rest.pro && p.free;
           return (
@@ -68,19 +95,20 @@ export function AppShell(p: ShellProps) {
           <Link href="/app/billing" className="mt-4 block rounded-full bg-white/15 py-2.5 text-sm font-semibold hover:bg-white/25">Подключить тариф</Link>
         </div>
       )}
-      <form action={logoutAction} className={clsx("mb-5 shrink-0", slim ? "px-3" : "px-6")}>
+      <form action={logoutAction} data-allow-readonly className={clsx("mb-5 shrink-0", slim ? "px-3" : "px-6")}>
         <div className={clsx("flex items-center rounded-[30px] bg-surface p-3 shadow-soft", slim ? "justify-center" : "justify-between")}>
-          <Link href="/app/profile" title="Профиль и безопасность" className="flex min-w-0 items-center gap-3">
+          <Link href={p.guest ? "/app/overview" : "/app/profile"} title={p.guest ? "Гостевой доступ" : "Профиль и безопасность"} className="flex min-w-0 items-center gap-3">
             <Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-8" />
             {!slim && <span className="truncate text-sm font-semibold">{p.userName || p.email}</span>}
           </Link>
-          {!slim && <SubmitButton title="Выйти" aria-label="Выйти" className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-ink hover:bg-accent-soft"><LogOut size={14} /></SubmitButton>}
+          {!slim && <SubmitButton allowReadOnly title="Выйти" aria-label="Выйти" className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-ink hover:bg-accent-soft"><LogOut size={14} /></SubmitButton>}
         </div>
       </form>
     </aside>
   );
 
   return (
+    <RoleProvider value={{ role: p.role, guest: p.guest }}>
     <div className="min-h-screen">
       <Suspense fallback={null}><ScrollKeeper /></Suspense>
       {sidebar}
@@ -93,15 +121,17 @@ export function AppShell(p: ShellProps) {
             <Search />
             <Link href="/app/overview" aria-label="Что требует внимания" title="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} />{p.alerts > 0 && <span className="absolute right-1.5 top-1.5 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white">{p.alerts > 9 ? "9+" : p.alerts}</span>}</Link>
             <ThemeToggle />
-            <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>
+            {!viewer && <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>}
             <Link href="/app/settings" aria-label="Настройки" title="Настройки" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Settings size={20} /></Link>
-            <Link href="/app/profile" aria-label="Профиль" title={p.planName} className="rounded-full"><Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" /></Link>
+            <Link href={p.guest ? "/app/overview" : "/app/profile"} aria-label="Профиль" title={p.planName} className="rounded-full"><Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" /></Link>
           </div>
         </header>
         {/* область начинается ровно у правого края меню (20 px поле + 88 или 320 px), поэтому расстояния от меню и от края окна до колонки равны */}
+        {viewer && <div className="px-5 md:px-10"><div className="mx-auto flex max-w-[1280px] items-center gap-2 rounded-2xl bg-accent-soft px-4 py-2.5 text-sm text-ink"><Eye size={16} className="shrink-0 text-accent" /><span>{p.guest ? "Гостевой доступ: можно смотреть, изменять нельзя." : "Режим просмотра: ваша роль «Наблюдатель», изменять данные нельзя."}</span></div></div>}
         <main className="px-5 pb-10 pt-4 md:px-10"><div className="mx-auto max-w-[1280px]">{p.children}</div></main>
       </div>
     </div>
+    </RoleProvider>
   );
 }
 

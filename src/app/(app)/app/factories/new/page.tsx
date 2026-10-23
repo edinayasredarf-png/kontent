@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireCtx } from "@/lib/auth";
+import { pageCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { Form, Field } from "@/components/Form";
 import { saveFactory } from "@/lib/actions";
@@ -12,7 +12,7 @@ const PRESETS = Object.entries(NICHES).map(([key, n]) => ({ key, name: n.name, v
 const DAYS = [["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", "Пт"], ["6", "Сб"], ["0", "Вс"]];
 
 export default async function NewFactory() {
-  const c = await requireCtx();
+  const c = await pageCtx("write");
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
   if (!brands.length) return (
     <div className="mx-auto w-full max-w-3xl"><PageHead title="Новый завод" /><div className="card p-6 text-sm">Сначала создайте бренд. <Link className="text-accent-ink" href="/app/brands/new">Добавить бренд →</Link></div></div>

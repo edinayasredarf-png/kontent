@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Factory, Plus } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PageHead, Empty } from "@/components/ui";
 
@@ -11,7 +11,7 @@ export default async function Factories() {
             (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='idea') ideas,
             (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='ready') ready
        from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 order by f.created_at desc`, [c.org.id]);
-  const add = <Link href="/app/factories/new" className="pill"><Plus size={16} />Создать завод</Link>;
+  const add = !canWrite(c.org.role) ? null : <Link href="/app/factories/new" className="pill"><Plus size={16} />Создать завод</Link>;
   return (
     <>
       <PageHead title="Заводы" sub="Завод — автоматический конвейер: идеи → текст → публикация." />
