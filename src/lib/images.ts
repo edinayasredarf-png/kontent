@@ -114,7 +114,9 @@ function fromDataUri(s: string): Buffer | null {
   return m ? Buffer.from(m[1].replace(/\s/g, ""), "base64") : null;
 }
 
-interface ImgResp { data?: { b64_json?: string; url?: string }[]; error?: { message?: string } | string }
+interface ImgResp { data?: { b64_json?: string; url?: string }[]; error?: { message?: string } | string; usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }
+/** Токены ответа шлюза (модели вроде gpt-image тарифицируются токенами, а не картинками). */
+const tokensOf = (u?: ImgResp["usage"]) => ({ tokensIn: u?.input_tokens ?? u?.prompt_tokens ?? 0, tokensOut: u?.output_tokens ?? u?.completion_tokens ?? 0 });
 
 async function toBuffer(item?: { b64_json?: string; url?: string }): Promise<Buffer | null> {
   if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
@@ -150,7 +152,7 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES):
     let j: ImgResp = {}; try { j = JSON.parse(text); } catch { /* не JSON */ }
     if (res.ok) {
       const buf = await toBuffer(j.data?.[0]);
-      if (buf?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return buf; }
+      if (buf?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1, ...tokensOf(j.usage) }); return buf; }
       lastErr = "модель вернула пустой результат";
       break;
     }
@@ -198,7 +200,7 @@ export async function editImage(src: Buffer, mime: string, instruction: string, 
     if (res.ok) {
       const j = (await res.json().catch(() => ({}))) as ImgResp;
       const b = await toBuffer(j.data?.[0]);
-      if (b?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return { data: b, how: "edit" }; }
+      if (b?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1, ...tokensOf(j.usage) }); return { data: b, how: "edit" }; }
       lastErr = "пустой ответ";
     } else {
       lastErr = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 160)}`;

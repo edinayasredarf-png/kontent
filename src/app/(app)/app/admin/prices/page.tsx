@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/admin";
 import { econByAction, listModelPrices, PRICE_LABELS } from "@/lib/admin-econ";
-import { deleteModelPriceAction, resetPricesAction, saveModelPriceAction, savePricesAction } from "@/lib/admin-econ-actions";
+import { deleteModelPriceAction, importLogsAction, pullGatewayModelsAction, resetPricesAction, saveModelPriceAction, savePricesAction } from "@/lib/admin-econ-actions";
 import { bounds, parseRange } from "@/lib/range";
 import { DEFAULT_PRICES, ensurePrices, PRICES, type PriceKey } from "@/lib/wallet";
 import { ActionTable } from "@/components/AdminActionTable";
@@ -50,6 +50,14 @@ export default async function Prices() {
       <section className="card mb-6 p-5">
         <b className="mb-1 block text-sm">Себестоимость моделей (прайс AI Gateway Timeweb)</b>
         <p className="mb-4 text-xs text-ink2">Впишите, сколько нам стоит модель по прайсу Timeweb: рубли за 1 млн входных и выходных токенов, за картинку или за вызов. По этому прайсу считаются «Затраты» во всех отчётах, и при сохранении уже записанные вызовы модели пересчитываются. Для озвучки «токены» — знаки текста.</p>
+        <div className="mb-5 grid gap-3 rounded-2xl bg-tile p-4 lg:grid-cols-2">
+          <div><b className="mb-1 block text-xs font-semibold text-ink2">Подтянуть модели из шлюза</b>
+            <p className="mb-2 text-xs text-ink2">Читает список моделей вашего AI Gateway и добавляет их в прайс. Цены подставляются из прайса Timeweb (кабинет, 23.10.2026), если название однозначное; уже заполненные модели не трогаются.</p>
+            <Form action={pullGatewayModelsAction} submit="Подтянуть модели из шлюза" variant="ghost"><span className="sr-only">Без параметров</span></Form></div>
+          <div><b className="mb-1 block text-xs font-semibold text-ink2">Загрузить логи Timeweb (CSV)</b>
+            <p className="mb-2 text-xs text-ink2">Кабинет → Cloud AI → Gateway → логи → выгрузка. Для моделей без цены ставки берутся из фактических списаний, плюс сверка: сколько списал Timeweb и сколько посчитали мы.</p>
+            <Form action={importLogsAction} submit="Загрузить логи" variant="ghost"><input type="file" name="file" accept=".csv,text/csv" required className="block w-full text-xs file:mr-3 file:rounded-full file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-xs file:font-semibold" /></Form></div>
+        </div>
         {missing.length > 0 && (
           <div className="mb-5 rounded-2xl bg-warn-soft p-3"><b className="mb-2 block text-xs text-warn">Эти модели уже вызывались, но цены у них нет (затраты считаются как 0):</b>
             <div className="space-y-2">{missing.map((m) => <div key={m.model}>{modelForm({ model: m.model, inM: "", outM: "", image: "", call: "" }, true)}<span className="text-[11px] text-ink3">вызовов: {Number(m.calls).toLocaleString("ru-RU")}</span></div>)}</div></div>
