@@ -90,3 +90,16 @@ assert.ok(p.aiCost >= 6000 && p.lostRefunded >= 2000 && p.lostFree >= 3000);
     assert.ok(Math.abs(sum - p.profit) < 1, "по дням в сумме те же деньги");
   });
 });
+
+describe("сравнение с прошлым периодом", () => {
+  it("предыдущий период той же длины заканчивается перед началом выбранного; для «всё время» его нет", async () => {
+    const { prevRange } = await import("../src/lib/admin-econ");
+    const msk = (d: string) => new Date(`${d}T00:00:00+03:00`).toISOString();
+    const p = await prevRange({ from: msk("2026-10-17"), to: msk("2026-10-24") }); // неделя 17–23 октября
+    assert.deepEqual([p!.from, p!.to], ["2026-10-10", "2026-10-16"]);
+    assert.equal(p!.range.from, msk("2026-10-10")); assert.equal(p!.range.to, msk("2026-10-17"));
+    const day = await prevRange({ from: msk("2026-10-23"), to: msk("2026-10-24") });
+    assert.deepEqual([day!.from, day!.to], ["2026-10-22", "2026-10-22"], "для одного дня — предыдущий день");
+    assert.equal(await prevRange({ from: null, to: null }), null);
+  });
+});

@@ -223,3 +223,12 @@ export async function econByDay(r: Range): Promise<{ rows: DayRow[]; cut: boolea
   }
   return { rows, cut: from < lim };
 }
+
+/** Предыдущий период той же длины, который заканчивается перед началом выбранного (для «Всё время» сравнения нет). */
+export async function prevRange(r: Range): Promise<{ range: Range; from: string; to: string } | null> {
+  if (!r.from) return null;
+  const { from, to } = await periodDays(r);
+  const n = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  const pf = addDays(from, -n), pt = addDays(from, -1);
+  return { range: { from: new Date(`${pf}T00:00:00+03:00`).toISOString(), to: new Date(`${from}T00:00:00+03:00`).toISOString() }, from: pf, to: pt };
+}
