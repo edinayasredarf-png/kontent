@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
 import { q } from "./db";
 import { changeEmail, changePassword, updateName } from "./account";
 import { setTheme } from "./account";
+import { mailConfigured, mailLayout, sendMail } from "./mail";
+import { ROLE_LABEL } from "./team";
 import { createGuestLink, revokeGuestLink } from "./guest";
 import { acceptInvite, canManageTeam, createInvite, removeMember, revokeInvite, setRole } from "./team";
 
@@ -18,6 +20,17 @@ async function origin() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   return `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+}
+
+/** Отправляет письмо со ссылкой и возвращает пояснение для экрана; ошибка почты не отменяет созданную ссылку. */
+async function sendLinkMail(to: string, subject: string, body: string, label: string, url: string): Promise<string> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return "Email указан неверно, письмо не отправлено. Передайте ссылку сами";
+  if (!mailConfigured()) return `Почта на сервере не настроена (SMTP), письмо на ${to} не ушло. Передайте ссылку сами`;
+  try {
+    const m = mailLayout(subject, body, { label, url });
+    await sendMail({ to, subject, text: m.text, html: m.html });
+    return `Письмо со ссылкой отправлено на ${to}. Ссылка также здесь`;
+  } catch (e) { return `Не удалось отправить письмо на ${to} (${(e as Error).message.slice(0, 80)}). Передайте ссылку сами`; }
 }
 
 export async function updateNameAction(_: unknown, f: FormData) {
@@ -61,7 +74,9 @@ export async function inviteAction(_: unknown, f: FormData) {
   const r = await createInvite({ orgId: c.org.id, plan: c.org.plan, unlimited: c.org.unlimited, actorId: c.user.id, actorRole: c.org.role, email: s(f, "email"), role: s(f, "role"), origin: await origin() });
   if (!r.ok) return { error: r.error };
   revalidatePath("/app/team");
-  return { ok: `Ссылка-приглашение (действует 7 дней, одноразовая): ${r.link}` };
+  const to = s(f, "email").trim().toLowerCase();
+  const sent = to ? await sendLinkMail(to, `Приглашение в «${c.org.name}»`, `${c.user.name || c.user.email} приглашает вас в команду «${c.org.name}» на juicer.ai.\nРоль: ${ROLE_LABEL[s(f, "role")] ?? s(f, "role")}.\nСсылка действует 7 дней и открывается один раз.`, "Принять приглашение", r.link!) : "";
+  return { ok: `${sent || "Ссылка-приглашение (действует 7 дней, одноразовая)"}: ${r.link}` };
 }
 
 export async function revokeInviteAction(f: FormData) {
@@ -109,7 +124,9 @@ export async function createGuestLinkAction(_: unknown, f: FormData) {
   const r = await createGuestLink(c.org.id, c.user.id, s(f, "label"), s(f, "expiry"), await origin());
   if (!r.ok) return { error: r.error };
   revalidatePath("/app/team");
-  return { ok: `Ссылка для просмотра без регистрации (покажется один раз, скопируйте сейчас): ${r.link}` };
+  const to = s(f, "email").trim().toLowerCase();
+  const sent = to ? await sendLinkMail(to, `Доступ для просмотра: «${c.org.name}»`, `${c.user.name || c.user.email} открыл вам доступ для просмотра материалов «${c.org.name}» на juicer.ai.\nРегистрация не нужна: изменять данные нельзя, только смотреть.`, "Открыть кабинет", r.link!) : "";
+  return { ok: `${sent || "Ссылка для просмотра без регистрации (покажется один раз, скопируйте сейчас)"}: ${r.link}` };
 }
 
 export async function revokeGuestLinkAction(f: FormData) {

@@ -56,7 +56,7 @@ export default async function Team() {
             <Form action={inviteAction} submit="Создать ссылку">
               <Field label="Email (необязательно)"><input name="email" type="email" className="input" placeholder="colleague@company.ru" /></Field>
               <Field label="Роль"><select name="role" className="input" defaultValue="editor">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_HINT[r]}</option>)}</select></Field>
-              <p className="text-xs text-ink3">Письмо не отправляется — скопируйте ссылку и передайте человеку. Если указан email, принять приглашение сможет только его владелец.</p>
+              <p className="text-xs text-ink3">Если указан email, ему уйдёт письмо со ссылкой (если почта на сервере настроена; ссылка всё равно покажется здесь). Принять приглашение сможет только его владелец.</p>
             </Form>
           ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
           </ModalButton>
@@ -80,6 +80,7 @@ export default async function Team() {
               <ModalButton label="Гостевая ссылка" title="Ссылка для просмотра без регистрации">
                 <Form action={createGuestLinkAction} submit="Создать ссылку">
                   <Field label="Кому (для себя)"><input name="label" className="input" maxLength={60} placeholder="Например: клиент Иванов" /></Field>
+                  <Field label="Email, чтобы отправить письмо (необязательно)"><input name="email" type="email" className="input" placeholder="client@company.ru" /></Field>
                   <Field label="Срок действия"><select name="expiry" className="input" defaultValue="30">{Object.entries(EXPIRY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
                   <p className="text-xs text-ink3">Ссылка показывается один раз. Если откроете её сами в этом же браузере, она заменит вашу сессию: проверяйте в режиме инкогнито.</p>
                 </Form>
