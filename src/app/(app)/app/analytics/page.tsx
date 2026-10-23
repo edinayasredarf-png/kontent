@@ -14,6 +14,7 @@ import { AiPanel } from "@/components/AiPanel";
 import { Empty, KIND, PageHead } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 
+import { HourChart, MembersChart, ShareDonut } from "@/components/AnalyticsCharts";
 import { SubmitButton } from "@/components/SubmitButton";
 const PRESETS: [Preset, string][] = [["today", "Сегодня"], ["yesterday", "Вчера"], ["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
 
@@ -31,8 +32,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
   const [a, members] = await Promise.all([analytics(c.org.id, filter), membersReport(c.org.id)]);
   const posts = Number(a.tot.posts), views = Number(a.tot.views), eng = Number(a.tot.likes) + Number(a.tot.comments) + Number(a.tot.reposts);
   const er = views ? ((eng / views) * 100).toFixed(1) : "0";
-  const maxH = Math.max(1, ...a.byHour.map((h) => Number(h.avg)));
-  const bound = recommendAction.bind(null, filter);
+    const bound = recommendAction.bind(null, filter);
   const filtered = !!(brand || channel || kind);
   return (
     <>
@@ -65,7 +65,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
                   <div key={m.id} className="rounded-xl bg-tile p-4">
                     <div className="flex items-baseline justify-between gap-2"><span className="truncate text-sm">{SUPPORTED_CHANNELS[m.kind] ?? m.kind}: {m.title}</span><span className="text-xl font-semibold">{(m.now ?? 0).toLocaleString("ru-RU")}</span></div>
                     <div className="mt-1 flex gap-4 text-xs text-ink2"><span>за 7 дней: <b className={(diff(m.d7) ?? 0) >= 0 ? "text-good" : "text-bad"}>{fmtD(diff(m.d7))}</b></span><span>за 30 дней: <b className={(diff(m.d30) ?? 0) >= 0 ? "text-good" : "text-bad"}>{fmtD(diff(m.d30))}</b></span></div>
-                    {m.series.length > 1 && <div className="mt-3 flex h-12 items-end gap-0.5">{m.series.map((p, i) => <div key={i} title={`${p.day}: ${p.members}`} className="flex-1 rounded-t bg-accent/70" style={{ height: `${10 + ((p.members - mn) / Math.max(1, mx - mn)) * 90}%` }} />)}</div>}
+                    {m.series.length > 1 && <div className="mt-3"><MembersChart series={m.series} /></div>}
                   </div>
                 );
               })}
@@ -86,12 +86,13 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
               <tbody>{a.byChannel.map((k) => <tr key={k.title} className="border-t border-line"><td className="py-2">{SUPPORTED_CHANNELS[k.kind] ?? k.kind}: {k.title}</td><td className="py-2 text-right">{k.posts}</td><td className="py-2 text-right font-medium">{Number(k.views).toLocaleString("ru-RU")}</td></tr>)}</tbody></table>
           </section>
         </div>
+        <div className="mb-6 grid gap-6 2xl:grid-cols-2">
+          <section className="card p-5"><b className="mb-3 block text-sm">Просмотры по каналам</b><ShareDonut title="просмотров" items={a.byChannel.map((k) => ({ label: `${SUPPORTED_CHANNELS[k.kind] ?? k.kind}: ${k.title}`, value: Number(k.views) }))} /></section>
+          <section className="card p-5"><b className="mb-3 block text-sm">Просмотры по форматам</b><ShareDonut title="просмотров" items={a.byKind.map((k) => ({ label: KIND[k.kind] ?? k.kind, value: Number(k.views) }))} /></section>
+        </div>
         <section className="card mb-6 p-5">
           <b className="mb-1 block text-sm">Лучшее время публикации</b><p className="mb-4 text-xs text-ink2">Средние просмотры поста по часу выхода (МСК). Чем больше постов в часе, тем надёжнее вывод.</p>
-          <div className="flex h-32 items-end gap-1">{a.byHour.map((h) => (
-            <div key={h.hour} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${h.hour}:00 — ${h.avg} просм. (постов: ${h.posts})`}>
-              <div className="w-full rounded-t-md bg-accent/80" style={{ height: `${Math.max(4, (Number(h.avg) / maxH) * 100)}%` }} /><span className="text-[10px] text-ink3">{h.hour}</span>
-            </div>))}</div>
+          <HourChart hours={a.byHour.map((h) => ({ hour: h.hour, posts: Number(h.posts), avg: Number(h.avg) }))} />
         </section>
         <section className="card">
           <div className="border-b border-line px-5 py-3 text-sm font-medium">Лучшие посты</div>

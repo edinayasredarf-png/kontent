@@ -11,7 +11,7 @@ type Kind = "profit" | "flow" | "cumulative" | "costs" | "actions";
 const TABS: [Kind, string][] = [["profit", "Прибыль по дням"], ["flow", "Доходы и расходы"], ["cumulative", "Накопительно"], ["costs", "Куда уходят деньги"], ["actions", "Выручка по действиям"]];
 
 /** Цвета берутся из темы сайта: график сам перекрашивается при переключении светлой и тёмной темы. */
-function useTheme() {
+export function useTheme() {
   const read = () => {
     const cs = getComputedStyle(document.documentElement), v = (n: string, d: string) => cs.getPropertyValue(n).trim() || d;
     return { ink: v("--ink", "#172554"), ink2: v("--ink2", "#64748b"), line: v("--line", "#ede9fe"), surface: v("--surface", "#fff"), good: v("--good", "#1f9d57"), bad: v("--bad", "#e24a41"), accent: v("--accent", "#1734fc") };
@@ -28,12 +28,12 @@ function useTheme() {
 }
 
 const PURPLE = ["#8b5cf6", "#5b2fd6"], ORANGE = ["#fbbf24", "#f97316"], BLUE = ["#60a5fa", "#4f46e5"];
-const SLICES = ["#6d4aff", "#f59e0b", "#22b8cf", "#ef6aa7", "#84cc16", "#f97316", "#0ea5e9", "#a78bfa", "#14b8a6", "#e11d48"];
+export const SLICES = ["#6d4aff", "#f59e0b", "#22b8cf", "#ef6aa7", "#84cc16", "#f97316", "#0ea5e9", "#a78bfa", "#14b8a6", "#e11d48"];
 const rubFmt = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 const dayFmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** Градиент сверху вниз по области графика (рисуется на canvas, поэтому задаётся функцией). */
-const grad = (a: string, b: string) => (ctx: { chart: ChartJS }) => {
+export const grad = (a: string, b: string) => (ctx: { chart: ChartJS }) => {
   const area = ctx.chart.chartArea;
   if (!area) return a;
   const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
@@ -100,11 +100,11 @@ export function EconomyCharts({ days, prev, prevLabel, costs, actions }: { days:
   } else if (kind === "flow") {
     body = days.length === 0 ? empty("За этот период нет данных") : (
       <div className="h-80"><Bar key={kind} data={{ labels, datasets: [
-        { type: "bar" as const, label: "Выручка", data: days.map((d) => rub(d.revenue)), borderRadius: 8, borderSkipped: false, maxBarThickness: 22, backgroundColor: grad(BLUE[0], BLUE[1]), stack: "a", order: 2 },
-        { type: "bar" as const, label: "Нейросети", data: days.map((d) => rub(d.aiCost)), borderRadius: 8, borderSkipped: false, maxBarThickness: 22, backgroundColor: grad(ORANGE[0], ORANGE[1]), stack: "b", order: 2 },
-        { type: "bar" as const, label: "Прочие расходы", data: days.map((d) => rub(d.expenses)), borderRadius: 8, borderSkipped: false, maxBarThickness: 22, backgroundColor: grad(PURPLE[0], PURPLE[1]), stack: "b", order: 2 },
-        { type: "line" as const, label: "Прибыль", data: days.map((d) => rub(d.profit)), borderColor: th.good, borderWidth: 3, tension: 0.4, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: th.surface, pointBorderColor: th.good, pointBorderWidth: 2.5, order: 1 },
-      ] as never }} options={base as ChartOptions<"bar">} /></div>);
+        { type: "bar" as const, label: "Выручка", data: days.map((d) => rub(d.revenue)), borderRadius: 8, borderSkipped: false, maxBarThickness: 18, backgroundColor: grad(BLUE[0], BLUE[1]), stack: "a", order: 2 },
+        { type: "bar" as const, label: "Нейросети", data: days.map((d) => rub(d.aiCost)), borderRadius: 8, borderSkipped: false, maxBarThickness: 18, backgroundColor: grad(ORANGE[0], ORANGE[1]), stack: "b", order: 2 },
+        { type: "bar" as const, label: "Прочие расходы", data: days.map((d) => rub(d.expenses)), borderRadius: 8, borderSkipped: false, maxBarThickness: 18, backgroundColor: grad(PURPLE[0], PURPLE[1]), stack: "b", order: 2 },
+        { type: "line" as const, label: "Прибыль", data: days.map((d) => rub(d.profit)), borderColor: th.good, borderWidth: 3, tension: 0.4, pointRadius: days.length > 20 ? 0 : 4, pointHoverRadius: 6, pointBackgroundColor: th.surface, pointBorderColor: th.good, pointBorderWidth: 2.5, order: 1 },
+      ] as never }} options={{ ...base, scales: { x: { ...(base.scales as never as Record<string, object>).x, stacked: true }, y: { ...(base.scales as never as Record<string, object>).y, stacked: true } }, datasets: { bar: { categoryPercentage: 0.9, barPercentage: 0.95 } } } as ChartOptions<"bar">} /></div>);
   } else if (kind === "cumulative") {
     let s = 0, sp = 0;
     const cum = days.map((d) => (s += rub(d.profit)));

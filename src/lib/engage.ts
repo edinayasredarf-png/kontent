@@ -268,6 +268,6 @@ export async function membersReport(orgId: string) {
             (select members from kz_channel_stats where channel_id=c.id and day <= current_date - 30 order by day desc limit 1) as d30
        from kz_channels c where c.org_id=$1 and c.status='active' and c.kind in ('telegram','vk') order by c.created_at`, [orgId]);
   const series = await q<{ channel_id: string; day: string; members: number }>(
-    "select channel_id,to_char(day,'DD.MM') as day,members from kz_channel_stats where org_id=$1 and day > current_date - 60 order by day", [orgId]);
+    "select channel_id,to_char(day,'DD.MM') as day,members from kz_channel_stats where org_id=$1 and day > current_date - 60 order by kz_channel_stats.day", [orgId]);
   return rows.filter((r) => r.now != null).map((r) => ({ ...r, series: series.filter((s) => s.channel_id === r.id) }));
 }
