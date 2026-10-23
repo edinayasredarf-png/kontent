@@ -1,6 +1,7 @@
 import { one, q } from "./db";
 import { loadAsset, processImage, saveAsset, type Processed } from "./assets";
 import { editImage } from "./images";
+import { dropAsset, snapshot } from "./versions";
 import { InsufficientFunds, PRICES, charge, refund } from "./wallet";
 
 type Result = { ok: true; note?: string } | { ok: false; error: string };
@@ -29,7 +30,7 @@ export async function copyAssetToItem(orgId: string, assetId: string, itemId: st
   const id = await saveAsset(orgId, brand.brand_id, "generated", a.name, { data: a.data, mime: a.mime, width: a.width, height: a.height }, "своё изображение");
   const old = await one<{ image_id: string | null }>("select image_id from kz_content_items where id=$1", [itemId]);
   await q("update kz_content_items set image_id=$2, meta = (meta - 'imageError') || jsonb_build_object('imageOwn', true), updated_at=now() where id=$1", [itemId, id]);
-  if (old?.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [old.image_id, orgId]);
+  if (old?.image_id) await dropAsset(orgId, old.image_id);
   return true;
 }
 
@@ -41,7 +42,7 @@ export async function attachOwnImage(orgId: string, itemId: string, v: FormDataE
   try { id = await saveStandalone(orgId, it.brand_id, v); } catch (e) { return { ok: false, error: (e as Error).message }; }
   if (!id) return { ok: false, error: "Выберите файл изображения" };
   await q("update kz_content_items set image_id=$2, meta = (meta - 'imageError') || jsonb_build_object('imageOwn', true), updated_at=now() where id=$1", [itemId, id]);
-  if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
+  if (it.image_id) await dropAsset(orgId, it.image_id);
   return { ok: true };
 }
 
@@ -51,6 +52,7 @@ const HOW: Record<string, string | undefined> = { redraw: "ИИ пересозд
 export async function reworkItemImage(orgId: string, itemId: string, instruction: string): Promise<Result> {
   const ins = instruction.trim().slice(0, 400);
   if (ins.length < 3) return { ok: false, error: "Опишите, что изменить в изображении" };
+  await snapshot(orgId, itemId, "до доработки картинки");
   const it = await one<{ brand_id: string; image_id: string | null; topic: string }>("select brand_id,image_id,topic from kz_content_items where id=$1 and org_id=$2 and status not in ('published')", [itemId, orgId]);
   if (!it?.image_id) return { ok: false, error: "У материала нет изображения. Сначала прикрепите своё или создайте картинку" };
   const a = await loadAsset(orgId, it.image_id);
@@ -63,7 +65,7 @@ export async function reworkItemImage(orgId: string, itemId: string, instruction
     const p = await processImage(r.data, "generated");
     const id = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 50)}.jpg`, p, "доработано ИИ");
     await q("update kz_content_items set image_id=$2, meta = (meta - 'imageError') || jsonb_build_object('imageOwn', true, 'imagePrompt', $3::text), updated_at=now() where id=$1", [itemId, id, ins]);
-    await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
+    await dropAsset(orgId, it.image_id);
     return { ok: true, note: HOW[r.how] };
   } catch (e) {
     await refund(orgId, PRICES.image, "ошибка доработки изображения", itemId);

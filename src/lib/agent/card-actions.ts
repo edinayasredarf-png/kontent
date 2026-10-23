@@ -5,6 +5,8 @@ import { createFromNews, MAKE_KINDS } from "../monitor/news";
 import { buildPlan } from "../pipeline";
 import { discardDraft, draftPublishNow, draftToPlan, publishItemNow, publishReport, regenDraft, rescheduleItem, saveDraftBody, setItemChannels } from "../drafts";
 import { cleanLink, cleanSettings, EMOJI, HASHTAGS, LENGTHS } from "../postsettings";
+import { snapshot, restoreVersion } from "../versions";
+import { rewriteFragment } from "./writer";
 import { hydrateCards, type Card, type CardRef } from "./cards";
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -40,6 +42,7 @@ const itemCard = async (orgId: string, id: string) => one1(orgId, { t: "item", i
 
 export async function cardItemSaveAction(id: string, body: string): Promise<R> {
   const c = await requireWriter();
+  await snapshot(c.org.id, id, "до ручной правки");
   const r = await saveDraftBody(c.org.id, id, String(body ?? ""));
   return r.ok ? { ok: true, note: "Текст сохранён", card: await itemCard(c.org.id, id) } : fail(r.error);
 }
@@ -69,6 +72,7 @@ export async function cardItemDiscardAction(id: string): Promise<R> {
 }
 export async function cardItemRegenAction(id: string): Promise<R> {
   const c = await requireWriter();
+  await snapshot(c.org.id, id, "до пересоздания");
   const r = await regenDraft(c.org.id, id);
   return r.ok ? { ok: true, note: "Текст создан заново", card: await itemCard(c.org.id, id) } : fail(r.error);
 }
@@ -138,4 +142,16 @@ export async function cardSaveSignatureAction(id: string, signature: string): Pr
   const c = await requireWriter();
   await q("update kz_channels set signature=$3 where id=$1 and org_id=$2", [id, c.org.id, String(signature ?? "").replace(/\r/g, "").trim().slice(0, 500)]);
   return { ok: true, note: "Подпись сохранена", card: await one1(c.org.id, { t: "channels" }) };
+}
+
+export async function cardItemRestoreAction(id: string, versionId: string): Promise<R> {
+  const c = await requireWriter();
+  const r = await restoreVersion(c.org.id, id, versionId);
+  return r.ok ? { ok: true, note: "Версия возвращена", card: await itemCard(c.org.id, id) } : fail(r.error);
+}
+/** Переписать выделенный в карточке фрагмент (платно, как правка текста). */
+export async function cardItemRewriteFragmentAction(id: string, fragment: string, instruction: string): Promise<R> {
+  const c = await requireWriter();
+  const r = await rewriteFragment(c.org.id, id, String(fragment ?? "").slice(0, 3000), String(instruction ?? "").slice(0, 400));
+  return r.ok ? { ok: true, note: r.text, card: await itemCard(c.org.id, id) } : fail(r.text);
 }

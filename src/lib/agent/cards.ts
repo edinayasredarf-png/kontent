@@ -3,6 +3,7 @@ import { loadDrafts, type DraftItem } from "../drafts";
 import { analytics } from "../engage";
 import { groupSummaries } from "../competitors";
 import { cleanSettings, type ContentSettings } from "../postsettings";
+import { listVersions } from "../versions";
 import { cleanKit, STYLES } from "../images";
 import { KIND } from "../kinds";
 
@@ -28,7 +29,7 @@ export type Card =
   | { t: "plan"; id: string; name: string; until: string | null; items: { id: string; kind: string; topic: string; status: string; date: string | null }[] }
   | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] };
 
-export interface ItemRow { slides: string[]; id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
+export interface ItemRow { versions: { id: string; at: string; note: string; hasImage: boolean; chars: number }[]; slides: string[]; id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const ids = (v: unknown) => (Array.isArray(v) ? v : []).map(String).filter((x) => UUID.test(x));
@@ -74,7 +75,7 @@ async function itemCard(orgId: string, idList: string[]): Promise<Card | null> {
   const nameOf = (id: string | null) => fn.find((f) => f.id === id)?.name ?? "";
   const rows: ItemRow[] = [];
   const mk = (d: { id: string; kind: string; topic: string; body: string; status: string; image_id: string | null; factory_id: string }, draft: boolean, channels: ChannelOpt[], date: string | null): ItemRow => ({
-    slides: slideRows.filter((x) => x.item_id === d.id).map((x) => x.id), id: d.id, kind: d.kind, kindLabel: KIND[d.kind] ?? d.kind, topic: d.topic, body: d.body, status: d.status, draft, imageId: d.image_id, factoryId: d.factory_id, factoryName: nameOf(d.factory_id), channels,
+    versions: [], slides: slideRows.filter((x) => x.item_id === d.id).map((x) => x.id), id: d.id, kind: d.kind, kindLabel: KIND[d.kind] ?? d.kind, topic: d.topic, body: d.body, status: d.status, draft, imageId: d.image_id, factoryId: d.factory_id, factoryName: nameOf(d.factory_id), channels,
     date: date ?? new Date().toISOString().slice(0, 10), time: "10:00",
     published: pubs.filter((p) => p.item_id === d.id).map((p) => ({ channel: p.channel, url: p.url, ok: p.status === "published", error: p.error })),
   });
@@ -84,6 +85,7 @@ async function itemCard(orgId: string, idList: string[]): Promise<Card | null> {
     const r = rest.find((x) => x.id === id);
     if (r) rows.push(mk(r, false, [], dayStr(r.planned_for)));
   }
+  if (rows.length === 1 || rows.length <= 3) for (const r of rows) r.versions = await listVersions(orgId, r.id);
   return rows.length ? { t: "item", items: rows, slot: idList.join(",") } : null;
 }
 

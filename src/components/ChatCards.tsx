@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
+import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, History, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { PostText } from "@/components/monitor/PostText";
 import { PostPreview } from "@/components/PostPreview";
@@ -9,7 +9,7 @@ import { AutoTextarea } from "@/components/AutoTextarea";
 import { EMOJI, HASHTAGS, LENGTHS } from "@/lib/postsettings";
 import type { Card, ItemRow } from "@/lib/agent/cards";
 import {
-  cardCreateFromNewsAction, cardExtendPlanAction, cardItemChannelsAction, cardItemDiscardAction, cardItemPublishAction, cardItemRegenAction, cardItemSaveAction, cardItemToPlanAction,
+  cardCreateFromNewsAction, cardExtendPlanAction, cardItemChannelsAction, cardItemDiscardAction, cardItemPublishAction, cardItemRegenAction, cardItemRestoreAction, cardItemRewriteFragmentAction, cardItemSaveAction, cardItemToPlanAction,
   cardLikeNewsAction, cardRefreshAction, cardSaveBrandAction, cardSaveFactoryAction, cardSaveSignatureAction, cardSetSourceAction, type FactoryPatch,
 } from "@/lib/agent/card-actions";
 
@@ -59,7 +59,7 @@ function DlImage({ id, className, alt = "", wide }: { id: string; className: str
 
 function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null) => void; drop: () => void }) {
   const { busy, msg, run, setMsg } = useRun();
-  const [copied, setCopied] = useState(false), [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
+  const [sel, setSel] = useState(""), [how, setHow] = useState(""), [vers, setVers] = useState(false), [copied, setCopied] = useState(false), [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
   useEffect(() => { setBody(it.body); }, [it.body]);
   const ready = it.status === "ready", dirty = body !== it.body;
   const done = it.published.length > 0;
@@ -75,12 +75,28 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
           {it.imageId && <DlImage id={it.imageId} wide className="max-h-[520px] w-full rounded-xl bg-tile object-contain" />}
           <div>
           {it.kind === "seo" ? <div className="rounded-2xl bg-tile p-4 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
-            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className="input !rounded-2xl !bg-tile text-[15px] leading-7" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
+            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} onSelect={(e) => { const t = e.currentTarget; setSel(t.selectionEnd - t.selectionStart >= 8 ? t.value.slice(t.selectionStart, t.selectionEnd) : ""); }} rows={8} className="input !rounded-2xl !bg-tile text-[15px] leading-7" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
           </div></div>
+          {sel && it.draft && !dirty && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-accent-soft p-2.5 text-xs">
+              <span className="font-semibold">Выделено {sel.length} зн.</span>
+              {["короче", "проще", "живее", "строже", "с цифрами"].map((h) => <button key={h} type="button" disabled={!!busy} onClick={() => run("f", () => cardItemRewriteFragmentAction(it.id, sel, `Перепиши фрагмент: ${h}`), (r) => { upd(r); setSel(""); })} className="chip cursor-pointer !px-2.5 !py-0.5">{h}</button>)}
+              <input value={how} onChange={(e) => setHow(e.target.value)} placeholder="или своими словами" className="input !w-48 !py-1 text-xs" />
+              <button type="button" disabled={!!busy || how.trim().length < 3} onClick={() => run("f", () => cardItemRewriteFragmentAction(it.id, sel, how), (r) => { upd(r); setSel(""); setHow(""); })} className="btn btn-accent !py-1 text-xs">{busy === "f" ? <Loader2 size={12} className="animate-spin" /> : null}Переписать выделенное</button>
+            </div>
+          )}
           {it.slides.length > 0 && <div className="mt-3 flex gap-3 overflow-x-auto pb-2">{it.slides.map((id) => <DlImage key={id} id={id} className="h-72 w-auto max-w-none rounded-xl object-cover" />)}</div>}
+          {vers && (
+            <ul className="mt-2 space-y-1 rounded-xl bg-tile p-2.5 text-xs">
+              {it.versions.map((v) => (
+                <li key={v.id} className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{new Date(v.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {v.note || "версия"} · {v.chars} зн.{v.hasImage ? " · с картинкой" : ""}</span>
+                  <button type="button" disabled={!!busy} onClick={() => run("v", () => cardItemRestoreAction(it.id, v.id), (r) => { upd(r); setVers(false); })} className="font-semibold text-accent-ink underline">Вернуть</button></li>))}
+            </ul>
+          )}
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>Знаков: {body.length}</span>
             <button type="button" onClick={() => { const t = it.kind === "seo" ? it.body.replace(/<\/(p|h\d|li)>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/\n{3,}/g, "\n\n").trim() : body; void navigator.clipboard?.writeText(t).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }); }} className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5"><Copy size={12} className="mr-1" />{copied ? "Скопировано" : "Копировать текст"}</button>
+            {it.versions.length > 0 && <button type="button" onClick={() => setVers((v) => !v)} className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5"><History size={12} className="mr-1" />Версии: {it.versions.length}</button>}
             <a href={`/api/export/${it.id}/file?format=zip`} download className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5"><Download size={12} className="mr-1" />Скачать архив</a>
             <button type="button" onClick={() => setPrev((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-2.5 !py-0.5">{prev ? <EyeOff size={12} className="mr-1" /> : <Eye size={12} className="mr-1" />}Как будет выглядеть</button></div>
           {prev && <div className="mt-2"><PostPreview text={body} images={it.imageId ? [`/api/assets/${it.imageId}`] : []} kinds={on.map((c) => c.kind)} oneMessageTg={false} name={it.factoryName || "Ваш канал"} kind={it.kind} /></div>}

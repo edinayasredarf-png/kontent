@@ -23,6 +23,7 @@ import { strategyOf } from "./strategy";
 import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
+import { dropAsset, snapshot } from "./versions";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, rawCopy, type LogoPos } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -263,6 +264,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
       returning id,brand_id,topic,hook,body,image_id,kind`, [itemId, orgId]);
   if (!it) return { ok: false, error: "Картинка уже создаётся или материал недоступен" };
   const release = () => q("update kz_content_items set meta = meta - 'imageBusy' where id=$1", [it.id]);
+  if (it.image_id) await snapshot(orgId, itemId, "до новой картинки");
   const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]);
   if (!brand) { await release(); return { ok: false, error: "Бренд не найден" }; }
   const cost = PRICES.image;
@@ -284,7 +286,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
     const oldRaw = await one<{ r: string | null }>("select meta->>'imageRawId' r from kz_content_items where id=$1", [it.id]);
     await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::uuid::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
     if (oldRaw?.r) await q("delete from kz_assets where id=$1 and org_id=$2", [oldRaw.r, orgId]);
-    if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]); // прежняя версия не копится в БД
+    if (it.image_id) await dropAsset(orgId, it.image_id); // прежняя версия остаётся, только если её сохранили как версию материала
     return { ok: true };
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации картинки", it.id);
@@ -540,12 +542,13 @@ export async function reapplyLogo(orgId: string, itemId: string, over: { logoPos
   ]);
   if (!raw) return { ok: false, error: "Исходник картинки не найден", needRegen: true };
   if (!logoRow) return { ok: false, error: "В брендбуке нет логотипа: загрузите его в разделе «Бренды»" };
+  await snapshot(orgId, itemId, "до смены логотипа");
   const base = cleanKit(brand?.kit);
   const kit = cleanKit({ ...base, ...(over.logoPos ? { logoPos: over.logoPos } : {}), ...(over.logoScale ? { logoScale: over.logoScale } : {}), ...(over.logoMargin ? { logoMargin: over.logoMargin } : {}) });
   const done = await finalizeImage(raw.data, await loadAsset(orgId, logoRow.id), kit, { story: it.kind === "story" });
   const topic = (await one<{ topic: string }>("select topic from kz_content_items where id=$1", [itemId]))?.topic ?? "";
   const assetId = await saveAsset(orgId, it.brand_id, "generated", `${topic.slice(0, 60)}.jpg`, done);
   await q("update kz_content_items set image_id=$2, meta = meta || jsonb_build_object('imageRawFor',$2::uuid::text), updated_at=now() where id=$1", [itemId, assetId]);
-  await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
+  await dropAsset(orgId, it.image_id);
   return { ok: true };
 }

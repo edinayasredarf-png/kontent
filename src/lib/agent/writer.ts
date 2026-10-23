@@ -12,6 +12,7 @@ import { sectionImage } from "../article-images";
 import { H2 } from "../article-lib";
 import { copyAssetToItem } from "../item-images";
 import { loadAsset, saveAsset, processImage } from "../assets";
+import { snapshot } from "../versions";
 
 /** Письменные действия ассистента: написать материал, переписать, поменять картинку. Выполняются по прямой просьбе пользователя. */
 export interface ActResult { ok: boolean; text: string; itemIds?: string[] }
@@ -104,11 +105,13 @@ export async function rewriteMaterial(orgId: string, a: Args): Promise<ActResult
   const it = id ? await one<{ kind: string; body: string; status: string }>("select kind,body,status from kz_content_items where id=$1 and org_id=$2", [id, orgId]) : null;
   if (!it) return { ok: false, text: "Не нашёл материал. Уточните, какой переписать" };
   if (it.status === "published") return { ok: false, text: "Материал уже опубликован: его нельзя изменить. Могу написать новую версию заново" };
-  const opRaw = String(a.op ?? "custom"), ins = clip(a.instruction, 400);
+  const opRaw = String(a.op ?? "custom"), ins = clip(a.instruction, 400), frag = clip(a.fragment, 3000);
+  if (frag) return rewriteFragment(orgId, id, frag, ins || "Улучши этот фрагмент");
   const op: EditOp = isEditOp(opRaw) ? opRaw : "custom";
   const r = await aiEditText(orgId, it.body, op, op === "custom" ? ins : "");
   if (!r.ok) return { ok: false, text: r.error };
   const body = ["seo", "email", "guide"].includes(it.kind) ? cleanHtml(r.text) : r.text.trim().slice(0, 20000);
+  await snapshot(orgId, id, "до правки текста");
   await q("update kz_content_items set body=$3, updated_at=now() where id=$1 and org_id=$2", [id, orgId, body]);
   return { ok: true, text: "Текст переписан", itemIds: [id] };
 }
@@ -186,4 +189,19 @@ export async function setLogoFromAttachment(orgId: string, a: Args): Promise<Act
   if (!bid || !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [bid, orgId]))) return { ok: false, text: "Не нашёл бренд" };
   try { await saveAsset(orgId, bid, "logo", "логотип", await processImage(asset.data, "logo"), "из чата"); } catch (e) { return { ok: false, text: (e as Error).message.slice(0, 160) }; }
   return { ok: true, text: "Логотип бренда обновлён" };
+}
+
+/** Переписать только выделенный фрагмент: остальной текст не меняется. Фрагмент должен встречаться в тексте дословно. */
+export async function rewriteFragment(orgId: string, itemId: string, fragment: string, instruction: string): Promise<ActResult> {
+  const it = await one<{ kind: string; body: string; status: string }>("select kind,body,status from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
+  if (!it) return { ok: false, text: "Материал не найден" };
+  if (it.status === "published") return { ok: false, text: "Материал уже опубликован: его нельзя изменить" };
+  if (!it.body.includes(fragment)) return { ok: false, text: "Не нашёл этот фрагмент в тексте: он мог измениться. Выделите его заново" };
+  const r = await aiEditText(orgId, fragment, "custom", instruction);
+  if (!r.ok) return { ok: false, text: r.error };
+  const html = ["seo", "email", "guide"].includes(it.kind);
+  const next = it.body.replace(fragment, () => (html ? r.text.trim() : r.text.trim()));
+  await snapshot(orgId, itemId, "до правки фрагмента");
+  await q("update kz_content_items set body=$3, updated_at=now() where id=$1 and org_id=$2", [itemId, orgId, html ? cleanHtml(next) : next.slice(0, 20000)]);
+  return { ok: true, text: "Фрагмент переписан", itemIds: [itemId] };
 }
