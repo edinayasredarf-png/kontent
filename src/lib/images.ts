@@ -3,6 +3,7 @@ import { baseUrl, chat, modelFor } from "./ai";
 import { isFontSpec } from "./carousel/brand-font";
 import { loadAsset, processImage, type AssetRow } from "./assets";
 import { safeFetchBuffer } from "./safefetch";
+import { recordUsage } from "./billing";
 
 export const LOGO_POSITIONS = ["tl", "tc", "tr", "ml", "mc", "mr", "bl", "bc", "br"] as const;
 export type LogoPos = "none" | (typeof LOGO_POSITIONS)[number];
@@ -63,7 +64,8 @@ export async function describeImage(a: { data: Buffer; mime: string }, what: "re
     body: JSON.stringify({ model, max_tokens: 300, temperature: 0.2, messages: [{ role: "user", content: [{ type: "text", text: ask }, { type: "image_url", image_url: { url: `data:${a.mime};base64,${a.data.toString("base64")}` } }] }] }),
   });
   if (!res.ok) throw new Error(`Шлюз ${res.status} (vision ${model}): ${(await res.text().catch(() => "")).slice(0, 160)}`);
-  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+  void recordUsage({ kind: "vision", task: "vision", model, tokensIn: j.usage?.prompt_tokens ?? 800, tokensOut: j.usage?.completion_tokens ?? 150 });
   const out = (j.choices?.[0]?.message?.content ?? "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
   if (!out) throw new Error("Модель вернула пустое описание");
   return out.slice(0, 600);
@@ -80,7 +82,8 @@ export async function visionAsk(dataUrl: string, ask: string): Promise<string> {
     body: JSON.stringify({ model, max_tokens: 700, temperature: 0.3, messages: [{ role: "user", content: [{ type: "text", text: ask }, { type: "image_url", image_url: { url: dataUrl } }] }] }),
   });
   if (!res.ok) throw new Error(`Шлюз ${res.status} (vision ${model}): ${(await res.text().catch(() => "")).slice(0, 160)}`);
-  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+  void recordUsage({ kind: "vision", task: "vision", model, tokensIn: j.usage?.prompt_tokens ?? 800, tokensOut: j.usage?.completion_tokens ?? 150 });
   const out = (j.choices?.[0]?.message?.content ?? "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
   if (!out) throw new Error("Модель вернула пустой ответ");
   return out;
@@ -147,7 +150,7 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES):
     let j: ImgResp = {}; try { j = JSON.parse(text); } catch { /* не JSON */ }
     if (res.ok) {
       const buf = await toBuffer(j.data?.[0]);
-      if (buf?.length) return buf;
+      if (buf?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return buf; }
       lastErr = "модель вернула пустой результат";
       break;
     }
@@ -165,7 +168,7 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES):
   for (const im of msg?.images ?? []) if (im.image_url?.url) urls.push(im.image_url.url);
   if (Array.isArray(msg?.content)) for (const p of msg!.content as { type?: string; image_url?: { url?: string } }[]) if (p.image_url?.url) urls.push(p.image_url.url);
   if (typeof msg?.content === "string") { const m = msg.content.match(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+|https?:\/\/\S+\.(?:png|jpe?g|webp)/i); if (m) urls.push(m[0]); }
-  for (const u of urls) { const b = u.startsWith("data:") ? fromDataUri(u) : (await safeFetchBuffer(u)).data; if (b?.length) return b; }
+  for (const u of urls) { const b = u.startsWith("data:") ? fromDataUri(u) : (await safeFetchBuffer(u)).data; if (b?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return b; } }
   throw new Error(`Модель ${model} не вернула изображение${lastErr ? ` (${lastErr})` : ""}. Проверьте, что выбрана именно модель изображений`);
 }
 
@@ -195,7 +198,7 @@ export async function editImage(src: Buffer, mime: string, instruction: string, 
     if (res.ok) {
       const j = (await res.json().catch(() => ({}))) as ImgResp;
       const b = await toBuffer(j.data?.[0]);
-      if (b?.length) return { data: b, how: "edit" };
+      if (b?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return { data: b, how: "edit" }; }
       lastErr = "пустой ответ";
     } else {
       lastErr = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 160)}`;
@@ -220,7 +223,7 @@ export async function editImage(src: Buffer, mime: string, instruction: string, 
       for (const im of msg?.images ?? []) if (im.image_url?.url) urls.push(im.image_url.url);
       if (Array.isArray(msg?.content)) for (const p of msg!.content as { image_url?: { url?: string } }[]) if (p.image_url?.url) urls.push(p.image_url.url);
       if (typeof msg?.content === "string") { const m = msg.content.match(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+/i); if (m) urls.push(m[0]); }
-      for (const u of urls) { const b = u.startsWith("data:") ? fromDataUri(u) : (await safeFetchBuffer(u)).data; if (b?.length) return { data: b, how: "chat" }; }
+      for (const u of urls) { const b = u.startsWith("data:") ? fromDataUri(u) : (await safeFetchBuffer(u)).data; if (b?.length) { void recordUsage({ kind: "image", task: "image", model, images: 1 }); return { data: b, how: "chat" }; } }
       lastErr = "модель не вернула картинку";
     } else lastErr = `${res.status}`;
   } catch (e) { lastErr = (e as Error).message; }

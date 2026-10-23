@@ -1,5 +1,6 @@
 import { fixLayout, type SlideLayout } from "./carousel/layouts";
 import { one, q } from "./db";
+import { recordUsage } from "./billing";
 import { cleanSettings, POST_TYPES, styleBlock, type ContentSettings } from "./postsettings";
 
 /**
@@ -70,7 +71,9 @@ export async function chat(task: AiTask, system: string, user: string, opts: { m
     throw new Error(t ? `Шлюз не ответил за ${Math.round(timeoutMs / 1000)} с (модель ${model})` : `Шлюз недоступен: ${(e as Error).message}`);
   }
   if (!res.ok) throw new Error(`Шлюз ${res.status} (модель ${model}): ${(await res.text().catch(() => "")).slice(0, 300)}`);
-  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+  // расход на нейросеть: токены из ответа шлюза (если он их не прислал, считаем по длине текста: ~4 знака на токен)
+  void recordUsage({ kind: "chat", task, model, tokensIn: j.usage?.prompt_tokens ?? Math.ceil((system.length + user.length) / 3.5), tokensOut: j.usage?.completion_tokens ?? Math.ceil((j.choices?.[0]?.message?.content ?? "").length / 3.5) });
   // «Думающие» модели присылают рассуждения в тегах — в контент они попадать не должны.
   const out = (j.choices?.[0]?.message?.content ?? "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
   if (!out) throw new Error(`Модель ${model} вернула пустой ответ`);

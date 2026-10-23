@@ -6,6 +6,8 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
+import { setUsageCtx } from "./billing";
+import { ensurePrices } from "./wallet";
 import { isSchemaError } from "./errors";
 import { LEGAL_VERSION } from "./legal";
 import { cleanupAttempts, loginBlocked, loginFailed, loginSucceeded, registerBlocked, registerNoted } from "./throttle";
@@ -24,7 +26,7 @@ const key = () => {
 export interface Session { uid: string; org: string; v?: number }
 export interface Ctx {
   user: { id: string; email: string; name: string; hasPassword: boolean; refCode: string | null; theme: "light" | "dark" | "system"; avatarV: number | null };
-  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; suspended: boolean };
+  org: { id: string; name: string; plan: PlanKey; balance_kop: number; role: string; unlimited: boolean; unlimitedUntil: string | null; suspended: boolean };
   orgs: { id: string; name: string }[];
   isAdmin: boolean;
 }
@@ -126,7 +128,7 @@ async function loadCtx(): Promise<Ctx> {
   if (!s) redirect("/login");
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   // три независимых запроса идут одновременно; безлимит пересчитываем тут же и пишем в базу, только если он изменился
-  const [row, orgs, av] = await Promise.all([
+  const [row, orgs, av, tu] = await Promise.all([
     one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
       `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role,
               exists(select 1 from kz_memberships m2 join kz_users u2 on u2.id=m2.user_id where m2.org_id=o.id and m2.role='owner' and lower(u2.email)=any($3::text[])) want_unlimited
@@ -135,7 +137,11 @@ async function loadCtx(): Promise<Ctx> {
     q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]),
     // аватарка необязательна: до применения миграции 023 таблицы ещё нет, и приложение должно работать
     one<{ v: string }>("select extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id=$1", [s.uid]).catch(() => null),
+    // пробный безлимит на срок (миграция 027); без неё поля ещё нет
+    one<{ until: string | null }>("select unlimited_until until from kz_orgs where id=$1 and unlimited_until > now()", [s.org]).catch(() => null),
+    ensurePrices(),
   ]);
+  setUsageCtx({ orgId: s.org, userId: s.uid });
   if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
   // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации
   // её бесплатной не делает. Пересчитываем при каждом запросе: убрали email из списка — безлимит снимется.
@@ -145,7 +151,7 @@ async function loadCtx(): Promise<Ctx> {
   if (row.suspended && !isAdmin) redirect("/suspended");
   return {
     user: { id: s.uid, email: row.email, name: row.name, hasPassword: row.has_password, refCode: row.ref_code, theme: row.theme, avatarV: av?.v ? Number(av.v) : null },
-    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited, suspended: row.suspended },
+    org: { id: s.org, name: row.org_name, plan: row.plan, balance_kop: Number(row.balance_kop), role: row.role, unlimited: row.unlimited || !!tu?.until, unlimitedUntil: tu?.until ?? null, suspended: row.suspended },
     orgs,
     isAdmin,
   };

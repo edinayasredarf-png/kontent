@@ -4,7 +4,7 @@ import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
 import { aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
-import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
+import { PRICES, InsufficientFunds, charge, ensurePrices, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
 import { pollDue } from "./monitor/service";
@@ -440,6 +440,7 @@ export interface TickReport { stats: number; comments: number; sources: number; 
 
 /** Один проход воркера. Вызывается внешним планировщиком каждые ~5 минут (/api/cron/tick). */
 export async function tick(budgetMs = 200_000): Promise<TickReport> {
+  await ensurePrices(true); // цены администратора подхватываются воркером на каждом проходе
   const t0 = Date.now();
   const rep: TickReport = { stats: 0, comments: 0, sources: 0, fetched: 0, generated: 0, planned: 0, queued: 0, sent: 0, failed: 0, retried: 0, reaped: 0, errors: [] };
 

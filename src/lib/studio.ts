@@ -1,3 +1,4 @@
+import { recordUsage } from "./billing";
 import { kbText } from "./kb/use";
 import { one, q } from "./db";
 import { aiReady, baseUrl, brandBlock, chat, modelFor, type BrandCtx } from "./ai";
@@ -102,6 +103,7 @@ async function speech(text: string, voice: string): Promise<Buffer> {
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 200) throw new Error("Модель вернула пустой звук");
   if (buf.length > 6_000_000) throw new Error("Аудио получилось слишком большим — сократите текст");
+  void recordUsage({ kind: "tts", task: "tts", model, tokensIn: text.length }); // у озвучки «токены» — знаки текста
   return buf;
 }
 

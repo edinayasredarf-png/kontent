@@ -670,5 +670,55 @@ create table if not exists kz_external_stats (
   primary key (post_id, fetched_at)
 );
 
+-- 027_ai_billing.sql
+-- Экономика платформы: что мы тратим на нейросети (по факту вызовов) и что списываем с клиентов; редактируемые цены; безлимит на срок.
+
+-- Себестоимость моделей (по прайсу AI Gateway Timeweb): рублей в копейках за 1 млн токенов и за картинку / вызов. Заполняется администратором.
+create table if not exists kz_ai_models (
+  model text primary key,
+  in_per_m_kop numeric(14,2) not null default 0,
+  out_per_m_kop numeric(14,2) not null default 0,
+  per_image_kop numeric(14,2) not null default 0,
+  per_call_kop numeric(14,2) not null default 0,
+  note text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+-- Каждый вызов нейросети: чей, на что, сколько токенов и во сколько обошёлся нам (по прайсу на момент вызова).
+create table if not exists kz_ai_usage (
+  id bigserial primary key,
+  org_id uuid references kz_orgs(id) on delete set null,
+  user_id uuid references kz_users(id) on delete set null,
+  action text not null default 'other',
+  reason text not null default '',
+  ref uuid,
+  kind text not null default 'chat',
+  task text not null default '',
+  model text not null default '',
+  tokens_in int not null default 0,
+  tokens_out int not null default 0,
+  images int not null default 0,
+  cost_kop numeric(14,4) not null default 0,
+  priced boolean not null default false,
+  ok boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists kz_ai_usage_org on kz_ai_usage(org_id, created_at desc);
+create index if not exists kz_ai_usage_time on kz_ai_usage(created_at desc);
+
+-- Цены списания, изменённые администратором (поверх значений по умолчанию из кода).
+create table if not exists kz_price_overrides (
+  key text primary key,
+  kop int not null check (kop >= 0 and kop <= 10000000),
+  updated_at timestamptz not null default now(),
+  updated_by text not null default ''
+);
+
+-- Что именно списано: код действия (для разбора «действие → выручка и затраты»).
+alter table kz_wallet_tx add column if not exists action text;
+
+-- Безлимит на срок (для тестирования): до этого момента списаний нет.
+alter table kz_orgs add column if not exists unlimited_until timestamptz;
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql') on conflict do nothing;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const TABS: [string, string][] = [["/app/admin", "Обзор"], ["/app/admin/orgs", "Организации"], ["/app/admin/users", "Пользователи"], ["/app/admin/audit", "Журнал"], ["/app/settings/ai", "Настройки ИИ"]];
+const TABS: [string, string][] = [["/app/admin", "Обзор"], ["/app/admin/orgs", "Организации"], ["/app/admin/users", "Пользователи"], ["/app/admin/economy", "Экономика"], ["/app/admin/prices", "Цены"], ["/app/admin/audit", "Журнал"], ["/app/settings/ai", "Настройки ИИ"]];
 
 export function AdminNav({ active }: { active: string }) {
   return (

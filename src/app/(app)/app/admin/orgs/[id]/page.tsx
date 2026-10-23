@@ -19,7 +19,7 @@ export default async function OrgPage({ params }: { params: Promise<{ id: string
     <>
       <Link href="/app/admin/orgs" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Организации</Link>
       <PageHead title={org.name} sub={`Создана ${new Date(org.created_at).toLocaleDateString("ru-RU")} · материалов ${usage.items} · файлов ${(Number(usage.assets) / 1048576).toFixed(1)} МБ`}
-        action={<span className="flex gap-2">{org.suspended && <span className="chip !bg-bad-soft !text-bad">приостановлена</span>}{org.unlimited && <span className="chip">безлимит</span>}</span>} />
+        action={<span className="flex gap-2">{org.suspended && <span className="chip !bg-bad-soft !text-bad">приостановлена</span>}{org.unlimited && <span className="chip">безлимит</span>}<Link href={`/app/admin/economy/${org.id}`} className="chip !bg-accent-soft !text-accent-ink">Экономика и безлимит</Link></span>} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <section className="card">
