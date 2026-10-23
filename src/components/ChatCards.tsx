@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarPlus, Check, ChevronDown, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
+import { BarChart3, CalendarPlus, Check, ChevronDown, Download, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { PostText } from "@/components/monitor/PostText";
 import { PostPreview } from "@/components/PostPreview";
@@ -45,6 +45,18 @@ const Sel = ({ value, onChange, opts, label }: { value: string; onChange: (v: st
 );
 
 /* ───────── материал ───────── */
+/** Картинка с кнопкой «скачать» при наведении. */
+function DlImage({ id, className, alt = "" }: { id: string; className: string; alt?: string }) {
+  return (
+    <span className="group relative block shrink-0">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/api/assets/${id}`} alt={alt} className={className} />
+      <a href={`/api/assets/${id}?dl=1`} download title="Скачать изображение" aria-label="Скачать изображение" onClick={(e) => e.stopPropagation()}
+        className="absolute right-1.5 top-1.5 grid size-8 place-items-center rounded-full bg-black/55 text-white opacity-0 transition hover:bg-black/75 focus:opacity-100 group-hover:opacity-100"><Download size={15} /></a>
+    </span>
+  );
+}
+
 function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null) => void; drop: () => void }) {
   const { busy, msg, run, setMsg } = useRun();
   const [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
@@ -60,11 +72,12 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-          {it.imageId && /* eslint-disable-next-line @next/next/no-img-element */ <a href={`/api/assets/${it.imageId}`} target="_blank" rel="noreferrer" title="Открыть картинку" className="block shrink-0"><img src={`/api/assets/${it.imageId}`} alt="" className="size-36 rounded-xl object-cover sm:size-40" /></a>}
+          {it.imageId && <DlImage id={it.imageId} className="size-36 rounded-xl object-cover sm:size-40" />}
           <div className="min-w-0 flex-1">
           {it.kind === "seo" ? <div className="max-h-60 overflow-y-auto rounded-2xl bg-tile p-3 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
             : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input max-h-60 overflow-y-auto !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
           </div></div>
+          {it.slides.length > 0 && <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{it.slides.map((id) => <DlImage key={id} id={id} className="h-28 w-auto rounded-lg object-cover" />)}</div>}
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>Знаков: {body.length}</span>
             <button type="button" onClick={() => setPrev((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-2.5 !py-0.5">{prev ? <EyeOff size={12} className="mr-1" /> : <Eye size={12} className="mr-1" />}Как будет выглядеть</button></div>

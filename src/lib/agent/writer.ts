@@ -8,6 +8,10 @@ import { LOGO_POSITIONS, type LogoPos } from "../images";
 import { htmlTitle, htmlToText } from "../repurpose";
 import { safeFetchText } from "../safefetch";
 import { KIND } from "../kinds";
+import { sectionImage } from "../article-images";
+import { H2 } from "../article-lib";
+import { copyAssetToItem } from "../item-images";
+import { loadAsset, saveAsset, processImage } from "../assets";
 
 /** Письменные действия ассистента: написать материал, переписать, поменять картинку. Выполняются по прямой просьбе пользователя. */
 export interface ActResult { ok: boolean; text: string; itemIds?: string[] }
@@ -56,7 +60,7 @@ export async function writeMaterial(orgId: string, a: Args): Promise<ActResult> 
   const kind = normKind(a.kind), note = clip(a.instructions, 600);
   const fac = await pickFactory(orgId, a.factoryId);
   if (!fac) return { ok: false, text: "Не нашёл завод, для которого писать. Создайте завод в разделе «Заводы»" };
-  const newsId = uuid(a.newsId), itemId = uuid(a.itemId), url = clip(a.url, 500), topic = clip(a.topic, 300);
+  const newsId = uuid(a.newsId), itemId = uuid(a.itemId), url = clip(a.url, 500), topic = clip(a.topic, 300), fileId = uuid(a.fileId), picId = uuid(a.imageAssetId);
 
   let src: { title: string; url: string; name: string; body: string } | null = null;
   let from = "";
@@ -65,7 +69,13 @@ export async function writeMaterial(orgId: string, a: Args): Promise<ActResult> 
     if (!r.ok) return { ok: false, text: r.error };
     return r.ids.length ? { ok: true, text: `Написал (${KIND[kind] ?? kind}, завод «${fac.name}»)${r.error ? `. Замечание: ${r.error}` : ""}`, itemIds: r.ids } : { ok: false, text: r.error ?? "Не получилось" };
   }
-  if (itemId) {
+  if (fileId) {
+    const f = await loadAsset(orgId, fileId);
+    if (!f || !f.mime.startsWith("text/")) return { ok: false, text: "Не нашёл прикреплённый документ" };
+    const text = f.data.toString("utf8").slice(0, 12_000);
+    src = { title: topic || f.name.replace(/\.[a-z0-9]+$/i, ""), url: "", name: f.name, body: text };
+    from = "по прикреплённому документу";
+  } else if (itemId) {
     const it = await one<{ topic: string; meta: { source?: { title: string; url: string; name: string; body: string } } | null; body: string }>("select topic,meta,body from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
     if (!it) return { ok: false, text: "Исходный материал не найден" };
     src = it.meta?.source ? { ...it.meta.source, name: it.meta.source.name ?? "" } : { title: it.topic, url: "", name: "", body: it.body.slice(0, 8000) };
@@ -82,6 +92,7 @@ export async function writeMaterial(orgId: string, a: Args): Promise<ActResult> 
   const [row] = await q<{ id: string }>(
     "insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,status,meta) values($1,$2,$3,$4,$5,'','approved',$6) returning id",
     [orgId, fac.id, fac.brand_id, kind, (src?.title || topic).slice(0, 300), JSON.stringify({ source, draft: true, ...(src ? { fromNews: true } : {}) })]);
+  if (picId) await copyAssetToItem(orgId, picId, row.id).catch(() => false);
   const b = await buildItem(orgId, row.id);
   if (!b.ok) { await q("delete from kz_content_items where id=$1 and org_id=$2", [row.id, orgId]); return { ok: false, text: b.error ?? "Не получилось написать" }; }
   return { ok: true, text: `Написал (${KIND[kind] ?? kind}${from ? ", " + from : ""}, завод «${fac.name}»)`, itemIds: [row.id] };
@@ -111,6 +122,28 @@ export async function imageForMaterial(orgId: string, a: Args): Promise<ActResul
   if (!it) return { ok: false, text: "Не нашёл материал. Уточните, для какого нужна картинка" };
   if (it.status === "published") return { ok: false, text: "Материал уже опубликован: картинку не изменить" };
   const op = String(a.op ?? "new"), prompt = clip(a.prompt, 600);
+  if (op === "use") {
+    const asset = uuid(a.assetId) ? await loadAsset(orgId, uuid(a.assetId)) : null;
+    if (!asset || asset.kind === "logo" || !asset.mime.startsWith("image/")) return { ok: false, text: "Не нашёл прикреплённую картинку" };
+    return (await copyAssetToItem(orgId, id, uuid(a.itemId))) ? { ok: true, text: "Картинка из вложения поставлена в материал", itemIds: [id] } : { ok: false, text: "Не получилось поставить картинку" };
+  }
+  if (op === "article") {
+    const row = await one<{ kind: string; body: string }>("select kind,body from kz_content_items where id=$1", [id]);
+    if (!row || !["seo", "article", "guide"].includes(row.kind)) return { ok: false, text: "Картинки к разделам есть только у статей" };
+    const heads = [...row.body.matchAll(H2)].length;
+    if (!heads) return { ok: false, text: "В статье нет заголовков второго уровня: картинки ставятся после них" };
+    const want = Math.min(heads, Math.min(4, Math.max(1, Math.round(Number(a.count)) || 3)));
+    // равномерно по статье: первый, средние и последний разделы
+    const idx = [...new Set(Array.from({ length: want }, (_, k) => Math.round((k * (heads - 1)) / Math.max(1, want - 1))))];
+    const asp = ASPECT[String(a.aspect ?? "landscape").toLowerCase()] ?? "landscape";
+    let made = 0, err = "";
+    for (const h of idx) {
+      const cur = (await one<{ body: string }>("select body from kz_content_items where id=$1", [id]))?.body ?? "";
+      const r = await sectionImage(orgId, id, cur, h, prompt, asp, { logo: a.logo === true });
+      if (r.ok) made++; else { err = r.error; break; }
+    }
+    return made ? { ok: true, text: `Картинок к разделам статьи: ${made}${err ? `. Остановился: ${err}` : ""}`, itemIds: [id] } : { ok: false, text: err || "Не получилось" };
+  }
   if (op === "logo") {
     const lp = String(a.logoPos ?? ""), scale = Number(a.logoScale), margin = Number(a.logoMargin);
     const over: { logoPos?: LogoPos; logoScale?: number; logoMargin?: number } = {};
@@ -144,3 +177,13 @@ export async function imageForMaterial(orgId: string, a: Args): Promise<ActResul
 }
 
 export { factoryNames };
+
+/** Прикреплённую картинку — логотипом бренда. Обрабатывается так же, как загрузка в «Брендбуке». */
+export async function setLogoFromAttachment(orgId: string, a: Args): Promise<ActResult> {
+  const asset = uuid(a.assetId) ? await loadAsset(orgId, uuid(a.assetId)) : null;
+  if (!asset || !asset.mime.startsWith("image/")) return { ok: false, text: "Не нашёл прикреплённую картинку" };
+  const bid = uuid(a.brandId) || (await one<{ id: string }>("select id from kz_brands where org_id=$1 order by created_at limit 1", [orgId]))?.id;
+  if (!bid || !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [bid, orgId]))) return { ok: false, text: "Не нашёл бренд" };
+  try { await saveAsset(orgId, bid, "logo", "логотип", await processImage(asset.data, "logo"), "из чата"); } catch (e) { return { ok: false, text: (e as Error).message.slice(0, 160) }; }
+  return { ok: true, text: "Логотип бренда обновлён" };
+}

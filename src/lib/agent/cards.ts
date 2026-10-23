@@ -28,7 +28,7 @@ export type Card =
   | { t: "plan"; id: string; name: string; until: string | null; items: { id: string; kind: string; topic: string; status: string; date: string | null }[] }
   | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] };
 
-export interface ItemRow { id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
+export interface ItemRow { slides: string[]; id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const ids = (v: unknown) => (Array.isArray(v) ? v : []).map(String).filter((x) => UUID.test(x));
@@ -70,10 +70,11 @@ async function itemCard(orgId: string, idList: string[]): Promise<Card | null> {
   const pubs = await q<{ item_id: string; channel: string; url: string | null; status: string; error: string | null }>(
     `select p.item_id,ch.title channel,p.external_url url,p.status,p.error from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.org_id=$1 and p.item_id = any($2::uuid[]) order by p.created_at`, [orgId, idList]);
   const fn = await q<{ id: string; name: string }>("select id,name from kz_factories where org_id=$1", [orgId]);
+  const slideRows = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [orgId, idList]);
   const nameOf = (id: string | null) => fn.find((f) => f.id === id)?.name ?? "";
   const rows: ItemRow[] = [];
   const mk = (d: { id: string; kind: string; topic: string; body: string; status: string; image_id: string | null; factory_id: string }, draft: boolean, channels: ChannelOpt[], date: string | null): ItemRow => ({
-    id: d.id, kind: d.kind, kindLabel: KIND[d.kind] ?? d.kind, topic: d.topic, body: d.body, status: d.status, draft, imageId: d.image_id, factoryId: d.factory_id, factoryName: nameOf(d.factory_id), channels,
+    slides: slideRows.filter((x) => x.item_id === d.id).map((x) => x.id), id: d.id, kind: d.kind, kindLabel: KIND[d.kind] ?? d.kind, topic: d.topic, body: d.body, status: d.status, draft, imageId: d.image_id, factoryId: d.factory_id, factoryName: nameOf(d.factory_id), channels,
     date: date ?? new Date().toISOString().slice(0, 10), time: "10:00",
     published: pubs.filter((p) => p.item_id === d.id).map((p) => ({ channel: p.channel, url: p.url, ok: p.status === "published", error: p.error })),
   });

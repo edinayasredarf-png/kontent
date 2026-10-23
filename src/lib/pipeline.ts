@@ -515,7 +515,8 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   try { const c = await collectComments(15); rep.comments = c.added; rep.errors.push(...c.errors.slice(0, 3)); } catch (e) { rep.errors.push(`comments: ${(e as Error).message}`); }
 
   // сгенерированные картинки, на которые больше ничего не ссылается (материал удалён), не копим в БД
-  await q("delete from kz_assets a where a.kind='generated' and a.item_id is null and a.created_at < now() - interval '1 hour' and not exists (select 1 from kz_content_items i where i.image_id=a.id)").catch(() => {});
+  await q("delete from kz_assets a where a.kind='generated' and a.item_id is null and a.created_at < now() - interval '1 hour' and a.note <> 'вложение чата' and not exists (select 1 from kz_content_items i where i.image_id=a.id)").catch(() => {});
+  await q("delete from kz_assets a where a.note='вложение чата' and a.created_at < now() - interval '30 days'").catch(() => {});
 
   // 5) отправка очереди
   const s = await processQueue(15);

@@ -3,10 +3,10 @@ import { revalidatePath } from "next/cache";
 import { canWrite, requireCtx } from "../auth";
 import { askAgent, clearHistory, runMessageAction } from "./agent";
 
-export async function sendChatAction(message: string): Promise<{ error?: string }> {
+export async function sendChatAction(message: string, fileIds: string[] = []): Promise<{ error?: string }> {
   const c = await requireCtx();
   if (!canWrite(c.org.role)) return { error: "Ассистент тратит деньги на нейросети, поэтому недоступен роли «Наблюдатель»" };
-  const r = await askAgent({ orgId: c.org.id, userId: c.user.id, userName: c.user.name, role: c.org.role }, String(message ?? ""));
+  const r = await askAgent({ orgId: c.org.id, userId: c.user.id, userName: c.user.name, role: c.org.role }, String(message ?? ""), Array.isArray(fileIds) ? fileIds.map(String) : []);
   revalidatePath("/app");
   return r.ok ? {} : { error: r.error };
 }

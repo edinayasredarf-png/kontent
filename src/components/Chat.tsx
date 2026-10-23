@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useStored } from "@/lib/draft-store";
-import { ArrowRight, ArrowUp, Check, Globe, Loader2, Mic, Pencil, Plus, RotateCcw, Square } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, FileText, Globe, Loader2, Mic, Paperclip, Pencil, Plus, RotateCcw, Square, X } from "lucide-react";
 import { chatActionRun, clearChatAction, sendChatAction } from "@/lib/agent/actions";
 import { pendingStore } from "@/lib/pending-store";
 import type { ChatMsg } from "@/lib/agent/agent";
@@ -75,11 +75,29 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [msgs.length, busy]);
   useEffect(() => { const a = area.current; if (a) { a.style.height = "auto"; a.style.height = Math.min(a.scrollHeight, 160) + "px"; } }, [text]);
 
+  const [files, setFiles] = useState<{ id: string; name: string; kind: "image" | "doc" }[]>([]), [upl, setUpl] = useState(0), [drag, setDrag] = useState(false);
+  const pick = useRef<HTMLInputElement>(null);
+  async function upload(list: FileList | File[] | null) {
+    const arr = Array.from(list ?? []).slice(0, 4 - files.length);
+    if (!arr.length) return;
+    setErr(""); setUpl((n) => n + arr.length);
+    for (const f of arr) {
+      try {
+        const fd = new FormData(); fd.append("file", f);
+        const r = await fetch("/api/chat/upload", { method: "POST", body: fd });
+        const j = (await r.json().catch(() => ({}))) as { id?: string; name?: string; kind?: "image" | "doc"; error?: string };
+        if (!r.ok || !j.id) setErr(j.error || "Не удалось прикрепить файл");
+        else setFiles((x) => [...x, { id: j.id!, name: j.name || f.name, kind: j.kind || "doc" }]);
+      } catch { setErr("Не удалось прикрепить файл: нет связи"); }
+      setUpl((n) => n - 1);
+    }
+  }
   async function send(v: string) {
-    const m = v.trim(); if (!m || busy) return;
-    setErr(""); setText(""); setBusy(true); pendingStore.inc();
-    setMsgs((x) => [...x, { id: "tmp-" + Date.now(), role: "user", content: m, blocks: {}, created_at: new Date().toISOString() }]);
-    try { const r = await sendChatAction(m); if (r.error) setErr(r.error); router.refresh(); }
+    const m = (v.trim() || (files.length ? "Посмотри вложение" : "")); if (!m || busy || upl) return;
+    const sent = files;
+    setErr(""); setText(""); setFiles([]); setBusy(true); pendingStore.inc();
+    setMsgs((x) => [...x, { id: "tmp-" + Date.now(), role: "user", content: m, blocks: sent.length ? { files: sent } : {}, created_at: new Date().toISOString() }]);
+    try { const r = await sendChatAction(m, sent.map((f) => f.id)); if (r.error) setErr(r.error); router.refresh(); }
     catch { setErr("Нет связи с сервером. Попробуйте ещё раз."); } finally { setBusy(false); pendingStore.dec(); }
   }
   function mic() {
@@ -99,22 +117,37 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
 
   const composer = (
     <div className="relative">
-      <div className="rounded-3xl bg-surface shadow-soft outline outline-1 -outline-offset-1 outline-accent focus-within:outline-2">
+      <div onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDrag(true); } }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); void upload(e.dataTransfer.files); }}
+        className={`rounded-3xl bg-surface shadow-soft outline outline-1 -outline-offset-1 outline-accent focus-within:outline-2 ${drag ? "ring-2 ring-accent" : ""}`}>
+        <input ref={pick} type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.docx,.html,.htm,.csv" onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
+        {(files.length > 0 || upl > 0) && (
+          <div className="flex flex-wrap gap-2 px-3 pt-3">
+            {files.map((f) => (
+              <span key={f.id} className="relative flex items-center gap-2 rounded-xl bg-tile py-1 pl-1 pr-7 text-xs">
+                {f.kind === "image" ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/assets/${f.id}`} alt="" className="size-9 rounded-lg object-cover" /> : <span className="grid size-9 place-items-center rounded-lg bg-accent-soft text-accent"><FileText size={16} /></span>}
+                <span className="max-w-[140px] truncate">{f.name}</span>
+                <button type="button" aria-label="Убрать файл" onClick={() => setFiles((x) => x.filter((y) => y.id !== f.id))} className="absolute right-1.5 top-1.5 text-ink3 hover:text-ink"><X size={13} /></button>
+              </span>))}
+            {upl > 0 && <span className="flex items-center gap-2 rounded-xl bg-tile px-3 py-2 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Загружаю…</span>}
+          </div>
+        )}
         <div className="flex items-end gap-1 p-2">
           <div className="relative">
             <button type="button" onClick={() => setMenu((x) => !x)} aria-label="Быстрые запросы" className="grid size-9 place-items-center rounded-full text-accent hover:bg-accent-soft"><Plus size={20} /></button>
             {menu && (
               <div className="absolute bottom-11 left-0 z-20 w-72 rounded-2xl border border-line bg-surface p-1 shadow-float">
                 <p className="px-3 py-1.5 text-xs text-ink2">Быстрые запросы</p>
+                <button type="button" onClick={() => { setMenu(false); pick.current?.click(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium hover:bg-accent-soft"><Paperclip size={15} className="text-accent" />Прикрепить картинку или документ</button>
                 {TEMPLATES.map((t) => <button key={t} type="button" onClick={() => { setMenu(false); if (t.endsWith(": ")) { setText(t); area.current?.focus(); } else send(t); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-accent-soft">{t}</button>)}
               </div>
             )}
           </div>
           <textarea ref={area} value={text} onChange={(e) => setText(e.target.value)} rows={1} maxLength={1500} disabled={busy}
+            onPaste={(e) => { const imgs = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); void upload(imgs); } }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text); } }}
             placeholder="Напишите, что вы хотите получить или создать" className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-[7px] text-base outline-none placeholder:text-ink3" />
           <button type="button" onClick={mic} aria-label={rec ? "Остановить запись" : "Голосовой ввод"} className={`grid size-9 place-items-center rounded-full ${rec ? "bg-bad-soft text-bad" : "text-accent hover:bg-accent-soft"}`}>{rec ? <Square size={16} /> : <Mic size={19} />}</button>
-          <button type="button" onClick={() => send(text)} disabled={busy || !text.trim()} aria-label="Отправить" className="grid size-9 place-items-center rounded-full bg-accent text-white disabled:opacity-40">{busy ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={19} />}</button>
+          <button type="button" onClick={() => send(text)} disabled={busy || !!upl || (!text.trim() && !files.length)} aria-label="Отправить" className="grid size-9 place-items-center rounded-full bg-accent text-white disabled:opacity-40">{busy ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={19} />}</button>
         </div>
       </div>
       {err && <p className="mt-2 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
@@ -145,7 +178,9 @@ export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: Ch
       <div className="mb-2 flex justify-end"><button type="button" onClick={async () => { await clearChatAction(); setMsgs([]); router.refresh(); }} className="flex items-center gap-1.5 text-xs text-ink2 hover:text-ink"><RotateCcw size={13} />Новый чат</button></div>
       <div className="flex-1 space-y-6 pb-6">
         {msgs.map((m) => m.role === "user" ? (
-          <div key={m.id} className="flex justify-end"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-accent-soft px-5 py-3 text-base">{m.content}</div></div>
+          <div key={m.id} className="flex justify-end"><div className="max-w-[85%] rounded-3xl bg-accent-soft px-5 py-3 text-base">
+            {!!m.blocks.files?.length && <div className="mb-2 flex flex-wrap gap-2">{m.blocks.files.map((f) => f.kind === "image" ? /* eslint-disable-next-line @next/next/no-img-element */ <img key={f.id} src={`/api/assets/${f.id}`} alt={f.name} className="size-24 rounded-xl object-cover" /> : <span key={f.id} className="flex items-center gap-1.5 rounded-xl bg-surface/70 px-2.5 py-1.5 text-xs"><FileText size={14} />{f.name}</span>)}</div>}
+            <span className="whitespace-pre-wrap">{m.content}</span></div></div>
         ) : (
           <div key={m.id} className="text-base leading-7">
             <Text t={m.content} />

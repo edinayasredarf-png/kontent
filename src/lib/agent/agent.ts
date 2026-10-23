@@ -3,6 +3,8 @@ import { aiReady, chat, extractObject } from "../ai";
 import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
 import type { ActResult } from "./writer";
+import { loadAsset } from "../assets";
+import { visionAsk } from "../images";
 import { TOOLS, runAct, runAuto, runRead, toolByName, validateAction, type Args, type ToolCtx } from "./tools";
 
 /** Разделы сервиса, на которые ассистент может дать кнопку. Всё, чего здесь нет, в ссылки не попадает. */
@@ -25,7 +27,8 @@ export function cleanHref(h: unknown): string | null {
 
 export interface Link { label: string; href: string }
 export interface Action { label: string; tool: string; args: Args; hint: string; done?: string }
-export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[] }
+export interface ChatFile { id: string; name: string; kind: "image" | "doc" }
+export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[]; files?: ChatFile[] }
 export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[] }
 
 const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : t.kind === "act" ? " [выполняется сразу, платно]" : ""}`).join("\n");
@@ -45,6 +48,7 @@ ${toolDocs()}
 - Просят изменить уже показанный материал («длиннее», «короче», «в дружелюбном тоне», «перепиши как SEO-статью», «другая картинка», «сделай вертикальную», «логотип в левый верхний угол», «убери логотип»): вызови rewrite или image с itemId из списка «Материалы в этом диалоге» (по умолчанию последний), для другого формата вызови write с itemId. Не переспрашивай, если можно догадаться.
 - Заполнение бренда и завода: человек рассказывает о бизнесе, даёт сайт или просит подобрать сам. Прочитай сайт (site) или поищи (search), предложи значения коротким текстом и спроси «Сохранить?». Если человек сказал «заполни», «сохрани», «поменяй» или согласился, вызови save_brand и save_factory (бесплатно, сразу): сказанное в чате применяется в настройках.
 - Логотип на картинке (больше, меньше, другое место, убрать) меняй только через image с op logo, а не rework: это делается кодом, без нейросети.
+- Вложения пользователя (картинки и документы) описаны в блоке «Вложения». Что с ними делать, определи по просьбе: «сделай в таком стиле» или «вот референс»: используй описание стиля в prompt для image (op new/redo) или в instructions для write; «поставь эту картинку в пост»: write с imageAssetId или image с op use; «напиши по этому документу»: write с fileId; «это наш логотип»: set_logo; «заполни бренд по документу»: save_brand/save_factory по тексту документа; «что на картинке», «проанализируй»: просто ответь текстом. Если непонятно, что сделать с файлом, коротко спроси.
 - Просят ПОКАЗАТЬ или поменять настройки, данные (аналитику, каналы, бренды, заводы, конкурентов, источники, план): тогда и только тогда добавь карточку в "cards". Пока человек об этом не просил, карточек не добавляй.
 - Платные действия выполняй, только если пользователь прямо попросил что-то создать или изменить. На вопросы и «покажи» ничего платного не запускай. За одно сообщение не больше двух платных действий.
 - Настройки (set_factory, set_source_status, extend_plan, create_from_news) только предложи в "actions": человек нажмёт кнопку сам.
@@ -128,16 +132,31 @@ async function recentItems(orgId: string, userId: string): Promise<string> {
 
 const MAX_ACTS = 2;
 
-export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = []): Promise<{ ok: true } | { ok: false; error: string }> {
   const m = message.trim();
   if (!m) return { ok: false, error: "Напишите сообщение" };
   if (m.length > 1500) return { ok: false, error: "Сообщение слишком длинное (до 1500 знаков)" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
+  const files: ChatFile[] = [];
+  const attach: string[] = [];
+  for (const fid of fileIds.filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 4)) {
+    const f = await loadAsset(c.orgId, fid);
+    if (!f || f.note !== "вложение чата") continue;
+    if (f.mime.startsWith("image/")) {
+      files.push({ id: fid, name: f.name, kind: "image" });
+      const d = await visionAsk(`data:${f.mime};base64,${f.data.toString("base64")}`, "Опиши изображение для редактора контента: что на нём, композиция, палитра, настроение, стиль (фото, иллюстрация, 3D…). Весь текст на картинке перепиши дословно. До 120 слов.").catch((e) => `(описание недоступно: ${(e as Error).message.slice(0, 80)})`);
+      attach.push(`- картинка assetId=${fid}, «${f.name}»: ${d.slice(0, 900)}`);
+    } else {
+      files.push({ id: fid, name: f.name, kind: "doc" });
+      attach.push(`- документ fileId=${fid}, «${f.name}»: ${f.data.toString("utf8").slice(0, 4500)}`);
+    }
+  }
+  const attached = attach.length ? `Вложения:\n${attach.join("\n")}\n\n` : "";
   const ctx: ToolCtx = { orgId: c.orgId, role: c.role };
   const hist = (await loadHistory(c.orgId, c.userId, 8)).map((h) => `${h.role === "user" ? "Пользователь" : "Ассистент"}: ${h.content.slice(0, 1200)}`).join("\n");
   const shown = await recentItems(c.orgId, c.userId);
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
-  await save(c.orgId, c.userId, "user", m);
+  await save(c.orgId, c.userId, "user", m, files.length ? { files } : {});
   const t0 = Date.now();
   let scratch = "", acts = 0;
   const got: Record<string, unknown> = {}, made: string[] = [], extra: CardRef[] = [];
@@ -146,7 +165,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
     for (let step = 0; step < 7; step++) {
       if (Date.now() - t0 > 240_000) throw new Error("Слишком долго думаю, попробуйте короче");
       const last = step >= 6;
-      const raw = await chat("assistant", SYSTEM(c.userName), `Сегодня ${TODAY()}.\n${shown}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
+      const raw = await chat("assistant", SYSTEM(c.userName), `Сегодня ${TODAY()}.\n${shown}${attached}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
       const o = parseReply(raw);
       if (o?.tool && !last) {
         const t = toolByName(o.tool);
