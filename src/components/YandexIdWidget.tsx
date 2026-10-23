@@ -26,6 +26,7 @@ export function YandexIdWidget({ clientId, next }: { clientId: string; next: str
     const run = async () => {
       try {
         const origin = window.location.origin;
+        try { sessionStorage.setItem("ya_next", next); } catch { /* без хранилища вернёмся на /app */ }
         const r = await window.YaAuthSuggest!.init(
           { client_id: clientId, response_type: "token", redirect_uri: `${origin}/suggest/token` }, origin,
           { view: "button", parentId: "ya-id-button", buttonView: "main", buttonTheme: "dark", buttonSize: "l", buttonBorderRadius: 24, buttonIcon: "ya" },
