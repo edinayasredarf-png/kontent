@@ -1,26 +1,77 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { one, q } from "./db";
+import { open, seal } from "./crypto";
 
-/** Те же переменные, что на единойсреде: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM. */
-export const mailConfigured = () => !!process.env.SMTP_HOST?.trim() && !!process.env.SMTP_USER?.trim() && !!process.env.SMTP_PASS?.trim();
+/**
+ * Почта берётся из настроек в админке («Администрирование → Почта»), а если там пусто — из переменных окружения
+ * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM (те же, что на единойсреде).
+ */
+export interface MailConfig { host: string; port: number; secure: boolean; user: string; pass: string; from: string }
+export type MailSource = "admin" | "env" | "none";
 
+const KEY = "mail";
+let cache: { at: number; cfg: MailConfig | null; source: MailSource } | null = null;
 let transport: Transporter | null = null;
 /** Только для тестов: подмена транспорта, чтобы не слать настоящие письма. */
 export const __setMailTransport = (t: Transporter | null) => { transport = t; };
 
-function getTransport(): Transporter {
-  if (transport) return transport;
+function fromEnv(): MailConfig | null {
+  const host = process.env.SMTP_HOST?.trim(), user = process.env.SMTP_USER?.trim(), pass = process.env.SMTP_PASS?.trim();
+  if (!host || !user || !pass) return null;
   const port = Number(process.env.SMTP_PORT) || 465;
-  const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE.trim() === "true" : port === 465;
-  transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST!.trim(), port, secure, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000,
-    auth: { user: process.env.SMTP_USER!.trim(), pass: process.env.SMTP_PASS!.trim() },
-  });
-  return transport;
+  return { host, port, secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE.trim() === "true" : port === 465, user, pass, from: process.env.SMTP_FROM?.trim() || user };
+}
+
+async function load(): Promise<{ cfg: MailConfig | null; source: MailSource }> {
+  if (cache && Date.now() - cache.at < 10_000) return cache;
+  let cfg: MailConfig | null = null, source: MailSource = "none";
+  try {
+    const r = await one<{ value: { host?: string; port?: number; secure?: boolean; user?: string; from?: string; pass?: { enc: string } } }>("select value from kz_platform_settings where key=$1", [KEY]);
+    const v = r?.value;
+    if (v?.host && v.user && v.pass) {
+      const pass = open(v.pass).pass;
+      if (pass) { cfg = { host: v.host, port: v.port || 465, secure: v.secure ?? (v.port || 465) === 465, user: v.user, pass, from: v.from || v.user }; source = "admin"; }
+    }
+  } catch { /* до миграции 031 таблицы нет: работаем на переменных окружения */ }
+  if (!cfg) { cfg = fromEnv(); if (cfg) source = "env"; }
+  cache = { at: Date.now(), cfg, source };
+  return cache;
+}
+
+export const mailState = async () => { const { cfg, source } = await load(); return { configured: !!cfg, source, host: cfg?.host ?? "", from: cfg?.from ?? "" }; };
+export const mailConfigured = async () => !!(await load()).cfg || !!transport;
+
+/** Администратор сохраняет настройки. Пустой пароль — оставить прежний. */
+export async function saveMailConfig(i: { host: string; port: number; secure: boolean; user: string; pass: string; from: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const host = i.host.trim(), user = i.user.trim();
+  if (!host || !/^[a-z0-9.-]+$/i.test(host)) return { ok: false, error: "Укажите адрес SMTP-сервера, например smtp.yandex.ru" };
+  if (!Number.isInteger(i.port) || i.port < 1 || i.port > 65535) return { ok: false, error: "Порт должен быть числом от 1 до 65535" };
+  if (!user) return { ok: false, error: "Укажите логин (обычно это адрес почты)" };
+  let pass = i.pass.trim();
+  if (!pass) { const old = await one<{ value: { pass?: { enc: string } } }>("select value from kz_platform_settings where key=$1", [KEY]); pass = old?.value?.pass ? open(old.value.pass).pass ?? "" : ""; }
+  if (!pass) return { ok: false, error: "Укажите пароль (для Яндекса и Mail.ru это пароль приложения, не пароль от ящика)" };
+  const value = { host, port: i.port, secure: i.secure, user, from: i.from.trim() || user, pass: seal({ pass }) };
+  await q("insert into kz_platform_settings(key,value) values($1,$2) on conflict(key) do update set value=excluded.value, updated_at=now()", [KEY, JSON.stringify(value)]);
+  transport = null; cache = null;
+  return { ok: true };
+}
+
+export async function clearMailConfig(): Promise<void> {
+  await q("delete from kz_platform_settings where key=$1", [KEY]);
+  transport = null; cache = null;
+}
+
+async function getTransport(): Promise<{ t: Transporter; from: string }> {
+  const { cfg } = await load();
+  if (transport) return { t: transport, from: cfg?.from ?? "" };
+  if (!cfg) throw new Error("Почта не настроена: заполните её в «Администрирование → Почта»");
+  transport = nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000, auth: { user: cfg.user, pass: cfg.pass } });
+  return { t: transport, from: cfg.from };
 }
 
 export async function sendMail(m: { to: string; subject: string; text: string; html: string }): Promise<void> {
-  if (!mailConfigured() && !transport) throw new Error("Почта не настроена (SMTP_HOST, SMTP_USER, SMTP_PASS)");
-  await getTransport().sendMail({ from: process.env.SMTP_FROM?.trim() || process.env.SMTP_USER?.trim(), to: m.to, subject: m.subject, text: m.text, html: m.html });
+  const { t, from } = await getTransport();
+  await t.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html });
 }
 
 /** Простое письмо в фирменном виде: логотип текстом, кнопка и запасная ссылка. Стили встроены — почтовые клиенты не читают <style>. */

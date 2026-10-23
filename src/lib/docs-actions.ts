@@ -28,7 +28,7 @@ export async function saveEmailMetaAction(f: FormData) {
 export async function sendTestEmailAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory");
-  if (!mailConfigured()) return back(fid, id, { err: "Почта на сервере не настроена (SMTP_HOST, SMTP_USER, SMTP_PASS). Скачайте HTML и отправьте через свой сервис." });
+  if (!(await mailConfigured())) return back(fid, id, { err: "Почта на сервере не настроена (SMTP_HOST, SMTP_USER, SMTP_PASS). Скачайте HTML и отправьте через свой сервис." });
   const it = await one<{ body: string; meta: { email?: EmailMeta }; brand: string; kit: unknown }>(
     "select i.body,i.meta,b.name brand,b.kit from kz_content_items i join kz_brands b on b.id=i.brand_id where i.id=$1 and i.org_id=$2 and i.kind='email'", [id, c.org.id]);
   if (!it?.meta.email) return back(fid, id, { err: "Письмо не найдено" });

@@ -25,7 +25,7 @@ async function origin() {
 /** Отправляет письмо со ссылкой и возвращает пояснение для экрана; ошибка почты не отменяет созданную ссылку. */
 async function sendLinkMail(to: string, subject: string, body: string, label: string, url: string): Promise<string> {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return "Email указан неверно, письмо не отправлено. Передайте ссылку сами";
-  if (!mailConfigured()) return `Почта на сервере не настроена (SMTP), письмо на ${to} не ушло. Передайте ссылку сами`;
+  if (!(await mailConfigured())) return `Почта на сервере не настроена (SMTP), письмо на ${to} не ушло. Передайте ссылку сами`;
   try {
     const m = mailLayout(subject, body, { label, url });
     await sendMail({ to, subject, text: m.text, html: m.html });

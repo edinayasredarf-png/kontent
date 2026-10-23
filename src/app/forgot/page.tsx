@@ -7,8 +7,8 @@ import { mailConfigured } from "@/lib/mail";
 export const metadata = { title: "Восстановление пароля" };
 export const dynamic = "force-dynamic";
 
-export default function Forgot() {
-  const mail = mailConfigured();
+export default async function Forgot() {
+  const mail = (await mailConfigured());
   return (
     <AuthShell>
       <h1 className="mb-1 text-2xl font-semibold">Восстановление пароля</h1>

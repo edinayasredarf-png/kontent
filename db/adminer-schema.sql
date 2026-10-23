@@ -785,5 +785,13 @@ create table if not exists kz_guest_links (
 create index if not exists kz_guest_links_org on kz_guest_links(org_id);
 create index if not exists kz_guest_links_user on kz_guest_links(user_id);
 
+-- 031_platform_settings.sql
+-- Настройки платформы, которые задаёт администратор в кабинете (почта SMTP и т.п.). Секреты лежат зашифрованными.
+create table if not exists kz_platform_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql') on conflict do nothing;

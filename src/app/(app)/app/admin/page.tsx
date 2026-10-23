@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { overview, requireAdmin } from "@/lib/admin";
 import { operatorFilled } from "@/lib/legal";
-import { mailConfigured } from "@/lib/mail";
+import { mailState } from "@/lib/mail";
 import { aiReady } from "@/lib/ai";
 import { oauthProblem } from "@/lib/oauth";
 import { rub } from "@/lib/wallet";
@@ -13,12 +13,12 @@ import { MaxSubscribe } from "@/components/MaxSubscribe";
 
 export default async function AdminHome() {
   await requireAdmin();
-  const [o, bot] = await Promise.all([overview(), botState()]);
+  const [o, bot, mail] = await Promise.all([overview(), botState(), mailState()]);
   const n = (k: string) => Number(o.stats[k] ?? 0);
   const tickAge = o.tick ? Math.round((Date.now() - new Date(o.tick.updated_at).getTime()) / 60000) : null;
   const checks: { ok: boolean; text: string; href?: string }[] = [
     { ok: aiReady(), text: aiReady() ? "AI Gateway подключён" : "AI Gateway не настроен (SELFHOSTED_LLM_URL)", href: "/app/settings/ai" },
-    { ok: mailConfigured(), text: mailConfigured() ? "Почта (SMTP) настроена" : "Почта не настроена: сброс пароля по email не работает (SMTP_HOST, SMTP_USER, SMTP_PASS)" },
+    { ok: mail.configured, text: mail.configured ? `Почта настроена (${mail.source === "admin" ? "в админке" : "переменные сервера"}): письма уходят с ${mail.from}` : "Почта не настроена: не работают сброс пароля и письма-приглашения. Заполните её на вкладке «Почта»", href: "/app/admin/mail" },
     { ok: operatorFilled(), text: operatorFilled() ? "Реквизиты оператора заполнены" : "Реквизиты оператора не заполнены (LEGAL_NAME, LEGAL_INN, LEGAL_ADDRESS, LEGAL_EMAIL) — в юридических документах стоят пометки", href: "/legal/privacy" },
     { ok: tickAge !== null && tickAge < 15, text: tickAge === null ? "Воркер ещё ни разу не запускался: проверьте задание в cron-job.org" : tickAge < 15 ? `Воркер работает: последний проход ${tickAge} мин назад` : `Воркер не запускался ${tickAge} мин — проверьте cron-job.org и CRON_SECRET` },
     ...(["vk", "yandex"] as const).map((p) => { const pr = oauthProblem(p); return { ok: !pr, text: pr ? `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"}: ${pr}` : `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"} настроен` }; }),

@@ -22,7 +22,7 @@ export async function createResetToken(userId: string): Promise<string> {
  * Лимиты: 3 запроса в час на email и 10 на IP; счётчик растёт и для несуществующих адресов.
  */
 export async function requestReset(rawEmail: string, ip: string, origin: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!mailConfigured()) return { ok: false, error: "Отправка писем на сервере не настроена. Обратитесь к администратору — он может выдать ссылку для сброса" };
+  if (!(await mailConfigured())) return { ok: false, error: "Отправка писем на сервере не настроена. Обратитесь к администратору — он может выдать ссылку для сброса" };
   const email = rawEmail.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) return { ok: false, error: "Введите корректный email" };
   const c = await one<{ e: string; i: string }>(
