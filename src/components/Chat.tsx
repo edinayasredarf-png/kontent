@@ -146,7 +146,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
     <div className="relative">
       <div onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDrag(true); } }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); void upload(e.dataTransfer.files); }}
         className={`rounded-3xl bg-surface shadow-soft outline outline-1 -outline-offset-1 outline-accent focus-within:outline-2 ${drag ? "ring-2 ring-accent" : ""}`}>
-        <input ref={pick} type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.docx,.html,.htm,.csv" onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
+        <input ref={pick} type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.docx,.html,.htm,.csv,.pdf,.xlsx" onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
         {(files.length > 0 || upl > 0) && (
           <div className="flex flex-wrap gap-2 px-3 pt-3">
             {files.map((f) => (

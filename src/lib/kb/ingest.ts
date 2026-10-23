@@ -10,7 +10,7 @@ export const KB_LIMITS = { docs: 40, chars: 60_000, minChars: 80, fileBytes: 4_0
 const xmlText = (xml: string) => xml.replace(/<\/w:p>|<w:br\s*\/>|<w:tab\s*\/>/g, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tidy = (t: string) => t.replace(/\r/g, "").replace(/[ \t\f\v]+/g, " ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
-/** Текст из загруженного файла: txt, md, csv, html, docx. Остальное (pdf, doc) честно не поддерживаем. */
+/** Текст из загруженного файла: txt, md, csv, html, docx, pdf (с текстовым слоем), xlsx. */
 export async function fileToText(name: string, data: Buffer): Promise<{ title: string; text: string }> {
   const ext = (name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]) ?? "";
   const title = name.replace(/\.[a-z0-9]+$/i, "").slice(0, 200) || "Документ";
@@ -23,7 +23,38 @@ export async function fileToText(name: string, data: Buffer): Promise<{ title: s
   }
   if (["txt", "md", "markdown", "csv", "text", ""].includes(ext)) return { title, text: tidy(data.toString("utf8")) };
   if (ext === "html" || ext === "htm") { const h = data.toString("utf8"); return { title: htmlTitle(h) || title, text: htmlToText(h) }; }
-  throw new Error("Поддерживаются файлы .txt, .md, .docx, .html. PDF и .doc откройте и вставьте текст в поле");
+  if (ext === "pdf") {
+    try {
+      const pdf = (await import("pdf-parse/lib/pdf-parse.js")).default as (b: Buffer) => Promise<{ text: string }>;
+      const r = await pdf(data);
+      const text = tidy(r.text);
+      if (text.length < 20) throw new Error("scan");
+      return { title, text };
+    } catch (e) { throw new Error((e as Error).message === "scan" ? "В PDF нет текстового слоя (это скан): пришлите картинкой или вставьте текст" : "Не удалось прочитать PDF: файл повреждён или защищён паролем"); }
+  }
+  if (ext === "xlsx") {
+    let zip: JSZip;
+    try { zip = await JSZip.loadAsync(data); } catch { throw new Error("Файл xlsx повреждён"); }
+    const dec = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+    const shared = [...(await zip.file("xl/sharedStrings.xml")?.async("string") ?? "").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => dec([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join("")));
+    const sheets = Object.keys(zip.files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort().slice(0, 3);
+    const out: string[] = [];
+    for (const f of sheets) {
+      const xml = await zip.file(f)!.async("string");
+      for (const row of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+        const cells = [...row[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map((c) => {
+          const v = c[2]?.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? c[2]?.match(/<t[^>]*>([\s\S]*?)<\/t>/)?.[1] ?? "";
+          return /t="s"/.test(c[1]) ? shared[Number(v)] ?? "" : dec(v);
+        });
+        if (cells.some((x) => x.trim())) out.push(cells.join(" | "));
+        if (out.length > 600) break;
+      }
+    }
+    const text = tidy(out.join("\n"));
+    if (!text) throw new Error("В таблице нет данных");
+    return { title, text };
+  }
+  throw new Error("Поддерживаются файлы .txt, .md, .docx, .html, .csv, .pdf (с текстом) и .xlsx. Для .doc сохраните файл как .docx");
 }
 
 /** Страница по ссылке → заголовок и основной текст. JS-сайты и закрытые страницы могут не прочитаться — об этом честно говорим. */
