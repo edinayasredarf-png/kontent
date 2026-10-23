@@ -16,7 +16,7 @@ const SUGGEST: { text: string; icon: typeof Pencil }[] = [
   { text: "Проанализируй посты за неделю", icon: Pencil },
   { text: "Покажи последние новости из моих источников за вчера", icon: Globe },
 ];
-const TEMPLATES = ["Напиши пост по самой подходящей новости за неделю", "Напиши SEO-статью по ссылке: ", "Обнови новости и покажи главное", "Какие идеи ждут моего одобрения?", "Включи автопубликацию в заводе", "Продли контент-план на 7 дней", "Почему не публикуются посты?"];
+const TEMPLATES = ["Пройти настройку с ассистентом: бренд, завод, источники", "Напиши пост по самой подходящей новости за неделю", "Напиши SEO-статью по ссылке: ", "Обнови новости и покажи главное", "Какие идеи ждут моего одобрения?", "Включи автопубликацию в заводе", "Продли контент-план на 7 дней", "Почему не публикуются посты?"];
 
 const greet = (name: string) => {
   const h = new Date().getHours();
@@ -214,6 +214,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
             <Text t={m.content} />
             {!!m.blocks.links?.length && <div className="mt-4 flex flex-wrap gap-2">{m.blocks.links.map((l) => <Link key={l.href + l.label} href={l.href} className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-ink hover:border-accent">{l.label}<ArrowRight size={15} /></Link>)}</div>}
             {!!m.cards?.length && <ChatCards cards={m.cards} />}
+            {!!m.blocks.replies?.length && m.id === msgs[msgs.length - 1]?.id && !busy && <div className="mt-3 flex flex-wrap gap-2">{m.blocks.replies.map((r) => <button key={r} type="button" onClick={() => send(r)} className="rounded-full border border-accent/40 bg-surface px-4 py-2 text-sm text-accent-ink transition hover:bg-accent-soft">{r}</button>)}</div>}
             {!free && (m.cost_kop ?? 0) > 0 && <p className="mt-2 text-[11px] text-ink3">Стоимость ответа: {rubs(m.cost_kop ?? 0)}</p>}
             <Actions m={m} />
           </div>

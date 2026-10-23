@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, History, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
+import type { FactoryPatch } from "@/lib/agent/factory-patch";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { PostText } from "@/components/monitor/PostText";
 import { PostPreview } from "@/components/PostPreview";
@@ -10,7 +11,7 @@ import { EMOJI, HASHTAGS, LENGTHS } from "@/lib/postsettings";
 import type { Card, ItemRow } from "@/lib/agent/cards";
 import {
   cardCreateFromNewsAction, cardExtendPlanAction, cardItemChannelsAction, cardItemDiscardAction, cardItemPublishAction, cardItemRegenAction, cardPickVariantAction, cardItemRestoreAction, cardItemRewriteFragmentAction, cardItemSaveAction, cardItemToPlanAction,
-  cardLikeNewsAction, cardRefreshAction, cardSaveBrandAction, cardSaveFactoryAction, cardSaveSignatureAction, cardSetSourceAction, type FactoryPatch,
+  cardLikeNewsAction, cardRefreshAction, cardSaveBrandAction, cardSaveFactoryAction, cardSaveSignatureAction, cardSetSourceAction,
 } from "@/lib/agent/card-actions";
 
 type Res = { ok: boolean; error?: string; note?: string; card?: Card | null; ids?: string[] };
@@ -281,6 +282,22 @@ function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c
   );
 }
 
+function SetupCard({ c }: { c: Extract<Card, { t: "setup" }> }) {
+  const done = c.steps.filter((s) => s.done).length;
+  return (
+    <div className={`${box} space-y-2`}>
+      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Настройка сервиса</b><span className="text-xs text-ink2">{done} из {c.steps.length}</span></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-tile"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(done / c.steps.length) * 100}%` }} /></div>
+      <ul className="space-y-1.5">{c.steps.map((s) => (
+        <li key={s.key} className="flex items-start gap-2 text-sm">
+          <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full ${s.done ? "bg-good text-white" : "border border-line text-transparent"}`}><Check size={12} /></span>
+          <span className="min-w-0 flex-1"><span className={s.done ? "text-ink2" : "font-medium"}>{s.title}</span><span className="block text-xs text-ink3">{s.detail}</span></span>
+          {s.href && <Link href={s.href} className="shrink-0 text-xs text-accent-ink underline">Открыть</Link>}
+        </li>))}</ul>
+    </div>
+  );
+}
+
 function VariantsCard({ c }: { c: Extract<Card, { t: "variants" }> }) {
   const { busy, msg, run } = useRun();
   const [done, setDone] = useState<number | null>(null);
@@ -333,6 +350,7 @@ export function ChatCards({ cards }: { cards: Card[] }) {
         if (c.t === "competitors") return <CompetitorsCard key={k} c={c} />;
         if (c.t === "brand") return <BrandCard key={k} c={c} replace={swap(i)} />;
         if (c.t === "plan") return <PlanCard key={k} c={c} replace={swap(i)} />;
+        if (c.t === "setup") return <SetupCard key={k} c={c} />;
         if (c.t === "variants") return <VariantsCard key={k} c={c} />;
         if (c.t === "image") return <div key={k} className="flex flex-wrap gap-3">{c.ids.map((id) => <DlImage key={id} id={id} className="max-h-[480px] max-w-full rounded-xl object-contain" />)}</div>;
         return <ChannelsCard key={k} c={c} replace={swap(i)} />;

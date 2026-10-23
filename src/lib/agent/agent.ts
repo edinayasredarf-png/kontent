@@ -4,6 +4,7 @@ import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
 import type { ActResult } from "./writer";
 import { loadAsset } from "../assets";
+import { ONBOARDING_TITLE, progressText } from "./onboarding";
 import { createThread, currentThread, threadsReady } from "./threads";
 import { setUsageCtx, usageStore } from "../billing";
 import { visionAsk } from "../images";
@@ -30,7 +31,7 @@ export function cleanHref(h: unknown): string | null {
 export interface Link { label: string; href: string }
 export interface Action { label: string; tool: string; args: Args; hint: string; done?: string }
 export interface ChatFile { id: string; name: string; kind: "image" | "doc" }
-export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[]; files?: ChatFile[] }
+export interface Blocks { links?: Link[]; actions?: Action[]; cards?: CardRef[]; files?: ChatFile[]; replies?: string[] }
 export interface ChatMsg { id: string; role: "user" | "assistant"; content: string; blocks: Blocks; created_at: string; cards?: Card[]; cost_kop?: number }
 
 const toolDocs = () => TOOLS.map((t) => `- ${t.name} ${t.args} — ${t.desc}${t.kind === "confirm" ? " [только предложение: выполнится после нажатия кнопки пользователем]" : t.kind === "act" ? " [выполняется сразу, платно]" : ""}`).join("\n");
@@ -40,11 +41,20 @@ const SYSTEM = (name: string) => `Ты ассистент платформы «�
 Ты видишь данные аккаунта через инструменты. Цифры и названия берёшь только из результатов инструментов, не выдумываешь.
 Каждый твой ответ — ОДИН JSON-объект и ничего вне него. Два вида:
 1) вызвать инструмент: {"tool":"имя","args":{...}}
-2) финальный ответ: {"final":{"text":"текст для человека; абзацы через \\n\\n, списки через «• »","links":[],"actions":[],"cards":[]}}
+2) финальный ответ: {"final":{"text":"текст для человека; абзацы через \\n\\n, списки через «• »","links":[],"actions":[],"cards":[],"replies":[]}}
+"replies" — до 4 коротких вариантов ответа человека (кнопки), когда ты задаёшь вопрос с понятными вариантами («Да, давайте», «Пропустить», «Покажи примеры»). Без вопроса не добавляй.
 В "text" пиши обычный текст: кавычки внутри экранируй (\\"), а лучше используй «ёлочки».
 Инструменты:
 ${toolDocs()}
 КАК РАБОТАТЬ:
+- ОБУЧЕНИЕ НОВОГО КЛИЕНТА. Когда в данных есть блок «Прогресс настройки» (диалог «Знакомство» или человек просит настроить с нуля, обучить, с чего начать), веди его по шагам, по одному вопросу за раз, коротко, и каждый раз сверяйся с прогрессом:
+  1) Бренд: узнай чем занимается компания, для кого, тон. Если дал сайт, прочитай его (site), при необходимости поищи (search). Предложи описание, аудиторию, тон, запреты, конкурентов и спроси «Сохранить?». После согласия save_brand.
+  2) Брендбук: попроси прикрепить логотип (set_logo), документы о компании, примеры статей, кейсы (add_to_kb; для примеров статей kind article), предложи цвета и стиль картинок (save_brand: colors, style, imageMust, imageNever).
+  3) Контент-завод: ниша, продукт и выгоды, форматы (рекомендуй: пост, карусель, SEO-статья), дни и время выхода (рекомендуй 3 раза в неделю в 10:00 для начала), одобрение идей вручную и автопубликация выключена на старте, картинки к постам. Предложи значения и после согласия save_factory (там же approval, autopublish, images, channels).
+  4) Каналы: токены в чате не вводят. Объясни коротко, где подключить (Каналы: Telegram-бот и канал, VK-сообщество, MAX), дай ссылку /app/channels, после подключения проверь инструментом channels и привяжи к заводу через save_factory (channels).
+  5) Мониторинг: предложи 5–8 источников по нише (сайты отраслевых СМИ, Telegram-каналы, группы VK, сайты конкурентов) и добавь одобренные через add_source; ключевые слова подбери (suggest_keywords или сам) и сохрани add_keywords вместе со словами-исключениями.
+  6) Первый материал: предложи написать пост по свежей новости из мониторинга или по теме; сделай через write.
+  Когда всё готово или человек просит пропустить, вызови finish_onboarding и подведи итог. После каждого выполненного шага показывай карточку «setup» (прогресс) и предлагай следующий шаг кнопками «replies». Не забрасывай сразу всеми вопросами. Никогда не придумывай факты о компании: предлагай, а сохраняй после согласия, кроме случая, когда человек сам продиктовал значение.
 - Просят НАПИСАТЬ, создать, сделать пост, статью, SEO-статью, карусель, сторис: вызови write (источник: новость, ссылка из сообщения, тема или прежний материал) и сразу дай финальный ответ. Сам материал покажется в чате под твоим текстом, поэтому не пересказывай его и не вставляй в text. В тексте скажи одной фразой, что сделано, и закончи абзацем «Что дальше:» с 2–3 конкретными следующими шагами именно для этого материала (например: добавить картинку; сделать длиннее или другой тон; сделать из него SEO-статью или карусель; поставить в контент-план на выбранный день; опубликовать в каналы).
 - Если для новости нужен выбор, а пользователь не назвал новость, найди подходящую инструментом news (если просят «из новостей за неделю», передай hours) и пиши по лучшей, назвав, какую выбрал. Ссылку, которую прислал пользователь, передавай в url.
 - Просят изменить уже показанный материал («длиннее», «короче», «в дружелюбном тоне», «перепиши как SEO-статью», «другая картинка», «сделай вертикальную», «логотип в левый верхний угол», «убери логотип»): вызови rewrite или image с itemId из списка «Материалы в этом диалоге» (по умолчанию последний), для другого формата вызови write с itemId. Не переспрашивай, если можно догадаться.
@@ -94,7 +104,7 @@ const cut = (v: unknown, n = 5500) => { const s = JSON.stringify(v); return s.le
 
 
 /** Объект из ответа модели. Модель иногда присылает «почти JSON» (перенос строки внутри текста, неэкранированные кавычки): чиним, а в крайнем случае достаём текст вручную. Сырой JSON человеку не показываем никогда. */
-export function parseReply(raw: string): { tool?: string; args?: Args; final?: { text: string; links?: unknown; actions?: unknown; cards?: unknown } } | null {
+export function parseReply(raw: string): { tool?: string; args?: Args; final?: { text: string; links?: unknown; actions?: unknown; cards?: unknown; replies?: unknown } } | null {
   const direct = extractObject(raw);
   if (direct) return normalize(direct);
   // чиним переносы строк внутри строк
@@ -115,10 +125,10 @@ export function parseReply(raw: string): { tool?: string; args?: Args; final?: {
   }
   return null;
 }
-function normalize(o: Record<string, unknown>) {
+function normalize(o: Record<string, unknown>): { tool?: string; args?: Args; final?: { text: string; links?: unknown; actions?: unknown; cards?: unknown; replies?: unknown } } | null {
   if (typeof o.tool === "string") return { tool: o.tool, args: (o.args as Args) ?? {} };
   const f = (o.final ?? o) as { text?: unknown; links?: unknown; actions?: unknown; cards?: unknown };
-  return typeof f.text === "string" ? { final: { text: f.text, links: f.links, actions: f.actions, cards: f.cards } } : null;
+  return typeof f.text === "string" ? { final: { text: f.text, links: f.links, actions: f.actions, cards: f.cards, replies: (f as { replies?: unknown }).replies } } : null;
 }
 /** Текст ответа без остатков разметки: литеральные «\n», хвост из JSON, лишние пробелы. */
 export function cleanReply(t: string): string {
@@ -166,11 +176,14 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
     }
   }
   const attached = attach.length ? `Вложения:\n${attach.join("\n")}\n\n` : "";
-  const ctx: ToolCtx = { orgId: c.orgId, role: c.role };
+  const ctx: ToolCtx = { orgId: c.orgId, userId: c.userId, role: c.role };
   const thread = (await threadsReady()) ? (threadIn ? await currentThread(c.orgId, c.userId, threadIn) : null) ?? (await createThread(c.orgId, c.userId)) : null;
   setUsageCtx({ spent: 0 });
   const hist = (await loadHistory(c.orgId, c.userId, 8, thread)).map((h) => `${h.role === "user" ? "Пользователь" : "Ассистент"}: ${h.content.slice(0, 1200)}`).join("\n");
-  const shown = await recentItems(c.orgId, c.userId, thread);
+  const shown0 = await recentItems(c.orgId, c.userId, thread);
+  const th = thread ? await one<{ title: string }>("select title from kz_chat_threads where id=$1", [thread]) : null;
+  const onboarding = th?.title === ONBOARDING_TITLE || /настро(й|ить|им)|обучен|с нуля|с чего начать|помоги начать|пройти обучение/i.test(m);
+  const shown = (onboarding ? await progressText(c.orgId) : "") + shown0;
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await save(c.orgId, c.userId, "user", m, files.length ? { files } : {}, thread);
   const t0 = Date.now();
@@ -214,8 +227,9 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
       const asked = cleanRefs(fin?.cards);
       // написанный материал всегда показываем целиком: текст, картинка и кнопки правки
       const refs: CardRef[] = made.length ? [{ t: "item", ids: made.slice(0, 3) }] : extra.length ? extra : asked;
+      const replies = (Array.isArray(fin?.replies) ? (fin!.replies as unknown[]) : []).map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 4);
       const cards = await keepCards(c.orgId, refs);
-      await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards }, thread, usageStore().spent ?? 0);
+      await save(c.orgId, c.userId, "assistant", text, { links: made.length ? [] : links, actions, cards, ...(replies.length ? { replies } : {}) }, thread, usageStore().spent ?? 0);
       return { ok: true, threadId: thread ?? undefined };
     }
     throw new Error("Не получилось сформировать ответ");

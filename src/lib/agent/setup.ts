@@ -73,11 +73,28 @@ export async function saveFactoryInfo(orgId: string, a: Args): Promise<SetupResu
     const cur = row?.schedule ?? {};
     schedule = JSON.stringify({ days: days?.length ? days : cur.days?.length ? cur.days : [1, 2, 3, 4, 5], times: times?.length ? times : cur.times?.length ? cur.times : ["10:00"], tz: cur.tz ?? "Europe/Moscow" });
   }
+  const finish = async (res: SetupResult): Promise<SetupResult> => {
+    const fid2 = res.refs?.[0] && res.refs[0].t === "factory" ? res.refs[0].id : "";
+    if (!res.ok || !fid2) return res;
+    const patch: Record<string, unknown> = {};
+    if (a.approval === "manual" || a.approval === "auto") patch.approval = a.approval;
+    for (const k of ["autopublish", "images"]) if (typeof a[k] === "boolean") patch[k] = a[k];
+    for (const k of ["length", "emoji", "hashtags", "cta", "link"]) if (typeof a[k] === "string") patch[k] = a[k];
+    const want = (Array.isArray(a.channels) ? a.channels : typeof a.channels === "string" ? [a.channels] : []).map((x) => String(x).toLowerCase().trim()).filter(Boolean);
+    if (want.length) {
+      const fb = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1", [fid2]);
+      const chs = await q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 and brand_id=$2 and status='active'", [orgId, fb?.brand_id ?? null]);
+      patch.channelIds = chs.filter((c) => want.some((w) => c.kind === w || c.title.toLowerCase().includes(w))).map((c) => c.id);
+    }
+    if (!Object.keys(patch).length) return res;
+    const r = await (await import("./factory-patch")).saveFactoryPatch(orgId, fid2, patch as never);
+    return r.ok ? res : { ok: false, text: `Завод сохранён, но настройки не применились: ${r.error ?? ""}` };
+  };
   if (row) {
     if (name !== null && name.length < 2) return { ok: false, text: "Название завода — минимум 2 знака" };
     await q(`update kz_factories set name=coalesce($3,name), niche=coalesce($4,niche), product=coalesce($5,product), formats=coalesce($6::text[],formats), schedule=coalesce($7::jsonb,schedule) where id=$1 and org_id=$2`,
       [row.id, orgId, name, has(a, "niche") ? txt(a.niche, 300) : null, has(a, "product") ? txt(a.product, 2000) : null, formats?.length ? formats : null, schedule]);
-    return { ok: true, text: "Завод сохранён", refs: [{ t: "factory", id: row.id }] };
+    return finish({ ok: true, text: "Завод сохранён", refs: [{ t: "factory", id: row.id }] });
   }
   const brand = await one<{ id: string }>("select id from kz_brands where id=$1 and org_id=$2", [uuid(a.brandId) || null, orgId]);
   if (!brand) return { ok: false, text: "Для нового завода нужен бренд: укажите бренд или сначала создайте его" };
@@ -88,7 +105,7 @@ export async function saveFactoryInfo(orgId: string, a: Args): Promise<SetupResu
   const created = await one<{ id: string }>(
     "insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish,brief) values($1,$2,$3,$4,$5,$6,$7::jsonb,'manual',false,'{}'::jsonb) returning id",
     [orgId, brand.id, name, txt(a.niche, 300), txt(a.product, 2000), formats?.length ? formats : ["post"], schedule]);
-  return { ok: true, text: "Завод создан. Автопубликация выключена, идеи одобряются вручную", refs: [{ t: "factory", id: created!.id }] };
+  return finish({ ok: true, text: "Завод создан. Автопубликация выключена, идеи одобряются вручную", refs: [{ t: "factory", id: created!.id }] });
 }
 
 /** Прочитать сайт по ссылке: главная и до двух внутренних страниц («о компании», «услуги», «контакты»). Текст отдаётся ассистенту, чтобы предложить заполнение. */

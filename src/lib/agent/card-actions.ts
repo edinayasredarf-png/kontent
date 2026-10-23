@@ -6,6 +6,7 @@ import { buildPlan } from "../pipeline";
 import { discardDraft, draftPublishNow, draftToPlan, publishItemNow, publishReport, regenDraft, rescheduleItem, saveDraftBody, setItemChannels } from "../drafts";
 import { cleanLink, cleanSettings, EMOJI, HASHTAGS, LENGTHS } from "../postsettings";
 import { snapshot, restoreVersion } from "../versions";
+import { saveFactoryPatch, type FactoryPatch } from "./factory-patch";
 import { rewriteFragment } from "./writer";
 import { hydrateCards, type Card, type CardRef } from "./cards";
 
@@ -77,41 +78,10 @@ export async function cardItemRegenAction(id: string): Promise<R> {
   return r.ok ? { ok: true, note: "Текст создан заново", card: await itemCard(c.org.id, id) } : fail(r.error);
 }
 
-export interface FactoryPatch { status?: "active" | "paused"; autopublish?: boolean; approval?: "manual" | "auto"; images?: boolean; channelIds?: string[]; length?: string; emoji?: string; hashtags?: string; cta?: string; link?: string }
-
-/** Настройки завода из чата: сохраняется ровно то же, что на странице завода (тумблеры, каналы, параметры текста). */
 export async function cardSaveFactoryAction(id: string, p: FactoryPatch): Promise<R> {
   const c = await requireWriter();
-  const f = await one<{ brand_id: string; brief: unknown }>("select brand_id,brief from kz_factories where id=$1 and org_id=$2", [id, c.org.id]);
-  if (!f) return fail("Завод не найден");
-  const sets: string[] = [], vals: unknown[] = [id, c.org.id];
-  const set = (col: string, v: unknown) => { vals.push(v); sets.push(`${col}=$${vals.length}`); };
-  if (p.status === "active" || p.status === "paused") set("status", p.status);
-  if (typeof p.autopublish === "boolean") set("autopublish", p.autopublish);
-  if (p.approval === "manual" || p.approval === "auto") set("approval", p.approval);
-  if (Array.isArray(p.channelIds)) {
-    const ok = await q<{ id: string }>("select id from kz_channels where org_id=$1 and brand_id=$2 and id = any($3::uuid[])", [c.org.id, f.brand_id, p.channelIds.map(String).filter((x) => UUID.test(x))]);
-    set("channel_ids", ok.map((x) => x.id));
-  }
-  // параметры текста и картинки лежат в brief: сливаем и проверяем тем же разбором, что и форма настроек
-  const patch: Record<string, unknown> = {};
-  if (typeof p.images === "boolean") patch.images = p.images;
-  const cur = cleanSettings(f.brief) as unknown as Record<string, unknown>;
-  const upd: Record<string, unknown> = {};
-  if (p.length && p.length in LENGTHS) upd.length = p.length;
-  if (p.emoji && p.emoji in EMOJI) upd.emoji = p.emoji;
-  if (p.hashtags && p.hashtags in HASHTAGS) upd.hashtags = p.hashtags;
-  if (typeof p.cta === "string") upd.cta = p.cta;
-  if (typeof p.link === "string") { const l = cleanLink(p.link); if (p.link.trim() && !l) return fail("Ссылка должна быть адресом сайта (http:// или https://)"); upd.link = l; }
-  if (Object.keys(upd).length) {
-    const next = cleanSettings({ ...cur, ...upd });
-    const { learnings: _l, strategy: _s, rubricNote: _r, ...persist } = next; void _l; void _s; void _r;
-    Object.assign(patch, persist);
-  }
-  if (Object.keys(patch).length) { vals.push(JSON.stringify(patch)); sets.push(`brief = brief || $${vals.length}::jsonb`); }
-  if (!sets.length) return { ok: true, card: await one1(c.org.id, { t: "factory", id }) };
-  await q(`update kz_factories set ${sets.join(", ")} where id=$1 and org_id=$2`, vals);
-  return { ok: true, note: "Сохранено", card: await one1(c.org.id, { t: "factory", id }) };
+  const r = await saveFactoryPatch(c.org.id, id, p);
+  return r.ok ? { ok: true, note: r.note, card: await one1(c.org.id, { t: "factory", id }) } : fail(r.error ?? "Не получилось");
 }
 
 export async function cardExtendPlanAction(factoryId: string, days: number): Promise<R> {

@@ -3,7 +3,7 @@ import { pollSource } from "../monitor/service";
 import { createFromNews, MAKE_KINDS } from "../monitor/news";
 import { buildPlan } from "../pipeline";
 
-export interface ToolCtx { orgId: string; role: string }
+export interface ToolCtx { orgId: string; role: string; userId?: string }
 export type Args = Record<string, unknown>;
 const uuid = (v: unknown) => (typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v) ? v : "");
 const int = (v: unknown, d: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v)) || d));
@@ -27,7 +27,7 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "site", kind: "read", desc: "Прочитать сайт по ссылке (главная и страницы «о компании», «услуги», «контакты»): чтобы предложить заполнение бренда и завода", args: '{"url":"https://…"}' },
   { name: "search", kind: "read", desc: "Поиск в интернете по запросу: когда нужно узнать о компании, нише или аудитории то, чего нет на сайте", args: '{"query":"…"}' },
   { name: "save_brand", kind: "act", desc: "СОХРАНИТЬ бренд (бесплатно, сразу): создать (без brandId, нужно name) или обновить переданные поля. Вызывай, когда пользователь сказал заполнить, сохранить, поменять, или согласился с твоим предложением. Не вызывай, пока ты только предлагаешь текст", args: '{"brandId":"uuid или пусто для нового","name":"","description":"чем занимается компания","audience":"кто клиенты","tone":"тон общения","forbidden":["что нельзя писать"],"competitors":["конкуренты"],"style":"minimal|futurism|corporate|popart|pastel|dark|photo|illustration","styleNotes":"описание стиля картинок","imageMust":"что всегда на картинках","imageNever":"чего не должно быть","colors":["#RRGGBB"]}' },
-  { name: "save_factory", kind: "act", desc: "СОХРАНИТЬ контент-завод (бесплатно, сразу): создать (без factoryId, нужны brandId и name) или обновить переданные поля. Расписание: days — дни недели 0..6 (0 воскресенье), times — «ЧЧ:ММ»", args: '{"factoryId":"uuid или пусто для нового","brandId":"uuid","name":"","niche":"ниша","product":"что продаём, главные выгоды","formats":["post","carousel","story","article","seo"],"days":[1,3,5],"times":["10:00"]}' },
+  { name: "save_factory", kind: "act", desc: "СОХРАНИТЬ контент-завод (бесплатно, сразу): создать (без factoryId, нужны brandId и name) или обновить переданные поля. Расписание: days — дни недели 0..6 (0 воскресенье), times — «ЧЧ:ММ»", args: '{"factoryId":"uuid или пусто для нового","brandId":"uuid","name":"","niche":"ниша","product":"что продаём, главные выгоды","formats":["post","carousel","story","article","seo"],"days":[1,3,5],"times":["10:00"],"approval":"manual|auto","autopublish":false,"images":true,"channels":["vk","telegram"],"length":"short|medium|long","cta":"призыв к действию","link":"https://…"}' },
   { name: "set_logo", kind: "act", desc: "Сделать прикреплённую пользователем картинку логотипом бренда (бесплатно, сразу)", args: '{"assetId":"uuid","brandId":"uuid"}' },
   { name: "variants", kind: "act", desc: "НЕСКОЛЬКО ВАРИАНТОВ (платно, сразу) для выбора пользователем: заголовка (headline), первой строки (hook) или всего поста (post). Покажутся карточкой с кнопкой «Взять этот»", args: '{"itemId":"uuid","what":"headline|hook|post","count":3,"instruction":"пожелание"}' },
   { name: "schedule", kind: "act", desc: "ПОСТАВИТЬ материал в контент-план на дату и время (бесплатно, сразу). Даты считай от сегодняшней: «завтра», «в пятницу» переводи в YYYY-MM-DD", args: '{"itemId":"uuid","date":"YYYY-MM-DD","time":"HH:MM"}' },
@@ -36,6 +36,12 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "edit_image", kind: "act", desc: "ИЗМЕНИТЬ ПРИСЛАННУЮ картинку по описанию («убери надпись», «смени фон», «добавь снег») (платно, сразу). Результат покажется в чате; с itemId сразу ставится в материал", args: '{"assetId":"uuid вложения","instruction":"что изменить","itemId":"uuid, если поставить в материал"}' },
   { name: "remember", kind: "act", desc: "ЗАПОМНИТЬ правило бренда навсегда (бесплатно): «не пиши про цены» (kind forbidden), «всегда добавляй ссылку», «пиши на ты» (kind note). op remove — забыть правило", args: '{"rule":"формулировка","kind":"forbidden|note","op":"add|remove","brandId":"uuid"}' },
   { name: "top_posts", kind: "read", desc: "Лучшие и худшие опубликованные посты за период с текстом, форматом, каналом и цифрами: чтобы объяснить, почему один пост сработал лучше, или сделать новый «как лучший»", args: '{"days":30}' },
+  { name: "progress", kind: "read", desc: "Что уже настроено у клиента: бренд, брендбук, завод, каналы, мониторинг, первый материал", args: "{}" },
+  { name: "add_to_kb", kind: "act", desc: "ДОБАВИТЬ прикреплённый документ в базу знаний бренда (бесплатно, сразу). kind: article — их статьи и посты (учим стиль), company — о компании, продуктах, услугах, competitors, cases — кейсы и отзывы, faq — вопросы клиентов, other", args: '{"fileId":"uuid документа","kind":"company","brandId":"uuid","useStyle":false}' },
+  { name: "add_source", kind: "act", desc: "ДОБАВИТЬ источник мониторинга новостей (бесплатно, сразу): site — ссылка на сайт или RSS, telegram — @канал, vk — группа, max — канал, news — ключевой запрос в новостях", args: '{"kind":"site|telegram|vk|max|news","value":"ссылка или имя"}' },
+  { name: "add_keywords", kind: "act", desc: "СОХРАНИТЬ ключевые слова мониторинга (бесплатно, сразу): include — что искать, exclude — что исключать", args: '{"include":["слово"],"exclude":["слово"]}' },
+  { name: "suggest_keywords", kind: "act", desc: "ПОДОБРАТЬ ключевые слова нейросетью по описанию бренда (платно). Результат покажи человеку и сохрани через add_keywords после согласия", args: '{"brandId":"uuid"}' },
+  { name: "finish_onboarding", kind: "act", desc: "ЗАВЕРШИТЬ обучение: когда все шаги пройдены или человек просит пропустить", args: "{}" },
   { name: "refresh_news", kind: "auto", desc: "Обновить источники мониторинга прямо сейчас (бесплатно). Вызывай, когда просят обновить, проверить свежее или данные устарели", args: "{}" },
   { name: "set_source_status", kind: "confirm", desc: "Включить или поставить на паузу источник новостей", args: '{"sourceId":"uuid","status":"active|paused"}' },
   { name: "set_factory", kind: "confirm", desc: "Изменить настройки завода: автопубликация по расписанию, режим одобрения идей (manual — вручную, auto — сами), картинки к материалам", args: '{"factoryId":"uuid","autopublish":true,"approval":"manual|auto","images":true}' },
@@ -112,6 +118,7 @@ export async function runRead(ctx: ToolCtx, name: string, a: Args): Promise<unkn
     const items = await q(`select id,kind,topic,status,planned_for from kz_content_items where factory_id=$1 and org_id=$2 and status in ('idea','approved','generating','ready','scheduled') and not coalesce((meta->>'draft')::boolean,false) order by planned_for nulls last, created_at limit 10`, [fid, o]);
     return { factoryId: fid, items };
   }
+  if (name === "progress") return (await import("./onboarding")).progress(o);
   if (name === "top_posts") {
     const days = int(a.days, 30, 7, 180);
     const rows = await q(`select i.id item_id,i.topic,i.kind,c.kind channel,coalesce(s.views,0) views,coalesce(s.likes,0) likes,coalesce(s.comments,0) comments,coalesce(s.reposts,0) reposts,
@@ -204,6 +211,12 @@ export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<impor
   if (name === "rewrite") return w.rewriteMaterial(ctx.orgId, a);
   if (name === "image") return w.imageForMaterial(ctx.orgId, a);
   if (name === "set_logo") return w.setLogoFromAttachment(ctx.orgId, a);
+  const ob = await import("./onboarding");
+  if (name === "add_to_kb") return ob.addToKb(ctx.orgId, a);
+  if (name === "add_source") return ob.addMonitorSource(ctx.orgId, a);
+  if (name === "add_keywords") return ob.addKeywords(ctx.orgId, a);
+  if (name === "finish_onboarding") return ob.finishOnboarding(ctx.orgId, ctx.userId ?? "");
+  if (name === "suggest_keywords") { const r = await ob.suggestWords(ctx.orgId, a); return (r as { error?: string }).error ? { ok: false, text: (r as { error: string }).error } : { ok: true, text: JSON.stringify(r).slice(0, 1800) }; }
   const x = await import("./extras");
   if (name === "variants") return x.makeVariants(ctx.orgId, a);
   if (name === "schedule") return x.scheduleMaterial(ctx.orgId, a);
