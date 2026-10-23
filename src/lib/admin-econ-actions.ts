@@ -7,7 +7,7 @@ import { DEFAULT_PRICES } from "./wallet";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const rubNum = (v: string) => Number(v.replace(",", ".").replace(/\s/g, ""));
 const out = (r: { ok: boolean; error?: string; message?: string }) => (r.ok ? { ok: r.message ?? "Готово" } : { error: r.error });
-const refresh = () => { revalidatePath("/app", "layout"); };
+const refresh = () => { revalidatePath("/app", "layout"); revalidatePath("/"); }; // и публичная страница с ценами
 
 /** Цены списания: поля p_<ключ> в рублях. Сохранённое действует сразу во всех местах, где цена показывается или списывается. */
 export async function savePricesAction(_: unknown, f: FormData) {

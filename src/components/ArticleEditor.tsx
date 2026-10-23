@@ -71,7 +71,7 @@ export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, i
         <a href={`/api/export/${itemId}/file?format=pdf`} className="btn btn-ghost !py-1.5"><Download size={14} />PDF</a>
         <span className="text-ink3">Берётся последний сохранённый текст: если правили, сначала нажмите «Сохранить текст».</span>
       </div>
-      <AiTextTools getText={() => html} setText={setHtml} price={free ? "" : "3 ₽"} />
+      <AiTextTools getText={() => html} setText={setHtml} price={free ? "" : editPrice} />
       {kind === "guide" && <LeadMagnetPanel itemId={itemId} initial={lead} brandName={brandName} price={editPrice} />}
       {(kind === "seo" || kind === "guide") && <SectionImages itemId={itemId} html={html} setHtml={setHtml} priceLabel={imagePrice} priceKop={imagePriceKop} free={free} opts={imgOpts} />}
     </div>

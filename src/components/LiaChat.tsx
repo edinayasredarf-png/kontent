@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 interface Msg { role: "user" | "assistant"; content: string }
 const HINTS = ["С чего начать?", "Как подключить Telegram-канал?", "Как сделать картинки к постам?", "Чем отличается завод от студии?"];
 
-export function LiaChat({ free }: { free: boolean }) {
+export function LiaChat({ free , price = ""}: { free: boolean ; price?: string}) {
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "assistant", content: "Привет! Я Лия. Подскажу, где что находится в платформе и как быстрее запустить контент. Спросите о чём угодно." }]);
   const [text, setText] = useState(""); const [err, setErr] = useState("");
   const [pending, start] = useTransition(); const box = useRef<HTMLDivElement>(null);
@@ -32,7 +32,7 @@ export function LiaChat({ free }: { free: boolean }) {
       </div>
       {msgs.length === 1 && <div className="flex flex-wrap gap-2 px-4 pb-2">{HINTS.map((h) => <button key={h} onClick={() => send(h)} className="chip !px-3 !py-1.5 hover:!bg-accent-soft hover:!text-accent-ink">{h}</button>)}</div>}
       <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex gap-2 border-t border-line p-3">
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1500} placeholder={`Спросите Лию${free ? "" : " · 3 ₽ за ответ"}`} className="input" />
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1500} placeholder={`Спросите Лию${free ? "" : ` · ${price} за ответ`}`} className="input" />
         <SubmitButton className="btn btn-accent" disabled={pending || !text.trim()} aria-label="Отправить"><Send size={15} /></SubmitButton>
       </form>
     </div>

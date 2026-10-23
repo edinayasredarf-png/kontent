@@ -64,7 +64,7 @@ function Actions({ m }: { m: ChatMsg }) {
 
 type SR = { start(): void; stop(): void; lang: string; interimResults: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 
-export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string }) {
+export function Chat({ initial, name, free, autoAsk, price = "" }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string; price?: string }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<ChatMsg[]>(initial);
   const [text, setText] = useStored<string>("chat-input", ""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
@@ -118,7 +118,7 @@ export function Chat({ initial, name, free, autoAsk }: { initial: ChatMsg[]; nam
         </div>
       </div>
       {err && <p className="mt-2 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
-      <p className="mt-2 text-center text-xs text-ink3">{free ? "Ответы бесплатны для админа." : "Ответ ассистента стоит 3 ₽, обновление новостей бесплатно."} Платные действия выполняются только после вашего нажатия.</p>
+      <p className="mt-2 text-center text-xs text-ink3">{free ? "Ответы бесплатны для админа." : `Ответ ассистента стоит ${price}, обновление новостей бесплатно.`} Платные действия выполняются только после вашего нажатия.</p>
     </div>
   );
 

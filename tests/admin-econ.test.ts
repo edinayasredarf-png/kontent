@@ -55,6 +55,17 @@ describe("в базе", { skip: skipDb }, () => {
     assert.equal(PRICES.post, DEFAULT_PRICES.post);
   });
 
+  it("цены на лендинге берутся из редактора: список, месяц и тексты с метками", async () => {
+    const { savePrices, resetPrices } = await import("../src/lib/admin-econ");
+    const { landingPrices, fill } = await import("../src/lib/landing-prices");
+    await savePrices(actor, { post: 2500, carousel: 4000 });
+    const L = await landingPrices();
+    assert.equal(L.post, "≈ 25 ₽"); assert.equal(L.n_carousel, "40"); assert.equal(L.n_month, "1070", "30 постов по 25 ₽ и 8 каруселей по 40 ₽");
+    assert.equal(fill("Пост стоит примерно %n_post% ₽, месяц около %n_month% ₽, %неизвестно%", L), "Пост стоит примерно 25 ₽, месяц около 1070 ₽, %неизвестно%");
+    await resetPrices(actor);
+    assert.equal((await landingPrices()).n_post, "20");
+  });
+
   it("списание использует действующую цену, пишет действие; возврат учитывается отдельно", async () => {
     const { charge, refund, PRICES } = await import("../src/lib/wallet");
     const db = await import("../src/lib/db");

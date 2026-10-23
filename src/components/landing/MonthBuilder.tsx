@@ -5,7 +5,7 @@ const POSTS = 30, CAROUSELS = 8, CYCLE = 11_000;
 const POST_COL = ["#1734fc", "#bef264", "#a5b4fc", "#fb923c"];
 
 /** «Месяц контента собирается»: 30 постов и 8 каруселей по очереди попадают на полку, сумма растёт до ≈ 900 ₽. Зациклено, играет только пока блок виден. */
-export function MonthBuilder() {
+export function MonthBuilder({ total = 900 }: { total?: number }) {
   const box = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(CYCLE * 0.62); // до первого показа и при «меньше движения» виден почти итоговый вид
   useEffect(() => {
@@ -23,7 +23,7 @@ export function MonthBuilder() {
   // 0–5.5 c: посты, 5.5–8 c: карусели, до 10 c: держим итог, затем всё плавно гаснет
   const posts = Math.min(POSTS, Math.floor((t / 5500) * POSTS));
   const cars = t < 5500 ? 0 : Math.min(CAROUSELS, Math.floor(((t - 5500) / 2500) * CAROUSELS));
-  const sum = Math.round(900 * Math.min(1, (posts / POSTS) * 0.68 + (cars / CAROUSELS) * 0.32));
+  const sum = Math.round(total * Math.min(1, (posts / POSTS) * 0.68 + (cars / CAROUSELS) * 0.32));
   const fade = t > 10_000 ? 1 - (t - 10_000) / 1000 : 1;
   return (
     <div ref={box} className="mt-5 rounded-2xl bg-white/80 p-4 shadow-[0_8px_24px_-14px_rgba(23,52,252,.35)]" aria-hidden>

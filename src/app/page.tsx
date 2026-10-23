@@ -11,40 +11,44 @@ import { HeroVideo } from "@/components/landing/HeroVideo";
 import { Audience } from "@/components/landing/Audience";
 import { hasMedia } from "@/lib/landing-media";
 import { SITE } from "@/lib/site";
+import { fill, landingPrices } from "@/lib/landing-prices";
 
 const TITLE = "Контент-завод — ИИ-контент для соцсетей и сайта на автопилоте";
-const DESC = "Опишите бренд один раз — Контент-завод сам составит контент-план, напишет посты, нарисует карусели и картинки и опубликует в Telegram, VK и MAX. Посты от 20 ₽, 100 ₽ в подарок при регистрации.";
+const DESC = "Опишите бренд один раз — Контент-завод сам составит контент-план, напишет посты, нарисует карусели и картинки и опубликует в Telegram, VK и MAX. Посты от %n_post% ₽, 100 ₽ в подарок при регистрации.";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const D = fill(DESC, await landingPrices());
+  return {
   title: { absolute: TITLE },
-  description: DESC,
+  description: D,
   keywords: ["контент для соцсетей", "ИИ контент-план", "автопостинг Telegram VK", "генератор постов", "карусели для соцсетей", "SMM автоматизация", "SEO-статьи нейросеть"],
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
-  openGraph: { type: "website", url: SITE, siteName: "Контент-завод", locale: "ru_RU", title: TITLE, description: DESC, images: [{ url: "/demo/b1.jpg", width: 1080, height: 1350, alt: "Пример карусели, созданной Контент-заводом" }] },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESC, images: ["/demo/b1.jpg"] },
-};
+  openGraph: { type: "website", url: SITE, siteName: "Контент-завод", locale: "ru_RU", title: TITLE, description: D, images: [{ url: "/demo/b1.jpg", width: 1080, height: 1350, alt: "Пример карусели, созданной Контент-заводом" }] },
+  twitter: { card: "summary_large_image", title: TITLE, description: D, images: ["/demo/b1.jpg"] },
+  };
+}
 
 const FAQ: { q: string; a: string }[] = [
   { q: "Что такое Контент-завод и чем он отличается от обычных нейросетей?", a: "Это готовая система, а не чат. Вы один раз описываете бренд: чем занимаетесь, для кого, каким тоном говорите, какие цвета и логотип. Дальше сервис сам придумывает темы, пишет тексты в голосе бренда, оформляет карусели и картинки в ваших цветах, ставит всё в расписание и публикует. В чате с нейросетью вы каждый раз пишете запрос, копируете текст и вручную выкладываете." },
   { q: "Куда можно публиковать?", a: "В Telegram-каналы, сообщества VK и каналы MAX, а также на сайт на WordPress. Для остальных площадок есть webhook: он передаёт готовый пост и картинки в n8n или Make, а оттуда вы направляете их куда угодно." },
   { q: "Нужно ли мне что-то писать и придумывать самому?", a: "Нет. Достаточно описать бренд. Идеи, тексты, заголовки и оформление карусели сервис делает сам. Каждый материал вы можете одобрить, отредактировать или отклонить. Если хотите полную автоматизацию, включите автопилот: он сам соберёт идеи и напишет черновики, а решение о публикации остаётся за вами." },
-  { q: "Сколько это стоит?", a: "Вы платите только за созданный контент, абонемента нет. Пост стоит примерно 20 ₽, карусель-картинки около 35 ₽, картинка к посту около 15 ₽, SEO-статья около 60 ₽. При регистрации на счёт зачисляется 100 ₽, этого хватит на первые материалы. Если генерация не удалась, деньги возвращаются автоматически." },
+  { q: "Сколько это стоит?", a: "Вы платите только за созданный контент, абонемента нет. Пост стоит примерно %n_post% ₽, карусель-картинки около %n_carousel% ₽, картинка к посту около %n_image% ₽, SEO-статья около %n_seo% ₽. При регистрации на счёт зачисляется 100 ₽, этого хватит на первые материалы. Если генерация не удалась, деньги возвращаются автоматически." },
   { q: "Тексты не будут похожи на безликий ИИ?", a: "Сервис пишет в тоне вашего бренда и учитывает аудиторию, запретные темы, примеры ваших постов, ссылки и призывы к действию. Вы выбираете тип постов (новости, экспертные, продающие, юмор и другие), длину, эмодзи и хештеги. Чем точнее описан бренд, тем более «вашим» получается текст." },
   { q: "Можно ли вести несколько брендов или проектов?", a: "Да. В одной организации можно создать любое число брендов и контент-заводов, у каждого свой стиль, каналы и расписание. Для агентств доступна команда с ролями: администратор, редактор, наблюдатель." },
   { q: "Как устроены карусели?", a: "Сервис сам придумывает структуру из 4–10 слайдов и собирает готовые картинки в стилях бренда (фирменный, светлый, тёмный). Для обложки можно добавить фон, созданный нейросетью. Карусель публикуется альбомом в Telegram и несколькими фото во VK или MAX. Её также можно скачать архивом." },
   { q: "Безопасно ли подключать каналы?", a: "Ключи доступа к каналам хранятся в зашифрованном виде (AES-256-GCM) и не показываются после сохранения. Публикация идёт только в те каналы, которые вы сами подключили. Данные защищены в соответствии с политикой конфиденциальности." },
 ];
 
-const jsonLd = {
+const jsonLd = (L: Record<string, string>) => ({
   "@context": "https://schema.org",
   "@graph": [
     { "@type": "Organization", name: "Контент-завод", url: SITE, logo: `${SITE}/logo-light.svg` },
-    { "@type": "SoftwareApplication", name: "Контент-завод", applicationCategory: "BusinessApplication", operatingSystem: "Web", description: DESC, url: SITE,
+    { "@type": "SoftwareApplication", name: "Контент-завод", applicationCategory: "BusinessApplication", operatingSystem: "Web", description: fill(DESC, L), url: SITE,
       offers: { "@type": "Offer", price: "0", priceCurrency: "RUB", description: "100 ₽ на счёте при регистрации, далее оплата за созданный контент" } },
-    { "@type": "FAQPage", mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) },
+    { "@type": "FAQPage", mainEntity: FAQ.map((f) => ({ "@type": "Question", name: fill(f.q, L), acceptedAnswer: { "@type": "Answer", text: fill(f.a, L) } })) },
   ],
-};
+});
 
 
 const wrap = "mx-auto w-full max-w-[1360px] px-5";
@@ -73,7 +77,7 @@ const FEATURES: { key: string; t: string; d: string; tone: Tone; chips?: string[
   { key: "plan", t: "Контент-план на месяц", d: "Идеи с учётом ниши, типов постов и дат. Календарь публикаций и подбор лучшего времени выхода.", tone: "plain", time: ["≈ 4 часа", "≈ 5 минут"] },
   { key: "carousel", t: "Карусели, которые листают до конца", d: "Сервис придумывает структуру, пишет текст каждого слайда и сразу собирает готовые картинки: обложка, нумерованные шаги, финальный призыв. Три стиля, ваши цвета, логотип. Около 35 ₽ за карусель.", tone: "blue", chips: ["4–10 слайдов", "Квадрат и 4:5", "Обложка от нейросети", "Скачать архивом"], time: ["≈ 5 часов", "≈ 3 минуты"] },
   { key: "posts", t: "Посты в голосе бренда", d: "Новости, экспертные, продающие, юмор: выбираете тип, длину, эмодзи, хештеги и добавляете примеры своего стиля.", tone: "liquid" },
-  { key: "images", t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — около 15 ₽.", tone: "plain" },
+  { key: "images", t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — около %n_image% ₽.", tone: "plain" },
   { key: "seo", t: "SEO-статьи для сайта", d: "Структурированные статьи с заголовками и метаданными, публикация прямо в WordPress.", tone: "blue" },
   { key: "monitor", t: "Мониторинг и идеи", d: "Следим за новостями, каналами VK и Telegram, сайтами и ключевыми словами. Находки превращаются в темы.", tone: "liquid" },
   { key: "analytics", t: "Аналитика", d: "Что вышло, что сработало, в какое время лучше публиковать. Решения на данных, а не на ощущениях.", tone: "plain" },
@@ -81,9 +85,9 @@ const FEATURES: { key: string; t: string; d: string; tone: Tone; chips?: string[
   { key: "teams", t: "Много брендов, команда и роли", d: "Любое число брендов и контент-заводов в одной организации, у каждого свой стиль и каналы. Приглашайте сотрудников и клиентов с ролями «администратор», «редактор», «наблюдатель».", tone: "liquid" },
 ];
 
-const PRICES: { k: PriceKind; n: string; p: string }[] = [
-  { k: "post", n: "Пост для соцсетей", p: "≈ 20 ₽" }, { k: "carousel", n: "Карусель-картинки (4–10 слайдов)", p: "≈ 35 ₽" }, { k: "image", n: "Картинка к посту", p: "≈ 15 ₽" },
-  { k: "seo", n: "SEO-статья для сайта", p: "≈ 60 ₽" }, { k: "idea", n: "Идея для контент-плана", p: "≈ 3 ₽" }, { k: "edit", n: "Правка слайдов карусели", p: "бесплатно" },
+const PRICE_ROWS: { k: PriceKind; n: string; p: string }[] = [
+  { k: "post", n: "Пост для соцсетей", p: "%post%" }, { k: "carousel", n: "Карусель-картинки (4–10 слайдов)", p: "%carousel%" }, { k: "image", n: "Картинка к посту", p: "%image%" },
+  { k: "seo", n: "SEO-статья для сайта", p: "%seo%" }, { k: "idea", n: "Идея для контент-плана", p: "%idea%" }, { k: "edit", n: "Правка слайдов карусели", p: "бесплатно" },
 ];
 
 const COMPARE: [string, boolean | string, boolean | string, boolean | string][] = [
@@ -93,7 +97,7 @@ const COMPARE: [string, boolean | string, boolean | string, boolean | string][] 
   ["Автоматическая публикация по расписанию", true, false, "вручную"],
   ["Мониторинг новостей и идей из источников", true, false, "частично"],
   ["Скорость", "минуты", "минуты, но всё вручную", "дни"],
-  ["Стоимость месяца контента", "около 900 ₽", "подписка + ваше время", "от десятков тысяч ₽"],
+  ["Стоимость месяца контента", "около %n_month% ₽", "подписка + ваше время", "от десятков тысяч ₽"],
 ];
 
 const GUARANTEES = [
@@ -129,10 +133,14 @@ function HeroMedia() {
 
 const Mark = ({ ok }: { ok: boolean | string }) => ok === true ? <Check size={19} className="text-green-700" /> : ok === false ? <X size={19} className="text-red-500/70" /> : <>{ok}</>;
 
-export default function Landing() {
+/** Цены на странице берутся из редактора цен администратора; страница обновляется раз в 5 минут и сразу после сохранения цен. */
+export const revalidate = 300;
+
+export default async function Landing() {
+  const L = await landingPrices();
   return (
     <div className="lt-light overflow-x-clip bg-white text-black">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(L)) }} />
 
       <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-xl">
         <div className={`${wrap} flex h-20 items-center justify-between`}>
@@ -221,7 +229,7 @@ export default function Landing() {
                     <div className="relative grid gap-8 xl:grid-cols-[1fr_516px] xl:gap-12">
                       <div className="flex flex-col">
                         <h3 className="text-2xl font-semibold leading-9 md:text-3xl">{f.t}</h3>
-                        <p className="mt-6 max-w-[592px] text-base font-semibold leading-6 xl:mt-14">{f.d}</p>
+                        <p className="mt-6 max-w-[592px] text-base font-semibold leading-6 xl:mt-14">{fill(f.d, L)}</p>
                         {f.chips && <ul className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">{f.chips.map((c) => <li key={c} className="rounded-full bg-white/20 px-3 py-1.5">{c}</li>)}</ul>}
                         {f.time && (
                           <div className="mt-8 flex flex-wrap gap-x-16 gap-y-4 xl:mt-auto xl:pt-10">
@@ -257,9 +265,9 @@ export default function Landing() {
                     <tbody>{COMPARE.map((r) => (
                       <tr key={r[0]} className="border-b border-stone-200 last:border-0">
                         <th scope="row" className="h-14 p-4 text-left text-zinc-900">{r[0]}</th>
-                        <td className="bg-violet-50 p-4 text-zinc-900"><Mark ok={r[1]} /></td>
-                        <td className="p-4 text-gray-500"><Mark ok={r[2]} /></td>
-                        <td className="p-4 text-gray-500"><Mark ok={r[3]} /></td>
+                        <td className="bg-violet-50 p-4 text-zinc-900"><Mark ok={typeof r[1] === "string" ? fill(r[1] as string, L) : r[1]} /></td>
+                        <td className="p-4 text-gray-500"><Mark ok={typeof r[2] === "string" ? fill(r[2] as string, L) : r[2]} /></td>
+                        <td className="p-4 text-gray-500"><Mark ok={typeof r[3] === "string" ? fill(r[3] as string, L) : r[3]} /></td>
                       </tr>))}</tbody>
                   </table>
                 </div>
@@ -289,11 +297,11 @@ export default function Landing() {
             <div className="mx-auto grid max-w-[1170px] gap-5 lg:grid-cols-[599fr_558fr]">
               <div className="flex rounded-3xl p-4 outline outline-1 -outline-offset-1 outline-zinc-200 sm:p-6" style={{ background: "linear-gradient(270deg, #ecfccb, #84cc16)" }}>
                 <ul className="flex flex-1 flex-col rounded-3xl bg-white/95 p-2 sm:p-4">
-                  {PRICES.map((r) => (
+                  {PRICE_ROWS.map((r) => (
                     <li key={r.n} className="flex flex-1 items-center gap-4 border-b border-stone-200 px-3 py-3.5 last:border-0 sm:px-4">
                       <PriceIcon kind={r.k} />
                       <span className="flex-1 text-base font-semibold leading-6 text-zinc-900">{r.n}</span>
-                      <span className="text-base font-semibold text-zinc-900">{r.p}</span>
+                      <span className="text-base font-semibold text-zinc-900">{fill(r.p, L)}</span>
                     </li>
                   ))}
                 </ul>
@@ -301,8 +309,8 @@ export default function Landing() {
               <div className="flex flex-col rounded-3xl bg-gradient-to-b from-stone-50 to-zinc-100 px-8 py-10 outline outline-1 -outline-offset-1 outline-zinc-200 sm:px-14">
                 <div className="w-40 pb-6"><Logo href="/" light h={44} /></div>
                 <p className="text-sm font-semibold leading-5 text-neutral-900/80">Пример: контент на месяц</p>
-                <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ 900 руб</p>
-                <MonthBuilder />
+                <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ {L.n_month} руб</p>
+                <MonthBuilder total={Number(L.n_month)} />
                 <p className="mt-6 text-base font-semibold leading-6 text-neutral-900">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста. При регистрации на счёте уже 100 ₽.</p>
                 <Link href="/register" className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-[10px] bg-[#1c1c1c] px-8 text-base font-medium text-white transition hover:opacity-85 lg:mt-8">Хочу также</Link>
               </div>
@@ -320,7 +328,7 @@ export default function Landing() {
                   <summary className="flex min-h-20 items-center justify-between gap-4 px-6 py-5 text-base font-semibold leading-6 md:px-[30px] md:text-lg">
                     {f.q}<span className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><Plus size={18} className="lt-plus transition-transform" /></span>
                   </summary>
-                  <p className="px-6 pb-6 text-base leading-relaxed text-zinc-600 md:px-[30px] md:pr-20">{f.a}</p>
+                  <p className="px-6 pb-6 text-base leading-relaxed text-zinc-600 md:px-[30px] md:pr-20">{fill(f.a, L)}</p>
                 </details>
               ))}
             </div>
