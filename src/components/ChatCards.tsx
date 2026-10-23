@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarPlus, Check, ChevronDown, Download, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
+import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { PostText } from "@/components/monitor/PostText";
 import { PostPreview } from "@/components/PostPreview";
@@ -46,9 +46,9 @@ const Sel = ({ value, onChange, opts, label }: { value: string; onChange: (v: st
 
 /* ───────── материал ───────── */
 /** Картинка с кнопкой «скачать» при наведении. */
-function DlImage({ id, className, alt = "" }: { id: string; className: string; alt?: string }) {
+function DlImage({ id, className, alt = "", wide }: { id: string; className: string; alt?: string; wide?: boolean }) {
   return (
-    <span className="group relative block shrink-0">
+    <span className={`group relative block ${wide ? "w-full" : "shrink-0"}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`/api/assets/${id}`} alt={alt} className={className} />
       <a href={`/api/assets/${id}?dl=1`} download title="Скачать изображение" aria-label="Скачать изображение" onClick={(e) => e.stopPropagation()}
@@ -59,7 +59,7 @@ function DlImage({ id, className, alt = "" }: { id: string; className: string; a
 
 function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null) => void; drop: () => void }) {
   const { busy, msg, run, setMsg } = useRun();
-  const [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
+  const [copied, setCopied] = useState(false), [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
   useEffect(() => { setBody(it.body); }, [it.body]);
   const ready = it.status === "ready", dirty = body !== it.body;
   const done = it.published.length > 0;
@@ -71,15 +71,17 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
       {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="ml-1 font-semibold text-accent-ink underline">Обновить</button></p>}
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-          {it.imageId && <DlImage id={it.imageId} className="size-36 rounded-xl object-cover sm:size-40" />}
-          <div className="min-w-0 flex-1">
-          {it.kind === "seo" ? <div className="max-h-60 overflow-y-auto rounded-2xl bg-tile p-3 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
-            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="input max-h-60 overflow-y-auto !rounded-2xl !bg-tile text-sm leading-6" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
+          <div className="space-y-3">
+          {it.imageId && <DlImage id={it.imageId} wide className="max-h-[520px] w-full rounded-xl bg-tile object-contain" />}
+          <div>
+          {it.kind === "seo" ? <div className="rounded-2xl bg-tile p-4 text-sm leading-6 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-2.5 [&_ul]:mb-2.5" dangerouslySetInnerHTML={{ __html: it.body }} />
+            : it.draft ? <AutoTextarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className="input !rounded-2xl !bg-tile text-[15px] leading-7" aria-label="Текст материала" /> : <PostText title="" text={it.body} />}
           </div></div>
-          {it.slides.length > 0 && <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{it.slides.map((id) => <DlImage key={id} id={id} className="h-28 w-auto rounded-lg object-cover" />)}</div>}
+          {it.slides.length > 0 && <div className="mt-3 flex gap-3 overflow-x-auto pb-2">{it.slides.map((id) => <DlImage key={id} id={id} className="h-72 w-auto max-w-none rounded-xl object-cover" />)}</div>}
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3"><span>Знаков: {body.length}</span>
+            <button type="button" onClick={() => { const t = it.kind === "seo" ? it.body.replace(/<\/(p|h\d|li)>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/\n{3,}/g, "\n\n").trim() : body; void navigator.clipboard?.writeText(t).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }); }} className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5"><Copy size={12} className="mr-1" />{copied ? "Скопировано" : "Копировать текст"}</button>
+            <a href={`/api/export/${it.id}/file?format=zip`} download className="chip chip-toggle cursor-pointer !px-2.5 !py-0.5"><Download size={12} className="mr-1" />Скачать архив</a>
             <button type="button" onClick={() => setPrev((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-2.5 !py-0.5">{prev ? <EyeOff size={12} className="mr-1" /> : <Eye size={12} className="mr-1" />}Как будет выглядеть</button></div>
           {prev && <div className="mt-2"><PostPreview text={body} images={it.imageId ? [`/api/assets/${it.imageId}`] : []} kinds={on.map((c) => c.kind)} oneMessageTg={false} name={it.factoryName || "Ваш канал"} kind={it.kind} /></div>}
           {it.channels.length > 0 && !done && (
