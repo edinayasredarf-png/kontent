@@ -282,7 +282,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
     let rawId: string | null = null;
     try { rawId = await saveAsset(orgId, it.brand_id, "generated", "исходник", await rawCopy(raw), "исходник без логотипа", { itemId: it.id, position: -2 }); } catch { /* лимит хранилища: логотип тогда меняется только пересозданием */ }
     const oldRaw = await one<{ r: string | null }>("select meta->>'imageRawId' r from kz_content_items where id=$1", [it.id]);
-    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
+    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::uuid::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
     if (oldRaw?.r) await q("delete from kz_assets where id=$1 and org_id=$2", [oldRaw.r, orgId]);
     if (it.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]); // прежняя версия не копится в БД
     return { ok: true };
@@ -545,7 +545,7 @@ export async function reapplyLogo(orgId: string, itemId: string, over: { logoPos
   const done = await finalizeImage(raw.data, await loadAsset(orgId, logoRow.id), kit, { story: it.kind === "story" });
   const topic = (await one<{ topic: string }>("select topic from kz_content_items where id=$1", [itemId]))?.topic ?? "";
   const assetId = await saveAsset(orgId, it.brand_id, "generated", `${topic.slice(0, 60)}.jpg`, done);
-  await q("update kz_content_items set image_id=$2, meta = meta || jsonb_build_object('imageRawFor',$2::text), updated_at=now() where id=$1", [itemId, assetId]);
+  await q("update kz_content_items set image_id=$2, meta = meta || jsonb_build_object('imageRawFor',$2::uuid::text), updated_at=now() where id=$1", [itemId, assetId]);
   await q("delete from kz_assets where id=$1 and org_id=$2", [it.image_id, orgId]);
   return { ok: true };
 }

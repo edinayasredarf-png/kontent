@@ -160,6 +160,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   const t0 = Date.now();
   let scratch = "", acts = 0;
   const got: Record<string, unknown> = {}, made: string[] = [], extra: CardRef[] = [];
+  const failed: string[] = [];
   const notes: string[] = [];
   try {
     for (let step = 0; step < 7; step++) {
@@ -173,7 +174,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else if (t.kind === "act") {
           if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше двух платных действий" };
-          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
+          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
         } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;
@@ -184,6 +185,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
       // модель не следует формату: показываем её текст без разметки, а если и его нет — просим ещё раз
       if (!fin) { const bare = cleanReply(raw.replace(/^\s*\{[\s\S]*$/, "")); if (bare && !/^[{\[]/.test(bare)) text = bare; }
       if (!text && made.length) text = notes.join(". ");
+      if (text && failed.length && !made.length) text += `\n\nПричина: ${failed[failed.length - 1].slice(0, 300)}`;
       if (!text) { scratch += "\nНужен финальный ответ в формате {\"final\":{...}}.\n"; continue; }
       const links = (Array.isArray(fin?.links) ? fin!.links as { label?: unknown; href?: unknown }[] : []).map((l) => ({ label: String(l?.label ?? "").slice(0, 60), href: cleanHref(l?.href) })).filter((l): l is Link => !!l.label && !!l.href).slice(0, 2);
       const actions: Action[] = [];
