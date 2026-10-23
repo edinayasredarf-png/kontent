@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { econByAction, econByDay, econByModel, econByOrg, econPnl, prevRange } from "@/lib/admin-econ";
-import { ProfitChart } from "@/components/ProfitChart";
+import { EconomyCharts } from "@/components/EconomyCharts";
 import { EXPENSE_CATEGORIES } from "@/lib/expenses";
 import { bounds, parseRange, rangeLabel, type Preset } from "@/lib/range";
 import { AdminNav } from "@/components/AdminNav";
@@ -64,8 +64,10 @@ export default async function Economy({ searchParams }: { searchParams: Promise<
       {t.unpriced > 0 && <p className="mb-5 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">У {t.unpriced.toLocaleString("ru-RU")} вызовов нет цены модели, поэтому их затраты посчитаны как 0. Заполните прайс на странице <Link href="/app/admin/prices" className="underline">«Цены»</Link>: уже записанные вызовы пересчитаются сами.</p>}
 
       <section className="card mb-6 p-5">
-        <b className="mb-3 block text-sm">Прибыль по дням</b>
-        <ProfitChart rows={[...days.rows].reverse()} prev={daysPrev ? [...daysPrev.rows].reverse() : undefined} prevLabel={prev ? `прошлый период (${prevLabel})` : undefined} />
+        <b className="mb-4 block text-sm">Графики</b>
+        <EconomyCharts days={[...days.rows].reverse()} prev={daysPrev ? [...daysPrev.rows].reverse() : undefined} prevLabel={prev ? `Прошлый период (${prevLabel})` : undefined}
+          costs={[...byModel.filter((m) => m.cost > 0).map((m) => ({ label: m.model || "Нейросеть", value: m.cost })), ...Object.entries(pnl.expenseBy).map(([c, v]) => ({ label: EXPENSE_CATEGORIES[c] ?? c, value: v }))].sort((a, b) => b.value - a.value).slice(0, 10)}
+          actions={byAction.filter((a) => a.charged - a.refunded > 0).map((a) => ({ label: a.label, value: a.charged - a.refunded })).sort((a, b) => b.value - a.value).slice(0, 10)} />
       </section>
 
       <section className="card mb-6 overflow-x-auto">
