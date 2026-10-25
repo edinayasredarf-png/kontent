@@ -3,12 +3,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
-import { Bell, LogOut, Menu, PanelLeft, Settings, Wallet, X } from "lucide-react";
+import { Bell, HelpCircle, LogOut, Menu, PanelLeft, Settings, Wallet, X } from "lucide-react";
 import { Logo } from "../Logo";
 import { Search } from "./Search";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV } from "./nav";
 import { RoleProvider, READONLY_HINT } from "./RoleContext";
+import { NotificationBell } from "./NotificationBell";
+import type { Notification } from "@/lib/notify";
 import { Eye } from "lucide-react";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 import { SubmitButton } from "../SubmitButton";
@@ -18,7 +20,7 @@ import { sweepDrafts } from "@/lib/draft-store";
 
 export interface ShellProps {
   orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
-  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; role: string; guest: boolean; children: React.ReactNode;
+  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; notes: Notification[]; unread: number; role: string; guest: boolean; children: React.ReactNode;
 }
 
 
@@ -119,7 +121,8 @@ export function AppShell(p: ShellProps) {
           <h1 className="text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>
           <div className="ml-auto flex items-center gap-1.5 rounded-[30px] bg-surface py-2 pl-3 pr-2 shadow-soft md:gap-3 md:pl-5">
             <Search />
-            <Link href="/app/overview" aria-label="Что требует внимания" title="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} />{p.alerts > 0 && <span className="absolute right-1.5 top-1.5 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white">{p.alerts > 9 ? "9+" : p.alerts}</span>}</Link>
+            {!p.guest && <Link href={`/app/help?from=${encodeURIComponent(path)}`} aria-label="Помощь" title="Помощь и поддержка" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><HelpCircle size={20} /></Link>}
+            {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} /></Link> : <NotificationBell initial={p.notes} unread={p.unread} alerts={p.alerts} />}
             <ThemeToggle />
             {!viewer && <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>}
             <Link href="/app/settings" aria-label="Настройки" title="Настройки" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Settings size={20} /></Link>

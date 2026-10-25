@@ -826,5 +826,52 @@ create table if not exists kz_item_versions (
 );
 create index if not exists kz_item_versions_item on kz_item_versions(item_id, created_at desc);
 
+-- 033_support_notifications.sql
+-- Поддержка (обращения клиентов и ответы) и уведомления в колокольчике.
+create table if not exists kz_tickets (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  user_id uuid not null references kz_users(id) on delete cascade,
+  subject text not null,
+  category text not null default 'other',
+  status text not null default 'open' check (status in ('open','answered','closed')),
+  page text not null default '',
+  meta jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  staff_replied_at timestamptz,      -- когда поддержка отвечала в последний раз
+  client_replied_at timestamptz,     -- когда клиент писал в последний раз
+  client_read_at timestamptz,        -- когда клиент в последний раз открывал обращение
+  staff_read_at timestamptz          -- когда поддержка в последний раз открывала обращение
+);
+create index if not exists kz_tickets_org on kz_tickets(org_id, updated_at desc);
+create index if not exists kz_tickets_user on kz_tickets(user_id, updated_at desc);
+create index if not exists kz_tickets_status on kz_tickets(status, updated_at desc);
+
+create table if not exists kz_ticket_messages (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references kz_tickets(id) on delete cascade,
+  author_id uuid references kz_users(id) on delete set null,
+  staff boolean not null default false,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists kz_ticket_messages_ticket on kz_ticket_messages(ticket_id, created_at);
+
+create table if not exists kz_notifications (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  user_id uuid not null references kz_users(id) on delete cascade,
+  kind text not null,
+  title text not null,
+  body text not null default '',
+  href text not null default '',
+  dedupe text,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+create index if not exists kz_notifications_user on kz_notifications(user_id, created_at desc);
+create unique index if not exists kz_notifications_dedupe on kz_notifications(user_id, dedupe) where dedupe is not null;
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql') on conflict do nothing;

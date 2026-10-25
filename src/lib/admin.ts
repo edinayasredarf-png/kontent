@@ -1,3 +1,4 @@
+import { notify } from "./notify";
 import { redirect } from "next/navigation";
 import { requireCtx, type Ctx } from "./auth";
 import { one, q, tx } from "./db";
@@ -85,6 +86,7 @@ export async function adjustBalance(actor: { id: string; email: string }, orgId:
     if (hasKind) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,credit_kind) values($1,$2,$3,$4)", [orgId, kop, `Пополнение администратором: ${why.slice(0, 200)}`, kind]);
     else await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,$2,$3)", [orgId, kop, `${kop > 0 ? "Пополнение" : "Списание"} администратором: ${why.slice(0, 200)}`]);
     await run("insert into kz_audit(actor_id,actor_email,action,target_type,target_id,details) values($1,$2,'balance.adjust','org',$3,$4)", [actor.id, actor.email, orgId, JSON.stringify({ kop, reason: why })]);
+    if (kop > 0) void notify(orgId, { kind: "topup", title: `Баланс пополнен на ${(kop / 100).toLocaleString("ru-RU")} ₽`, body: why.slice(0, 120), href: "/app/billing", to: "managers" });
     return { ok: true as const, message: `Баланс ${kop > 0 ? "пополнен" : "уменьшен"} на ${(Math.abs(kop) / 100).toLocaleString("ru-RU")} ₽` };
   });
 }

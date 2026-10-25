@@ -24,6 +24,8 @@ import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
 import { dropAsset, snapshot } from "./versions";
+import { notify } from "./notify";
+import { runNotifyJobs } from "./notify-jobs";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, rawCopy, type LogoPos } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
 
@@ -357,7 +359,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
     const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
-    const item = await one<{ body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: PollMeta; variants?: Record<string, string> } }>("select body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
+    const item = await one<{ topic: string; body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: PollMeta; variants?: Record<string, string> } }>("select topic,body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
     const img = infoAsset ? await loadAsset(j.org_id, infoAsset.id) : item?.image_id && item.kind !== "carousel" ? await loadAsset(j.org_id, item.image_id) : null;
@@ -374,6 +376,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
+      void notify(j.org_id, { kind: "published", title: `Опубликовано: ${(item?.topic ?? "материал").slice(0, 90)}`, body: ch.kind === "vk" ? "ВКонтакте" : ch.kind === "telegram" ? "Telegram" : ch.kind === "max" ? "MAX" : ch.kind, href: r.url || "/app/publications", dedupe: `pub:${j.id}` });
     } catch (e) {
       const retryable = e instanceof PublishError ? e.retryable : true;
       const msg = (e as Error).message.slice(0, 500);
@@ -383,6 +386,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       } else {
         await q("update kz_publications set status='failed', error=$2, updated_at=now() where id=$1", [j.id, msg]);
         out.failed++;
+        void notify(j.org_id, { kind: "publish_failed", title: `Не удалось опубликовать: ${(item?.topic ?? "материал").slice(0, 80)}`, body: msg.slice(0, 200), href: "/app/publications", dedupe: `pubfail:${j.id}` });
       }
     }
     await settleItem(j.item_id);
@@ -481,7 +485,9 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   for (const it of todo) {
     if (Date.now() - t0 > budgetMs - 60_000) break;
     const r = await buildItem(it.org_id, it.id);
-    if (r.ok) rep.generated++; else rep.errors.push(`item ${it.id}: ${r.error}`);
+    const tp = (await one<{ topic: string }>("select topic from kz_content_items where id=$1", [it.id]))?.topic ?? "материал";
+    if (r.ok) { rep.generated++; void notify(it.org_id, { kind: "material_ready", title: `Материал готов: ${tp.slice(0, 90)}`, href: "/app/calendar", dedupe: `ready:${it.id}` }); }
+    else { rep.errors.push(`item ${it.id}: ${r.error}`); void notify(it.org_id, { kind: "generation_failed", title: `Не удалось создать материал: ${tp.slice(0, 80)}`, body: String(r.error ?? "").slice(0, 200), href: "/app/calendar", dedupe: `genfail:${it.id}` }); }
   }
 
   // 3.5) материалы, которым человек выбрал дату и время выхода
@@ -525,6 +531,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   rep.sent = s.sent; rep.failed = s.failed; rep.retried = s.retried;
   // отчёт последнего прохода — для раздела «Система» в админке платформы (виден, работает ли cron)
   await q("insert into kz_kv(key,value) values('last_tick',$1) on conflict(key) do update set value=excluded.value, updated_at=now()", [JSON.stringify({ ...rep, ms: Date.now() - t0 })]).catch(() => {});
+  try { await runNotifyJobs(); } catch { /* уведомления необязательны */ }
   return rep;
 }
 

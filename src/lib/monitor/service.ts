@@ -1,3 +1,4 @@
+import { notify } from "../notify";
 import { one, q, tx } from "../db";
 import { fetchItems, fetchSourceMeta, resolveSource, type Kind } from "./fetchers";
 import { matchItem, type Kw } from "./keywords";
@@ -65,6 +66,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
     await q("update kz_sources set last_fetched_at=now(), last_error=$2 where id=$1", [id, msg]);
+    void notify(s.org_id, { kind: "source_error", title: "Источник новостей не отвечает", body: `${s.ref.slice(0, 80)}: ${msg.slice(0, 120)}`, href: "/app/monitor/settings", dedupe: `src:${id}:${new Date().toISOString().slice(0, 10)}`, to: "managers" });
     return { added: 0, error: msg };
   }
 }

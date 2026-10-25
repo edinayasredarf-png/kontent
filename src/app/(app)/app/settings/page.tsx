@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GraduationCap, ChevronRight, Radio, Radar, Wallet, UsersRound, Plug, Gift, UserRound, ShieldCheck, Cpu, Rocket, LayoutDashboard, Building2 } from "lucide-react";
+import { Bell, GraduationCap, LifeBuoy, ChevronRight, Radio, Radar, Wallet, UsersRound, Plug, Gift, UserRound, ShieldCheck, Cpu, Rocket, LayoutDashboard, Building2 } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { restartOnboardingAction } from "@/lib/agent/actions";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -18,6 +18,8 @@ export default async function Settings() {
       { href: "/app/brands", title: "База знаний брендов", text: "Статьи, документы и сравнения: ИИ учится писать в вашем стиле (внутри бренда)", icon: Building2 },
     ] },
     { title: "Аккаунт", rows: [
+      { href: "/app/help", title: "Помощь и поддержка", text: "Инструкции по каналам, ответы на вопросы, сообщить о проблеме", icon: LifeBuoy },
+      { href: "/app/notifications", title: "Уведомления", text: "Публикации, ошибки, новости по словам, ответы поддержки", icon: Bell },
       { href: "/app/billing", title: "Баланс и тариф", text: "Пополнение, история списаний, тарифы", icon: Wallet },
       { href: "/app/team", title: "Команда", text: "Приглашения и роли участников", icon: UsersRound },
       { href: "/app/profile", title: "Профиль и безопасность", text: "Данные, пароль, тема оформления", icon: UserRound },

@@ -1,4 +1,5 @@
-import { q, tx } from "./db";
+import { one, q, tx } from "./db";
+import { notify } from "./notify";
 import { actionOf, setUsageCtx, usageStore } from "./billing";
 
 export const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
@@ -66,6 +67,10 @@ export async function charge(orgId: string, kop: number, reason: string, ref?: s
   });
   // вызовы нейросети после бесплатного списания отмечаются как «без выручки»
   setUsageCtx({ free, bonusShare: kop > 0 ? bonusTaken / kop : 0, spent: (usageStore().spent ?? 0) + kop });
+  if (!free) {
+    const left = Number((await one<{ b: string }>("select balance_kop b from kz_orgs where id=$1", [orgId]).catch(() => null))?.b ?? 1e9);
+    if (left < 5000) void notify(orgId, { kind: "low_balance", title: left < 500 ? "Баланс почти закончился" : "Баланс ниже 50 ₽", body: "Пополните баланс, чтобы материалы продолжили создаваться и выходить по расписанию", href: "/app/billing", dedupe: `bal:${new Date().toISOString().slice(0, 10)}`, to: "managers" });
+  }
 }
 
 export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
