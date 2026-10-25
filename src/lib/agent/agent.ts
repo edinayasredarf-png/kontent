@@ -4,7 +4,7 @@ import { PRICES, InsufficientFunds, charge, refund } from "../wallet";
 import { cleanRefs, hydrateCards, type Card, type CardRef } from "./cards";
 import type { ActResult } from "./writer";
 import { loadAsset } from "../assets";
-import { ONBOARDING_TITLE, progressText } from "./onboarding";
+import { ONBOARDING_TITLE, learnFree, progressText } from "./onboarding";
 import { createThread, currentThread, threadsReady } from "./threads";
 import { setUsageCtx, usageStore } from "../billing";
 import { visionAsk } from "../images";
@@ -200,6 +200,9 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   const th = thread ? await one<{ title: string }>("select title from kz_chat_threads where id=$1", [thread]) : null;
   const onboarding = th?.title === ONBOARDING_TITLE || /настро(й|ить|им)|обучен|с нуля|с чего начать|помоги начать|пройти обучение/i.test(m);
   const shown = (onboarding ? await progressText(c.orgId) : "") + shown0 + (leaked ? "ВАЖНО: пользователь прислал в сообщении токен или ключ, он удалён из переписки. Не повторяй его. Объясни, что такие данные вводятся только в защищённой форме, и вызови connect_channel (kind по смыслу), токен просить не нужно повторно в сообщении.\n\n" : "");
+  const free = await learnFree(c.orgId, th?.title ?? null);
+  let replyWaived = false;
+  if (free.chat) { setUsageCtx({ waive: true }); replyWaived = true; }
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await save(c.orgId, c.userId, "user", m, files.length ? { files } : {}, thread);
   const t0 = Date.now();
@@ -220,7 +223,9 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else if (t.kind === "act") {
           if (acts >= (onboarding ? MAX_ACTS_ONBOARDING : MAX_ACTS)) res = { error: "В одном сообщении можно не больше трёх платных действий" };
-          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0], ids: ((r as { refs?: { t: string; id?: string }[] }).refs ?? []).filter((x) => x.id).map((x) => `${x.t}Id=${x.id}`) } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
+          else { acts++; setUsageCtx({ waive: free.chat && (t.name === "suggest_keywords" || (t.name === "write" && free.first)) }); const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0], ids: ((r as { refs?: { t: string; id?: string }[] }).refs ?? []).filter((x) => x.id).map((x) => `${x.t}Id=${x.id}`) } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok && t.name === "write" && usageStore().waive && r.itemIds?.length) await q("update kz_content_items set meta = meta || '{\"freeFirst\":true}'::jsonb where org_id=$1 and id = any($2::uuid[])", [c.orgId, r.itemIds]).catch(() => null);
+          setUsageCtx({ waive: false });
+          if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
         } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;
@@ -251,7 +256,8 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
     }
     throw new Error("Не получилось сформировать ответ");
   } catch (e) {
-    await refund(c.orgId, PRICES.idea, "Чат: ошибка ответа").catch(() => {});
+    setUsageCtx({ waive: false });
+    if (!replyWaived) await refund(c.orgId, PRICES.idea, "Чат: ошибка ответа").catch(() => {});
     // материал мог успеть создаться: показываем его, даже если ответ не сложился
     const cards = made.length ? await keepCards(c.orgId, [{ t: "item", ids: made.slice(0, 3) }]) : [];
     await save(c.orgId, c.userId, "assistant", made.length ? `${notes.join(". ")}. Ответ получился не до конца, но материал готов.` : `Не получилось ответить: ${(e as Error).message.slice(0, 200)}. Деньги за ответ возвращены.`, cards.length ? { cards } : {}, thread, usageStore().spent ?? 0).catch(() => {});

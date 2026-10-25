@@ -115,4 +115,43 @@ describe("обучение: что видит модель и что запом�
       assert.equal(Number((await one<{ n: string }>("select count(*) n from kz_keywords where org_id=$1", [org2]))!.n), 3);
     } finally { await q("delete from kz_orgs where id=$1", [org2]); await q("delete from kz_users where id=$1", [u2]); }
   });
+
+  it("обучение бесплатно: ответы и первый материал не списываются, дальше обычные цены", async () => {
+    const { askAgent } = await import("../src/lib/agent/agent");
+    const { startOnboarding, FREE_LEARN_MESSAGES } = await import("../src/lib/agent/onboarding");
+    const { one, q } = await import("../src/lib/db");
+    const org3 = (await one<{ id: string }>("insert into kz_orgs(name,balance_kop,plan,unlimited) values('free-learn',100000,'start',false) returning id"))!.id;
+    const u3 = (await one<{ id: string }>("insert into kz_users(email,name,password_hash) values($1,'Ира','x') returning id", [`l-${org3}@t.ru`]))!.id;
+    await q("insert into kz_memberships(org_id,user_id,role) values($1,$2,'owner')", [org3, u3]);
+    const bal = async () => Number((await one<{ b: string }>("select balance_kop b from kz_orgs where id=$1", [org3]))!.b);
+    try {
+      const t3 = await startOnboarding(org3, u3);
+      const me = { orgId: org3, userId: u3, userName: "Ира", role: "owner" };
+      plan = () => '{"final":{"text":"Расскажите о компании."}}';
+      assert.ok((await askAgent(me, "Привет", [], t3)).ok);
+      assert.equal(await bal(), 100000, "ответ в обучении не списан");
+      // подготовка: бренд и завод
+      const { runAct } = await import("../src/lib/agent/tools");
+      const b = await runAct({ orgId: org3, role: "owner", userId: u3 }, "save_brand", { name: "Тест", description: "Описание бренда для теста", audience: "Все подряд люди" });
+      const brandId = (b.refs![0] as { id: string }).id;
+      await runAct({ orgId: org3, role: "owner", userId: u3 }, "save_factory", { brandId, name: "Завод", niche: "тест", product: "Продукт для проверки" });
+      // первый материал бесплатно
+      let wrote = 0;
+      plan = (_n, usr) => (/Вызван write/.test(usr) ? '{"final":{"text":"Готово."}}' : (wrote++, '{"tool":"write","args":{"kind":"post","topic":"Первый пост"}}'));
+      assert.ok((await askAgent(me, "Напиши первый пост", [], t3)).ok);
+       assert.equal(await bal(), 100000, "первый материал в обучении бесплатен");
+      assert.equal(Number((await one<{ n: string }>("select count(*) n from kz_content_items where org_id=$1 and meta->>'freeFirst'='true'", [org3]))!.n), 1);
+      assert.equal(Number((await one<{ n: string }>("select count(*) n from kz_ai_usage where org_id=$1 and no_revenue='free' and action='onboarding'", [org3]).catch(() => ({ n: "0" })))!.n) > 0, true, "расходы записаны как «Обучение»");
+      // второй материал уже платный
+      wrote = 0;
+      assert.ok((await askAgent(me, "Напиши ещё пост", [], t3)).ok);
+      assert.ok((await bal()) < 100000, "второй материал платный");
+      // лимит сообщений: после него и ответы платные
+      const before = await bal();
+      await q("insert into kz_chat_messages(org_id,user_id,role,content,thread_id) select $1,$2,'user','x',$3 from generate_series(1,$4)", [org3, u3, t3, FREE_LEARN_MESSAGES]);
+      plan = () => '{"final":{"text":"Ок."}}';
+      assert.ok((await askAgent(me, "Ещё вопрос", [], t3)).ok);
+      assert.ok((await bal()) < before, "после лимита ответы платные");
+    } finally { await q("delete from kz_orgs where id=$1", [org3]); await q("delete from kz_users where id=$1", [u3]); }
+  });
 });

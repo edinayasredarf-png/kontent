@@ -65,7 +65,7 @@ function Actions({ m }: { m: ChatMsg }) {
 
 type SR = { start(): void; stop(): void; lang: string; interimResults: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 
-export function Chat({ initial, name, free, autoAsk, price = "", threads: threadsIn = [], threadId = null }: { initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string; price?: string; threads?: Thread[]; threadId?: string | null }) {
+export function Chat({ initial, name, free, autoAsk, price = "", threads: threadsIn = [], threadId = null, learn = false }: { learn?: boolean; initial: ChatMsg[]; name: string; free: boolean; autoAsk?: string; price?: string; threads?: Thread[]; threadId?: string | null }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<ChatMsg[]>(initial);
   const [text, setText] = useStored<string>("chat-input", ""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [menu, setMenu] = useState(false), [rec, setRec] = useState(false);
@@ -178,7 +178,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
         </div>
       </div>
       {err && <p className="mt-2 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
-      <p className="mt-2 text-center text-xs text-ink3">{free ? "Ответы бесплатны для админа." : `Ответ ассистента стоит ${price}, обновление новостей бесплатно.`} Когда вы просите написать или изменить материал, он создаётся сразу, цена списывается за каждую операцию.</p>
+      <p className="mt-2 text-center text-xs text-ink3">{learn ? "Обучение бесплатное: ответы и первый материал не списываются с баланса." : free ? "Ответы бесплатны для админа." : `Ответ ассистента стоит ${price}, обновление новостей бесплатно.`} Когда вы просите написать или изменить материал, он создаётся сразу, цена списывается за каждую операцию.</p>
     </div>
   );
 

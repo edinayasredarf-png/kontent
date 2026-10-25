@@ -130,11 +130,25 @@ export async function finishOnboarding(orgId: string, userId: string): Promise<S
   return { ok: true, text: "Обучение завершено", refs: [{ t: "setup" }] };
 }
 
+/**
+ * Обучение бесплатно для клиента: ответы ассистента в диалоге «Знакомство» (до 60 сообщений на организацию), подбор слов и один первый материал.
+ * Дальше цены обычные. Расходы на нейросеть при этом записываются как «Обучение» и видны в экономике.
+ */
+export const FREE_LEARN_MESSAGES = 60;
+export async function learnFree(orgId: string, threadTitle: string | null): Promise<{ chat: boolean; first: boolean }> {
+  if (threadTitle !== ONBOARDING_TITLE) return { chat: false, first: false };
+  const used = Number((await one<{ n: string }>(
+    "select count(*) n from kz_chat_messages m join kz_chat_threads t on t.id=m.thread_id where m.org_id=$1 and m.role='user' and t.title in ($2,'Настройка завершена')", [orgId, ONBOARDING_TITLE]).catch(() => null))?.n ?? 0);
+  const chat = used < FREE_LEARN_MESSAGES;
+  const firstUsed = await one("select 1 from kz_content_items where org_id=$1 and meta->>'freeFirst'='true' limit 1", [orgId]).catch(() => null);
+  return { chat, first: chat && !firstUsed };
+}
+
 /** Первый вход нового клиента: диалог «Знакомство» с приветствием, чек-листом и быстрыми ответами. */
 export async function startOnboarding(orgId: string, userId: string): Promise<string | null> {
   const t = await createThread(orgId, userId, ONBOARDING_TITLE);
   if (!t) return null;
-  const text = "Здравствуйте! Я ваш ассистент в Контент-заводе. Давайте настроим всё за 10–15 минут прямо в этом чате, а в конце я сразу напишу первый материал.\n\nМы пройдём шесть шагов: бренд, брендбук (логотип, цвета, документы), контент-завод, каналы публикации, мониторинг новостей и первый пост.\n\nНачнём с бренда. Расскажите, чем занимается компания и для кого, или пришлите ссылку на сайт, и я сам предложу описание. Если нужно, прикрепите документы через «+».";
+  const text = "Здравствуйте! Я ваш ассистент в Контент-заводе. Давайте настроим всё за 10–15 минут прямо в этом чате, а в конце я сразу напишу первый материал.\n\nМы пройдём шесть шагов: бренд, брендбук (логотип, цвета, документы), контент-завод, каналы публикации, мониторинг новостей и первый пост.\n\nОбучение для вас бесплатное, включая первый материал.\n\nНачнём с бренда. Расскажите, чем занимается компания и для кого, или пришлите ссылку на сайт, и я сам предложу описание. Если нужно, прикрепите документы через «+».";
   await q("insert into kz_chat_messages(org_id,user_id,role,content,blocks,thread_id) values($1,$2,'assistant',$3,$4,$5)", [orgId, userId, text, JSON.stringify({ cards: [{ t: "setup" }], replies: ["Вот наш сайт", "Расскажу своими словами", "Пропустить обучение"] }), t]);
   return t;
 }

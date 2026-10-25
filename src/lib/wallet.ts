@@ -41,6 +41,8 @@ export class InsufficientFunds extends Error {}
 
 export async function charge(orgId: string, kop: number, reason: string, ref?: string) {
   // дальнейшие вызовы нейросети в этом запросе учитываются на эту организацию и это действие; ставится до первого await, чтобы контекст дошёл до вызывающего
+  // обучение нового клиента бесплатно: деньги не списываем, а расход на нейросеть записываем как «без выручки»
+  if (usageStore().waive) { setUsageCtx({ orgId, reason: `Обучение: ${reason}`, ref, free: true, bonusShare: 0 }); return; }
   setUsageCtx({ orgId, reason, ref, free: false });
   await ensurePrices();
   const c = await billingCols();
@@ -67,6 +69,7 @@ export async function charge(orgId: string, kop: number, reason: string, ref?: s
 }
 
 export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
+  if (usageStore().waive) return; // списания не было, возвращать нечего
   setUsageCtx({ spent: Math.max(0, (usageStore().spent ?? 0) - kop) });
   const c = await billingCols();
   await tx(async (run) => {
