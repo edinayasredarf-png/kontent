@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { cleanReply, parseReply } from "../src/lib/agent/agent";
+import { cleanReply, parseReply, redactSecrets } from "../src/lib/agent/agent";
 import { normKind } from "../src/lib/agent/writer";
 
 describe("разбор ответа ассистента", () => {
@@ -30,5 +30,11 @@ describe("разбор ответа ассистента", () => {
   it("форматы: слова пользователя сводятся к ключам", () => {
     assert.equal(normKind("SEO-статья"), "seo"); assert.equal(normKind("статья"), "article"); assert.equal(normKind("карусель"), "carousel");
     assert.equal(normKind(undefined), "post"); assert.equal(normKind("post"), "post");
+  });
+  it("токены, присланные сообщением, вырезаются до сохранения и до нейросети", () => {
+    const t = redactSecrets("вот токен 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw9 и vk1.a.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789 подключи");
+    assert.ok(!t.includes("AAHdq") && !t.includes("vk1.a.AbCd"), t);
+    assert.ok(t.startsWith("вот токен [токен скрыт]"));
+    assert.equal(redactSecrets("Напиши пост про кофе 2026"), "Напиши пост про кофе 2026");
   });
 });

@@ -50,4 +50,14 @@ describe("обучение нового клиента в чате", { skip: ski
     const { listThreads } = await import("../src/lib/agent/threads");
     assert.equal((await listThreads(org, user))[0].title, "Настройка завершена");
   });
+
+  it("форма подключения канала показывается в чате только владельцу и админу", async () => {
+    const { runAct } = await import("../src/lib/agent/tools");
+    const { hydrateCards } = await import("../src/lib/agent/cards");
+    const ok = await runAct({ orgId: org, role: "owner", userId: user }, "connect_channel", { kind: "vk" });
+    assert.ok(ok.ok);
+    const card = (await hydrateCards(org, ok.refs))[0] as { t: string; kind: string; brands: unknown[] };
+    assert.equal(card.t, "channel_form"); assert.equal(card.kind, "vk"); assert.ok(card.brands.length >= 1);
+    assert.equal((await runAct({ orgId: org, role: "editor", userId: user }, "connect_channel", { kind: "vk" })).ok, false);
+  });
 });

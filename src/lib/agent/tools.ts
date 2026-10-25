@@ -36,6 +36,7 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "edit_image", kind: "act", desc: "ИЗМЕНИТЬ ПРИСЛАННУЮ картинку по описанию («убери надпись», «смени фон», «добавь снег») (платно, сразу). Результат покажется в чате; с itemId сразу ставится в материал", args: '{"assetId":"uuid вложения","instruction":"что изменить","itemId":"uuid, если поставить в материал"}' },
   { name: "remember", kind: "act", desc: "ЗАПОМНИТЬ правило бренда навсегда (бесплатно): «не пиши про цены» (kind forbidden), «всегда добавляй ссылку», «пиши на ты» (kind note). op remove — забыть правило", args: '{"rule":"формулировка","kind":"forbidden|note","op":"add|remove","brandId":"uuid"}' },
   { name: "top_posts", kind: "read", desc: "Лучшие и худшие опубликованные посты за период с текстом, форматом, каналом и цифрами: чтобы объяснить, почему один пост сработал лучше, или сделать новый «как лучший»", args: '{"days":30}' },
+  { name: "connect_channel", kind: "act", desc: "ПОКАЗАТЬ в чате защищённую форму подключения канала (бесплатно). Токены и пароли вводятся ТОЛЬКО в этой форме, никогда в сообщении. kind: telegram, vk, max_bot (MAX через бота сервиса), max, wordpress, webhook", args: '{"kind":"telegram"}' },
   { name: "progress", kind: "read", desc: "Что уже настроено у клиента: бренд, брендбук, завод, каналы, мониторинг, первый материал", args: "{}" },
   { name: "add_to_kb", kind: "act", desc: "ДОБАВИТЬ прикреплённый документ в базу знаний бренда (бесплатно, сразу). kind: article — их статьи и посты (учим стиль), company — о компании, продуктах, услугах, competitors, cases — кейсы и отзывы, faq — вопросы клиентов, other", args: '{"fileId":"uuid документа","kind":"company","brandId":"uuid","useStyle":false}' },
   { name: "add_source", kind: "act", desc: "ДОБАВИТЬ источник мониторинга новостей (бесплатно, сразу): site — ссылка на сайт или RSS, telegram — @канал, vk — группа, max — канал, news — ключевой запрос в новостях", args: '{"kind":"site|telegram|vk|max|news","value":"ссылка или имя"}' },
@@ -211,6 +212,11 @@ export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<impor
   if (name === "rewrite") return w.rewriteMaterial(ctx.orgId, a);
   if (name === "image") return w.imageForMaterial(ctx.orgId, a);
   if (name === "set_logo") return w.setLogoFromAttachment(ctx.orgId, a);
+  if (name === "connect_channel") {
+    const { can } = await import("../roles");
+    if (!can(ctx.role, "manage")) return { ok: false, text: "Каналы подключают владелец и администратор. Попросите их подключить канал" };
+    return { ok: true, text: "Показал форму подключения канала", refs: [{ t: "channel_form", kind: ["telegram", "vk", "max", "max_bot", "wordpress", "webhook"].includes(String(a.kind)) ? String(a.kind) : "telegram" }] };
+  }
   const ob = await import("./onboarding");
   if (name === "add_to_kb") return ob.addToKb(ctx.orgId, a);
   if (name === "add_source") return ob.addMonitorSource(ctx.orgId, a);

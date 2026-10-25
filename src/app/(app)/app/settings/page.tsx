@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ChevronRight, Radio, Radar, Wallet, UsersRound, Plug, Gift, UserRound, ShieldCheck, Cpu, Rocket, LayoutDashboard, Building2 } from "lucide-react";
-import { requireCtx } from "@/lib/auth";
+import { GraduationCap, ChevronRight, Radio, Radar, Wallet, UsersRound, Plug, Gift, UserRound, ShieldCheck, Cpu, Rocket, LayoutDashboard, Building2 } from "lucide-react";
+import { canWrite, requireCtx } from "@/lib/auth";
+import { restartOnboardingAction } from "@/lib/agent/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +42,17 @@ export default async function Settings() {
     { href: "/app/admin", title: "Администрирование платформы", text: "Организации, пользователи, журнал", icon: ShieldCheck },
     { href: "/app/settings/ai", title: "Настройки ИИ", text: "Какая нейросеть какую задачу выполняет", icon: Cpu },
   ] });
+  const learn = canWrite(c.org.role) && !c.user.guest;
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div><h2 className="text-2xl font-semibold">Настройки</h2><p className="mt-1 text-sm text-ink2">Подключения, деньги, команда и интеграции. Остальное — в главном меню слева и в чате.</p></div>
+      {learn && (
+        <form action={restartOnboardingAction} className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><GraduationCap size={19} /></span>
+          <span className="min-w-0 flex-1"><b className="block text-sm font-semibold">Обучение с ассистентом</b><span className="block text-xs text-ink2">Пройти настройку заново в чате: бренд, брендбук, завод, каналы, мониторинг и первый материал</span></span>
+          <SubmitButton className="btn btn-accent">Пройти обучение заново</SubmitButton>
+        </form>
+      )}
       {groups.map((g) => (
         <section key={g.title}>
           <h3 className="mb-3 text-base font-semibold">{g.title}</h3>

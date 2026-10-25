@@ -42,8 +42,8 @@ const GUIDE: Record<string, { title: string; steps: string[] }> = {
 };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
-export function ChannelForm({ brands, factoryId, ret, maxBot }: { brands: { id: string; name: string }[]; factoryId?: string; ret?: string; maxBot?: { link: string; name: string } }) {
-  const [kind, setKind] = useState("telegram");
+export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { initialKind?: string; brands: { id: string; name: string }[]; factoryId?: string; ret?: string; maxBot?: { link: string; name: string } }) {
+  const [kind, setKind] = useState(initialKind && initialKind in KINDS ? initialKind : "telegram");
   const kinds = Object.entries(KINDS).filter(([k]) => k !== "max_bot" || maxBot);
   const [found, setFound] = useState<{ id: string; title: string; channel: boolean }[]>([]);
   const [findMsg, setFindMsg] = useState("");

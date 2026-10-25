@@ -15,7 +15,7 @@ import { KIND } from "../kinds";
 export type CardRef =
   | { t: "news"; ids: string[] } | { t: "item"; ids: string[] } | { t: "factory"; id: string } | { t: "sources" } | { t: "analytics"; days: number }
   | { t: "competitors" } | { t: "brand"; id: string } | { t: "plan"; id: string } | { t: "channels" }
-  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] } | { t: "setup" };
+  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] } | { t: "setup" } | { t: "channel_form"; kind?: string };
 
 export interface ChannelOpt { id: string; title: string; kind: string; on: boolean }
 export interface NewsRow { id: string; title: string; text: string; source: string; sourceKind: string; url: string; at: string; liked: boolean; used: boolean; fit: number | null }
@@ -29,7 +29,8 @@ export type Card =
   | { t: "brand"; id: string; name: string; description: string; audience: string; tone: string; colors: string[]; extra: { label: string; value: string }[] }
   | { t: "plan"; id: string; name: string; until: string | null; items: { id: string; kind: string; topic: string; status: string; date: string | null }[] }
   | { t: "channels"; channels: { id: string; title: string; kind: string; brand: string; signature: string }[] }
-  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] } | { t: "setup"; steps: { key: string; title: string; done: boolean; detail: string; href?: string }[] };
+  | { t: "variants"; itemId: string; what: "headline" | "hook" | "post"; options: string[] } | { t: "image"; ids: string[] } | { t: "setup"; steps: { key: string; title: string; done: boolean; detail: string; href?: string }[] }
+  | { t: "channel_form"; kind: string; brands: { id: string; name: string }[]; maxBot?: { link: string; name: string } };
 
 export interface ItemRow { versions: { id: string; at: string; note: string; hasImage: boolean; chars: number }[]; slides: string[]; id: string; kind: string; kindLabel: string; topic: string; body: string; status: string; draft: boolean; imageId: string | null; factoryId: string; factoryName: string; channels: ChannelOpt[]; date: string; time: string; published: { channel: string; url: string | null; ok: boolean; error: string | null }[] }
 
@@ -46,6 +47,7 @@ export function cleanRefs(raw: unknown): CardRef[] {
     else if ((t === "factory" || t === "brand" || t === "plan") && UUID.test(String(o.id ?? ""))) out.push({ t, id: String(o.id) });
     else if (t === "analytics") out.push({ t, days: [1, 7, 30, 90].includes(Number(o.days)) ? Number(o.days) : 7 });
     else if (t === "sources" || t === "competitors" || t === "channels" || t === "setup") out.push({ t });
+    else if (t === "channel_form") out.push({ t, kind: ["telegram", "vk", "max", "max_bot", "wordpress", "webhook"].includes(String(o.kind)) ? String(o.kind) : "telegram" });
   }
   return out.slice(0, 6);
 }
@@ -138,6 +140,10 @@ export async function hydrateCards(orgId: string, refs: CardRef[] | undefined): 
           const until = await one<{ d: string | null }>("select max(planned_for) d from kz_content_items where factory_id=$1 and status in ('idea','approved','ready','scheduled')", [f.id]);
           c = { t: "plan", id: f.id, name: f.name, until: dayStr(until?.d ?? null), items: items.map((i) => ({ id: i.id, kind: i.kind, topic: i.topic, status: i.status, date: dayStr(i.planned_for) })) };
         }
+      } else if (r.t === "channel_form") {
+        const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [orgId]);
+        const mb = await import("../max-bot");
+        c = brands.length ? { t: "channel_form", kind: r.kind ?? "telegram", brands, maxBot: mb.botConfigured() ? { link: mb.botLink(), name: mb.botUsername() } : undefined } : null;
       } else if (r.t === "setup") {
         c = { t: "setup", steps: await (await import("./onboarding")).progress(orgId) };
       } else if (r.t === "variants") {

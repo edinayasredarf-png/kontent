@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, Circle, Eye, Flame, Send, Sparkles, Wallet2 } from "lucide-react";
+import { progress } from "@/lib/agent/onboarding";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PLANS, fmtLimit } from "@/lib/plans";
@@ -58,7 +59,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     { done: setup!.made, t: "Получить первый материал", href: "/app/factories" },
     { done: setup!.published, t: "Опубликовать", href: "/app/publications" },
   ];
-  const doneN = steps.filter((s) => s.done).length;
+  const ob = await progress(c.org.id);
   const max = Math.max(1, ...byKind.map((x) => Number(x.n)));
   const periods: [string, string][] = [["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
   const tiles = [
@@ -78,17 +79,19 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         ))}
       </div>
 
-      {doneN < steps.length && (
+      {ob.some((x) => !x.done) && canWrite(c.org.role) && (
         <section className="card mb-6 p-5">
-          <div className="mb-3 flex items-center justify-between"><b className="text-sm">С чего начать</b><span className="text-xs text-ink3">{doneN} из {steps.length}</span></div>
-          <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-tile2"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(doneN / steps.length) * 100}%` }} /></div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {steps.map((s) => (
-              <Link key={s.t} href={s.href} className={`flex items-start gap-2 rounded-xl p-3 text-sm ${s.done ? "bg-good-soft text-good" : "bg-tile hover:bg-tile2"}`}>
-                {s.done ? <Check size={16} className="mt-0.5 shrink-0" /> : <Circle size={16} className="mt-0.5 shrink-0 text-ink3" />}<span className={s.done ? "line-through opacity-70" : ""}>{s.t}</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><b className="text-sm">Настройка сервиса</b><span className="text-xs text-ink3">{ob.filter((x) => x.done).length} из {ob.length}</span></div>
+          <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-tile2"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(ob.filter((x) => x.done).length / ob.length) * 100}%` }} /></div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {ob.map((x) => (
+              <Link key={x.key} href={x.href ?? "/app"} className={`flex items-start gap-2 rounded-xl p-3 text-sm ${x.done ? "bg-good-soft text-good" : "bg-tile hover:bg-tile2"}`}>
+                {x.done ? <Check size={16} className="mt-0.5 shrink-0" /> : <Circle size={16} className="mt-0.5 shrink-0 text-ink3" />}
+                <span className="min-w-0"><span className={x.done ? "opacity-70" : "font-medium"}>{x.title}</span><span className="block text-xs opacity-70">{x.detail}</span></span>
               </Link>
             ))}
           </div>
+          <Link href={`/app?q=${encodeURIComponent("Продолжим настройку")}`} className="btn btn-accent mt-4 w-fit">Продолжить в чате с ассистентом</Link>
         </section>
       )}
 

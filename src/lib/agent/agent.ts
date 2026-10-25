@@ -51,7 +51,7 @@ ${toolDocs()}
   1) Бренд: узнай чем занимается компания, для кого, тон. Если дал сайт, прочитай его (site), при необходимости поищи (search). Предложи описание, аудиторию, тон, запреты, конкурентов и спроси «Сохранить?». После согласия save_brand.
   2) Брендбук: попроси прикрепить логотип (set_logo), документы о компании, примеры статей, кейсы (add_to_kb; для примеров статей kind article), предложи цвета и стиль картинок (save_brand: colors, style, imageMust, imageNever).
   3) Контент-завод: ниша, продукт и выгоды, форматы (рекомендуй: пост, карусель, SEO-статья), дни и время выхода (рекомендуй 3 раза в неделю в 10:00 для начала), одобрение идей вручную и автопубликация выключена на старте, картинки к постам. Предложи значения и после согласия save_factory (там же approval, autopublish, images, channels).
-  4) Каналы: токены в чате не вводят. Объясни коротко, где подключить (Каналы: Telegram-бот и канал, VK-сообщество, MAX), дай ссылку /app/channels, после подключения проверь инструментом channels и привяжи к заводу через save_factory (channels).
+  4) Каналы: покажи защищённую форму инструментом connect_channel (kind: telegram, vk, max_bot…), коротко объясни, какие значения нужны и где их взять. Токены и пароли просишь вводить ТОЛЬКО в эту форму и никогда не просишь присылать их сообщением. После подключения (человек напишет «готово») проверь инструментом channels и привяжи канал к заводу через save_factory (channels).
   5) Мониторинг: предложи 5–8 источников по нише (сайты отраслевых СМИ, Telegram-каналы, группы VK, сайты конкурентов) и добавь одобренные через add_source; ключевые слова подбери (suggest_keywords или сам) и сохрани add_keywords вместе со словами-исключениями.
   6) Первый материал: предложи написать пост по свежей новости из мониторинга или по теме; сделай через write.
   Когда всё готово или человек просит пропустить, вызови finish_onboarding и подведи итог. После каждого выполненного шага показывай карточку «setup» (прогресс) и предлагай следующий шаг кнопками «replies». Не забрасывай сразу всеми вопросами. Никогда не придумывай факты о компании: предлагай, а сохраняй после согласия, кроме случая, когда человек сам продиктовал значение.
@@ -153,11 +153,23 @@ async function recentItems(orgId: string, userId: string, thread: string | null)
   return lines.length ? `Материалы в этом диалоге:\n${lines.join("\n")}\n\n` : "";
 }
 
+/** Токены и ключи, случайно присланные сообщением: вырезаем до сохранения и до нейросети. */
+export function redactSecrets(t: string): string {
+  return t
+    .replace(/\b\d{8,11}:[A-Za-z0-9_-]{30,}\b/g, "[токен скрыт]")
+    .replace(/\bvk1\.a\.[A-Za-z0-9_.-]{20,}/g, "[токен скрыт]")
+    .replace(/\bsk-[A-Za-z0-9_-]{20,}/g, "[ключ скрыт]")
+    .replace(/(токен|token|ключ|пароль|password)\s*[:=]\s*[A-Za-z0-9_.\-]{20,}/gi, "$1: [скрыто]")
+    .replace(/\b[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g, "[токен скрыт]");
+}
+
 const MAX_ACTS = 3;
 const rubP = (k: number) => String(Math.round(k) / 100).replace(".", ",");
 
 export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = [], threadIn: string | null = null): Promise<{ ok: true; threadId?: string } | { ok: false; error: string }> {
-  const m = message.trim();
+  const raw0 = message.trim();
+  const m = redactSecrets(raw0);
+  const leaked = m !== raw0;
   if (!m) return { ok: false, error: "Напишите сообщение" };
   if (m.length > 1500) return { ok: false, error: "Сообщение слишком длинное (до 1500 знаков)" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
@@ -183,7 +195,7 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   const shown0 = await recentItems(c.orgId, c.userId, thread);
   const th = thread ? await one<{ title: string }>("select title from kz_chat_threads where id=$1", [thread]) : null;
   const onboarding = th?.title === ONBOARDING_TITLE || /настро(й|ить|им)|обучен|с нуля|с чего начать|помоги начать|пройти обучение/i.test(m);
-  const shown = (onboarding ? await progressText(c.orgId) : "") + shown0;
+  const shown = (onboarding ? await progressText(c.orgId) : "") + shown0 + (leaked ? "ВАЖНО: пользователь прислал в сообщении токен или ключ, он удалён из переписки. Не повторяй его. Объясни, что такие данные вводятся только в защищённой форме, и вызови connect_channel (kind по смыслу), токен просить не нужно повторно в сообщении.\n\n" : "");
   try { await charge(c.orgId, PRICES.idea, "Чат: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
   await save(c.orgId, c.userId, "user", m, files.length ? { files } : {}, thread);
   const t0 = Date.now();

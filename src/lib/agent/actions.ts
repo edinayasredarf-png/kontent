@@ -1,6 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { canWrite, requireCtx } from "../auth";
+import { redirect } from "next/navigation";
+import { startOnboarding } from "./onboarding";
 import { createThread, deleteThread, listThreads, threadsReady, type Thread } from "./threads";
 import { askAgent, clearHistory, runMessageAction } from "./agent";
 
@@ -18,6 +20,14 @@ export async function chatActionRun(messageId: string, index: number): Promise<{
   const r = await runMessageAction({ orgId: c.org.id, role: c.org.role }, c.user.id, String(messageId), Number(index));
   revalidatePath("/app");
   return r;
+}
+
+/** «Пройти обучение заново»: новый диалог «Знакомство» с приветствием и чек-листом. */
+export async function restartOnboardingAction(): Promise<void> {
+  const c = await requireCtx();
+  if (!canWrite(c.org.role)) redirect("/app/overview");
+  const id = await startOnboarding(c.org.id, c.user.id);
+  redirect(id ? `/app?t=${id}` : `/app?q=${encodeURIComponent("Давай настроим всё с нуля")}`);
 }
 
 export async function clearChatAction(threadId: string | null = null): Promise<void> {

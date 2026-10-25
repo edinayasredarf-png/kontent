@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, History, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
+import { ChannelForm } from "@/components/ChannelForm";
 import type { FactoryPatch } from "@/lib/agent/factory-patch";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { PostText } from "@/components/monitor/PostText";
@@ -282,6 +283,16 @@ function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c
   );
 }
 
+function ChannelFormCard({ c }: { c: Extract<Card, { t: "channel_form" }> }) {
+  return (
+    <div className={box}>
+      <b className="mb-1 block text-sm">Подключение канала</b>
+      <p className="mb-3 text-xs text-ink2">Токен вводится сюда, в защищённую форму: он идёт сразу на сервер и не попадает ни в переписку, ни к нейросети. Перед сохранением мы проверим, что доступ рабочий.</p>
+      <ChannelForm brands={c.brands} maxBot={c.maxBot} ret="/app/?ch=1" initialKind={c.kind} />
+    </div>
+  );
+}
+
 function SetupCard({ c }: { c: Extract<Card, { t: "setup" }> }) {
   const done = c.steps.filter((s) => s.done).length;
   return (
@@ -351,6 +362,7 @@ export function ChatCards({ cards }: { cards: Card[] }) {
         if (c.t === "brand") return <BrandCard key={k} c={c} replace={swap(i)} />;
         if (c.t === "plan") return <PlanCard key={k} c={c} replace={swap(i)} />;
         if (c.t === "setup") return <SetupCard key={k} c={c} />;
+        if (c.t === "channel_form") return <ChannelFormCard key={k} c={c} />;
         if (c.t === "variants") return <VariantsCard key={k} c={c} />;
         if (c.t === "image") return <div key={k} className="flex flex-wrap gap-3">{c.ids.map((id) => <DlImage key={id} id={id} className="max-h-[480px] max-w-full rounded-xl object-contain" />)}</div>;
         return <ChannelsCard key={k} c={c} replace={swap(i)} />;
