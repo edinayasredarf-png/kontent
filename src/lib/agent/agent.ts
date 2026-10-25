@@ -49,6 +49,7 @@ ${toolDocs()}
 КАК РАБОТАТЬ:
 - ОБУЧЕНИЕ НОВОГО КЛИЕНТА. Когда в данных есть блок «Прогресс настройки» (диалог «Знакомство» или человек просит настроить с нуля, обучить, с чего начать), ты ведёшь настройку как внимательный консультант:
   ПРАВИЛА ВЕДЕНИЯ. Блок «УЖЕ СОХРАНЕНО В СЕРВИСЕ» — твоя память: не переспрашивай то, что там заполнено, а дополняй пустое («—»). Задавай один вопрос за раз (максимум два связанных), коротко, и к каждому вопросу давай готовые варианты в "replies" и 1–2 рекомендации с причиной. Если человек ответил сразу на несколько вопросов или прислал сайт, документ, ответ не по порядку, используй всё сразу, сохрани и переходи к первому незакрытому шагу. Подстраивайся под бизнес: для услуг и B2B советуй кейсы, экспертные посты и SEO-статьи; для товаров и розницы — карусели и истории; для локального бизнеса — акции и отзывы; для блога и медиа — новости и лонгриды. Не используй одни и те же формулировки, примеры бери из ниши клиента. Если человек сомневается, предложи разумное значение по умолчанию и скажи, что это можно поменять позже. Никогда не придумывай факты о компании: предлагай, а сохраняй после согласия, кроме случая, когда человек сам продиктовал значение. После каждого сохранения коротко подтверди, что именно записано, покажи карточку «setup» и предложи следующий шаг.
+  БОЛЬШОЕ СООБЩЕНИЕ. Если клиент выложил всё сразу (описание бизнеса, сайт, какие посты хочет, ссылки на примеры постов или статей), разложи это за один заход, не задавая вопросов, на которые уже ответили: 1) сайт: прочитай (site), по нему и по словам клиента составь бренд; 2) примеры постов и статей по ссылкам: add_links_to_kb с kind article (по ним ИИ учится стилю), ссылки о компании, кейсах, FAQ: add_links_to_kb с подходящим kind; 3) бренд: save_brand (название, описание, аудитория, тон по примерам, запреты, конкуренты); 4) завод: save_factory (ниша, продукт, форматы по тому, какие посты он хочет, частота и время, если названы). Бренд сохраняй раньше ссылок: для базы знаний он должен существовать. Продиктованное клиентом сохраняй сразу, выведенное с сайта и по догадке (тон, аудитория, конкуренты) тоже сохраняй, но скажи в итоге, что именно ты вывел сам, и предложи поправить. В итоговом сообщении перечисли списком, что записано куда (бренд, база знаний, завод), что не открылось, и задай один вопрос о первом незакрытом шаге. Не придумывай то, чего нет ни в тексте клиента, ни на сайте: оставь пустым и спроси.
   ШАГИ.
   1) Бренд: название; чем занимается и что продаёт; для кого (аудитория, боли); тон общения; что нельзя упоминать; главные конкуренты. Дал сайт: прочитай (site), при нужде поищи (search), предложи заполнение и спроси «Сохранить?», потом save_brand.
   2) Брендбук: логотип (прикрепить файл, затем set_logo), цвета (предложи из логотипа или стиля ниши), стиль картинок (minimal, futurism, corporate, popart, pastel, dark, photo, illustration: посоветуй под нишу), что всегда и чего никогда не должно быть на картинках, документы (о компании, примеры лучших постов или статей для обучения стилю, кейсы, FAQ): add_to_kb. Всё сохраняй через save_brand и add_to_kb.
@@ -166,6 +167,7 @@ export function redactSecrets(t: string): string {
 }
 
 const MAX_ACTS = 3;
+const MAX_ACTS_ONBOARDING = 7;
 const rubP = (k: number) => String(Math.round(k) / 100).replace(".", ",");
 
 export async function askAgent(c: { orgId: string; userId: string; userName: string; role: string }, message: string, fileIds: string[] = [], threadIn: string | null = null): Promise<{ ok: true; threadId?: string } | { ok: false; error: string }> {
@@ -206,9 +208,10 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
   const failed: string[] = [];
   const notes: string[] = [];
   try {
-    for (let step = 0; step < 7; step++) {
+    const STEPS = onboarding ? 11 : 7;
+    for (let step = 0; step < STEPS; step++) {
       if (Date.now() - t0 > 240_000) throw new Error("Слишком долго думаю, попробуйте короче");
-      const last = step >= 6;
+      const last = step >= STEPS - 1;
       const raw = await chat("assistant", SYSTEM(c.userName).replace("%PRICE_POST%", rubP(PRICES.post)).replace("%PRICE_CAROUSEL%", rubP(PRICES.carousel)).replace("%PRICE_SEO%", rubP(PRICES.seo)).replace("%PRICE_IMAGE%", rubP(PRICES.image)).replace("%PRICE_PLAN%", rubP(PRICES.plan_day)), `Сегодня ${TODAY()}.\n${shown}${attached}${hist ? `Диалог до этого:\n${hist}\n\n` : ""}Пользователь: ${m}\n${scratch}${last ? "\nБольше инструментов нет: дай финальный ответ." : ""}`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 60_000 });
       const o = parseReply(raw);
       if (o?.tool && !last) {
@@ -216,8 +219,8 @@ export async function askAgent(c: { orgId: string; userId: string; userName: str
         let res: unknown;
         if (!t || t.kind === "confirm") res = { error: t ? "Это действие только предлагается кнопкой в финальном ответе" : "Нет такого инструмента" };
         else if (t.kind === "act") {
-          if (acts >= MAX_ACTS) res = { error: "В одном сообщении можно не больше трёх платных действий" };
-          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0] } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
+          if (acts >= (onboarding ? MAX_ACTS_ONBOARDING : MAX_ACTS)) res = { error: "В одном сообщении можно не больше трёх платных действий" };
+          else { acts++; const r = await runAct(ctx, t.name, o.args ?? {}).catch((e) => ({ ok: false, text: (e as Error).message.slice(0, 200) } as ActResult)); res = r.ok ? { ok: true, result: r.text, itemId: r.itemIds?.[0], ids: ((r as { refs?: { t: string; id?: string }[] }).refs ?? []).filter((x) => x.id).map((x) => `${x.t}Id=${x.id}`) } : { error: r.text }; if (!r.ok) failed.push(r.text); if (r.ok) { for (const id of r.itemIds ?? []) if (!made.includes(id)) made.push(id); extra.push(...((r as { refs?: CardRef[] }).refs ?? [])); notes.push(r.text); } }
         } else { try { res = t.kind === "auto" ? await runAuto(ctx, t.name) : await runRead(ctx, t.name, o.args ?? {}); } catch (e) { res = { error: (e as Error).message.slice(0, 200) }; } }
         got[o.tool] = res;
         scratch += `\nВызван ${o.tool}. Результат: ${cut(res)}\n`;

@@ -96,7 +96,8 @@ export async function saveFactoryInfo(orgId: string, a: Args): Promise<SetupResu
       [row.id, orgId, name, has(a, "niche") ? txt(a.niche, 300) : null, has(a, "product") ? txt(a.product, 2000) : null, formats?.length ? formats : null, schedule]);
     return finish({ ok: true, text: "Завод сохранён", refs: [{ t: "factory", id: row.id }] });
   }
-  const brand = await one<{ id: string }>("select id from kz_brands where id=$1 and org_id=$2", [uuid(a.brandId) || null, orgId]);
+  const brand = (uuid(a.brandId) ? await one<{ id: string }>("select id from kz_brands where id=$1 and org_id=$2", [uuid(a.brandId), orgId]) : null)
+    ?? (uuid(a.brandId) ? null : await one<{ id: string }>("select id from kz_brands where org_id=$1 order by created_at limit 1", [orgId]));
   if (!brand) return { ok: false, text: "Для нового завода нужен бренд: укажите бренд или сначала создайте его" };
   if (!name || name.length < 2) return { ok: false, text: "Для нового завода нужно название" };
   const lim = await orgLimits(orgId);

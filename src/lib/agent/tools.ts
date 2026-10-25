@@ -39,6 +39,7 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "connect_channel", kind: "act", desc: "ПОКАЗАТЬ в чате защищённую форму подключения канала (бесплатно). Токены и пароли вводятся ТОЛЬКО в этой форме, никогда в сообщении. kind: telegram, vk, max_bot (MAX через бота сервиса), max, wordpress, webhook", args: '{"kind":"telegram"}' },
   { name: "progress", kind: "read", desc: "Что уже настроено у клиента: бренд, брендбук, завод, каналы, мониторинг, первый материал", args: "{}" },
   { name: "add_to_kb", kind: "act", desc: "ДОБАВИТЬ прикреплённый документ в базу знаний бренда (бесплатно, сразу). kind: article — их статьи и посты (учим стиль), company — о компании, продуктах, услугах, competitors, cases — кейсы и отзывы, faq — вопросы клиентов, other", args: '{"fileId":"uuid документа","kind":"company","brandId":"uuid","useStyle":false}' },
+  { name: "add_links_to_kb", kind: "act", desc: "ДОБАВИТЬ в базу знаний бренда СТРАНИЦЫ ПО ССЫЛКАМ (до 5 за раз, бесплатно, сразу): примеры постов и статей клиента (kind article, по ним учится стиль), страницы о компании (company), кейсы (cases), вопросы клиентов (faq), конкуренты (competitors). Бренд должен уже существовать", args: '{"urls":["https://…"],"kind":"article","brandId":"uuid"}' },
   { name: "add_source", kind: "act", desc: "ДОБАВИТЬ источник мониторинга новостей (бесплатно, сразу): site — ссылка на сайт или RSS, telegram — @канал, vk — группа, max — канал, news — ключевой запрос в новостях", args: '{"kind":"site|telegram|vk|max|news","value":"ссылка или имя"}' },
   { name: "add_keywords", kind: "act", desc: "СОХРАНИТЬ ключевые слова мониторинга (бесплатно, сразу): include — что искать, exclude — что исключать", args: '{"include":["слово"],"exclude":["слово"]}' },
   { name: "suggest_keywords", kind: "act", desc: "ПОДОБРАТЬ ключевые слова нейросетью по описанию бренда (платно). Результат покажи человеку и сохрани через add_keywords после согласия", args: '{"brandId":"uuid"}' },
@@ -219,6 +220,7 @@ export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<impor
   }
   const ob = await import("./onboarding");
   if (name === "add_to_kb") return ob.addToKb(ctx.orgId, a);
+  if (name === "add_links_to_kb") return ob.addLinksToKb(ctx.orgId, a);
   if (name === "add_source") return ob.addMonitorSource(ctx.orgId, a);
   if (name === "add_keywords") return ob.addKeywords(ctx.orgId, a);
   if (name === "finish_onboarding") return ob.finishOnboarding(ctx.orgId, ctx.userId ?? "");

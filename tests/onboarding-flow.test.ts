@@ -76,4 +76,43 @@ describe("обучение: что видит модель и что запом�
     const t = await progressText(org);
     for (const must of ["Соцсети кофейни", "кофе и обжарка", "post, carousel, seo", "дни 2,4,6", "09:30,18:00", "одобрение: manual", "автопубликация: нет", "картинки: да", "Закажите первую пачку", "https://coffee.example", "ключевых слов: 2"]) assert.ok(t.includes(must), `не запомнилось или не видно модели: ${must}\n${t}`);
   });
+
+  it("одно большое сообщение: сайт, пожелания и ссылки на примеры раскладываются за один заход", async () => {
+    const { askAgent } = await import("../src/lib/agent/agent");
+    const { one, q } = await import("../src/lib/db");
+    const org2 = (await one<{ id: string }>("insert into kz_orgs(name,balance_kop,plan,unlimited) values('big',500000,'start',true) returning id"))!.id;
+    const u2 = (await one<{ id: string }>("insert into kz_users(email,name,password_hash) values($1,'Олег','x') returning id", [`b-${org2}@t.ru`]))!.id;
+    await q("insert into kz_memberships(org_id,user_id,role) values($1,$2,'owner')", [org2, u2]);
+    try {
+      const { startOnboarding } = await import("../src/lib/agent/onboarding");
+      const t2 = await startOnboarding(org2, u2);
+      const calls: string[] = [];
+      plan = (_n, usr) => {
+        const done = (usr.match(/Вызван (\w+)/g) ?? []).map((x) => x.replace("Вызван ", ""));
+        const next = ["site", "save_brand", "add_links_to_kb", "save_factory", "add_keywords"][done.length];
+        if (next) {
+          calls.push(next);
+          const args: Record<string, unknown> = {
+            site: { url: "https://127.0.0.1/" },
+            save_brand: { name: "Студия Лайм", description: "Дизайн интерьеров под ключ для квартир и офисов", audience: "Владельцы квартир 30–50 лет", tone: "экспертный, спокойный", competitors: ["Дом Дизайна"] },
+            add_links_to_kb: { urls: ["https://127.0.0.1/post1", "https://127.0.0.1/post2"], kind: "article" },
+            save_factory: { brandId: "", name: "Соцсети студии", niche: "дизайн интерьеров", product: "Дизайн-проекты под ключ", formats: ["carousel", "post", "seo"], days: [2, 4], times: ["12:00"] },
+            add_keywords: { include: ["дизайн интерьера", "ремонт под ключ"], exclude: ["вакансии"] },
+          }[next]!;
+          if (next === "save_factory") args.brandId = /Бренд ([0-9a-f-]{36})/.exec(usr)?.[1] ?? "";
+          return JSON.stringify({ tool: next, args });
+        }
+        return '{"final":{"text":"Записал: бренд, ссылки, завод, слова.","cards":[{"type":"setup"}],"replies":["Подключить каналы"]}}';
+      };
+      const msg = "Мы студия дизайна интерьеров «Лайм», сайт lime.example. Хотим карусели с проектами, экспертные посты и SEO-статьи 2 раза в неделю в 12:00. Примеры наших постов: https://127.0.0.1/post1 https://127.0.0.1/post2";
+      const r = await askAgent({ orgId: org2, userId: u2, userName: "Олег", role: "owner" }, msg, [], t2);
+      assert.ok(r.ok);
+      assert.deepEqual(calls, ["site", "save_brand", "add_links_to_kb", "save_factory", "add_keywords"], "все пять шагов выполнены в одном ответе");
+      const b = await one<{ name: string; tone: string }>("select name,tone from kz_brands where org_id=$1", [org2]);
+      assert.equal(b?.name, "Студия Лайм"); assert.equal(b?.tone, "экспертный, спокойный");
+      const f = await one<{ formats: string[]; schedule: { days: number[]; times: string[] } }>("select formats,schedule from kz_factories where org_id=$1", [org2]);
+      assert.deepEqual(f?.formats, ["carousel", "post", "seo"]); assert.deepEqual(f?.schedule.days, [2, 4]);
+      assert.equal(Number((await one<{ n: string }>("select count(*) n from kz_keywords where org_id=$1", [org2]))!.n), 3);
+    } finally { await q("delete from kz_orgs where id=$1", [org2]); await q("delete from kz_users where id=$1", [u2]); }
+  });
 });

@@ -5,6 +5,7 @@ import { addSource, pollSource, recompute } from "../monitor/service";
 import type { Kind } from "../monitor/fetchers";
 import { suggestKeywords } from "../monitor/news";
 import { loadAsset } from "../assets";
+import { urlToText } from "../kb/ingest";
 import { PLANS, type PlanKey } from "../plans";
 import { cleanKit } from "../images";
 import { createThread } from "./threads";
@@ -66,6 +67,25 @@ export async function addToKb(orgId: string, a: Args): Promise<SetupResult> {
   const kind = (String(a.kind) in KB_KINDS ? String(a.kind) : "company") as KbKind;
   const r = await addDoc(orgId, bid, { kind, title: f.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || "Документ", text: f.data.toString("utf8"), useStyle: kind === "article" || a.useStyle === true });
   return r.error ? { ok: false, text: r.error } : { ok: true, text: `Документ «${f.name}» добавлен в базу знаний бренда (${KB_KINDS[kind]}). ИИ будет опираться на него при написании`, refs: [{ t: "setup" }] };
+}
+
+/** Ссылки на статьи и посты клиента → база знаний бренда (по умолчанию как примеры стиля). До 5 ссылок за раз; что не открылось, называем отдельно. */
+export async function addLinksToKb(orgId: string, a: Args): Promise<SetupResult> {
+  const urls = [...new Set((Array.isArray(a.urls) ? a.urls : typeof a.urls === "string" ? a.urls.split(/\s+/) : []).map((u) => String(u).trim()).filter((u) => /^https?:\/\//i.test(u)))].slice(0, 5);
+  if (!urls.length) return { ok: false, text: "Не нашёл ссылок (нужны адреса с http:// или https://)" };
+  const bid = uuid(a.brandId) || (await one<{ id: string }>("select id from kz_brands where org_id=$1 order by created_at limit 1", [orgId]))?.id;
+  if (!bid || !(await one("select 1 from kz_brands where id=$1 and org_id=$2", [bid, orgId]))) return { ok: false, text: "Сначала нужен бренд: сохраните его (save_brand), потом добавляйте ссылки" };
+  const kind = (String(a.kind) in KB_KINDS ? String(a.kind) : "article") as KbKind;
+  const done: string[] = [], bad: string[] = [];
+  for (const u of urls) {
+    try {
+      const t = await urlToText(u);
+      const r = await addDoc(orgId, bid, { kind, title: t.title.slice(0, 120) || u, text: t.text, url: u, useStyle: kind === "article" || a.useStyle === true });
+      if (r.error) bad.push(`${u}: ${r.error}`); else done.push(t.title.slice(0, 60) || u);
+    } catch (e) { bad.push(`${u}: ${(e as Error).message.slice(0, 90)}`); }
+  }
+  if (!done.length) return { ok: false, text: `Ни одна ссылка не открылась. ${bad.join("; ")}. Попросите прислать текст или файл` };
+  return { ok: true, text: `В базу знаний (${KB_KINDS[kind]}) добавлено: ${done.length} из ${urls.length}${bad.length ? `. Не получилось: ${bad.join("; ")}` : ""}`, refs: [{ t: "setup" }] };
 }
 
 const KINDS = ["site", "telegram", "vk", "news", "max"];
