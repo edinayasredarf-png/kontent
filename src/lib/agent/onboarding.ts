@@ -35,7 +35,7 @@ export async function progress(orgId: string): Promise<Step[]> {
   const briefOk = !!b && b.description.trim().length > 10 && b.audience.trim().length > 5;
   const styleOk = !!b && (logo > 0 || docs > 0 || (kit.colors?.length ?? 0) > 0 || !!kit.style);
   return [
-    { key: "brand", title: "Бренд: чем занимаетесь, для кого, в каком тоне", done: briefOk, detail: b ? (briefOk ? b.name : "бренд создан, но описание и аудитория не заполнены") : "бренда ещё нет", href: b ? `/app/brands/${b.id}` : "/app/brands" },
+    { key: "brand", title: "Бренд: чем занимаетесь, для кого, в каком тоне", done: briefOk, detail: b ? (briefOk ? b.name : `бренд создан, не хватает: ${[b.description.trim().length > 10 ? "" : "описания", b.audience.trim().length > 5 ? "" : "аудитории"].filter(Boolean).join(" и ")}`) : "бренда ещё нет", href: b ? `/app/brands/${b.id}` : "/app/brands" },
     { key: "style", title: "Брендбук: логотип, цвета, стиль, документы", done: styleOk, detail: styleOk ? `${logo ? "логотип есть; " : ""}документов: ${docs}` : "нет ни логотипа, ни цветов, ни документов", href: b ? `/app/brands/${b.id}` : undefined },
     { key: "factory", title: "Контент-завод: ниша, продукт, форматы, расписание", done: !!f && f.niche.trim().length > 2 && f.product.trim().length > 5, detail: f ? f.name : "завода ещё нет", href: f ? `/app/factories/${f.id}` : "/app/factories" },
     { key: "channels", title: "Каналы публикации (VK, Telegram, MAX…)", done: channels > 0, detail: channels ? `подключено: ${channels}` : "каналов нет: подключите в чате (защищённая форма) или на странице «Каналы»", href: "/app/channels" },
@@ -47,7 +47,14 @@ export async function progress(orgId: string): Promise<Step[]> {
 /** Для подсказки модели: короткий текст о том, что уже настроено. */
 export async function progressText(orgId: string): Promise<string> {
   const st = await progress(orgId);
-  return `Прогресс настройки (${st.filter((s) => s.done).length} из ${st.length}):\n${st.map((s) => `- ${s.done ? "готово" : "НЕ сделано"}: ${s.title} (${s.detail})`).join("\n")}\n\n`;
+  const [b] = await q<{ id: string; name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[]; competitors?: string[]; notes?: string[] } | null; kit: unknown }>("select id,name,description,audience,tone,rules,kit from kz_brands where org_id=$1 order by created_at limit 1", [orgId]);
+  const fs = await q<{ id: string; name: string; niche: string; product: string; formats: string[]; schedule: { days?: number[]; times?: string[] } | null; approval: string; autopublish: boolean; brief: Record<string, unknown> | null; ch: string }>(
+    "select id,name,niche,product,formats,schedule,approval,autopublish,brief,coalesce(array_length(channel_ids,1),0)::text ch from kz_factories where org_id=$1 order by created_at limit 3", [orgId]);
+  const kit = cleanKit(b?.kit);
+  const saved: string[] = [];
+  if (b) saved.push(`Бренд ${b.id}: название «${b.name}»; описание: ${b.description || "—"}; аудитория: ${b.audience || "—"}; тон: ${b.tone}; запреты: ${(b.rules?.forbidden ?? []).join(", ") || "—"}; конкуренты: ${(b.rules?.competitors ?? []).join(", ") || "—"}; правила: ${(b.rules?.notes ?? []).join("; ") || "—"}; стиль картинок: ${kit.style || "—"}; цвета: ${(kit.colors ?? []).map((c) => c.hex).join(" ") || "—"}`);
+  for (const f of fs) saved.push(`Завод ${f.id}: «${f.name}»; ниша: ${f.niche || "—"}; продукт: ${f.product || "—"}; форматы: ${(f.formats ?? []).join(", ")}; дни ${(f.schedule?.days ?? []).join(",")} время ${(f.schedule?.times ?? []).join(",")}; одобрение: ${f.approval}; автопубликация: ${f.autopublish ? "да" : "нет"}; картинки: ${f.brief?.images ? "да" : "нет"}; каналов привязано: ${f.ch}; призыв: ${String(f.brief?.cta ?? "") || "—"}; ссылка: ${String(f.brief?.link ?? "") || "—"}`);
+  return `Прогресс настройки (${st.filter((s) => s.done).length} из ${st.length}):\n${st.map((s) => `- ${s.done ? "готово" : "НЕ сделано"}: ${s.title} (${s.detail})`).join("\n")}\nУЖЕ СОХРАНЕНО В СЕРВИСЕ (не переспрашивай это, а дополняй недостающее):\n${saved.join("\n") || "ничего"}\n\n`;
 }
 
 /** Документ из вложения чата → база знаний бренда (стиль, о компании, кейсы…). */
