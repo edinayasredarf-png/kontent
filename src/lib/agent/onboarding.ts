@@ -38,7 +38,7 @@ export async function progress(orgId: string): Promise<Step[]> {
     { key: "brand", title: "Бренд: чем занимаетесь, для кого, в каком тоне", done: briefOk, detail: b ? (briefOk ? b.name : "бренд создан, но описание и аудитория не заполнены") : "бренда ещё нет", href: b ? `/app/brands/${b.id}` : "/app/brands" },
     { key: "style", title: "Брендбук: логотип, цвета, стиль, документы", done: styleOk, detail: styleOk ? `${logo ? "логотип есть; " : ""}документов: ${docs}` : "нет ни логотипа, ни цветов, ни документов", href: b ? `/app/brands/${b.id}` : undefined },
     { key: "factory", title: "Контент-завод: ниша, продукт, форматы, расписание", done: !!f && f.niche.trim().length > 2 && f.product.trim().length > 5, detail: f ? f.name : "завода ещё нет", href: f ? `/app/factories/${f.id}` : "/app/factories" },
-    { key: "channels", title: "Каналы публикации (VK, Telegram, MAX…)", done: channels > 0, detail: channels ? `подключено: ${channels}` : "каналов нет: токены вводятся на странице «Каналы»", href: "/app/channels" },
+    { key: "channels", title: "Каналы публикации (VK, Telegram, MAX…)", done: channels > 0, detail: channels ? `подключено: ${channels}` : "каналов нет: подключите в чате (защищённая форма) или на странице «Каналы»", href: "/app/channels" },
     { key: "monitor", title: "Мониторинг новостей: источники и ключевые слова", done: sources > 0 && words > 0, detail: `источников: ${sources}, ключевых слов: ${words}`, href: "/app/monitor/settings" },
     { key: "first", title: "Первый материал", done: made > 0, detail: made ? `готово материалов: ${made}` : "ещё ничего не написано", href: "/app/calendar" },
   ];
