@@ -116,10 +116,10 @@ export function AppShell(p: ShellProps) {
       {sidebar}
       {drawer && <button type="button" aria-label="Закрыть меню" onClick={() => setDrawer(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
       <div className={clsx("min-h-screen transition-[padding] duration-200", slim ? "md:pl-[108px]" : "md:pl-[340px]")}>
-        <header className="flex items-center gap-3 px-5 pb-2 pt-4 md:px-10 md:pt-[57px]">
+        <header className="flex min-h-[72px] items-center gap-3 px-5 pb-2 pt-4 max-md:pr-[19rem] md:min-h-[116px] md:px-10 md:pt-[57px]">
           <button type="button" onClick={() => setDrawer(true)} aria-label="Открыть меню" className="grid size-10 place-items-center rounded-full bg-accent-soft md:hidden"><Menu size={20} /></button>
-          <h1 className="text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>
-          <div className="ml-auto flex items-center gap-1.5 rounded-[30px] bg-surface py-2 pl-3 pr-2 shadow-soft md:gap-3 md:pl-5">
+          <h1 className="min-w-0 truncate text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>
+          <div className="fixed right-4 top-4 z-[35] flex items-center gap-1.5 rounded-[30px] bg-surface py-2 pl-3 pr-2 shadow-soft md:right-10 md:top-[57px] md:gap-3 md:pl-5">
             <Search />
             {!p.guest && <Link href={`/app/help?from=${encodeURIComponent(path)}`} aria-label="Помощь" title="Помощь и поддержка" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><HelpCircle size={20} /></Link>}
             {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} /></Link> : <NotificationBell initial={p.notes} unread={p.unread} alerts={p.alerts} />}
