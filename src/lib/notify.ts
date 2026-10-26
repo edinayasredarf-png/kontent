@@ -29,6 +29,12 @@ export async function notify(orgId: string, n: Note): Promise<void> {
   } catch { /* уведомления необязательны */ }
 }
 
+/** Адрес именно этого материала: окно материала в списке завода; у материалов без завода (автолента) — страница публикаций. */
+export async function itemLink(itemId: string): Promise<string> {
+  const r = await one<{ factory_id: string | null }>("select factory_id from kz_content_items where id=$1", [itemId]).catch(() => null);
+  return r?.factory_id ? `/app/factories/${r.factory_id}?view=list&open=${itemId}` : "/app/publications";
+}
+
 export interface Notification { id: string; kind: NotifyKind; title: string; body: string; href: string; created_at: string; read_at: string | null }
 
 export async function listNotifications(userId: string, limit = 30, unreadOnly = false): Promise<Notification[]> {

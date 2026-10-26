@@ -24,7 +24,7 @@ import { genEmail, genGuide } from "./docs";
 import { cleanSettings, type ContentSettings } from "./postsettings";
 import { carouselAssets, prepCover, renderForItem, renderInfographicForItem, slideHeight } from "./carousel/service";
 import { dropAsset, snapshot } from "./versions";
-import { notify } from "./notify";
+import { itemLink, notify } from "./notify";
 import { runNotifyJobs } from "./notify-jobs";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, rawCopy, type LogoPos } from "./images";
 import { loadAsset, processImage, saveAsset } from "./assets";
@@ -376,7 +376,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
-      void notify(j.org_id, { kind: "published", title: `Опубликовано: ${(item?.topic ?? "материал").slice(0, 90)}`, body: ch.kind === "vk" ? "ВКонтакте" : ch.kind === "telegram" ? "Telegram" : ch.kind === "max" ? "MAX" : ch.kind, href: r.url || "/app/publications", dedupe: `pub:${j.id}` });
+      void notify(j.org_id, { kind: "published", title: `Опубликовано: ${(item?.topic ?? "материал").slice(0, 90)}`, body: ch.kind === "vk" ? "ВКонтакте" : ch.kind === "telegram" ? "Telegram" : ch.kind === "max" ? "MAX" : ch.kind, href: r.url || (await itemLink(j.item_id)), dedupe: `pub:${j.id}` });
     } catch (e) {
       const retryable = e instanceof PublishError ? e.retryable : true;
       const msg = (e as Error).message.slice(0, 500);
@@ -386,7 +386,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       } else {
         await q("update kz_publications set status='failed', error=$2, updated_at=now() where id=$1", [j.id, msg]);
         out.failed++;
-        void notify(j.org_id, { kind: "publish_failed", title: `Не удалось опубликовать: ${(item?.topic ?? "материал").slice(0, 80)}`, body: msg.slice(0, 200), href: "/app/publications", dedupe: `pubfail:${j.id}` });
+        void notify(j.org_id, { kind: "publish_failed", title: `Не удалось опубликовать: ${(item?.topic ?? "материал").slice(0, 80)}`, body: msg.slice(0, 200), href: await itemLink(j.item_id), dedupe: `pubfail:${j.id}` });
       }
     }
     await settleItem(j.item_id);
@@ -486,8 +486,8 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
     if (Date.now() - t0 > budgetMs - 60_000) break;
     const r = await buildItem(it.org_id, it.id);
     const tp = (await one<{ topic: string }>("select topic from kz_content_items where id=$1", [it.id]))?.topic ?? "материал";
-    if (r.ok) { rep.generated++; void notify(it.org_id, { kind: "material_ready", title: `Материал готов: ${tp.slice(0, 90)}`, href: "/app/calendar", dedupe: `ready:${it.id}` }); }
-    else { rep.errors.push(`item ${it.id}: ${r.error}`); void notify(it.org_id, { kind: "generation_failed", title: `Не удалось создать материал: ${tp.slice(0, 80)}`, body: String(r.error ?? "").slice(0, 200), href: "/app/calendar", dedupe: `genfail:${it.id}` }); }
+    if (r.ok) { rep.generated++; void notify(it.org_id, { kind: "material_ready", title: `Материал готов: ${tp.slice(0, 90)}`, href: await itemLink(it.id), dedupe: `ready:${it.id}` }); }
+    else { rep.errors.push(`item ${it.id}: ${r.error}`); void notify(it.org_id, { kind: "generation_failed", title: `Не удалось создать материал: ${tp.slice(0, 80)}`, body: String(r.error ?? "").slice(0, 200), href: await itemLink(it.id), dedupe: `genfail:${it.id}` }); }
   }
 
   // 3.5) материалы, которым человек выбрал дату и время выхода

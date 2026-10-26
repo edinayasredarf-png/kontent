@@ -62,4 +62,23 @@ describe("поддержка и уведомления", { skip: skipDb }, () =>
     const ideas = (await listNotifications(user, 30)).filter((x) => x.kind === "ideas_pending");
     assert.equal(ideas.length, 1); assert.ok(ideas[0].title.includes("3"));
   });
+
+  it("уведомления ведут к конкретному объекту: новость, завод, материал", async () => {
+    const { one, q } = await import("../src/lib/db");
+    const { runNotifyJobs } = await import("../src/lib/notify-jobs");
+    const { listNotifications, itemLink } = await import("../src/lib/notify");
+    const src = (await one<{ id: string }>("insert into kz_sources(org_id,kind,ref,title) values($1,'site','x.ru','X') returning id", [org]))!.id;
+    const fi = (await one<{ id: string }>("insert into kz_feed_items(org_id,source_id,ext_id,url,title,matched,score) values($1,$2,'a','https://x.ru/a','Новость про ремонт',array['ремонт'],3) returning id", [org, src]))!.id;
+    await runNotifyJobs();
+    const all = await listNotifications(user, 50);
+    const news = all.find((x) => x.kind === "news_match");
+    assert.ok(news && news.href === `/app/monitor?id=${fi}`, "одна новость: ссылка на неё");
+    const plan = all.find((x) => x.kind === "plan_low");
+    assert.ok(plan && /^\/app\/factories\/[0-9a-f-]{36}\?tab=plan$/.test(plan.href), plan?.href);
+    const ideas = all.find((x) => x.kind === "ideas_pending");
+    assert.ok(ideas && /^\/app\/factories\/[0-9a-f-]{36}\?view=list$/.test(ideas.href), ideas?.href);
+    const it = (await one<{ id: string; factory_id: string }>("select id,factory_id from kz_content_items where org_id=$1 and factory_id is not null limit 1", [org]))!;
+    assert.equal(await itemLink(it.id), `/app/factories/${it.factory_id}?view=list&open=${it.id}`);
+    await q("update kz_feed_items set status='new'");
+  });
 });
