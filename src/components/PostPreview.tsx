@@ -123,7 +123,7 @@ function StoryPreview({ text, image, name }: { text: string; image?: string; nam
         {n > 250 && <p className="flex items-start gap-1.5 text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />Текст длинный для сторис: на экране помещается около 250 знаков, остальное обрежется. Сократите его (кнопка «Сократить» выше).</p>}
         {!image && <p className="flex items-start gap-1.5 text-warn"><AlertTriangle size={13} className="mt-0.5 shrink-0" />У сторис нет картинки. Создайте её или прикрепите свою: нужен вертикальный кадр 9:16.</p>}
         <p className="text-ink3">Сторис — это вертикальная картинка 9:16 с короткой надписью. В каналы (Telegram, VK, MAX) она уходит как обычная картинка с подписью: публиковать настоящие сторис через ключи каналов площадки не позволяют. Чтобы выложить её сторис в приложении, скачайте картинку и загрузите вручную.</p>
-        {image && <a href={`${image}?dl=1`} className="inline-flex items-center gap-1 font-semibold text-accent-ink underline">Скачать картинку для сторис</a>}
+        {image && <a href={`${image}?dl=1`} className="link-btn">Скачать картинку для сторис</a>}
       </div>
     </div>
   );

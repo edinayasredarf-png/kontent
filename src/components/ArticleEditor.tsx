@@ -34,8 +34,8 @@ export function ArticleEditor({ itemId, kind, initial, seo, title, imagePrice, i
     <div className="space-y-3">
       {draft.restored != null && (
         <p className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Найден несохранённый текст статьи из прошлого раза.
-          <button type="button" onClick={() => { setHtml(draft.restored!); draft.hide(); }} className="font-semibold underline">Вернуть мою правку</button>
-          <button type="button" onClick={draft.drop} className="underline">Оставить сохранённый</button></p>
+          <button type="button" onClick={() => { setHtml(draft.restored!); draft.hide(); }} className="link-btn">Вернуть мою правку</button>
+          <button type="button" onClick={draft.drop} className="link-btn link-btn-quiet">Оставить сохранённый</button></p>
       )}
       <div className="flex flex-wrap items-center gap-2">
         {TABS.map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k} className={`chip cursor-pointer !px-3 !py-1 text-xs ${tab === k ? "bg-accent-soft text-accent-ink" : ""}`}>{l}</button>)}

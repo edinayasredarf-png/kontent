@@ -56,7 +56,7 @@ export default async function Economy({ searchParams }: { searchParams: Promise<
             <div className="mt-1 flex justify-between"><span>Ошибки генерации (деньги вернули)</span><b>{k(pnl.lostRefunded)}</b></div>
             <div className="mt-1 flex justify-between border-t border-line pt-1.5"><span>Итого потеряли</span><b className="text-bad">{k(pnl.lostFree + pnl.lostRefunded + pnl.lostBonus)}</b></div>
             {Object.keys(pnl.expenseBy).length > 0 && <div className="mt-3 border-t border-line pt-2"><b className="mb-1 block text-xs font-semibold text-ink2">Прочие расходы по категориям</b>{Object.entries(pnl.expenseBy).map(([c, v]) => <div key={c} className="flex justify-between text-xs"><span>{EXPENSE_CATEGORIES[c]}</span><span>{k(v)}</span></div>)}</div>}
-            <p className="mt-3 text-xs"><a href="/app/admin/expenses" className="font-semibold text-accent-ink underline">Внести расходы: сервер, домены, подписки →</a> (разовые и повторяющиеся: неделя, месяц, квартал, год)</p>
+            <p className="mt-3 text-xs"><a href="/app/admin/expenses" className="link-btn">Внести расходы: сервер, домены, подписки →</a> (разовые и повторяющиеся: неделя, месяц, квартал, год)</p>
             <p className="mt-2 text-xs text-ink3">Потери считаются с момента применения миграций 028 и 029. Токены: вх. {tok(t.tin)} / исх. {tok(t.tout)}, вызовов {t.calls.toLocaleString("ru-RU")}.</p>
           </div>
         </div>

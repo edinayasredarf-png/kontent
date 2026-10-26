@@ -70,7 +70,7 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
   return (
     <div className={box}>
       <div className="mb-2 flex flex-wrap items-center gap-2"><span className="chip">{it.kindLabel}</span><b className="min-w-0 flex-1 truncate text-sm">{it.topic}</b>{it.factoryName && <span className="text-xs text-ink3">{it.factoryName}</span>}</div>
-      {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="ml-1 font-semibold text-accent-ink underline">Обновить</button></p>}
+      {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="link-btn ml-2">Обновить</button></p>}
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
           <div className="space-y-3">
@@ -92,7 +92,7 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
             <ul className="mt-2 space-y-1 rounded-xl bg-tile p-2.5 text-xs">
               {it.versions.map((v) => (
                 <li key={v.id} className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{new Date(v.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {v.note || "версия"} · {v.chars} зн.{v.hasImage ? " · с картинкой" : ""}</span>
-                  <button type="button" disabled={!!busy} onClick={() => run("v", () => cardItemRestoreAction(it.id, v.id), (r) => { upd(r); setVers(false); })} className="font-semibold text-accent-ink underline">Вернуть</button></li>))}
+                  <button type="button" disabled={!!busy} onClick={() => run("v", () => cardItemRestoreAction(it.id, v.id), (r) => { upd(r); setVers(false); })} className="link-btn">Вернуть</button></li>))}
             </ul>
           )}
           {dirty && <div className="mt-2 flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardItemSaveAction(it.id, body), upd)} className="btn btn-accent !py-1.5 text-xs">{busy === "s" && <Loader2 size={13} className="animate-spin" />}Сохранить текст</button><button type="button" onClick={() => setBody(it.body)} className="btn btn-ghost !py-1.5 text-xs">Отменить</button></div>}
@@ -108,13 +108,13 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
                 <button key={c.id} type="button" aria-pressed={c.on} disabled={!!busy} onClick={() => run("c", () => cardItemChannelsAction(it.id, it.channels.filter((x) => (x.id === c.id ? !x.on : x.on)).map((x) => x.id)), upd)}
                   className={`chip cursor-pointer !px-3 !py-1.5 text-xs ${c.on ? "!bg-accent-soft !text-accent-ink ring-1 ring-accent" : ""}`}>{c.on ? "✓ " : ""}{CH_NAME[c.kind] ?? c.kind}: {c.title}</button>))}</div></div>
           )}
-          {done && <ul className="mt-3 space-y-1 text-xs">{it.published.map((p, i) => <li key={i} className={p.ok ? "text-good" : "text-bad"}>{p.ok ? "Опубликовано" : "Ошибка"}: {p.channel}{p.error ? ` — ${p.error}` : ""}{p.url && <a href={p.url} target="_blank" rel="noreferrer noopener" className="ml-1 underline">открыть пост</a>}</li>)}</ul>}
+          {done && <ul className="mt-3 space-y-1 text-xs">{it.published.map((p, i) => <li key={i} className={p.ok ? "text-good" : "text-bad"}>{p.ok ? "Опубликовано" : "Ошибка"}: {p.channel}{p.error ? ` — ${p.error}` : ""}{p.url && <a href={p.url} target="_blank" rel="noreferrer noopener" className="link-btn ml-2">открыть пост</a>}</li>)}</ul>}
           {!done && ready && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {!ask
                 ? <button type="button" disabled={!!busy || dirty || !on.length} title={dirty ? "Сначала сохраните текст" : !on.length ? "Выберите канал" : ""} onClick={() => setAsk(true)} className="btn btn-accent !py-1.5 text-sm"><Send size={14} />Опубликовать сейчас</button>
                 : <span className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-1.5 text-xs text-warn">Опубликовать в: {on.map((c) => c.title).join(", ")}?
-                    <button type="button" disabled={!!busy} onClick={() => { setAsk(false); run("p", () => cardItemPublishAction(it.id), upd); }} className="font-semibold underline">{busy === "p" ? "Публикуем…" : "Да, опубликовать"}</button><button type="button" onClick={() => setAsk(false)} className="underline">Отмена</button></span>}
+                    <button type="button" disabled={!!busy} onClick={() => { setAsk(false); run("p", () => cardItemPublishAction(it.id), upd); }} className="link-btn">{busy === "p" ? "Публикуем…" : "Да, опубликовать"}</button><button type="button" onClick={() => setAsk(false)} className="link-btn link-btn-quiet">Отмена</button></span>}
               <button type="button" disabled={!!busy || dirty} onClick={() => setPlan((v) => !v)} className="btn btn-ghost !py-1.5 text-sm"><CalendarPlus size={14} />В контент-план</button>
               {it.draft && <><button type="button" disabled={!!busy} onClick={() => run("g", () => cardItemRegenAction(it.id), upd)} className="btn btn-ghost !py-1.5 text-sm">{busy === "g" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}Создать заново</button>
                 <button type="button" disabled={!!busy} onClick={() => run("d", async () => { const r = await cardItemDiscardAction(it.id); return r; }, () => drop())} className="btn btn-ghost !py-1.5 text-sm text-bad"><Trash2 size={14} />Удалить</button></>}
@@ -181,7 +181,7 @@ function FactoryCard({ c, replace }: { c: Extract<Card, { t: "factory" }>; repla
   const dirty = cta !== c.st.cta || link !== c.st.link;
   return (
     <div className={box}>
-      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 truncate text-sm">{c.name}</b><span className="text-xs text-ink3">{c.brand}</span><Link href={`/app/factories/${c.id}`} className="text-xs text-accent-ink underline">Открыть</Link></div>
+      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 truncate text-sm">{c.name}</b><span className="text-xs text-ink3">{c.brand}</span><Link href={`/app/factories/${c.id}`} className="link-btn">Открыть</Link></div>
       <p className="mt-1 text-xs text-ink2">В плане запас до {c.planUntil ? new Date(c.planUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) : "— (план пуст)"} · идей: {c.ideas} · готово: {c.ready}</p>
       <div className="mt-2 divide-y divide-line">
         <Toggle on={c.status === "active"} disabled={!!busy} onChange={(v) => save({ status: v ? "active" : "paused" })} label="Завод работает" hint={c.status === "active" ? "Идеи и материалы создаются по расписанию" : "Поставлен на паузу"} />
@@ -213,7 +213,7 @@ function SourcesCard({ c, replace }: { c: Extract<Card, { t: "sources" }>; repla
     <div className={box}><b className="mb-1 block text-sm">Источники новостей</b>
       <div className="divide-y divide-line">{c.sources.map((s) => (
         <div key={s.id}><Toggle on={s.status === "active"} disabled={!!busy} onChange={(v) => run(s.id, () => cardSetSourceAction(s.id, v ? "active" : "paused"), (r) => { if (r.card?.t === "sources") replace(r.card); })} label={s.title} hint={`${s.status === "active" ? `новостей за сутки: ${s.news24}` : "на паузе"}${s.error ? ` · ошибка: ${s.error.slice(0, 80)}` : ""}`} /></div>))}</div>
-      <Msg m={msg} /><Link href="/app/monitor/settings" className="mt-2 inline-block text-xs text-accent-ink underline">Все источники и ключевые слова</Link></div>
+      <Msg m={msg} /><Link href="/app/monitor/settings" className="link-btn mt-2">Все источники и ключевые слова</Link></div>
   );
 }
 
@@ -227,7 +227,7 @@ function AnalyticsCard({ c, replace }: { c: Extract<Card, { t: "analytics" }>; r
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["Постов", fmt(c.posts)], ["Просмотров", fmt(c.views)], ["Реакций", fmt(c.reactions)], ["Вовлечённость", `${c.er}%`]].map(([l, v]) => <div key={l} className="rounded-xl bg-tile px-3 py-2"><div className="text-base font-semibold">{v}</div><div className="text-[11px] text-ink2">{l}</div></div>)}</div>
       {c.channels.length > 0 && <div className="mt-3 space-y-1.5">{c.channels.map((x) => <div key={x.title} className="text-xs"><div className="flex justify-between"><span>{CH_NAME[x.kind] ?? x.kind}: {x.title}</span><span className="text-ink2">{fmt(x.views)} просм. · {x.posts} п.</span></div><div className="mt-0.5 h-1.5 rounded-full bg-tile"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(3, (x.views / mx) * 100)}%` }} /></div></div>)}</div>}
       {c.top.length > 0 && <div className="mt-3"><span className="mb-1 block text-xs font-semibold text-ink2">Лучшие посты</span><ul className="space-y-1 text-xs">{c.top.map((t, i) => <li key={i} className="flex gap-2"><span className="min-w-0 flex-1 truncate">{t.topic}</span><span className="text-ink2">{fmt(t.views)}</span>{t.url && <a href={t.url} target="_blank" rel="noreferrer noopener" className="text-accent-ink"><ExternalLink size={12} /></a>}</li>)}</ul></div>}
-      <Msg m={msg} /><Link href="/app/analytics" className="mt-2 inline-block text-xs text-accent-ink underline">Полная аналитика и материалы по ссылке</Link>
+      <Msg m={msg} /><Link href="/app/analytics" className="link-btn mt-2">Полная аналитика и материалы по ссылке</Link>
     </div>
   );
 }
@@ -255,7 +255,7 @@ function BrandCard({ c, replace }: { c: Extract<Card, { t: "brand" }>; replace: 
   );
   return (
     <div className={`${box} space-y-2`}>
-      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Бренд</b>{c.colors.slice(0, 5).map((x) => <span key={x} className="size-4 rounded-full ring-1 ring-line" style={{ background: x }} />)}<Link href={`/app/brands/${c.id}`} className="text-xs text-accent-ink underline">Брендбук</Link></div>
+      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Бренд</b>{c.colors.slice(0, 5).map((x) => <span key={x} className="size-4 rounded-full ring-1 ring-line" style={{ background: x }} />)}<Link href={`/app/brands/${c.id}`} className="link-btn">Брендбук</Link></div>
       {inp("name", "Название")}{inp("description", "Описание", true)}{inp("audience", "Аудитория", true)}{inp("tone", "Тон общения")}
       {c.extra.length > 0 && <dl className="space-y-1 rounded-xl bg-tile p-3 text-xs">{c.extra.map((x) => <div key={x.label}><dt className="text-ink3">{x.label}</dt><dd className="text-ink">{x.value}</dd></div>)}</dl>}
       {dirty && <div className="flex gap-2"><button type="button" disabled={!!busy} onClick={() => run("s", () => cardSaveBrandAction(c.id, f), (r) => { if (r.card?.t === "brand") replace(r.card); })} className="btn btn-accent !py-1.5 text-sm">{busy && <Loader2 size={14} className="animate-spin" />}Сохранить</button><button type="button" onClick={() => setF({ name: c.name, description: c.description, audience: c.audience, tone: c.tone })} className="btn btn-ghost !py-1.5 text-sm">Отменить</button></div>}
@@ -270,12 +270,12 @@ function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c
   const [ask, setAsk] = useState(false);
   return (
     <div className={box}>
-      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 truncate text-sm">Контент-план: {c.name}</b><Link href={`/app/factories/${c.id}?tab=plan`} className="text-xs text-accent-ink underline">Открыть план</Link></div>
+      <div className="flex items-center gap-2"><b className="min-w-0 flex-1 truncate text-sm">Контент-план: {c.name}</b><Link href={`/app/factories/${c.id}?tab=plan`} className="link-btn">Открыть план</Link></div>
       <p className="mt-1 text-xs text-ink2">Запас до {c.until ? new Date(c.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) : "— (план пуст)"}</p>
       <ul className="mt-2 space-y-1">{c.items.map((i) => <li key={i.id} className="flex items-center gap-2 text-xs"><span className="w-14 shrink-0 text-ink3">{i.date ? new Date(i.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span><span className="chip !px-2 !py-0 text-[10px]">{ST[i.status] ?? i.status}</span><span className="min-w-0 flex-1 truncate">{i.topic}</span></li>)}{!c.items.length && <li className="text-xs text-ink2">В плане пока ничего нет.</li>}</ul>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {!ask ? <button type="button" onClick={() => setAsk(true)} className="btn btn-ghost !py-1.5 text-sm"><CalendarPlus size={14} />Продлить план</button>
-          : <span className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-1.5 text-xs text-warn">Платно. Продлить на:{[7, 14, 30].map((d) => <button key={d} type="button" disabled={!!busy} onClick={() => { setAsk(false); run("e", () => cardExtendPlanAction(c.id, d), (r) => { if (r.card?.t === "plan") replace(r.card); }); }} className="font-semibold underline">{d} дн.</button>)}<button type="button" onClick={() => setAsk(false)} className="underline">Отмена</button></span>}
+          : <span className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-1.5 text-xs text-warn">Платно. Продлить на:{[7, 14, 30].map((d) => <button key={d} type="button" disabled={!!busy} onClick={() => { setAsk(false); run("e", () => cardExtendPlanAction(c.id, d), (r) => { if (r.card?.t === "plan") replace(r.card); }); }} className="link-btn">{d} дн.</button>)}<button type="button" onClick={() => setAsk(false)} className="link-btn link-btn-quiet">Отмена</button></span>}
         {busy === "e" && <span className="flex items-center gap-1.5 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Составляю план…</span>}
       </div>
       <Msg m={msg} />
@@ -303,7 +303,7 @@ function SetupCard({ c }: { c: Extract<Card, { t: "setup" }> }) {
         <li key={s.key} className="flex items-start gap-2 text-sm">
           <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full ${s.done ? "bg-good text-white" : "border border-line text-transparent"}`}><Check size={12} /></span>
           <span className="min-w-0 flex-1"><span className={s.done ? "text-ink2" : "font-medium"}>{s.title}</span><span className="block text-xs text-ink3">{s.detail}</span></span>
-          {s.href && <Link href={s.href} className="shrink-0 text-xs text-accent-ink underline">Открыть</Link>}
+          {s.href && <Link href={s.href} className="link-btn shrink-0">Открыть</Link>}
         </li>))}</ul>
     </div>
   );
@@ -334,7 +334,7 @@ function ChannelsCard({ c, replace }: { c: Extract<Card, { t: "channels" }>; rep
   const { busy, msg, run } = useRun();
   const [sig, setSig] = useState<Record<string, string>>({});
   return (
-    <div className={box}><div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Каналы публикации</b><Link href="/app/channels" className="text-xs text-accent-ink underline">Подключить ещё</Link></div>
+    <div className={box}><div className="flex items-center gap-2"><b className="min-w-0 flex-1 text-sm">Каналы публикации</b><Link href="/app/channels" className="link-btn">Подключить ещё</Link></div>
       <div className="mt-2 space-y-2">{c.channels.map((ch) => { const v = sig[ch.id] ?? ch.signature, dirty = v !== ch.signature; return (
         <div key={ch.id} className="rounded-xl bg-tile p-3"><div className="flex items-center gap-2 text-sm"><b className="min-w-0 flex-1 truncate">{ch.title}</b><span className="text-xs text-ink3">{CH_NAME[ch.kind] ?? ch.kind} · {ch.brand}</span></div>
           <label className="mt-1.5 block text-xs text-ink2">Подпись под постами<AutoTextarea value={v} onChange={(e) => setSig({ ...sig, [ch.id]: e.target.value })} rows={1} maxLength={500} placeholder="Например: Подписывайтесь на наш канал" className="input mt-1 !bg-surface !py-1.5 text-sm" /></label>

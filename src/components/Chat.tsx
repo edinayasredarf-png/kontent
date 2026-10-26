@@ -53,7 +53,7 @@ function Actions({ m }: { m: ChatMsg }) {
         return (
           <div key={i} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
             <div className="min-w-0 flex-1"><b className="block text-sm font-semibold">{a.label}</b>{a.hint && <span className="block truncate text-xs text-ink2">{a.hint}</span>}</div>
-            {done ? <span className="flex items-center gap-1.5 text-sm text-good"><Check size={16} />{done}{st?.href && <Link href={st.href} className="ml-1 underline">Открыть</Link>}</span>
+            {done ? <span className="flex items-center gap-1.5 text-sm text-good"><Check size={16} />{done}{st?.href && <Link href={st.href} className="link-btn ml-2">Открыть</Link>}</span>
               : <button type="button" disabled={st?.busy} onClick={() => run(i)} className="btn btn-accent !rounded-full">{st?.busy && <Loader2 size={14} className="animate-spin" />}Выполнить</button>}
             {st?.ok === false && <span className="w-full text-xs text-bad">{st.text}</span>}
           </div>

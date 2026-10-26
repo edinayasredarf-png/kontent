@@ -19,8 +19,8 @@ export function DraftBodyEditor({ initial, images, kinds, oneMessageTg, name, pr
       <AutoTextarea ref={ref} name="body" defaultValue={initial} rows={6} onChange={(e) => { setText(e.target.value); if (storeKey) draft.remember(e.target.value); }} className="input !rounded-2xl !bg-surface text-sm leading-6" />
       {storeKey && draft.restored != null && (
         <p className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Найден несохранённый текст из прошлого раза.
-          <button type="button" onClick={() => { apply(draft.restored!); draft.hide(); }} className="font-semibold underline">Вернуть мою правку</button>
-          <button type="button" onClick={draft.drop} className="underline">Оставить сохранённый</button></p>
+          <button type="button" onClick={() => { apply(draft.restored!); draft.hide(); }} className="link-btn">Вернуть мою правку</button>
+          <button type="button" onClick={draft.drop} className="link-btn link-btn-quiet">Оставить сохранённый</button></p>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink3">
         <span>Знаков: {text.length}</span>

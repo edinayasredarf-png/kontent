@@ -51,7 +51,7 @@ export default async function Expenses() {
               <td className="px-5 py-2.5"><div className="font-medium">{e.title}</div><div className="text-xs text-ink3">{EXPENSE_CATEGORIES[e.category] ?? e.category}{e.note ? ` · ${e.note}` : ""}</div></td>
               <td className="px-2 py-2.5 text-xs text-ink2">{e.recurring !== "once" ? <>{RECURRING[e.recurring].toLowerCase()}<br />с {d(e.spent_on)}{e.end_on ? ` по ${d(e.end_on)}` : ""}</> : d(e.spent_on)}</td>
               <td className="px-2 py-2.5 text-right font-semibold">{rub(e.amount_kop)}{e.recurring !== "once" && <span className="text-xs font-normal text-ink3"> {({ weekly: "/ нед.", monthly: "/ мес.", quarterly: "/ кв.", yearly: "/ год" } as Record<string, string>)[e.recurring]}</span>}</td>
-              <td className="px-5 py-2.5 text-right"><form action={deleteExpenseAction}><input type="hidden" name="id" value={e.id} /><SubmitButton data-confirm={`Удалить расход «${e.title}»?`} className="text-xs text-bad hover:underline">Удалить</SubmitButton></form></td>
+              <td className="px-5 py-2.5 text-right"><form action={deleteExpenseAction}><input type="hidden" name="id" value={e.id} /><SubmitButton data-confirm={`Удалить расход «${e.title}»?`} className="link-btn link-btn-danger">Удалить</SubmitButton></form></td>
             </tr>))}
         </tbody></table>
       </section>

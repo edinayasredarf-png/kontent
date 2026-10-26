@@ -28,7 +28,7 @@ export default async function AdminTicket({ params }: { params: Promise<{ id: st
         <div><span className="text-ink3">Тема: </span>{CATEGORIES[t.category] ?? t.category}</div>
         <div><span className="text-ink3">Страница: </span>{t.page || "—"}</div>
         <div><span className="text-ink3">Создано: </span>{when(t.created_at)}</div>
-        <div><Link href={`/app/admin/orgs/${t.org_id}`} className="text-accent-ink underline">Карточка организации</Link></div>
+        <div><Link href={`/app/admin/orgs/${t.org_id}`} className="link-btn">Карточка организации</Link></div>
       </div>
       <div className="space-y-3">
         {msgs.map((m) => (

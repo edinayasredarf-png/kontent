@@ -74,14 +74,14 @@ export function NotificationBell({ initial, unread: u0, alerts }: { initial: Not
       </button>
       {open && (
         <div className="fixed inset-x-3 top-20 z-50 overflow-hidden rounded-2xl border border-line bg-surface shadow-float md:absolute md:inset-x-auto md:right-0 md:top-12 md:w-[380px]">
-          <div className="flex items-center gap-2 border-b border-line px-4 py-3"><b className="flex-1 text-sm">Уведомления</b>{unread > 0 && <button type="button" onClick={all} className="text-xs text-accent-ink underline">Прочитать все</button>}</div>
+          <div className="flex items-center gap-2 border-b border-line px-4 py-3"><b className="flex-1 text-sm">Уведомления</b>{unread > 0 && <button type="button" onClick={all} className="link-btn">Прочитать все</button>}</div>
           <div className="max-h-[60vh] divide-y divide-line overflow-y-auto">
             {items.length === 0 && <p className="px-4 py-8 text-center text-sm text-ink3">Пока тихо. Здесь появятся публикации, ошибки, новости по вашим словам и ответы поддержки.</p>}
             {items.map((n) => row(n))}
           </div>
           <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs">
-            <Link href="/app/notifications" onClick={() => setOpen(false)} className="text-accent-ink underline">Все уведомления</Link>
-            <Link href="/app/overview" onClick={() => setOpen(false)} className="text-ink2 hover:text-ink">Что требует внимания{alerts > 0 ? ` · ${alerts}` : ""}</Link>
+            <Link href="/app/notifications" onClick={() => setOpen(false)} className="link-btn">Все уведомления</Link>
+            <Link href="/app/overview" onClick={() => setOpen(false)} className="link-btn link-btn-quiet">Что требует внимания{alerts > 0 ? ` · ${alerts}` : ""}</Link>
           </div>
         </div>
       )}

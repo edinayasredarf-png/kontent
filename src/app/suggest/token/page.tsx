@@ -38,5 +38,5 @@ export default function SuggestToken() {
     })();
   }, []);
 
-  return <main className="grid min-h-screen place-items-center px-5 text-center text-sm text-ink2"><div>{msg}{msg.startsWith("Завершаем") ? null : <div className="mt-3"><a href="/login" className="text-accent-ink underline">На страницу входа</a></div>}</div></main>;
+  return <main className="grid min-h-screen place-items-center px-5 text-center text-sm text-ink2"><div>{msg}{msg.startsWith("Завершаем") ? null : <div className="mt-3"><a href="/login" className="link-btn">На страницу входа</a></div>}</div></main>;
 }

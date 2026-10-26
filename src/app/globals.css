@@ -49,6 +49,14 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 .label { display: block; font-size: .75rem; font-weight: 500; color: var(--ink2); margin-bottom: .35rem; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: 0 8px 30px -12px rgba(112,144,176,.14); }
 .chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: 999px; padding: .15rem .6rem; font-size: .72rem; font-weight: 500; background: var(--tile); color: var(--ink2); }
+/* Кнопки-ссылки вместо подчёркнутого текста: «Прочитать все», «Открыть», «Скачать»… Мягкая таблетка в цвете сервиса. */
+.link-btn { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .32rem .85rem; font-size: .75rem; font-weight: 600; line-height: 1.1; background: var(--accent-soft); color: var(--accent-ink); text-decoration: none; cursor: pointer; white-space: nowrap; transition: background .15s, box-shadow .15s; }
+.link-btn:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.link-btn:disabled { opacity: .5; cursor: default; }
+.link-btn-quiet { background: var(--tile); color: var(--ink2); }
+.link-btn-quiet:hover { background: var(--tile2); box-shadow: none; color: var(--ink); }
+.link-btn-danger { background: var(--bad-soft); color: var(--bad); }
+.link-btn-danger:hover { box-shadow: inset 0 0 0 1.5px var(--bad); }
 
 /* Предпросмотр SEO-статьи: отдельные стили, чтобы чужая разметка не наследовала классы интерфейса */
 .article { font-size: .9rem; line-height: 1.65; background: #fff; color: #1b2029; --line: #e3e5e9; --accent-ink: #0480b1; }  /* предпросмотр: так статья выглядит на светлом сайте, независимо от темы кабинета */

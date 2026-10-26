@@ -21,7 +21,7 @@ export function PostText({ title, text }: { title: string; text: string }) {
       {shown && (
         <div className={dup ? "" : "mt-2"}>
           <p ref={box} className={`whitespace-pre-line break-words text-sm leading-6 ${dup ? "" : ""} ${open ? "" : "max-h-[184px] overflow-hidden"}`} style={!open && long ? { maskImage: "linear-gradient(#000 70%, transparent)" } : undefined}>{shown}</p>
-          {long && <button type="button" onClick={() => setOpen(!open)} className="mt-1 text-sm font-semibold text-accent-ink hover:underline">{open ? "Свернуть" : "Показать полностью"}</button>}
+          {long && <button type="button" onClick={() => setOpen(!open)} className="link-btn mt-2">{open ? "Свернуть" : "Показать полностью"}</button>}
         </div>
       )}
     </>
