@@ -26,7 +26,7 @@ export function YandexIdWidget({ clientId, next }: { clientId: string; next: str
     const run = async () => {
       try {
         const origin = window.location.origin;
-        try { sessionStorage.setItem("ya_next", next); } catch { /* без хранилища вернёмся на /app */ }
+        try { sessionStorage.setItem("ya_next", next); localStorage.setItem("ya_next", next); } catch { /* без хранилища вернёмся на /app */ }
         const r = await window.YaAuthSuggest!.init(
           { client_id: clientId, response_type: "token", redirect_uri: `${origin}/suggest/token` }, origin,
           { view: "button", parentId: "ya-id-button", buttonView: "main", buttonTheme: "dark", buttonSize: "l", buttonBorderRadius: 24, buttonIcon: "ya" },
@@ -46,13 +46,19 @@ export function YandexIdWidget({ clientId, next }: { clientId: string; next: str
       }
     };
 
+    // окно Яндекса само вошло в сервис (страница /suggest/token): переходим в кабинет
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== "ya_login_done" || !e.newValue) return;
+      try { const d = JSON.parse(e.newValue) as { url?: string; at?: number }; if (d.at && Date.now() - d.at < 120_000) window.location.assign(d.url || "/app"); } catch { /* неверные данные */ }
+    };
+    window.addEventListener("storage", onStorage);
     if (window.YaAuthSuggest) void run();
     else {
       const s = document.createElement("script");
       s.src = SDK; s.async = true; s.onload = () => void run(); s.onerror = () => setFallback(true);
       document.head.appendChild(s);
     }
-    return () => { alive = false; clearTimeout(timer); };
+    return () => { alive = false; clearTimeout(timer); window.removeEventListener("storage", onStorage); };
   }, [clientId, next]);
 
   return (
