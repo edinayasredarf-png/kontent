@@ -8,7 +8,8 @@ export function CookieNotice() {
   const [show, setShow] = useState(false);
   const path = usePathname();
   useEffect(() => { try { if (!localStorage.getItem("lt_cookie_ok")) setShow(true); } catch { setShow(true); } }, []);
-  if (!show || path?.startsWith("/share")) return null; // страницы клиента без нашей плашки (белая метка)
+  // плашка только на лендинге и юридических страницах: в платформе (вход, кабинет) и на страницах клиента (белая метка) её нет
+  if (!show || !(path === "/" || path?.startsWith("/legal"))) return null;
   return (
     <div role="region" aria-label="Cookie" className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-xl flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-xs text-ink2 shadow-lg">
       <p className="min-w-[14rem] flex-1">Мы используем только cookie, необходимые для входа и работы сайта. <Link href="/legal/cookies" className="text-accent-ink underline">Подробнее</Link></p>
