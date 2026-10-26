@@ -1,5 +1,5 @@
 /** Фильтр ленты новостей: общая логика для страницы, обновления и проверки новых постов. Значения приходят из адреса, поэтому всё проверяется. */
-export interface FeedFilter { show: string; days: number; src: string[]; kw: string[]; q: string; only: boolean; fit: boolean; sort: "date" | "match" }
+export interface FeedFilter { /** один пост (ссылка из сводки трендов) */ id: string; show: string; days: number; src: string[]; kw: string[]; q: string; only: boolean; fit: boolean; sort: "date" | "match" }
 const UUID = /^[0-9a-f-]{36}$/i;
 const arr = (v: unknown): string[] => (Array.isArray(v) ? v : typeof v === "string" && v ? [v] : []).map(String);
 
@@ -7,7 +7,9 @@ export function parseFilter(sp: Record<string, string | string[] | undefined>): 
   const days = Number(Array.isArray(sp.d) ? sp.d[0] : sp.d);
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
   const show = one(sp.show);
+  const idv = one(sp.id);
   return {
+    id: UUID.test(idv) ? idv : "",
     show: ["new", "saved", "used", "all"].includes(show) ? show : "new",
     days: [1, 3, 7, 30].includes(days) ? days : 7,
     src: arr(sp.src).filter((x) => UUID.test(x)).slice(0, 50), kw: arr(sp.kw).map((x) => x.slice(0, 80)).slice(0, 50),
@@ -20,6 +22,8 @@ export function feedWhere(orgId: string, f: FeedFilter, sinceFetched?: string): 
   const where: string[] = ["i.org_id=$1", "not i.excluded", f.show === "saved" ? "$2::text is not null" : "i.published_at > now() - ($2||' days')::interval"];
   const args: unknown[] = [orgId, String(f.days)];
   const add = (cond: string, v: unknown) => { args.push(v); where.push(cond.replace("?", `$${args.length}`)); };
+  // один пост из сводки трендов: любые статусы и период, остальные фильтры не применяются
+  if (f.id) { where.splice(1, 2, "$2::text is not null"); add("i.id=?::uuid", f.id); return { sql: where.join(" and "), args }; }
   if (f.show === "new") where.push("i.status='new'"); else if (f.show !== "all") add("i.status=?", f.show); else where.push("i.status<>'dismissed'");
   if (f.src.length) add("i.source_id = any(?::uuid[])", f.src);
   if (f.kw.length) add("i.matched && ?::text[]", f.kw);

@@ -149,16 +149,17 @@ export async function itemToPlan(orgId: string, itemId: string, factoryId: strin
 }
 
 /** Сводка по самым релевантным постам недели. */
-export async function digest(orgId: string): Promise<{ text?: string; error?: string }> {
+export interface DigestLink { n: number; title: string; source: string; href: string }
+export async function digest(orgId: string): Promise<{ text?: string; links?: DigestLink[]; error?: string }> {
   if (!aiReady()) return { error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
-  const items = await q<{ title: string; body: string; source: string }>(
-    `select i.title,i.body,s.title source from kz_feed_items i join kz_sources s on s.id=i.source_id
+  const items = await q<{ id: string; title: string; body: string; source: string }>(
+    `select i.id,i.title,i.body,s.title source from kz_feed_items i join kz_sources s on s.id=i.source_id
       where i.org_id=$1 and not i.excluded and i.status<>'dismissed' and i.published_at > now() - interval '7 days'
       order by i.score desc, i.published_at desc limit 30`, [orgId]);
   if (items.length < 3) return { error: "Для сводки нужно хотя бы 3 поста за неделю. Добавьте источники или обновите ленту." };
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Сводка трендов по источникам"); }
   catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
-  try { return { text: await genDigest(items, (await loadKeywords(orgId)).filter((k) => k.kind === "include").map((k) => k.word)) }; }
+  try { return { text: await genDigest(items, (await loadKeywords(orgId)).filter((k) => k.kind === "include").map((k) => k.word)), links: items.map((it, n) => ({ n: n + 1, title: it.title.slice(0, 140), source: it.source, href: `/app/monitor?id=${it.id}` })) }; }
   catch (e) { await refund(orgId, cost, "ошибка сводки"); return { error: `Сводка не получилась, деньги возвращены: ${(e as Error).message}` }; }
 }

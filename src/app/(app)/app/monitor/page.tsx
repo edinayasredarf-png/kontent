@@ -75,6 +75,8 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
       {Number(stat[0].err) > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Настройках».</p>}
 
+      {f.id && <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm"><span>Показан один пост из сводки трендов</span><Link href="/app/monitor" className="link-btn">Показать всю ленту</Link></div>}
+
       {noSources ? (
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
           action={write ? <Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link> : undefined} />
