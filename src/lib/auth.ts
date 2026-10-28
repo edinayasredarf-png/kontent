@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { one, q, tx } from "./db";
 import type { PlanKey } from "./plans";
 import { setUsageCtx, usageStore } from "./billing";
-import { ensurePrices } from "./wallet";
+import { billingCols, ensurePrices } from "./wallet";
 import { isSchemaError } from "./errors";
 import { LEGAL_VERSION } from "./legal";
 import { cleanupAttempts, loginBlocked, loginFailed, loginSucceeded, registerBlocked, registerNoted } from "./throttle";
@@ -129,20 +129,21 @@ async function loadCtx(): Promise<Ctx> {
   const s = await readSession();
   if (!s) redirect("/login");
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
-  // три независимых запроса идут одновременно; безлимит пересчитываем тут же и пишем в базу, только если он изменился
-  const [row, orgs, av, tu] = await Promise.all([
-    one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system" }>(
+  // всё, что нужно для шапки и прав, одним запросом (раньше было пять): каждый запрос к удалённой базе стоит сетевой задержки.
+  // Аватарка и срок пробного безлимита необязательны: до миграций 023 и 027 их полей нет, поэтому берём их только если схема умеет.
+  const fl = await billingCols();
+  const [row] = await Promise.all([
+    one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system"; av: string | null; until: string | null; orgs: { id: string; name: string }[] }>(
       `select u.email,u.name,u.session_ver,u.has_password,u.ref_code,u.disabled,u.theme,o.suspended,o.name org_name,o.plan,o.balance_kop,o.unlimited,m.role,
-              exists(select 1 from kz_memberships m2 join kz_users u2 on u2.id=m2.user_id where m2.org_id=o.id and m2.role='owner' and lower(u2.email)=any($3::text[])) want_unlimited
+              exists(select 1 from kz_memberships m2 join kz_users u2 on u2.id=m2.user_id where m2.org_id=o.id and m2.role='owner' and lower(u2.email)=any($3::text[])) want_unlimited,
+              ${fl.avatars ? "(select extract(epoch from a.updated_at)::bigint::text from kz_user_avatars a where a.user_id=u.id)" : "null::text"} av,
+              ${fl.until ? "case when o.unlimited_until > now() then o.unlimited_until::text end" : "null::text"} until,
+              (select coalesce(json_agg(json_build_object('id',o3.id,'name',o3.name) order by o3.name),'[]'::json) from kz_memberships m3 join kz_orgs o3 on o3.id=m3.org_id where m3.user_id=u.id) orgs
          from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
         where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org, admins]),
-    q<{ id: string; name: string }>("select o.id,o.name from kz_memberships m join kz_orgs o on o.id=m.org_id where m.user_id=$1 order by o.name", [s.uid]),
-    // аватарка необязательна: до применения миграции 023 таблицы ещё нет, и приложение должно работать
-    one<{ v: string }>("select extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id=$1", [s.uid]).catch(() => null),
-    // пробный безлимит на срок (миграция 027); без неё поля ещё нет
-    one<{ until: string | null }>("select unlimited_until until from kz_orgs where id=$1 and unlimited_until > now()", [s.org]).catch(() => null),
     ensurePrices(),
   ]);
+  const orgs = row?.orgs ?? [], av = row?.av ? { v: row.av } : null, tu = row?.until ? { until: row.until } : null;
   setUsageCtx({ orgId: s.org, userId: s.uid });
   if (!row || row.disabled || (s.v ?? 0) !== row.session_ver) redirect("/login");
   // Безлимит — у организации, чей ВЛАДЕЛЕЦ в списке админов платформы. Приглашённый админ в чужой организации

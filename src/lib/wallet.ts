@@ -27,12 +27,12 @@ export async function ensurePrices(force = false): Promise<void> {
 }
 
 /** Умеет ли база новые поля учёта (после миграции 027); проверка раз в минуту, чтобы старая схема не ломала списания. */
-let colsAt = 0, cols = { action: false, until: false, bonus: false };
+let colsAt = 0, cols = { action: false, until: false, bonus: false, avatars: false };
 export async function billingCols() {
   if (Date.now() - colsAt < 60_000) return cols;
   try {
-    const r = await q<{ c: string }>("select table_name||'.'||column_name c from information_schema.columns where (table_name='kz_wallet_tx' and column_name in ('action','bonus_part')) or (table_name='kz_orgs' and column_name='unlimited_until')");
-    cols = { action: r.some((x) => x.c === "kz_wallet_tx.action"), until: r.some((x) => x.c === "kz_orgs.unlimited_until"), bonus: r.some((x) => x.c === "kz_wallet_tx.bonus_part") };
+    const r = await q<{ c: string }>("select table_name||'.'||column_name c from information_schema.columns where (table_name='kz_wallet_tx' and column_name in ('action','bonus_part')) or (table_name='kz_orgs' and column_name='unlimited_until') or (table_name='kz_user_avatars' and column_name='user_id')");
+    cols = { action: r.some((x) => x.c === "kz_wallet_tx.action"), until: r.some((x) => x.c === "kz_orgs.unlimited_until"), bonus: r.some((x) => x.c === "kz_wallet_tx.bonus_part"), avatars: r.some((x) => x.c === "kz_user_avatars.user_id") };
   } catch { /* оставляем прежнее */ }
   colsAt = Date.now();
   return cols;

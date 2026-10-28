@@ -22,20 +22,30 @@ const ago = (iso: string) => {
 };
 
 /** Колокольчик: непрочитанные уведомления во всплывающем окне, обновляется сам; новое уведомление на секунды показывается плашкой. */
-export function NotificationBell({ initial, unread: u0, alerts }: { initial: Notification[]; unread: number; alerts: number }) {
+export function NotificationBell({ unread: u0 }: { unread: number }) {
   const router = useRouter();
-  const [items, setItems] = useState(initial), [unread, setUnread] = useState(u0), [open, setOpen] = useState(false), [toast, setToast] = useState<Notification | null>(null);
-  const box = useRef<HTMLDivElement>(null), seen = useRef(new Set(initial.map((n) => n.id)));
+  const [items, setItems] = useState<Notification[] | null>(null), [alerts, setAlerts] = useState(0), [unread, setUnread] = useState(u0), [open, setOpen] = useState(false), [toast, setToast] = useState<Notification | null>(null);
+  const box = useRef<HTMLDivElement>(null), seen = useRef<Set<string> | null>(null), prev = useRef(u0), openRef = useRef(false);
+  useEffect(() => { openRef.current = open; }, [open]);
+  // список грузится при первом открытии; фоновый опрос раз в минуту спрашивает только число и тянет список, лишь когда появилось новое
+  const load = async () => {
+    const r = await pollNotificationsAction(true);
+    const fresh = seen.current ? r.items.filter((n) => !seen.current!.has(n.id) && !n.read_at) : [];
+    seen.current = new Set(r.items.map((n) => n.id));
+    setItems(r.items); setUnread(r.unread); setAlerts(r.alerts); prev.current = r.unread;
+    return fresh;
+  };
   useEffect(() => {
     let alive = true;
     const tick = async () => {
       try {
-        const r = await pollNotificationsAction();
+        if (openRef.current) { await load(); return; }
+        const r = await pollNotificationsAction(false);
         if (!alive) return;
-        const fresh = r.items.filter((n) => !seen.current.has(n.id) && !n.read_at);
-        r.items.forEach((n) => seen.current.add(n.id));
-        setItems(r.items); setUnread(r.unread);
-        if (fresh.length) { setToast(fresh[0]); setTimeout(() => setToast((t) => (t?.id === fresh[0].id ? null : t)), 6000); }
+        if (r.unread > prev.current) {
+          const fresh = await load();
+          if (alive && fresh.length) { setToast(fresh[0]); setTimeout(() => setToast((t) => (t?.id === fresh[0].id ? null : t)), 6000); }
+        } else { setUnread(r.unread); prev.current = r.unread; }
       } catch { /* нет связи: попробуем в следующий раз */ }
     };
     const id = setInterval(() => { if (!document.hidden) void tick(); }, 60_000);
@@ -52,10 +62,10 @@ export function NotificationBell({ initial, unread: u0, alerts }: { initial: Not
 
   const go = async (n: Notification) => {
     setOpen(false); setToast(null);
-    if (!n.read_at) { setItems((l) => l.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x))); setUnread((c) => Math.max(0, c - 1)); void markNotificationAction(n.id); }
+    if (!n.read_at) { setItems((l) => (l ? l.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)) : l)); setUnread((c) => Math.max(0, c - 1)); void markNotificationAction(n.id); }
     if (n.href) { if (/^https?:\/\//.test(n.href)) window.open(n.href, "_blank", "noopener"); else router.push(n.href); }
   };
-  const all = async () => { setItems((l) => l.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() }))); setUnread(0); await markAllNotificationsAction(); };
+  const all = async () => { setItems((l) => l?.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })) ?? l); setUnread(0); await markAllNotificationsAction(); };
   const badge = unread + (unread === 0 ? 0 : 0);
   const row = (n: Notification, compact = false) => {
     const I = ICON[n.kind] ?? { i: Bell, c: "text-accent" }; const Ic = I.i;
@@ -69,15 +79,16 @@ export function NotificationBell({ initial, unread: u0, alerts }: { initial: Not
   };
   return (
     <div className="relative" ref={box}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-label="Уведомления" title="Уведомления" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft">
+      <button type="button" onClick={() => { setOpen((v) => !v); if (!open) void load().catch(() => {}); }} aria-label="Уведомления" title="Уведомления" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft">
         <Bell size={20} />{badge > 0 && <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white">{badge > 9 ? "9+" : badge}</span>}
       </button>
       {open && (
         <div className="fixed inset-x-3 top-20 z-50 overflow-hidden rounded-2xl border border-line bg-surface shadow-float md:absolute md:inset-x-auto md:right-0 md:top-12 md:w-[380px]">
           <div className="flex items-center gap-2 border-b border-line px-4 py-3"><b className="flex-1 text-sm">Уведомления</b>{unread > 0 && <button type="button" onClick={all} className="link-btn">Прочитать все</button>}</div>
           <div className="max-h-[60vh] divide-y divide-line overflow-y-auto">
-            {items.length === 0 && <p className="px-4 py-8 text-center text-sm text-ink3">Пока тихо. Здесь появятся публикации, ошибки, новости по вашим словам и ответы поддержки.</p>}
-            {items.map((n) => row(n))}
+            {items === null && <p className="px-4 py-8 text-center text-sm text-ink3">Загружаем…</p>}
+            {items?.length === 0 && <p className="px-4 py-8 text-center text-sm text-ink3">Пока тихо. Здесь появятся публикации, ошибки, новости по вашим словам и ответы поддержки.</p>}
+            {items?.map((n) => row(n))}
           </div>
           <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs">
             <Link href="/app/notifications" onClick={() => setOpen(false)} className="link-btn">Все уведомления</Link>

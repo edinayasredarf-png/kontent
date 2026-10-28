@@ -7,10 +7,10 @@ function pool(): Pool {
   if (!g._pool) {
     const url = cleanDbUrl(process.env.DATABASE_URL ?? process.env.TIMEWEB_DATABASE_URL);
     if (!url) throw new Error("DATABASE_URL не задан");
-    // Маленький пул на инстанс: БД общая с единойсредой, лимит соединений у Timeweb один на всех.
+    // Небольшой пул на инстанс: БД общая с единойсредой, лимит соединений у Timeweb один на всех. Меньше 3 соединений превращает параллельные запросы страницы в очередь: если упрётесь в лимит базы, задайте DATABASE_POOL_MAX в Vercel.
     g._pool = new Pool({
       connectionString: stripSsl(url),
-      max: Number(process.env.DATABASE_POOL_MAX) || 2,
+      max: Number(process.env.DATABASE_POOL_MAX) || 4,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
       keepAlive: true,
@@ -21,8 +21,15 @@ function pool(): Pool {
   return g._pool;
 }
 
+const TRACE = process.env.DB_TRACE === "1";
+
 export async function q<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> {
-  return (await pool().query<T>(sql, params)).rows;
+  if (!TRACE) return (await pool().query<T>(sql, params)).rows;
+  // отладка скорости: DB_TRACE=1 печатает каждый запрос (мс, число строк, размер ответа)
+  const t0 = performance.now();
+  const r = await pool().query<T>(sql, params);
+  console.log(`[q] ${Math.round(performance.now() - t0)}ms rows=${r.rowCount} bytes=${JSON.stringify(r.rows).length} ${sql.replace(/\s+/g, " ").slice(0, 90)}`);
+  return r.rows;
 }
 
 export async function one<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<T | null> {

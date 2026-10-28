@@ -10,7 +10,6 @@ import { ThemeToggle } from "./ThemeToggle";
 import { NAV } from "./nav";
 import { RoleProvider, READONLY_HINT } from "./RoleContext";
 import { NotificationBell } from "./NotificationBell";
-import type { Notification } from "@/lib/notify";
 import { Eye } from "lucide-react";
 import { logoutAction, switchOrgAction } from "@/lib/actions";
 import { SubmitButton } from "../SubmitButton";
@@ -20,7 +19,7 @@ import { sweepDrafts } from "@/lib/draft-store";
 
 export interface ShellProps {
   orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
-  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; alerts: number; notes: Notification[]; unread: number; role: string; guest: boolean; children: React.ReactNode;
+  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; unread: number; role: string; guest: boolean; children: React.ReactNode;
 }
 
 
@@ -122,7 +121,7 @@ export function AppShell(p: ShellProps) {
           <div className="fixed right-4 top-4 z-[35] flex items-center gap-1.5 rounded-[30px] bg-surface py-2 pl-3 pr-2 shadow-soft md:right-10 md:top-[57px] md:gap-3 md:pl-5">
             <Search />
             {!p.guest && <Link href={`/app/help?from=${encodeURIComponent(path)}`} aria-label="Помощь" title="Помощь и поддержка" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><HelpCircle size={20} /></Link>}
-            {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} /></Link> : <NotificationBell initial={p.notes} unread={p.unread} alerts={p.alerts} />}
+            {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} /></Link> : <NotificationBell unread={p.unread} />}
             <ThemeToggle />
             {!viewer && <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>}
             <Link href="/app/settings" aria-label="Настройки" title="Настройки" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Settings size={20} /></Link>

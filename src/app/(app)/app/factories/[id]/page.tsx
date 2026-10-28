@@ -277,7 +277,18 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       )}
       {view === "list" && items.length === 0 && <p className="card px-6 py-12 text-center text-sm text-ink2">{kindF || statusF ? "По этим фильтрам ничего нет." : "План пуст. Добавьте идею или нажмите «Продлить»."}</p>}
       <div className="space-y-3">
-        {(view === "list" ? items : []).map((i) => (
+        {(view === "list" ? items : []).map((i) => sp.open !== i.id ? (
+          // закрытый материал: лёгкая строка; тяжёлые формы редактирования строятся только у открытого (иначе страница весит мегабайты)
+          <Link key={i.id} id={`i-${i.id}`} href={href({ open: i.id }) + `#i-${i.id}`} scroll={false} className="block rounded-3xl bg-tile p-2.5">
+            <div className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3">
+              <span className="w-14 shrink-0 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
+              <span className="chip">{KIND[i.kind]}</span>
+              <span className="min-w-[10rem] flex-1 basis-48 text-sm font-medium">{i.topic}{i.manual && <span className="ml-2 text-xs font-normal text-ink3">своя</span>}{i.repeat_of && <span className="ml-2 text-xs font-normal text-ink3">повтор</span>}{i.rubric && <span className="ml-2 rounded-full bg-tile px-2 py-0.5 text-[11px] font-normal text-ink2">{i.rubric}</span>}{i.ab && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-normal text-accent-ink">A/B {i.ab.variant === "A" ? "А" : "Б"}</span>}</span>
+              {i.client && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${i.client === "approved" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"}`}>{i.client === "approved" ? "Клиент одобрил" : "Клиент просит правки"}</span>}
+              <Status s={i.status} />
+            </div>
+          </Link>
+        ) : (
           <details key={i.id} id={`i-${i.id}`} open={sp.open === i.id} className="group rounded-3xl bg-tile p-2.5 [&_.input]:bg-surface">
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3">
               <span className="w-14 shrink-0 text-xs text-ink3">{i.planned_for ? new Date(i.planned_for).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span>
