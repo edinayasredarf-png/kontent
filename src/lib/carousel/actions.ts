@@ -24,8 +24,9 @@ const back = (fid: string, id: string, err?: string) => { revalidatePath("/app",
 export async function saveCarouselAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory");
-  const it = await one<{ status: string }>("select status from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
+  const it = await one<{ status: string; photo: boolean }>("select status,(meta->'carousel'->'photo') is not null photo from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
   if (!it || !["idea", "approved", "ready", "failed"].includes(it.status)) return backF(f, fid, id, "Эту карусель сейчас нельзя изменить");
+  if (it.photo) return backF(f, fid, id, "Эта карусель создана в Студии с картинками: текст и фон там не редактируются здесь");
   const raw = Array.from({ length: 10 }, (_, i) => ({ title: s(f, `title_${i}`), body: s(f, `body_${i}`), layout: s(f, `layout_${i}`) }));
   const slides = cleanSlides(raw);
   if (slides.length < 2) return backF(f, fid, id, "В карусели должно быть минимум 2 слайда с заголовками");
@@ -37,6 +38,7 @@ export async function saveCarouselAction(f: FormData) {
 export async function carouselCoverAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory");
+  if ((await one("select 1 from kz_content_items where id=$1 and org_id=$2 and meta->'carousel'->'photo' is not null", [id, c.org.id]))) return backF(f, fid, id, "Эта карусель создана в Студии с картинками: текст и фон там не редактируются здесь");
   const r = await setCarouselCover(c.org.id, id, s(f, "mode") === "ai" ? "ai" : "none");
   backF(f, fid, id, r.ok ? undefined : r.error);
 }
@@ -89,7 +91,8 @@ export async function savePollAction(f: FormData) {
 export async function resetSlideAction(f: FormData) {
   const c = await requireWriter();
   const id = s(f, "id"), fid = s(f, "factory"), pos = Number(s(f, "pos"));
-  const it = await one<{ status: string; meta: { carousel?: { slides: { title: string; body: string }[]; style: keyof typeof CAROUSEL_STYLES } } }>("select status,meta from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
+  const it = await one<{ status: string; meta: { carousel?: { slides: { title: string; body: string }[]; style: keyof typeof CAROUSEL_STYLES; photo?: unknown } } }>("select status,meta from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [id, c.org.id]);
+  if (it?.meta.carousel?.photo) return backF(f, fid, id, "Эта карусель создана в Студии с картинками: текст и фон там не редактируются здесь");
   if (!it?.meta.carousel || !["idea", "approved", "ready", "failed"].includes(it.status)) return backF(f, fid, id, "Эту карусель сейчас нельзя изменить");
   try { await renderForItem(c.org.id, id, it.meta.carousel.slides, it.meta.carousel.style, undefined, [pos]); } catch (e) { return backF(f, fid, id, `Не удалось: ${(e as Error).message}`); }
   backF(f, fid, id);
@@ -102,7 +105,8 @@ export async function resetSlideAction(f: FormData) {
  */
 export async function rewriteSlidesAction(itemId: string, indexes: number[], instruction: string, current: { title: string; body: string }[]): Promise<{ ok: true; slides: { i: number; title: string; body: string }[] } | { ok: false; error: string }> {
   const c = await requireWriter();
-  const it = await one<{ topic: string; status: string }>("select topic,status from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [itemId, c.org.id]);
+  const it = await one<{ topic: string; status: string; photo: boolean }>("select topic,status,(meta->'carousel'->'photo') is not null photo from kz_content_items where id=$1 and org_id=$2 and kind='carousel'", [itemId, c.org.id]);
+  if (it?.photo) return { ok: false, error: "Эта карусель создана в Студии с картинками: текст и фон там не редактируются здесь" };
   if (!it || !["idea", "approved", "ready", "failed"].includes(it.status)) return { ok: false, error: "Эту карусель сейчас нельзя изменить" };
   const slides = (Array.isArray(current) ? current : []).slice(0, 10).map((x) => ({ title: String(x?.title ?? "").slice(0, 90), body: String(x?.body ?? "").slice(0, 320) }));
   const idx = [...new Set((Array.isArray(indexes) ? indexes : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < slides.length))];

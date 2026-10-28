@@ -8,7 +8,7 @@ import type { SlideLayout } from "@/lib/carousel/layouts";
 import { PRICES, rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
-export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES; design?: { color?: string; font?: string; format?: string } }
+export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES; design?: { color?: string; font?: string; format?: string }; photo?: unknown }
 
 /** Слайды карусели у материала: превью, правка текстов с перерисовкой, обложка нейросетью, скачивание архивом. */
 export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free, colors = [], caption = "", ret = "" }: { itemId: string; factoryId: string; meta: CarouselMeta; assets: { id: string }[]; editable: boolean; free: boolean; colors?: string[]; caption?: string; ret?: string }) {
@@ -30,7 +30,8 @@ export function CarouselPanel({ itemId, factoryId, meta, assets, editable, free,
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink2">Слайды с ручной правкой не перерисовываются при смене текста:
           {meta.custom!.map((n) => <form key={n} action={resetSlideAction}><input type="hidden" name="id" value={itemId} /><input type="hidden" name="factory" value={factoryId} /><input type="hidden" name="pos" value={n} />{ret && <input type="hidden" name="ret" value={ret} />}<SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Вернуть слайд {n + 1}</SubmitButton></form>)}</div>
       )}
-      {editable && (<>
+      {editable && !!meta.photo && <p className="text-xs text-ink3">Слайды нарисованы нейросетью в Студии. Текст на слайде правится визуальным редактором выше; новую карусель создайте в Студии.</p>}
+      {editable && !meta.photo && (<>
         <details className="rounded-xl bg-tile p-3">
           <summary className="cursor-pointer text-xs font-medium text-ink2">Изменить тексты слайдов и оформление</summary>
           <div className="mt-3"><CarouselEditor itemId={itemId} factoryId={factoryId} slides={meta.slides} style={meta.style} styles={CAROUSEL_STYLES} ret={ret || undefined} colors={colors} design={meta.design} editPrice={free ? "" : rub(PRICES.edit)} /></div>

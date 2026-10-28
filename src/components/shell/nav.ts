@@ -1,4 +1,4 @@
-import { Sparkles, Factory, Radar, Building2, CalendarDays, Rss, Crosshair, Inbox, Send, BarChart3, Wand2, Radio } from "lucide-react";
+import { Sparkles, Factory, Radar, Building2, CalendarDays, Rss, Crosshair, Inbox, Send, BarChart3, Wand2, Radio, GalleryVerticalEnd } from "lucide-react";
 
 /** Главное меню. Всё остальное (баланс, команда, API, партнёрка, профиль, администрирование) живёт в «Настройках». */
 export const NAV = [
@@ -13,6 +13,7 @@ export const NAV = [
   { href: "/app/publications", label: "Публикации", icon: Send },
   { href: "/app/channels", label: "Каналы", icon: Radio },
   { href: "/app/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/app/create/carousel", label: "Карусели", icon: GalleryVerticalEnd },
   { href: "/app/studio", label: "ИИ-ассистенты", icon: Wand2 },
 ] as const;
 
@@ -29,5 +30,6 @@ export const SEARCH_ITEMS: { href: string; label: string; words: string }[] = [
   { href: "/app/profile", label: "Профиль и безопасность", words: "пароль тема" },
   { href: "/app/settings", label: "Настройки", words: "" },
   { href: "/app/overview", label: "Сводка", words: "что горит обзор" },
+  { href: "/app/create/carousel", label: "Студия каруселей", words: "создать карусель слайды картинки пресет качество модель" },
   { href: "/app/assistant", label: "Быстрый запуск бизнеса", words: "лия завод бренд" },
 ];

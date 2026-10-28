@@ -128,10 +128,10 @@ async function toBuffer(item?: { b64_json?: string; url?: string }): Promise<Buf
  * Сначала OpenAI-совместимый /images/generations (так устроены image-модели шлюза). Если модель отвечает, что этот
  * endpoint ей не подходит, пробуем чат-вариант (модели, отдающие картинку в сообщении, как Gemini Image).
  */
-export async function generateImage(prompt: string, aspect: keyof typeof SIZES): Promise<Buffer> {
+export async function generateImage(prompt: string, aspect: keyof typeof SIZES, opts: { model?: string; quality?: "low" | "medium" | "high" } = {}): Promise<Buffer> {
   const base = baseUrl();
   if (!base) throw new Error("AI Gateway не настроен (SELFHOSTED_LLM_URL)");
-  const model = await modelFor("image");
+  const model = opts.model || await modelFor("image");
   if (!model) throw new Error("Не выбрана модель изображений. Откройте «Настройки ИИ» и выберите её в пункте «Генерация изображений»");
   const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
   const headers = { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) };
@@ -140,6 +140,7 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES):
   let lastErr = "";
   // варианты параметров от строгого к простому: часть моделей не знает size или response_format
   const variants: Record<string, unknown>[] = [
+    ...(opts.quality ? [{ model, prompt, n: 1, size: SIZES[aspect], quality: opts.quality, response_format: "b64_json" }] : []),
     { model, prompt, n: 1, size: SIZES[aspect], response_format: "b64_json" },
     { model, prompt, n: 1, size: SIZES[aspect] },
     { model, prompt, n: 1 },

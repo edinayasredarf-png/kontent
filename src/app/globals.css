@@ -227,3 +227,14 @@ select.input:not([multiple]) { appearance: none; -webkit-appearance: none; paddi
 .ui-confirm-row { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.25rem; }
 .ui-confirm-yes { display: inline-flex; height: 2.5rem; align-items: center; border-radius: 999px; background: var(--bad); padding: 0 1.25rem; font-size: .875rem; font-weight: 600; color: #fff; transition: opacity .15s; }
 .ui-confirm-yes:hover { opacity: .88; }
+
+/* Студия каруселей: «колба» с наливающейся жидкостью на время генерации слайда */
+@keyframes orb-wave { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes orb-glow { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: .7; transform: scale(1.08); } }
+@keyframes orb-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.orb-wave { animation: orb-wave 3.2s linear infinite; }
+.orb-wave2 { animation: orb-wave 5.4s linear infinite reverse; }
+.orb-glow { animation: orb-glow 2.6s ease-in-out infinite; }
+.orb-phrase { animation: orb-rise .5s ease both; }
+.slide-in { animation: orb-rise .45s ease both; }
+@media (prefers-reduced-motion: reduce) { .orb-wave, .orb-wave2, .orb-glow, .orb-phrase, .slide-in { animation: none; } }

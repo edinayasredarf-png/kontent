@@ -15,7 +15,7 @@ export interface ChannelOpt { id: string; title: string; kind: string; on: boole
 
 export interface DraftItem {
   id: string; factory_id: string; kind: string; topic: string; body: string; status: string; image_id: string | null;
-  image_error: string | null; own_image: boolean; slides: string[]; channels: ChannelOpt[]; carousel: { slides: { title: string; body: string; layout?: string }[]; style: string; custom: number[]; design: { color?: string; font?: string; format?: string } } | null; seo: { title?: string; description?: string; slug?: string } | null; poll: { question: string; options: string[]; mode?: "options" | "open"; multi?: boolean } | null; lead: import("./lead-magnet").LeadMeta | null;
+  image_error: string | null; own_image: boolean; slides: string[]; channels: ChannelOpt[]; carousel: { slides: { title: string; body: string; layout?: string }[]; style: string; custom: number[]; design: { color?: string; font?: string; format?: string }; /** создана в студии с картинками нейросети */ photo?: boolean } | null; seo: { title?: string; description?: string; slug?: string } | null; poll: { question: string; options: string[]; mode?: "options" | "open"; multi?: boolean } | null; lead: import("./lead-magnet").LeadMeta | null;
   /** Умолчания для картинок к разделам статьи: стиль серии, логотип (есть ли он у бренда, включён ли в настройках завода), место и размер. */
   imgOpts: { style: string; hasLogo: boolean; logo: boolean; pos: string; scale: number };
 }
@@ -23,7 +23,7 @@ export interface DraftItem {
 /** Материалы окна «Созданное»: только черновики этой организации, в порядке создания. */
 export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftItem[]> {
   if (!ids.length) return [];
-  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo" | "poll" | "lead" | "imgOpts"> & { brief: unknown; kit: unknown; img_style: string | null; has_logo: boolean; lead_meta: import("./lead-magnet").LeadMeta | null; chan_ids: string[] | null; poll_meta: { question?: string; options?: string[]; mode?: "options" | "open"; multi?: boolean } | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string } } | null }>(
+  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo" | "poll" | "lead" | "imgOpts"> & { brief: unknown; kit: unknown; img_style: string | null; has_logo: boolean; lead_meta: import("./lead-magnet").LeadMeta | null; chan_ids: string[] | null; poll_meta: { question?: string; options?: string[]; mode?: "options" | "open"; multi?: boolean } | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string }; photo?: unknown } | null }>(
     `select i.id,i.factory_id,i.kind,f.brief,(select kit from kz_brands where id=i.brand_id) kit,i.meta->>'imgStyle' img_style,exists(select 1 from kz_assets a where a.brand_id=i.brand_id and a.org_id=i.org_id and a.kind='logo') has_logo,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,i.meta->'carousel' carousel_meta,i.meta->'seo' seo_meta,i.meta->'poll' poll_meta,i.meta->'lead' lead_meta,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
             case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 then array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid) else f.channel_ids end chan_ids
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
@@ -35,7 +35,7 @@ export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftIte
     const st = cleanSettings(brief), k = cleanKit(kit);
     const imgOpts = { style: img_style || st.imgStyle || k.style || "illustration", hasLogo: has_logo, logo: has_logo && st.imgLogo, pos: st.imgLogoPos, scale: st.imgLogoScale };
     const opts = all.filter((c) => (seo ? SITE_CHANNELS.includes(c.kind) : !ARTICLE_ONLY.includes(c.kind)));
-    return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })), carousel: carousel_meta?.slides ? { slides: carousel_meta.slides, style: carousel_meta.style ?? "brand", custom: carousel_meta.custom ?? [], design: carousel_meta.design ?? {} } : null, seo: seo_meta ? { title: seo_meta.title, description: seo_meta.description, slug: seo_meta.slug } : null, poll: poll_meta?.question ? { question: poll_meta.question, options: poll_meta.options ?? [], mode: poll_meta.mode, multi: poll_meta.multi } : null, lead: lead_meta?.headline ? lead_meta : null, imgOpts };
+    return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })), carousel: carousel_meta?.slides ? { slides: carousel_meta.slides, style: carousel_meta.style ?? "brand", custom: carousel_meta.custom ?? [], design: carousel_meta.design ?? {}, photo: !!carousel_meta.photo } : null, seo: seo_meta ? { title: seo_meta.title, description: seo_meta.description, slug: seo_meta.slug } : null, poll: poll_meta?.question ? { question: poll_meta.question, options: poll_meta.options ?? [], mode: poll_meta.mode, multi: poll_meta.multi } : null, lead: lead_meta?.headline ? lead_meta : null, imgOpts };
   });
 }
 
@@ -53,6 +53,7 @@ export async function saveDraftBody(orgId: string, id: string, text: string): Pr
 
 /** Переделать материал заново: тот же заход, новая генерация (платная, как создание). */
 export async function regenDraft(orgId: string, id: string): Promise<Result> {
+  if (await one("select 1 from kz_content_items where id=$1 and org_id=$2 and meta->'carousel'->'photo' is not null", [id, orgId])) return { ok: false, error: "Карусель с картинками пересоздаётся в Студии каруселей: так вы не потеряете нарисованные слайды" };
   const r = await one<{ id: string }>(`update kz_content_items set status='approved', updated_at=now() where id=$1 and org_id=$2 and ${DRAFT} and status in ('ready','failed','approved','idea') returning id`, [id, orgId]);
   if (!r) return { ok: false, error: "Черновик не найден" };
   const b = await buildItem(orgId, id);
