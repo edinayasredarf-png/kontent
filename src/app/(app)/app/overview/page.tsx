@@ -14,7 +14,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const o = c.org.id;
   const since = days ? `now() - interval '${days} days'` : "'1970-01-01'::timestamptz";
 
-  const [k, byKind, recent, setup, fire] = await Promise.all([
+  const [k, byKind, recent, fire, ob] = await Promise.all([
     one<{ produced: string; published: string; spent: string; reach: string; likes: string; brands: string; factories: string }>(
       `select (select count(*) from kz_content_items where org_id=$1 and status in ('ready','scheduled','published') and updated_at >= ${since}) produced,
               (select count(*) from kz_publications where org_id=$1 and status='published' and published_at >= ${since}) published,
@@ -25,10 +25,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     q<{ kind: string; n: string }>(`select kind,count(*) n from kz_content_items where org_id=$1 and status in ('ready','scheduled','published') and updated_at >= ${since} group by kind order by n desc`, [o]),
     q<{ id: string; topic: string; kind: string; status: string; brand: string; factory_id: string }>(
       `select i.id,i.topic,i.kind,i.status,b.name brand,i.factory_id from kz_content_items i join kz_brands b on b.id=i.brand_id where i.org_id=$1 order by i.created_at desc limit 6`, [o]),
-    one<{ brand_ok: boolean; channel: boolean; factory: boolean; made: boolean; published: boolean }>(
-      `select exists(select 1 from kz_brands where org_id=$1 and description<>'') brand_ok, exists(select 1 from kz_channels where org_id=$1) channel,
-              exists(select 1 from kz_factories where org_id=$1) factory, exists(select 1 from kz_content_items where org_id=$1 and status in ('ready','scheduled','published')) made,
-              exists(select 1 from kz_publications where org_id=$1 and status='published') published`, [o]),
     one<{ ideas: string; due: string; failed_pub: string; failed_items: string; bad_sources: string; short_plan: string; short_name: string | null; comments: string }>(
       `select (select count(*) from kz_content_items i join kz_factories f on f.id=i.factory_id where i.org_id=$1 and i.status='idea' and f.approval='manual') ideas,
               (select count(*) from kz_content_items where org_id=$1 and status='approved' and planned_for <= current_date) due,
@@ -38,6 +34,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               (select count(*) from kz_factories f where f.org_id=$1 and f.status='active' and coalesce((select max(planned_for) from kz_content_items i where i.factory_id=f.id and i.status in ('idea','approved','ready','scheduled')), current_date - 1) < current_date + 3) short_plan,
               (select f.name from kz_factories f where f.org_id=$1 and f.status='active' and coalesce((select max(planned_for) from kz_content_items i where i.factory_id=f.id and i.status in ('idea','approved','ready','scheduled')), current_date - 1) < current_date + 3 order by f.created_at limit 1) short_name,
               (select count(*) from kz_comments where org_id=$1 and status='new') comments`, [o]),
+    progress(c.org.id),
   ]);
 
   const plan = c.org.unlimited ? { brands: null, factories: null } : PLANS[c.org.plan];
@@ -52,14 +49,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   if (n(fire?.bad_sources)) alerts.push({ text: `Источники мониторинга с ошибкой: ${fire!.bad_sources}`, href: "/app/monitor/settings", tone: "warn" });
   if (n(fire?.comments)) alerts.push({ text: `Новые комментарии без ответа: ${fire!.comments}`, href: "/app/inbox", tone: "warn" });
 
-  const steps = [
-    { done: setup!.brand_ok, t: "Заполнить профиль бренда", href: "/app/brands" },
-    { done: setup!.channel, t: "Подключить канал (Telegram, VK)", href: "/app/channels" },
-    { done: setup!.factory, t: "Создать первый завод", href: "/app/factories/new" },
-    { done: setup!.made, t: "Получить первый материал", href: "/app/factories" },
-    { done: setup!.published, t: "Опубликовать", href: "/app/publications" },
-  ];
-  const ob = await progress(c.org.id);
   const max = Math.max(1, ...byKind.map((x) => Number(x.n)));
   const periods: [string, string][] = [["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
   const tiles = [

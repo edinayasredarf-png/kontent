@@ -20,18 +20,42 @@ export const ONBOARDING_TITLE = "Знакомство";
 
 export interface Step { key: string; title: string; done: boolean; detail: string; href?: string }
 
+type Raw = { b: { id: string; name: string; description: string; audience: string; tone: string; kit: unknown } | null; f: { id: string; name: string; niche: string; product: string } | null; docs: number; logo: number; channels: number; sources: number; words: number; made: number };
+
+/** Прогресс настройки: один запрос вместо восьми (на удалённой базе каждый запрос стоит сетевой задержки). Если схема старая и запрос не прошёл, считаем по частям. */
 export async function progress(orgId: string): Promise<Step[]> {
-  const [b] = await q<{ id: string; name: string; description: string; audience: string; tone: string; kit: unknown }>("select id,name,description,audience,tone,kit from kz_brands where org_id=$1 order by created_at limit 1", [orgId]);
-  const f = await one<{ id: string; name: string; schedule: unknown; channel_ids: string[] | null; niche: string; product: string }>("select id,name,schedule,channel_ids,niche,product from kz_factories where org_id=$1 order by created_at limit 1", [orgId]);
-  const n = async (sql: string, p: unknown[]) => Number((await one<{ n: string }>(sql, p))?.n ?? 0);
+  let raw: Raw | null = null;
+  try {
+    raw = await one<Raw>(
+      `select (select to_jsonb(x) from (select id,name,description,audience,tone,kit from kz_brands where org_id=$1 order by created_at limit 1) x) b,
+              (select to_jsonb(x) from (select id,name,niche,product from kz_factories where org_id=$1 order by created_at limit 1) x) f,
+              coalesce((select count(*) from kz_brand_docs d where d.brand_id=(select id from kz_brands where org_id=$1 order by created_at limit 1)),0)::int docs,
+              (select count(*) from kz_assets where org_id=$1 and kind='logo' and brand_id=(select id from kz_brands where org_id=$1 order by created_at limit 1))::int logo,
+              (select count(*) from kz_channels where org_id=$1 and status='active')::int channels,
+              (select count(*) from kz_sources where org_id=$1 and kind<>'manual' and status='active')::int sources,
+              (select count(*) from kz_keywords where org_id=$1 and kind='include')::int words,
+              (select count(*) from kz_content_items where org_id=$1 and status in ('ready','scheduled','published'))::int made`, [orgId]);
+  } catch { raw = null; }
+  if (!raw) return progressParts(orgId);
+  return steps(raw);
+}
+
+async function progressParts(orgId: string): Promise<Step[]> {
+  const [b] = await q<NonNullable<Raw["b"]>>("select id,name,description,audience,tone,kit from kz_brands where org_id=$1 order by created_at limit 1", [orgId]);
+  const f = await one<NonNullable<Raw["f"]>>("select id,name,niche,product from kz_factories where org_id=$1 order by created_at limit 1", [orgId]);
+  const n = async (sql: string, p: unknown[]) => Number((await one<{ n: string }>(sql, p).catch(() => null))?.n ?? 0);
   const [docs, logo, channels, sources, words, made] = await Promise.all([
-    b ? n("select count(*) n from kz_brand_docs where brand_id=$1", [b.id]).catch(() => 0) : 0,
+    b ? n("select count(*) n from kz_brand_docs where brand_id=$1", [b.id]) : 0,
     b ? n("select count(*) n from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, b.id]) : 0,
     n("select count(*) n from kz_channels where org_id=$1 and status='active'", [orgId]),
     n("select count(*) n from kz_sources where org_id=$1 and kind<>'manual' and status='active'", [orgId]),
     n("select count(*) n from kz_keywords where org_id=$1 and kind='include'", [orgId]),
     n("select count(*) n from kz_content_items where org_id=$1 and status in ('ready','scheduled','published')", [orgId]),
   ]);
+  return steps({ b: b ?? null, f, docs, logo, channels, sources, words, made });
+}
+
+function steps({ b, f, docs, logo, channels, sources, words, made }: Raw): Step[] {
   const kit = cleanKit(b?.kit);
   const briefOk = !!b && b.description.trim().length > 10 && b.audience.trim().length > 5;
   const styleOk = !!b && (logo > 0 || docs > 0 || (kit.colors?.length ?? 0) > 0 || !!kit.style);
