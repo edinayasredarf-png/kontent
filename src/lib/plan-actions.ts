@@ -1,6 +1,7 @@
 "use server";
 import { aiEditText, stripProofreadRequest } from "./text-tools";
 import { allocateDates } from "./plan";
+import { sourceFrom } from "./creator/plan";
 import { attachUploadToItems } from "./item-images";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -100,7 +101,13 @@ export async function createMaterialsAction(f: FormData) {
   }
   const longText = full.length > 300;
   const topic = longText ? (full.split(/\n/)[0].trim().slice(0, 120) || full.slice(0, 120)) : full;
-  const source = longText && !asIs ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
+  let source: { title: string; body: string; url: string } | null = longText && !asIs ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
+  let topicOut = topic;
+  if (!source && !asIs) {
+    // в поле только ссылка: читаем страницу и пишем по ней; не прочитали — честная ошибка, а не выдумка
+    try { const sf = await sourceFrom(full); if (sf) { source = { title: sf.title, body: sf.text, url: sf.url }; topicOut = sf.title.slice(0, 120); } }
+    catch (e) { return go(fid, { ok: false, error: (e as Error).message }); }
+  }
   const kinds = [...new Set(f.getAll("kinds").map(String).filter((k) => (KINDS as readonly string[]).includes(k)))].slice(0, 6);
   if (full.length < 3) return go(fid, { ok: false, error: "Введите тему, идею или текст (минимум 3 символа)" });
   if (!kinds.length) return go(fid, { ok: false, error: "Выберите хотя бы один тип материала" });

@@ -27,7 +27,7 @@ export interface StudioSettings {
 type Err = { ok: false; error: string };
 
 const lastPlan = new Map<string, number>();
-const slideErr = (e: unknown) => ((e as Error).message || "сбой").slice(0, 180);
+const slideErr = (e: unknown) => ((e as Error).message || "сбой").slice(0, 300);
 
 function cleanStudio(raw: Partial<StudioSettings>, models: { id: string }[]): StudioSettings | null {
   const model = models.find((m) => m.id === raw.model)?.id;
@@ -221,10 +221,14 @@ export async function createMaterialAction(i: { factoryId: string; kind: string;
   const longText = full.length > 300;
   const topic = (longText ? full.split(/\n/)[0].trim() : full).slice(0, 120) || full.slice(0, 120);
   let source: { title: string; body: string; url: string } | null = longText ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
-  if (!source) { const s = await sourceFrom(full); if (s) source = { title: topic, body: s.text, url: s.url }; }
+  let topicFinal = topic;
+  if (!source) {
+    try { const s = await sourceFrom(full); if (s) { source = { title: s.title, body: s.text, url: s.url }; topicFinal = s.title.slice(0, 120); } }
+    catch (e) { return { ok: false, error: slideErr(e) }; }
+  }
   const meta = { manual: true, draft: true, creator: true, ...(o.postType ? { postType: o.postType } : {}), ...(o.voice ? { voice: o.voice } : {}), ...(o.audience ? { audience: o.audience } : {}), ...(ref ? { refText: ref } : {}), ...(source ? { source } : {}) };
   const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,null,'approved',$7::jsonb) returning id",
-    [c.org.id, fac.id, fac.brand_id, kind, topic, String(i.angle ?? "").slice(0, 300), JSON.stringify(meta)]);
+    [c.org.id, fac.id, fac.brand_id, kind, topicFinal, String(i.angle ?? "").slice(0, 300), JSON.stringify(meta)]);
   const id = row!.id;
   const r = await buildItem(c.org.id, id);
   if (!r.ok) {

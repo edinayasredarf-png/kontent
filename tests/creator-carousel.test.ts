@@ -67,3 +67,14 @@ describe("панель создания: примеры и тон", () => {
     assert.equal(directives({ postType: "zzz", voice: "zzz" }), "");
   });
 });
+
+import { sourceFrom } from "../src/lib/creator/plan";
+describe("ссылка в запросе", () => {
+  it("нет ссылки — источника нет", async () => { assert.equal(await sourceFrom("просто тема"), null); });
+  it("запрос — одна нечитаемая ссылка: понятная ошибка, а не выдумка", async () => {
+    await assert.rejects(() => sourceFrom("http://127.0.0.1:9/news прочитай и сделай пост"), /Не удалось прочитать ссылку/);
+  });
+  it("ссылка внутри длинного текста не блокирует работу", async () => {
+    assert.equal(await sourceFrom(`${"Длинный текст. ".repeat(40)} http://127.0.0.1:9/x`), null);
+  });
+});
