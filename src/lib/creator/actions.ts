@@ -6,10 +6,17 @@ import { aiReady } from "../ai";
 import { charge, refund, InsufficientFunds, rub } from "../wallet";
 import { cleanKit, generateImage, LOGO_POSITIONS, rawCopy, type LogoPos } from "../images";
 import { loadAsset, saveAsset } from "../assets";
-import { brandOf, loadFactory } from "../pipeline";
+import { applyCreateOverrides, brandOf, buildItem, loadFactory, type FactoryRow } from "../pipeline";
+import { KINDS } from "../plan";
+import { POST_TYPES } from "../postsettings";
+import { STYLES } from "../studio-catalog";
+import { describeImage } from "../images";
+import { processImage } from "../assets";
+import { briefMaterial } from "./brief";
+import type { Brief, CreateOpts } from "./consts";
 import { composePhotoSlide } from "../carousel/photo";
 import { imageModels, isQuality, QUALITY, slidePrice, FORMATS, type FormatKey, type QualityKey } from "./models";
-import { planCarousel, slidePrompt, type CarouselPlan, type PlanSlide } from "./plan";
+import { planCarousel, slidePrompt, sourceFrom, type CarouselPlan, type PlanSlide } from "./plan";
 
 /** Настройки одной сессии студии. Хранятся и в пресете. */
 export interface StudioSettings {
@@ -34,7 +41,7 @@ function cleanStudio(raw: Partial<StudioSettings>, models: { id: string }[]): St
 }
 
 /** Шаг 1: ИИ раскладывает запрос на слайды и придумывает для каждого свою сцену. Бесплатно: деньги берём за картинки. */
-export async function planCarouselAction(factoryId: string, prompt: string, raw: Partial<StudioSettings>): Promise<{ ok: true; plan: CarouselPlan } | Err> {
+export async function planCarouselAction(factoryId: string, prompt: string, raw: Partial<StudioSettings>, opts?: Partial<CreateOpts>): Promise<{ ok: true; plan: CarouselPlan } | Err> {
   const c = await requireWriter();
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен" };
   const p = String(prompt ?? "").trim();
@@ -45,9 +52,18 @@ export async function planCarouselAction(factoryId: string, prompt: string, raw:
   const fac = await loadFactory(c.org.id, factoryId);
   if (!fac) return { ok: false, error: "Выберите завод: из него берутся бренд, тон и аудитория" };
   const st = cleanStudio(raw, await imageModels());
-  try { return { ok: true, plan: await planCarousel({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, prompt: p, n: st?.n ?? 5, style: st?.style, structure: st?.structure }) }; }
+  const o = cleanOpts(opts);
+  applyCreateOverrides(fac, { audience: o.audience });
+  try { return { ok: true, plan: await planCarousel({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, prompt: p, n: st?.n ?? 5, style: st?.style, structure: st?.structure, postType: o.postType, voice: o.voice }) }; }
   catch (e) { return { ok: false, error: slideErr(e) }; }
 }
+
+/** Выбор клиента из панели: только известные ключи, длины ограничены. */
+function cleanOpts(raw: Partial<CreateOpts> | undefined): CreateOpts {
+  const t = String(raw?.postType ?? ""), v = String(raw?.voice ?? "");
+  return { postType: t in POST_TYPES ? t : "", voice: v in STYLES && v !== "normal" ? v : "", audience: String(raw?.audience ?? "").replace(/\s+/g, " ").trim().slice(0, 400) };
+}
+const cleanRef = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 900);
 
 /** Логотип бренда и набор для рендера: логотип можно выключить или переставить без перегенерации картинок. */
 async function brandAssets(orgId: string, brandId: string, kitRaw: unknown, st: StudioSettings) {
@@ -165,4 +181,93 @@ export async function savePresetAction(name: string, raw: Partial<StudioSettings
 export async function deletePresetAction(id: string) {
   const c = await requireWriter();
   await q("delete from kz_creator_presets where id=$1 and org_id=$2", [String(id), c.org.id]);
+}
+
+
+/* ───────── текстовые материалы ───────── */
+
+const okFactory = async (orgId: string, id: string): Promise<FactoryRow | null> => (/^[0-9a-f-]{36}$/i.test(String(id)) ? loadFactory(orgId, String(id)) : null);
+
+/** «Саммари» до запуска для любого типа, кроме карусели (у неё оно приходит вместе с планом). Бесплатно. */
+export async function briefAction(factoryId: string, kind: string, prompt: string, opts?: Partial<CreateOpts>, refText?: string): Promise<{ ok: true; brief: Brief } | Err> {
+  const c = await requireWriter();
+  if (!aiReady()) return { ok: false, error: "AI Gateway не настроен" };
+  const p = String(prompt ?? "").trim();
+  if (p.length < 3) return { ok: false, error: "Опишите тему хотя бы парой слов" };
+  if (!(KINDS as readonly string[]).includes(kind)) return { ok: false, error: "Неизвестный тип материала" };
+  const now = Date.now();
+  if (now - (lastPlan.get(c.user.id) ?? 0) < 4000) return { ok: false, error: "Подождите пару секунд и нажмите ещё раз" };
+  lastPlan.set(c.user.id, now);
+  const fac = await okFactory(c.org.id, factoryId);
+  if (!fac) return { ok: false, error: "Выберите завод: из него берутся бренд, тон и аудитория" };
+  const o = cleanOpts(opts);
+  applyCreateOverrides(fac, { audience: o.audience });
+  try { return { ok: true, brief: await briefMaterial({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, kind, prompt: p, postType: o.postType, voice: o.voice, refText: cleanRef(refText) }) }; }
+  catch (e) { return { ok: false, error: slideErr(e) }; }
+}
+
+export interface MadeItem { ok: true; id: string; factoryId: string; kind: string; title: string; body: string }
+
+/** Создать один материал (не карусель): запись → общий конвейер buildItem (списание, генерация, возврат при сбое). Результат сразу показываем в панели. */
+export async function createMaterialAction(i: { factoryId: string; kind: string; prompt: string; angle?: string; opts?: Partial<CreateOpts>; refText?: string }): Promise<MadeItem | Err> {
+  const c = await requireWriter();
+  const kind = String(i.kind);
+  if (!(KINDS as readonly string[]).includes(kind) || kind === "carousel") return { ok: false, error: "Этот тип создаётся другим способом" };
+  const fac = await okFactory(c.org.id, i.factoryId);
+  if (!fac) return { ok: false, error: "Завод не найден" };
+  const full = String(i.prompt ?? "").trim().slice(0, 20000);
+  if (full.length < 3) return { ok: false, error: "Введите тему, идею или текст (минимум 3 символа)" };
+  const o = cleanOpts(i.opts), ref = cleanRef(i.refText);
+  const longText = full.length > 300;
+  const topic = (longText ? full.split(/\n/)[0].trim() : full).slice(0, 120) || full.slice(0, 120);
+  let source: { title: string; body: string; url: string } | null = longText ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
+  if (!source) { const s = await sourceFrom(full); if (s) source = { title: topic, body: s.text, url: s.url }; }
+  const meta = { manual: true, draft: true, creator: true, ...(o.postType ? { postType: o.postType } : {}), ...(o.voice ? { voice: o.voice } : {}), ...(o.audience ? { audience: o.audience } : {}), ...(ref ? { refText: ref } : {}), ...(source ? { source } : {}) };
+  const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,null,'approved',$7::jsonb) returning id",
+    [c.org.id, fac.id, fac.brand_id, kind, topic, String(i.angle ?? "").slice(0, 300), JSON.stringify(meta)]);
+  const id = row!.id;
+  const r = await buildItem(c.org.id, id);
+  if (!r.ok) {
+    await q("delete from kz_content_items where id=$1 and org_id=$2 and status in ('approved','failed','generating')", [id, c.org.id]);
+    return { ok: false, error: r.error };
+  }
+  revalidatePath("/app", "layout");
+  const it = await one<{ topic: string; body: string }>("select topic,body from kz_content_items where id=$1 and org_id=$2", [id, c.org.id]);
+  return { ok: true, id, factoryId: fac.id, kind, title: it?.topic ?? topic, body: String(it?.body ?? "").slice(0, 12000) };
+}
+
+/* ───────── референсы ───────── */
+
+/** Свой снимок как референс: сохраняем, ИИ «смотрит» и описывает стиль. Описание дальше идёт в план и в запрос к художнику. */
+export async function describeRefAction(factoryId: string, fd: FormData): Promise<{ ok: true; id: string; visual: string } | Err> {
+  const c = await requireWriter();
+  const f = fd.get("file");
+  if (!(f instanceof File) || !f.size) return { ok: false, error: "Выберите картинку" };
+  if (f.size > 8 * 1024 * 1024) return { ok: false, error: "Файл больше 8 МБ" };
+  const now = Date.now();
+  if (now - (lastPlan.get(c.user.id) ?? 0) < 2500) return { ok: false, error: "Подождите пару секунд и повторите" };
+  lastPlan.set(c.user.id, now);
+  const fac = await okFactory(c.org.id, factoryId);
+  if (!fac) return { ok: false, error: "Завод не найден" };
+  try {
+    const p = await processImage(Buffer.from(await f.arrayBuffer()), "studio");
+    const visual = await describeImage({ data: p.data, mime: p.mime }, "reference");
+    const id = await saveAsset(c.org.id, fac.brand_id, "studio", "reference.jpg", p, "reference");
+    return { ok: true, id, visual };
+  } catch (e) { return { ok: false, error: slideErr(e) }; }
+}
+
+/** Пресет не-карусельного материала: тип, тон, манера, аудитория и референс подачи. */
+export async function saveTextPresetAction(name: string, kind: string, opts: Partial<CreateOpts>, refText: string, brandId: string | null): Promise<{ ok: true; id: string } | Err> {
+  const c = await requireWriter();
+  const nm = String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (nm.length < 2) return { ok: false, error: "Дайте пресету название" };
+  if (!(KINDS as readonly string[]).includes(kind)) return { ok: false, error: "Неизвестный тип" };
+  try {
+    const n = Number((await one<{ n: string }>("select count(*) n from kz_creator_presets where org_id=$1", [c.org.id]))?.n ?? 0);
+    if (n >= 40) return { ok: false, error: "Не больше 40 пресетов: удалите ненужные" };
+    const r = await one<{ id: string }>("insert into kz_creator_presets(org_id,brand_id,kind,name,settings,created_by) values($1,$2,$3,$4,$5::jsonb,$6) returning id",
+      [c.org.id, brandId && /^[0-9a-f-]{36}$/i.test(brandId) ? brandId : null, kind, nm, JSON.stringify({ opts: cleanOpts(opts), refText: cleanRef(refText) }), c.user.id]);
+    return { ok: true, id: r!.id };
+  } catch (e) { return { ok: false, error: /kz_creator_presets/.test((e as Error).message) ? "Пресеты ещё не включены: администратору нужно применить миграцию 035 в базе" : slideErr(e) }; }
 }

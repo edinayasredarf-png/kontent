@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 const PHRASES = ["Читаю задачу…", "Подбираю композицию…", "Расставляю акценты там, где взгляд остановится", "Прорисовываю детали…", "Подгоняю цвета под бренд…", "Собираю слайд целиком…"];
 
 /** «Колба» с наливающейся жидкостью: процент считаем по времени (модель не сообщает прогресс) и дотягиваем до 100, когда слайд готов. */
-export function GenOrb({ startedAt, typical = 45, label }: { startedAt: number; typical?: number; label?: string }) {
+export function GenOrb({ startedAt, typical = 45, label, phrases }: { startedAt: number; typical?: number; label?: string; phrases?: string[] }) {
+  const list = phrases?.length ? phrases : PHRASES;
   const [now, setNow] = useState(startedAt);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); setNow(Date.now()); return () => clearInterval(t); }, [startedAt]);
   const sec = Math.max(0, (now - startedAt) / 1000);
@@ -29,7 +30,7 @@ export function GenOrb({ startedAt, typical = 45, label }: { startedAt: number; 
         </svg>
         <span className="absolute inset-0 grid place-items-center text-xl font-semibold tabular-nums text-ink drop-shadow">{pct}%</span>
       </div>
-      <p key={Math.floor(sec / 7) % PHRASES.length} className="orb-phrase max-w-[16rem] text-xs text-ink2">{label ?? PHRASES[Math.floor(sec / 7) % PHRASES.length]}</p>
+      <p key={Math.floor(sec / 7) % list.length} className="orb-phrase max-w-[16rem] text-xs text-ink2">{label ?? list[Math.floor(sec / 7) % list.length]}</p>
       <p className="text-[11px] text-ink3">{over ? "Модель думает дольше обычного, ещё немного…" : `${Math.floor(sec)} сек · обычно ~${typical} сек`}</p>
     </div>
   );

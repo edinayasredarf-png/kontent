@@ -44,3 +44,26 @@ describe("сборка слайда", () => {
     assert.notDeepEqual(a.data.subarray(0, 2000), plain.subarray(0, 2000)); // текст действительно нарисован
   });
 });
+
+import { parseExamples, DEFAULT_EXAMPLES } from "../src/lib/creator/examples";
+import { directives } from "../src/lib/creator/plan";
+
+describe("панель создания: примеры и тон", () => {
+  it("примеры админа: битые строки и небезопасные ссылки отбрасываются", () => {
+    const l = parseExamples("carousel | Неон | neon purple | список ошибок | https://cdn.example.com/a.jpg\n??? | x\npost | Хук | | Хук → боль → призыв | javascript:alert(1)\n");
+    assert.equal(l.length, 2);
+    assert.equal(l[0].img, "https://cdn.example.com/a.jpg");
+    assert.equal(l[1].img, "");
+  });
+  it("встроенные примеры есть для каруселей и текста", () => {
+    assert.ok(DEFAULT_EXAMPLES.filter((e) => e.kind === "carousel").length >= 8);
+    assert.ok(DEFAULT_EXAMPLES.some((e) => e.kind === "post" && e.structure));
+  });
+  it("тон, манера и референс попадают в подсказку, неизвестные ключи игнорируются", () => {
+    const d = directives({ postType: "sales", voice: "friendly", refText: "Хук → боль → призыв" });
+    assert.match(d, /продающие/i);
+    assert.match(d, /Дружелюбный/);
+    assert.match(d, /Хук → боль/);
+    assert.equal(directives({ postType: "zzz", voice: "zzz" }), "");
+  });
+});

@@ -4,7 +4,8 @@ import { requireCtx } from "@/lib/auth";
 import { AI_TASKS, aiReady, listGatewayModels } from "@/lib/ai";
 import { q } from "@/lib/db";
 import { saveAiRoutes } from "@/lib/actions";
-import { saveCreatorModelsAction } from "@/lib/creator/admin-actions";
+import { saveCreatorExamplesAction, saveCreatorModelsAction } from "@/lib/creator/admin-actions";
+import { examplesToText, listExamples } from "@/lib/creator/examples";
 import { imageModels, modelsToText } from "@/lib/creator/models";
 import { PageHead } from "@/components/ui";
 
@@ -18,6 +19,7 @@ export default async function Settings() {
   const saved = Object.fromEntries((await q<{ task: string; model: string }>("select task,model from kz_ai_routes")).map((r) => [r.task, r.model]));
   const custom = await q("select 1 from kz_kv where key='creator_image_models'").then((r) => r.length > 0).catch(() => false);
   const catalog = modelsToText(await imageModels().catch(() => []));
+  const examples = examplesToText(await listExamples().catch(() => []));
   const fields = [{ key: "default", label: "Модель по умолчанию", hint: "Для всех задач ниже, где не выбрана своя" }, ...AI_TASKS];
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -42,6 +44,11 @@ export default async function Settings() {
         <div><b>Модели для клиентов (студия каруселей)</b><p className="mt-1 text-xs text-ink3">Клиент сам выбирает модель отрисовки слайдов и видит цену. Одна модель на строку: <code>id модели | Название | Подсказка | цена в ₽ за слайд в 1K | text</code>. Слово <code>text</code> в конце значит, что модель ровно рисует русский текст. Цена 2K и 4K считается от неё (×1,7 и ×2,7). {custom ? "" : "Сейчас список не задан: клиентам доступна одна модель из пункта «Генерация изображений»."}</p></div>
         <textarea name="models" rows={5} defaultValue={catalog} spellCheck={false} className="input font-mono text-xs" placeholder="gpt-image-1 | GPT Image | Ровный русский текст на слайде | 7 | text&#10;gemini-2.5-flash-image | Nano | Дешевле, текст может поплыть | 5" />
         <SubmitButton className="btn">Сохранить список</SubmitButton>
+      </form>
+      <form action={saveCreatorExamplesAction} className="card mt-6 space-y-3 p-6">
+        <div><b>Примеры для клиентов (кнопка «Примеры» в создании)</b><p className="mt-1 text-xs text-ink3">Референсы, по которым ИИ повторит подачу на другую тему. По строке на пример: формат | подпись | стиль для художника (по-английски) | структура | https-ссылка на картинку (необязательно). Форматы: carousel, post, reels и другие. Если список пуст, показываются встроенные примеры.</p></div>
+        <textarea name="examples" rows={8} defaultValue={examples} spellCheck={false} className="input font-mono text-xs" placeholder="carousel | Неон и космос | neon purple space, glowing gradients, 3D objects | список: 5 ошибок и как их исправить | https://…/cover.jpg" />
+        <SubmitButton className="btn">Сохранить примеры</SubmitButton>
       </form>
     </div>
   );
