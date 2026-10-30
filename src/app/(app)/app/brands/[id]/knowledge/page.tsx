@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, Link2, Sparkles, Trash2, PenLine } from "lucide-react";
+import { FileText, Link2, Sparkles, Trash2, PenLine } from "lucide-react";
 import { requireCtx, canWrite } from "@/lib/auth";
 import { one, q } from "@/lib/db";
-import { PageHead } from "@/components/ui";
+import { OrgTabs } from "@/components/shell/OrgTabs";
 import { Field } from "@/components/Form";
 import { SubmitButton } from "@/components/SubmitButton";
 import { KbUploader } from "@/components/KbUploader";
@@ -27,6 +27,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
   const c = await requireCtx();
   const b = await one<{ id: string; name: string }>("select id,name from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
   if (!b) notFound();
+  const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by created_at", [c.org.id]);
   const write = canWrite(c.org.role);
   const [docs, kb] = await Promise.all([
     q<DocView>("select id,kind,title,url,chars,use_style,digest is not null analyzed,digest_error from kz_brand_docs where brand_id=$1 order by created_at desc", [id]),
@@ -41,8 +42,15 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <Link href={`/app/brands/${id}`} className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />{b.name}</Link>
-      <PageHead title="База знаний бренда" sub="Один раз загрузите статьи, документы и сравнения с конкурентами — нейросеть разберёт всё и будет опираться на это при каждом тексте." />
+      <OrgTabs />
+      <div className="mb-8">
+        <h1 className="text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">База знаний</h1>
+        <p className="mt-3 max-w-2xl text-sm text-ink2">Один раз загрузите статьи, документы и сравнения с конкурентами — нейросеть разберёт всё и будет опираться на это при каждом тексте.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {brands.map((x) => <Link key={x.id} href={`/app/brands/${x.id}/knowledge`} className={x.id === id ? "pill pill-on" : "pill"}>{x.name}</Link>)}
+          <Link href={`/app/brands/${id}`} className="pill">Брендбук бренда →</Link>
+        </div>
+      </div>
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
       {note && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
 

@@ -2,16 +2,19 @@ import Link from "next/link";
 import { Building2, Plus } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
-import { PageHead, Empty } from "@/components/ui";
+import { Empty } from "@/components/ui";
+import { OrgTabs } from "@/components/shell/OrgTabs";
 
 export default async function Brands() {
   const c = await requireCtx();
   const rows = await q<{ id: string; name: string; description: string; tone: string; factories: string }>(
     `select b.id,b.name,b.description,b.tone,(select count(*) from kz_factories f where f.brand_id=b.id) factories from kz_brands b where b.org_id=$1 order by b.created_at`, [c.org.id]);
-  const add = !canWrite(c.org.role) ? null : <Link href="/app/brands/new" className="pill"><Plus size={16} />Добавить бренд</Link>;
+  const add = !canWrite(c.org.role) ? null : <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link>;
   return (
     <>
-      <PageHead title="Бренды" sub="Компании, для которых вы делаете контент. У каждой — свой тон, правила и каналы." action={add} />
+      <OrgTabs action={add} />
+      <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">Бренды</h1>
+      <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">Компании, для которых вы делаете контент. У каждой — свой тон, правила и каналы.</p>
       {rows.length === 0 ? <Empty icon={<Building2 />} title="Брендов пока нет" text="Бренд — это профиль компании. Один бренд может иметь несколько заводов." /> : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((b) => (

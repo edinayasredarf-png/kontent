@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
 import { requireCtx, canWrite } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { listAssets, LIMITS } from "@/lib/assets";
@@ -11,7 +11,7 @@ import { FontPicker } from "@/components/FontPicker";
 import { AssetUploader } from "@/components/AssetUploader";
 import { LogoPlacement } from "@/components/LogoPlacement";
 import { deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
-import { PageHead } from "@/components/ui";
+import { OrgTabs } from "@/components/shell/OrgTabs";
 import { ShareCard } from "@/components/ShareCard";
 import { listLinks } from "@/lib/share";
 
@@ -33,8 +33,9 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
   
   return (
     <>
-      <Link href="/app/brands" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все бренды</Link>
-      <PageHead title={b.name} sub="Профиль и брендбук: по ним пишутся тексты и рисуются картинки." />
+      <OrgTabs action={canEdit ? <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link> : null} />
+      <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{b.name}</h1>
+      <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">Профиль и брендбук: по ним пишутся тексты и рисуются картинки.</p>
       <Link href={`/app/brands/${id}/knowledge`} className="card mb-6 flex flex-wrap items-center justify-between gap-3 p-5 transition hover:border-accent/40"><span><span className="block text-sm font-semibold">База знаний бренда</span><span className="block text-xs text-ink2">Статьи, документы, сравнение с конкурентами: нейросеть разберёт их и будет писать в вашем стиле и по вашим фактам.</span></span><span className="btn btn-ghost">Открыть</span></Link>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="card p-6">

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Factory, Plus } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
-import { PageHead, Empty } from "@/components/ui";
+import { Empty } from "@/components/ui";
+import { OrgTabs } from "@/components/shell/OrgTabs";
 
 export default async function Factories() {
   const c = await requireCtx();
@@ -11,10 +12,12 @@ export default async function Factories() {
             (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='idea') ideas,
             (select count(*) from kz_content_items i where i.factory_id=f.id and i.status='ready') ready
        from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 order by f.created_at desc`, [c.org.id]);
-  const add = !canWrite(c.org.role) ? null : <Link href="/app/factories/new" className="pill"><Plus size={16} />Создать завод</Link>;
+  const add = !canWrite(c.org.role) ? null : <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link>;
   return (
     <>
-      <PageHead title="Заводы" sub="Завод — автоматический конвейер: идеи → текст → публикация." action={add} />
+      <OrgTabs action={add} />
+      <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">Заводы</h1>
+      <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">Завод — автоматический конвейер: идеи → текст → публикация.</p>
       {rows.length === 0 ? <Empty icon={<Factory />} title="Заводов пока нет" text="Создайте бренд, затем завод — он сам предложит темы и напишет материалы." /> : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((f) => (

@@ -1,4 +1,4 @@
-import { Trash2, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { pageCtx } from "@/lib/auth";
 import { can, ROLE_MATRIX } from "@/lib/roles";
 import { EXPIRY, listGuestLinks } from "@/lib/guest";
@@ -6,7 +6,7 @@ import { PLANS, fmtLimit } from "@/lib/plans";
 import { canManageTeam, listTeam, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
 import { createGuestLinkAction, inviteAction, removeMemberAction, revokeGuestLinkAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
-import { PageHead } from "@/components/ui";
+import { OrgTabs } from "@/components/shell/OrgTabs";
 import { Avatar } from "@/components/Avatar";
 import { q } from "@/lib/db";
 import { ModalButton } from "@/components/ui/ModalButton";
@@ -19,9 +19,22 @@ export default async function Team() {
   const manage = canManageTeam(c.org.role);
   const lim = c.org.unlimited ? null : PLANS[c.org.plan].members;
   const roles = c.org.role === "owner" ? ["admin", "editor", "viewer"] : ["editor", "viewer"];
+  const inviteBtn = (
+          <ModalButton label="Добавить пользователя" title="Приглашение пользователя" className="btn-rect" icon={<Plus size={16} />}>
+          {manage ? (
+            <Form action={inviteAction} submit="Создать ссылку">
+              <Field label="Email (необязательно)"><input name="email" type="email" className="input" placeholder="colleague@company.ru" /></Field>
+              <Field label="Роль"><select name="role" className="input" defaultValue="editor">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_HINT[r]}</option>)}</select></Field>
+              <p className="text-xs text-ink3">Если указан email, ему уйдёт письмо со ссылкой (если почта на сервере настроена; ссылка всё равно покажется здесь). Принять приглашение сможет только его владелец.</p>
+            </Form>
+          ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
+          </ModalButton>
+  );
   return (
     <>
-      <PageHead title="Команда" sub={`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`} />
+      <OrgTabs action={inviteBtn} />
+      <h1 className="text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">Пользователи</h1>
+      <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">{`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`}</p>
       <div className="w-full max-w-[640px]">
         <section className="card">
           {members.map((m) => {
@@ -50,17 +63,6 @@ export default async function Team() {
             </div>
           ))}
         </section>
-        <div className="mt-5 flex justify-center">
-          <ModalButton label="Пригласить" title="Пригласить в команду">
-          {manage ? (
-            <Form action={inviteAction} submit="Создать ссылку">
-              <Field label="Email (необязательно)"><input name="email" type="email" className="input" placeholder="colleague@company.ru" /></Field>
-              <Field label="Роль"><select name="role" className="input" defaultValue="editor">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_HINT[r]}</option>)}</select></Field>
-              <p className="text-xs text-ink3">Если указан email, ему уйдёт письмо со ссылкой (если почта на сервере настроена; ссылка всё равно покажется здесь). Принять приглашение сможет только его владелец.</p>
-            </Form>
-          ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
-          </ModalButton>
-        </div>
         {manage && (
           <section className="mt-8">
             <h3 className="mb-1 text-base font-semibold">Гостевые ссылки</h3>
