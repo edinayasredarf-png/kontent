@@ -55,9 +55,9 @@ export function NotificationBell({ unread: u0 }: { unread: number }) {
   }, []);
   useEffect(() => {
     if (!open) return;
-    const off = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", off);
-    return () => document.removeEventListener("mousedown", off);
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
   }, [open]);
 
   const go = async (n: Notification) => {
@@ -70,7 +70,7 @@ export function NotificationBell({ unread: u0 }: { unread: number }) {
   const row = (n: Notification, compact = false) => {
     const I = ICON[n.kind] ?? { i: Bell, c: "text-accent" }; const Ic = I.i;
     return (
-      <button key={n.id} type="button" onClick={() => go(n)} className={`flex w-full items-start gap-3 text-left ${compact ? "" : "px-4 py-3 hover:bg-ink/[.06]/60"} ${!n.read_at && !compact ? "bg-accent-soft/40" : ""}`}>
+      <button key={n.id} type="button" onClick={() => go(n)} className={`flex w-full items-start gap-3 text-left ${compact ? "" : "px-6 py-4 hover:bg-ink/[.06] sm:px-8"} ${!n.read_at && !compact ? "bg-accent-soft/40" : ""}`}>
         <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-tile ${I.c}`}><Ic size={16} /></span>
         <span className="min-w-0 flex-1"><span className="block text-sm font-medium leading-5">{n.title}</span>{n.body && <span className="mt-0.5 line-clamp-2 block text-xs text-ink2">{n.body}</span>}<span className="mt-0.5 block text-[11px] text-ink3">{ago(n.created_at)}</span></span>
         {!n.read_at && !compact && <span className="mt-2 size-2 shrink-0 rounded-full bg-accent" />}
@@ -83,16 +83,20 @@ export function NotificationBell({ unread: u0 }: { unread: number }) {
         <Bell size={20} />{badge > 0 && <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white">{badge > 9 ? "9+" : badge}</span>}
       </button>
       {open && (
-        <div className="fixed inset-x-3 top-20 z-50 overflow-hidden rounded-2xl border border-line bg-surface shadow-float md:absolute md:inset-x-auto md:right-0 md:top-12 md:w-[380px]">
-          <div className="flex items-center gap-2 border-b border-line px-4 py-3"><b className="flex-1 text-sm">Уведомления</b>{unread > 0 && <button type="button" onClick={all} className="link-btn">Прочитать все</button>}</div>
-          <div className="max-h-[60vh] divide-y divide-line overflow-y-auto">
-            {items === null && <p className="px-4 py-8 text-center text-sm text-ink3">Загружаем…</p>}
-            {items?.length === 0 && <p className="px-4 py-8 text-center text-sm text-ink3">Пока тихо. Здесь появятся публикации, ошибки, новости по вашим словам и ответы поддержки.</p>}
-            {items?.map((n) => row(n))}
-          </div>
-          <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs">
-            <Link href="/app/notifications" onClick={() => setOpen(false)} className="link-btn">Все уведомления</Link>
-            <Link href="/app/overview" onClick={() => setOpen(false)} className="link-btn link-btn-quiet">Что требует внимания{alerts > 0 ? ` · ${alerts}` : ""}</Link>
+        <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Уведомления">
+          <button type="button" aria-label="Закрыть" onClick={() => setOpen(false)} className="absolute inset-0 cursor-default bg-[#0b1030]/30" />
+          <div style={{ boxShadow: "0 0 12px rgba(0,8,50,.16)" }} className="absolute right-0 top-0 flex h-full w-full max-w-[520px] animate-[drawer-in_.24s_ease-out] flex-col overflow-hidden bg-surface">
+            <div className="flex h-14 shrink-0 items-start justify-end px-4 pt-4"><button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="grid size-8 place-items-center rounded-xl text-ink2 hover:bg-ink/[.06] hover:text-ink"><X size={20} /></button></div>
+            <div className="flex shrink-0 items-center gap-3 px-6 pb-4 sm:px-8"><h2 className="flex-1 text-2xl font-medium leading-8 text-ink">Уведомления</h2>{unread > 0 && <button type="button" onClick={all} className="link-btn">Прочитать все</button>}</div>
+            <div className="min-h-0 flex-1 divide-y divide-line overflow-y-auto border-t border-line">
+              {items === null && <p className="px-6 py-8 text-center text-sm text-ink3">Загружаем…</p>}
+              {items?.length === 0 && <p className="px-6 py-8 text-center text-sm text-ink3">Пока тихо. Здесь появятся публикации, ошибки, новости по вашим словам и ответы поддержки.</p>}
+              {items?.map((n) => row(n))}
+            </div>
+            <div className="flex shrink-0 items-center justify-between border-t border-line px-6 py-3.5 text-sm sm:px-8">
+              <Link href="/app/notifications" onClick={() => setOpen(false)} className="link-btn">Все уведомления</Link>
+              <Link href="/app/overview" onClick={() => setOpen(false)} className="link-btn link-btn-quiet">Что требует внимания{alerts > 0 ? ` · ${alerts}` : ""}</Link>
+            </div>
           </div>
         </div>
       )}
