@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Radar, ArrowUp } from "lucide-react";
+import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Info } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
@@ -15,6 +15,7 @@ import { AiPanel } from "@/components/AiPanel";
 import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
+import { ModalButton } from "@/components/ui/ModalButton";
 import { AskBox } from "@/components/monitor/AskBox";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
@@ -83,9 +84,11 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
       {f.id && <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm"><span>Показан один пост из сводки трендов</span><Link href="/app/monitor" className="link-btn">Показать всю ленту</Link></div>}
 
       {noSources ? (<>
-        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <Link href="/app/monitor/settings" className="btn-rect mb-1">Добавить источник</Link>}</div>
-        <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
-          action={write ? <Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link> : undefined} />
+        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <ModalButton label="Добавить источник" title="Источники и ключевые слова" className="btn-rect mb-1" icon={null}><SettingsBody /></ModalButton>}</div>
+        <div className="w-full max-w-[956px] rounded-xl bg-tile px-6 py-5">
+          <p className="flex items-center gap-3 text-xl font-semibold"><Info size={22} className="shrink-0 text-ink2" />Источников пока нет</p>
+          <p className="mt-2 pl-[34px] text-base text-ink2">Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама.</p>
+        </div>
       </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
