@@ -20,10 +20,12 @@ export default async function Channels() {
     "select ch.id,ch.kind,ch.title,ch.signature,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
   return (
     <>
-      <PageHead title="Каналы" sub={manage ? "Куда публикуем. Канал принадлежит бренду." : "Куда публикуем. Подключают и удаляют каналы владелец и администратор."} />
+      <PageHead title="Каналы" sub={manage ? "Куда публикуем. Канал принадлежит бренду." : "Куда публикуем. Подключают и удаляют каналы владелец и администратор."}  action={manage ? <ModalButton className="btn-rect" label="Добавить канал" title="Добавить канал">
+            {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} maxBot={botConfigured() ? { link: botLink(), name: botUsername() } : undefined} />}
+          </ModalButton> : null} />
       <div className="w-full max-w-[600px]">
         <div>
-          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой ниже." /> : (
+          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой «Добавить канал»." /> : (
             <div className="card">{rows.map((r) => (
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
                 <div className="flex flex-wrap items-center gap-3">
@@ -44,11 +46,6 @@ export default async function Channels() {
               </div>))}
             </div>
           )}
-        </div>
-        <div className="mt-5 flex justify-center">
-          {manage && <ModalButton label="Добавить канал" title="Добавить канал">
-            {brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : <ChannelForm brands={brands} maxBot={botConfigured() ? { link: botLink(), name: botUsername() } : undefined} />}
-          </ModalButton>}
         </div>
       </div>
     </>

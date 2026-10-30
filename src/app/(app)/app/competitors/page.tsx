@@ -29,18 +29,15 @@ export default async function Competitors() {
   const platforms = groups.reduce((a, g) => a + g.platforms.length, 0);
   return (
     <>
-      <PageHead title="Конкуренты" sub="Следим за конкурентами на всех площадках: Telegram, VK и сайты. Что у них выходит, как часто и что заходит лучше всего." />
-      <div className="-mt-3 mb-6 flex w-full max-w-[680px] flex-wrap items-center justify-start gap-3">
-        {write && (
-          <ModalButton label="Добавить конкурента" title="Добавить конкурента" className="pill pill-on">
+      <PageHead title="Конкуренты" sub="Следим за конкурентами на всех площадках: Telegram, VK и сайты. Что у них выходит, как часто и что заходит лучше всего."  action={write ? <ModalButton label="Добавить конкурента" title="Добавить конкурента" className="btn-rect">
             <Form action={addCompetitorAction} submit="Добавить">
               <Field label="Название конкурента"><input name="name" maxLength={80} placeholder="Например: DATUM Group (если пусто — возьмём с площадки)" className="input" /></Field>
               <PlatformPicker label="Первая площадка" />
               {brands.length > 0 && <Field label="Для какого бренда"><select name="brand" className="input"><option value="">Для всех брендов</option>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>}
               <p className="text-xs text-ink3">Только открытые источники, максимум {MAX_COMPETITORS} конкурентов. Остальные площадки (соцсети, сайт) добавляются на странице конкурента.</p>
             </Form>
-          </ModalButton>
-        )}
+          </ModalButton> : null} />
+      <div className="-mt-3 mb-6 flex w-full max-w-[680px] flex-wrap items-center justify-start gap-3">
         {groups.length > 0 && <span className="text-sm text-ink2">Конкурентов: <b>{groups.length}</b> · подключено площадок: <b>{platforms}</b></span>}
       </div>
 
