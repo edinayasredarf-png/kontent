@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronRight, Plus, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
 import { requireCtx, canWrite } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { listAssets, LIMITS } from "@/lib/assets";
@@ -36,49 +36,36 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
       <OrgTabs action={canEdit ? <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link> : null} />
       <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{b.name}</h1>
       <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">Профиль и брендбук: по ним пишутся тексты и рисуются картинки.</p>
-      <Link href={`/app/brands/${id}/knowledge`} className="card mb-6 flex flex-wrap items-center justify-between gap-3 p-5 transition hover:border-accent/40"><span><span className="block text-sm font-semibold">База знаний бренда</span><span className="block text-xs text-ink2">Статьи, документы, сравнение с конкурентами: нейросеть разберёт их и будет писать в вашем стиле и по вашим фактам.</span></span><span className="btn btn-ghost">Открыть</span></Link>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="card p-6">
-          <Form action={saveBrand} submit="Сохранить">
-            <input type="hidden" name="id" value={id} /><input type="hidden" name="kit_present" value="1" />
-            <h2 className="text-sm font-semibold">Профиль</h2>
-            <Field label="Название"><input name="name" required defaultValue={b.name} className="input" /></Field>
-            <Field label="Чем занимается компания"><textarea name="description" rows={4} defaultValue={b.description} className="input" /></Field>
-            <Field label="Целевая аудитория"><textarea name="audience" rows={2} defaultValue={b.audience} className="input" /></Field>
-            <Field label="Тон общения"><select name="tone" defaultValue={b.tone} className="input">{Object.entries(TONES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-            <Field label="Что нельзя упоминать (через запятую)"><input name="forbidden" defaultValue={(b.rules.forbidden ?? []).join(", ")} className="input" /></Field>
-            <Field label="Конкуренты (не упоминать)"><input name="competitors" defaultValue={(b.rules.competitors ?? []).join(", ")} className="input" /></Field>
-
-            <h2 className="border-t border-line pt-5 text-sm font-semibold">Фирменные цвета</h2>
-            <p className="-mt-2 text-xs text-ink2">До 6 цветов: выберите пипеткой или впишите HEX-код (например #029CDA), образец покажется сразу. Модель рисует картинки в этой палитре, а карусели оформляются в этих цветах.</p>
+      <div className="max-w-[780px]">
+        <Form action={saveBrand} submit="Сохранить" className="space-y-0">
+          <input type="hidden" name="id" value={id} /><input type="hidden" name="kit_present" value="1" />
+          <Row label="Название"><input name="name" required defaultValue={b.name} className="input" /></Row>
+          <Row label="Чем занимается компания"><input name="description" defaultValue={b.description} className="input" placeholder="Например, продаёт кофе" /></Row>
+          <Row label="Целевая аудитория"><input name="audience" defaultValue={b.audience} className="input" placeholder="Например, все, кто любит кофе" /></Row>
+          <Row label="Тон общения"><select name="tone" defaultValue={b.tone} className="input">{Object.entries(TONES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Row>
+          <Row label="Что нельзя упоминать (через запятую)"><input name="forbidden" defaultValue={(b.rules.forbidden ?? []).join(", ")} className="input" placeholder="Например, это лучший кофе, дешёвый кофе" /></Row>
+          <Row label="Конкуренты (не упоминать)"><input name="competitors" defaultValue={(b.rules.competitors ?? []).join(", ")} className="input" /></Row>
+          <Acc title="Фирменные цвета">
+            <p className="mb-3 text-xs text-ink2">До 6 цветов: выберите пипеткой или впишите HEX-код (например #029CDA). Модель рисует картинки в этой палитре, а карусели оформляются в этих цветах.</p>
             <ColorSlots initial={kit.colors ?? []} />
-
-            <h2 className="border-t border-line pt-5 text-sm font-semibold">Шрифты</h2>
-            <p className="-mt-2 text-xs text-ink2">Шрифт слайдов каруселей и инфографики. Выберите из списка (все с кириллицей) или подключите любой шрифт из Google Fonts.</p>
+          </Acc>
+          <Acc title="Шрифты">
+            <p className="mb-3 text-xs text-ink2">Шрифт слайдов каруселей и инфографики. Выберите из списка (все с кириллицей) или подключите любой шрифт из Google Fonts.</p>
             <FontPicker initial={kit.font ?? ""} />
-            <Field label="Заметка о шрифтах для команды (необязательно)"><input name="fonts" defaultValue={kit.fonts} className="input" placeholder="Заголовки Montserrat, текст Inter" /></Field>
-
-            <h2 className="border-t border-line pt-5 text-sm font-semibold">Стиль изображений</h2>
-            <div className="flex flex-wrap gap-2">
-              <label className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="radio" name="style" value="" defaultChecked={!kit.style} className="hidden" />Не задан</label>
-              {Object.entries(STYLES).map(([k, v]) => (
-                <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="radio" name="style" value={k} defaultChecked={kit.style === k} className="hidden" />{v.label}</label>
-              ))}
-            </div>
-            <Field label="Свой стиль словами"><textarea name="styleNotes" rows={2} defaultValue={kit.styleNotes} className="input" placeholder="Тёплый свет, живые люди, городская среда, без стока" /></Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Всегда на картинках"><input name="imageMust" defaultValue={kit.imageMust} className="input" placeholder="например: современный город" /></Field>
-              <Field label="Никогда на картинках"><input name="imageNever" defaultValue={kit.imageNever} className="input" placeholder="например: люди в касках, текст" /></Field>
-              <Field label="Формат"><select name="aspect" defaultValue={kit.aspect} className="input">{Object.keys(SIZES).map((k) => <option key={k} value={k}>{ASPECT[k]}</option>)}</select></Field>
-            </div>
-          </Form>
-        </div>
-
-        <div className="space-y-6">
-          <ShareCard brandId={id} links={await listLinks(c.org.id, id)} canEdit={canEdit} wl={(await one<{ name: string; footer: string; hide: boolean }>("select wl_name as name, wl_footer as footer, wl_hide as hide from kz_orgs where id=$1", [c.org.id])) ?? { name: "", footer: "", hide: false }} />
-          <section className="card p-5">
-            <b className="text-sm">Логотип</b>
-            <p className="mb-3 mt-1 text-xs text-ink2">PNG с прозрачным фоном. Накладывается на готовую картинку, а не рисуется нейросетью — так буквы не искажаются.</p>
+            <div className="mt-3"><label className="label">Заметка о шрифтах для команды (необязательно)</label><input name="fonts" defaultValue={kit.fonts} className="input" placeholder="Заголовки Montserrat, текст Inter" /></div>
+          </Acc>
+          <Row label="Стиль изображений"><select name="style" defaultValue={kit.style ?? ""} className="input"><option value="">Не задан</option>{Object.entries(STYLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Row>
+          <Row label="Свой стиль словами"><input name="styleNotes" defaultValue={kit.styleNotes} className="input" placeholder="Тёплый свет, живые люди, городская среда, без стока" /></Row>
+          <Row label="Всегда на картинках"><input name="imageMust" defaultValue={kit.imageMust} className="input" placeholder="Например, светлые, чистые фотографии интерьеров кафе" /></Row>
+          <Row label="Никогда на картинках"><input name="imageNever" defaultValue={kit.imageNever} className="input" placeholder="Например, тёмные, грязные или перегруженные изображения" /></Row>
+          <Acc title="Форматы изображений">
+            <select name="aspect" defaultValue={kit.aspect} className="input">{Object.keys(SIZES).map((k) => <option key={k} value={k}>{ASPECT[k]}</option>)}</select>
+          </Acc>
+          <div className="pt-5"><span className="text-xs text-ink3">Логотип, фото и референсы загружаются ниже, они сохраняются сразу.</span></div>
+        </Form>
+        <div className="mt-2">
+          <Acc title="Логотип">
+            <p className="mb-3 text-xs text-ink2">PNG с прозрачным фоном. Накладывается на готовую картинку, а не рисуется нейросетью — так буквы не искажаются.</p>
             {logo && (
               <div className="mb-3 flex items-center gap-3">
                 <div className="grid size-20 place-items-center rounded-xl border border-line bg-[repeating-conic-gradient(#f1f2f4_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={`/api/assets/${logo.id}`} alt="Логотип" className="max-h-full max-w-full object-contain" /></div>
@@ -87,20 +74,34 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
             )}
             <AssetUploader brandId={id} kind="logo" label={logo ? "Заменить логотип" : "Загрузить логотип"} disabled={!canEdit} />
             {logo ? <LogoPlacement brandId={id} logoUrl={`/api/assets/${logo.id}`} aspect={kit.aspect ?? "square"} initial={{ pos: kit.logoPos ?? "br", scale: kit.logoScale ?? 14, margin: kit.logoMargin ?? 4 }} disabled={!canEdit} /> : <p className="mt-3 text-xs text-ink3">Загрузите логотип, и здесь можно будет выбрать, где и каким размером он накладывается.</p>}
-          </section>
+          </Acc>
           <Gallery title="Фото продукта" hint="Модель опишет товар и будет держать его внешний вид в картинках." items={products} brandId={id} kind="product" max={LIMITS.product} canEdit={canEdit} />
           <Gallery title="Референсы стиля" hint="Примеры картинок, на которые нужно быть похожими. Из них берётся палитра, свет, композиция." items={refs} brandId={id} kind="reference" max={LIMITS.reference} canEdit={canEdit} />
+        </div>
+        <div className="mt-10">
+          <ShareCard brandId={id} links={await listLinks(c.org.id, id)} canEdit={canEdit} wl={(await one<{ name: string; footer: string; hide: boolean }>("select wl_name as name, wl_footer as footer, wl_hide as hide from kz_orgs where id=$1", [c.org.id])) ?? { name: "", footer: "", hide: false }} />
         </div>
       </div>
     </>
   );
 }
 
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="border-b border-line py-4"><label className="label">{label}</label>{children}</div>;
+}
+function Acc({ title, children, count }: { title: string; children: React.ReactNode; count?: string }) {
+  return (
+    <details className="group border-b border-line">
+      <summary className="flex h-14 cursor-pointer list-none items-center justify-between text-base font-medium [&::-webkit-details-marker]:hidden"><span>{title}{count && <span className="ml-2 text-xs font-normal text-ink3">{count}</span>}</span><ChevronRight size={20} className="text-ink2 transition-transform group-open:rotate-90" /></summary>
+      <div className="pb-5">{children}</div>
+    </details>
+  );
+}
+
 function Gallery({ title, hint, items, brandId, kind, max, canEdit }: { title: string; hint: string; items: { id: string; name: string; note: string }[]; brandId: string; kind: "product" | "reference"; max: number; canEdit: boolean }) {
   return (
-    <section className="card p-5">
-      <b className="text-sm">{title}</b> <span className="text-xs text-ink3">{items.length}/{max}</span>
-      <p className="mb-3 mt-1 text-xs text-ink2">{hint}</p>
+    <Acc title={title} count={`${items.length}/${max}`}>
+      <p className="mb-3 text-xs text-ink2">{hint}</p>
       {items.length > 0 && (
         <div className="mb-3 grid grid-cols-3 gap-2">
           {items.map((a) => (
@@ -119,6 +120,6 @@ function Gallery({ title, hint, items, brandId, kind, max, canEdit }: { title: s
         </div>
       )}
       <AssetUploader brandId={brandId} kind={kind} label="Загрузить" multiple disabled={!canEdit || items.length >= max} />
-    </section>
+    </Acc>
   );
 }
