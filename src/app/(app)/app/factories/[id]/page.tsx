@@ -120,9 +120,9 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
     <>
       <FactoryTabMemory tab={tab} />
       <OrgTabs action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link> : null} />
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-8 flex max-w-[749px] flex-wrap items-center gap-3">
         <FactoryRename id={id} name={f.name} />
-        <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
+        <form action={toggleFactory}>{hid}<SubmitButton className="pill !bg-tile !text-ink">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
       {tab !== "settings" && <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} /></div>}
@@ -152,7 +152,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       )}
 
       {tab === "settings" && (
-        <div className="mb-6 w-full max-w-[680px]">
+        <div className="mb-6 w-full max-w-[749px]">
           <SettingsList stamp={stamp}
             items={[
               { label: "Каналы публикации", value: chans.filter((x) => x.on).map((x) => x.title).join(", ") || "не выбраны", modal: "publish" },

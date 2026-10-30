@@ -261,5 +261,5 @@ select.input:not([multiple]) { appearance: none; -webkit-appearance: none; paddi
 @media (prefers-reduced-motion: reduce) { .ai-orb *, .ai-orb { animation: none !important; } }
 
 /* главная кнопка-действие над страницей: прямоугольная, со скруглением 8px, как в макете */
-.btn-rect{display:inline-flex;height:2.25rem;align-items:center;gap:.375rem;border-radius:.5rem;background:var(--accent);padding:0 .875rem;font-size:1rem;font-weight:500;color:#fff;transition:opacity .15s}
+.btn-rect{display:inline-flex;height:2.25rem;align-items:center;gap:.375rem;border-radius:.75rem;background:var(--accent);padding:0 .875rem;font-size:1rem;font-weight:500;color:#fff;transition:opacity .15s}
 .btn-rect:hover{opacity:.9}

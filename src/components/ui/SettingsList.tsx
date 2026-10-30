@@ -17,13 +17,13 @@ export function SettingsList({ items, modals, stamp }: { items: SettingItem[]; m
   const m = open ? modals[open] : null;
   return (
     <>
-      <div className="divide-y divide-line rounded-[28px] bg-surface px-5 shadow-float outline outline-1 -outline-offset-1 outline-line">
+      <div className="max-w-[749px] divide-y divide-[var(--tile)]">
         {items.map((it) => it.control ? (
-          <div key={it.label} className="flex w-full items-center justify-between gap-4 py-4"><span className="text-[15px] font-medium">{it.label}</span>{it.control}</div>
+          <div key={it.label} className="flex w-full items-center justify-between gap-4 py-4"><span className="text-base font-medium">{it.label}</span>{it.control}</div>
         ) : (
           <button key={it.label} type="button" onClick={() => { sent.current = false; setOpen(it.modal); }} className="flex w-full items-center justify-between gap-4 py-4 text-left transition hover:opacity-80">
-            <span className="text-[15px] font-medium">{it.label}</span>
-            <span className="inline-flex max-w-[55%] items-center gap-2 rounded-full bg-accent-soft px-4 py-1.5 text-sm"><span className="truncate">{it.value}</span><ChevronDown size={15} className="shrink-0 text-ink2" /></span>
+            <span className="text-base font-medium">{it.label}</span>
+            <span className="inline-flex max-w-[55%] items-center gap-2 rounded-full bg-tile px-4 py-1.5 text-sm"><span className="truncate">{it.value}</span><ChevronDown size={14} className="shrink-0 text-ink2" /></span>
           </button>
         ))}
       </div>
