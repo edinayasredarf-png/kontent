@@ -43,7 +43,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
         { name: "channel", label: "Канал", all: "Все каналы", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
         { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
       ]} />
-      <p className="-mt-2 mb-5 text-center text-xs text-ink3">Период: {rangeLabel(rg)}</p>
+      <p className="-mt-2 mb-5 text-xs text-ink3">Период: {rangeLabel(rg)}</p>
       <ExternalPosts orgId={c.org.id} write={canWrite(c.org.role)} from={bounds(rg).from} to={bounds(rg).to} brand={brand} brands={brands} />
       {posts === 0 ? (
         <Empty icon={<BarChart3 />} title={filtered || rg.r !== "all" ? "За выбранный период данных нет" : "Пока нет данных"} text={filtered || rg.r !== "all" ? "Попробуйте другой период или уберите фильтры." : "Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)."} />

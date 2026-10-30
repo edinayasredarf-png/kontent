@@ -29,7 +29,7 @@ export default async function Developers() {
   return (
     <>
       <PageHead title="Интеграции и API" sub="Подключайте Контент-завод к n8n, Make, Zapier и своим скриптам." />
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="w-full max-w-[760px]">
         <div className="space-y-6">
           <section className="card p-5">
             <b className="text-sm">Ключи доступа</b>

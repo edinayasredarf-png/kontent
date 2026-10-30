@@ -119,17 +119,17 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
     <>
       <FactoryTabMemory tab={tab} />
       <PageHead title={f.name} sub={`${f.brand}${f.niche ? " · " + f.niche : ""}`} />
-      <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+      <div className="-mt-3 mb-6 flex flex-wrap items-center justify-start gap-2">
         <FactoryTabs factoryId={id} tab={tab} />
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
-      {note && !draftIds.length && <div className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
-      {err && !draftIds.length && <div className="mx-auto mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
+      {note && !draftIds.length && <div className="mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
+      {err && !draftIds.length && <div className="mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
 
       {tab === "create" && draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={`/app/factories/${id}?tab=create`} err={err} note={note} free={c.org.unlimited} />}
       {tab === "create" && drafts.length > 0 && (
-        <div className="mx-auto mb-6 w-full max-w-[680px] space-y-2 rounded-[28px] bg-tile p-3">
+        <div className="mb-6 w-full max-w-[680px] space-y-2 rounded-[28px] bg-tile p-3">
           <b className="px-2 text-sm">Черновики ({drafts.length})</b>
           {drafts.map((d) => (
             <Link key={d.id} href={`/app/factories/${id}?tab=create&draft=${d.id}`} className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 text-sm transition hover:opacity-80">
@@ -139,7 +139,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         </div>
       )}
       {tab === "create" && (
-        <div className="mx-auto mb-6 w-full max-w-[680px] rounded-[28px] bg-surface p-2.5 shadow-float outline outline-1 -outline-offset-1 outline-line">
+        <div className="mb-6 w-full max-w-[680px] rounded-[28px] bg-tile p-2.5">
           <div className="mb-3 flex items-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-sm font-semibold"><Sparkles size={16} />Создать материал</div>
           <div className="px-2 pb-2">
             <CreateMaterialForm factoryId={id} kinds={[...KINDS]} labels={KIND} defaultKind={sched?.formats?.[0] ?? "post"} createAction={createMaterialsAction} repurposeAction={repurposeAction} editPrice={c.org.unlimited ? "" : rub(PRICES.edit)}
@@ -150,7 +150,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       )}
 
       {tab === "settings" && (
-        <div className="mx-auto mb-6 w-full max-w-[680px]">
+        <div className="mb-6 w-full max-w-[680px]">
           <SettingsList stamp={stamp}
             items={[
               { label: "Каналы публикации", value: chans.filter((x) => x.on).map((x) => x.title).join(", ") || "не выбраны", modal: "publish" },
@@ -213,7 +213,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
 
       {tab === "plan" && itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={href({})} err={err} note={note} canWrite={canWrite(c.org.role)} />}
       {tab === "plan" && (
-        <div className={view === "calendar" ? "" : "mx-auto w-full max-w-[680px]"}>
+        <div className={view === "calendar" ? "" : "w-full max-w-[680px]"}>
           {(runway === null || runway < 3) && (
             <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
               <AlertTriangle size={16} />{runway === null ? "В плане нет идей вперёд." : `План заканчивается через ${Math.max(runway, 0)} дн.`} Продлите его кнопкой «Продлить план».

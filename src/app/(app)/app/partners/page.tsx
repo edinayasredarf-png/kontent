@@ -12,7 +12,7 @@ export default async function Partners() {
   const host = process.env.APP_URL?.trim().replace(/\/+$/, "") || `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   const link = `${host}/r/${code}`;
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full max-w-3xl">
       <PageHead title="Партнёрская программа" sub="Приглашайте компании и получайте вознаграждение с их оплат." />
       <section className="card mb-6 p-6">
         <b className="mb-2 block text-sm">Ваша ссылка</b>

@@ -36,14 +36,14 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
     <>
       <Link href="/app/analytics" className="mb-1 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Аналитика</Link>
       <PageHead title={`Пост ${XKIND_NAME[p.kind]}`} sub={`${p.author ? `${p.author} · ` : ""}${posted ? `опубликован ${posted.toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" })}` : "дата публикации неизвестна"}${p.brand ? ` · ${p.brand}` : ""}`} />
-      <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+      <div className="-mt-3 mb-6 flex flex-wrap items-center justify-start gap-2">
         <a href={p.url} target="_blank" rel="noreferrer noopener" className="pill"><ExternalLink size={15} />Открыть пост</a>
         {write && <>
           <form action={refreshExternalAction}><input type="hidden" name="id" value={id} /><SubmitButton className="pill"><RefreshCw size={15} />Обновить сейчас</SubmitButton></form>
           <form action={deleteExternalAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Убрать пост из аналитики вместе с накопленной статистикой?" className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Убрать" aria-label="Убрать"><Trash2 size={15} /></SubmitButton></form>
         </>}
       </div>
-      <div className="mx-auto w-full max-w-[680px] space-y-5">
+      <div className="w-full max-w-[680px] space-y-5">
         {p.last_error && <p className="rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">Последнее обновление не удалось: {p.last_error}. Показаны прежние данные.</p>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{cards.map(([l, v]) => <div key={l} className="rounded-2xl bg-tile p-4"><div className="mb-1 text-xs text-ink2">{l}</div><div className="text-2xl font-semibold">{v}</div></div>)}</div>
         {Object.keys(extra).length > 0 && (

@@ -46,7 +46,7 @@ export default async function Help({ searchParams }: { searchParams: Promise<{ f
             <p className="text-xs text-ink3">Ответ придёт в этот раздел и в колокольчик{from ? `; мы увидим, с какой страницы вы пишете (${from})` : ""}. Пароли и токены в обращение не вставляйте.</p>
           </Form>
         </ModalButton>} />
-      <div className="mx-auto w-full max-w-[760px] space-y-8">
+      <div className="w-full max-w-[760px] space-y-8">
         <section>
           <h3 className="mb-3 text-base font-semibold">Мои обращения</h3>
           <div className="card">

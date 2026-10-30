@@ -57,7 +57,7 @@ export default async function Publications({ searchParams }: { searchParams: Pro
         { name: "status", label: "Статус", all: "Все статусы", value: status, options: STATUSES.map((k) => ({ value: k, label: STATUS[k].label })) },
       ]} />
       {rows.length === 0 ? <Empty icon={<Send />} title={filtered ? "По этим фильтрам ничего нет" : "Публикаций пока нет"} text={filtered ? "Измените период или сбросьте фильтры." : "Материалы появятся здесь, когда завод напишет первый текст."} /> : (
-        <div className="mx-auto w-full max-w-[600px] space-y-3">
+        <div className="w-full max-w-[600px] space-y-3">
           {rows.map((r) => (
             <Link key={r.id} href={href({ item: r.id, ...(n ? { n: String(lim) } : {}) })} scroll={false} className="block transition hover:opacity-90">
               <PostCard icon={<RoundIcon><Send size={16} /></RoundIcon>} title={r.brand} sub={KIND[r.kind]}

@@ -22,7 +22,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   if (t.user_id === c.user.id) await markTicketRead(id, "client");
   const msgs = await messagesOf(id);
   return (
-    <div className="mx-auto w-full max-w-[760px]">
+    <div className="w-full max-w-[760px]">
       <Link href="/app/help" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Помощь</Link>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="min-w-0 flex-1 text-2xl font-semibold">{t.subject}</h2>

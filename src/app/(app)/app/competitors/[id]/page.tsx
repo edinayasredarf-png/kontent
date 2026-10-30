@@ -46,7 +46,7 @@ export default async function Competitor({ params, searchParams }: { params: Pro
       <Link href="/app/competitors" className="mb-1 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все конкуренты</Link>
       <PageHead title={g.name} sub={`Площадок: ${platforms.length}. Данные обновляются дважды в сутки.`} />
       {write && (
-        <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+        <div className="-mt-3 mb-6 flex flex-wrap items-center justify-start gap-2">
           {platforms.length < MAX_PLATFORMS && (
             <ModalButton label="Добавить площадку" title="Добавить площадку конкурента" className="pill pill-on">
               <Form action={addPlatformAction} submit="Добавить">
@@ -61,7 +61,7 @@ export default async function Competitor({ params, searchParams }: { params: Pro
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-[680px] space-y-6">
+      <div className="w-full max-w-[680px] space-y-6">
         <section>
           <h2 className="mb-3 text-sm font-semibold">Площадки</h2>
           <div className="space-y-3">

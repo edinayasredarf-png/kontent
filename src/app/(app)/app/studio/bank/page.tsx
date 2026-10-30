@@ -21,7 +21,7 @@ export default async function Bank({ searchParams }: { searchParams: Promise<{ e
       <Link href="/app/studio" className="mb-3 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Студия</Link>
       <PageHead title="Банк идей" sub="Заготовки и идеи про запас. Любую можно отправить в контент-план завода." />
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
-      <div className="mx-auto w-full max-w-[600px]">
+      <div className="w-full max-w-[600px]">
         <div className="space-y-3">
           {rows.length === 0 && <Empty icon={<Bookmark />} title="Банк пуст" text="Сохраняйте сюда результаты студии кнопкой «В банк идей» или добавляйте идеи вручную." />}
           {rows.map((r) => (

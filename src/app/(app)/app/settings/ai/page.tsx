@@ -22,7 +22,7 @@ export default async function Settings() {
   const examples = examplesToText(await listExamples().catch(() => []));
   const fields = [{ key: "default", label: "Модель по умолчанию", hint: "Для всех задач ниже, где не выбрана своя" }, ...AI_TASKS];
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full max-w-3xl">
       <PageHead title="Настройки ИИ" sub="Какая нейросеть AI Gateway Timeweb какую задачу выполняет. Действует для всех организаций платформы." />
       <div className={`mb-6 rounded-xl px-4 py-3 text-sm ${err ? "bg-bad-soft text-bad" : "bg-good-soft text-good"}`}>
         <div className="flex items-center gap-2">{err ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{err ? "Каталог моделей недоступен" : `Шлюз подключён. Каталог: ${models.length} моделей — начните печатать, появятся подсказки.`}</div>

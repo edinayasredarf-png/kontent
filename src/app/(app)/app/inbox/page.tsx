@@ -47,7 +47,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
       {hasTg && <p className="mb-4 rounded-xl bg-tile px-4 py-3 text-xs text-ink2">VK: комментарии собираются и на них можно отвечать отсюда. Telegram: Bot API не отдаёт комментарии каналов, поэтому здесь они не появятся — читайте их в группе обсуждения канала.</p>}
       {rows.length === 0 ? <Empty icon={<InboxIcon />} title={st === "new" ? "Новых комментариев нет" : "Здесь пусто"} text="Комментарии к постам VK подтянутся в течение часа после появления." /> : (
-        <div className="mx-auto w-full max-w-[600px] space-y-3">{rows.map((r) => (
+        <div className="w-full max-w-[600px] space-y-3">{rows.map((r) => (
           <PostCard key={r.id}
             icon={<RoundIcon>{(r.author || "?").trim().charAt(0).toUpperCase()}</RoundIcon>}
             title={<>{r.author}{r.tone && r.tone !== "neutral" && <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_CLS[r.tone]}`}>{TONE_LABEL[r.tone]}</span>}</>}

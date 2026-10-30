@@ -40,7 +40,7 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
     <>
       <Link href="/app/flows" className="mb-1 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Все потоки</Link>
       <PageHead title={flow.name} sub={`${flow.brand} · ${st.mode === "auto" ? "публикует автоматически" : "каждая новость ждёт вашего одобрения"}`} />
-      <div className="mx-auto -mt-3 mb-6 flex flex-wrap items-center justify-center gap-2">
+      <div className="-mt-3 mb-6 flex flex-wrap items-center justify-start gap-2">
         <nav className="inline-flex max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar">{TABS.map(([k, l]) => (
           <Link key={k} href={`/app/flows/${id}?t=${k}`} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>{l}{counts[k] ? <span className="text-xs font-normal text-ink3">{counts[k]}</span> : null}</Link>
         ))}</nav>
@@ -49,10 +49,10 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
           <form action={deleteFlowAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Удалить поток? Очередь, отбракованные и история отбора будут удалены. Это действие нельзя отменить." className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить поток" aria-label="Удалить поток"><Trash2 size={15} /></SubmitButton></form>
         </>}
       </div>
-      {sp.err && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
-      {sp.note && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
-      {flow.note && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">{flow.note}</p>}
-      {flow.status !== "active" && <p className="mx-auto mb-4 max-w-[680px] rounded-2xl bg-tile px-4 py-3 text-sm text-ink2">Поток на паузе: новости не обрабатываются. Проверьте настройки и нажмите «Включить».</p>}
+      {sp.err && <p className="mb-4 max-w-[680px] rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
+      {sp.note && <p className="mb-4 max-w-[680px] rounded-2xl bg-good-soft px-4 py-3 text-sm text-good">{sp.note}</p>}
+      {flow.note && <p className="mb-4 max-w-[680px] rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">{flow.note}</p>}
+      {flow.status !== "active" && <p className="mb-4 max-w-[680px] rounded-2xl bg-tile px-4 py-3 text-sm text-ink2">Поток на паузе: новости не обрабатываются. Проверьте настройки и нажмите «Включить».</p>}
       {tab === "pending" && <Pending flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
       {tab === "queued" && <Published flowId={id} lim={lim} />}
       {tab === "rejected" && <Rejected flowId={id} write={write} hid={hid} unlimited={c.org.unlimited} lim={lim} />}
@@ -64,11 +64,11 @@ export default async function FlowPage({ params, searchParams }: { params: Promi
 
 type Hid = (item: string) => React.ReactNode;
 
-const COL = "mx-auto w-full max-w-[680px]";
+const COL = "w-full max-w-[680px]";
 const SRC = "s.kind,s.title source,s.ref,s.config";
 type Src = { kind: Kind; source: string; ref: string; config: Record<string, unknown> | null };
 const srcOf = (r: Src): NewsSource => ({ kind: r.kind, title: r.source, ref: r.ref, config: r.config });
-const Empty = ({ t }: { t: string }) => <p className="card mx-auto max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
+const Empty = ({ t }: { t: string }) => <p className="card max-w-[600px] px-6 py-12 text-center text-sm text-ink2">{t}</p>;
 
 async function Pending({ flowId, write, hid, unlimited, lim }: { flowId: string; write: boolean; hid: Hid; unlimited: boolean; lim: number }) {
   const rows = await q<Src & { id: string; text: string; status: string; created_at: string; title: string; body: string; url: string; cls: { type?: string; topic?: string; scope?: string; fit?: number; imageId?: string } | null }>(
@@ -245,5 +245,5 @@ async function Settings({ flowId, name, st, sourceIds, channelIds, orgId, write 
 }
 
 function Sec({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="card mx-auto w-full max-w-[680px] space-y-4 p-5"><h2 className="text-base font-semibold">{title}</h2>{children}</section>;
+  return <section className="card w-full max-w-[680px] space-y-4 p-5"><h2 className="text-base font-semibold">{title}</h2>{children}</section>;
 }

@@ -11,7 +11,7 @@ export const PageHead = ({ title, sub, action }: { title: string; sub?: string; 
 );
 
 export const Empty = ({ icon, title, text, action }: { icon: React.ReactNode; title: string; text: string; action?: React.ReactNode }) => (
-  <div className="card mx-auto flex w-full max-w-[560px] flex-col items-center px-6 py-12 text-center">
+  <div className="card flex w-full max-w-[560px] flex-col items-center px-6 py-12 text-center">
     <div className="mb-3 grid size-12 place-items-center rounded-2xl bg-tile text-ink3">{icon}</div>
     <b>{title}</b><p className="mb-4 mt-1 max-w-sm text-sm text-ink2">{text}</p>{action}
   </div>

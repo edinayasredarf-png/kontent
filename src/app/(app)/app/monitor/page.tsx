@@ -64,9 +64,10 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const write = c.org.role !== "viewer";
 
   return (
-    <div className="mx-auto w-full max-w-[600px]">
-      <h1 className="mb-6 text-center text-3xl font-semibold leading-9 md:text-4xl">Мониторинг новостей</h1>
-      <nav className="mx-auto -mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
+    <div className="w-full">
+      <h1 className="mb-6 text-[28px] font-semibold leading-8 md:text-4xl">Мониторинг новостей</h1>
+      <div className="w-full max-w-[600px]">
+      <nav className="-mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
         <Link href={href({ show: "new", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${!inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>Лента</Link>
         <Link href={href({ show: "saved", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}><Heart size={14} className={liked ? "text-bad" : ""} fill={liked ? "currentColor" : "none"} />Понравившееся{liked ? <span className="text-xs font-normal text-ink3">{liked}</span> : null}</Link>
       </nav>
@@ -190,6 +191,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           </div>
         </form>
       </FeedToolbar>)}
+      </div>
     </div>
   );
 }

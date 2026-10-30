@@ -22,7 +22,7 @@ export default async function Team() {
   return (
     <>
       <PageHead title="Команда" sub={`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`} />
-      <div className="mx-auto w-full max-w-[640px]">
+      <div className="w-full max-w-[640px]">
         <section className="card">
           {members.map((m) => {
             const editable = manage && m.role !== "owner" && (m.role !== "admin" || c.org.role === "owner") && m.user_id !== c.user.id;

@@ -10,7 +10,7 @@ const PRESETS = Object.entries(NICHES).map(([key, n]) => ({ key, name: n.name, v
 export default async function NewBrand() {
   await pageCtx("write");
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full max-w-3xl">
       <PageHead title="Новый бренд" sub="Чем точнее профиль, тем меньше правок после генерации." />
       <div className="card p-6">
         <Form action={saveBrand} submit="Сохранить бренд">

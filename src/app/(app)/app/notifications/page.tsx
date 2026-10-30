@@ -18,7 +18,7 @@ export default async function Notifications() {
   return (
     <>
       <PageHead title="Уведомления" sub="Публикации, ошибки, новости по вашим ключевым словам, ответы поддержки, баланс." action={unread ? <form action={markAllNotificationsAction}><SubmitButton className="btn btn-ghost">Прочитать все ({unread})</SubmitButton></form> : undefined} />
-      <div className="mx-auto w-full max-w-[720px]">
+      <div className="w-full max-w-[720px]">
         <div className="card">
           {items.length === 0 && <p className="px-5 py-6 text-sm text-ink3">Пока уведомлений нет.</p>}
           {items.map((n) => {

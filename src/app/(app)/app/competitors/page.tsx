@@ -30,7 +30,7 @@ export default async function Competitors() {
   return (
     <>
       <PageHead title="Конкуренты" sub="Следим за конкурентами на всех площадках: Telegram, VK и сайты. Что у них выходит, как часто и что заходит лучше всего." />
-      <div className="mx-auto -mt-3 mb-6 flex w-full max-w-[680px] flex-wrap items-center justify-center gap-3">
+      <div className="-mt-3 mb-6 flex w-full max-w-[680px] flex-wrap items-center justify-start gap-3">
         {write && (
           <ModalButton label="Добавить конкурента" title="Добавить конкурента" className="pill pill-on">
             <Form action={addCompetitorAction} submit="Добавить">
@@ -44,7 +44,7 @@ export default async function Competitors() {
         {groups.length > 0 && <span className="text-sm text-ink2">Конкурентов: <b>{groups.length}</b> · подключено площадок: <b>{platforms}</b></span>}
       </div>
 
-      <div className="mx-auto w-full max-w-[680px] space-y-5">
+      <div className="w-full max-w-[680px] space-y-5">
         {groups.length === 0 ? <Empty icon={<Crosshair />} title="Конкурентов пока нет" text="Нажмите «Добавить конкурента»: укажите название и первую площадку (канал Telegram, сообщество VK или сайт). Остальные площадки добавите на его странице." /> : (<>
           <div className="space-y-4">
             {groups.map((g) => (

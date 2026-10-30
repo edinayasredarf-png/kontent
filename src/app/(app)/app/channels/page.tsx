@@ -21,7 +21,7 @@ export default async function Channels() {
   return (
     <>
       <PageHead title="Каналы" sub={manage ? "Куда публикуем. Канал принадлежит бренду." : "Куда публикуем. Подключают и удаляют каналы владелец и администратор."} />
-      <div className="mx-auto w-full max-w-[600px]">
+      <div className="w-full max-w-[600px]">
         <div>
           {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой ниже." /> : (
             <div className="card">{rows.map((r) => (

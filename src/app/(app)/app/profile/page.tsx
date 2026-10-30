@@ -15,7 +15,7 @@ export default async function Profile() {
   if (c.user.guest) redirect("/app/overview");
   const av = await one<{ source: string }>("select source from kz_user_avatars where user_id=$1", [c.user.id]).catch(() => null);
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full max-w-3xl">
       <PageHead title="Профиль и настройки" sub={c.user.email} />
       <div className="grid gap-6">
         <section className="card p-6">

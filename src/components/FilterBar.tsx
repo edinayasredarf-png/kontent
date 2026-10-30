@@ -29,7 +29,7 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
   const chip = (on: boolean) => `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${on ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`;
   const sel = "input !w-auto !py-2 text-sm";
   return (
-    <div className="mx-auto mb-5 w-full max-w-[680px] space-y-3">
+    <div className="mb-5 w-full max-w-[680px] space-y-3">
       <div className="flex flex-wrap items-center justify-center gap-2">
         <nav className="inline-flex max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Период">
           {presets.map(([k, l]) => <button key={k} type="button" aria-pressed={s.r === k} onClick={() => { setOpenCal(false); go({ ...s, r: k }); }} className={chip(s.r === k)}>{l}</button>)}

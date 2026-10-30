@@ -30,13 +30,13 @@ export default async function Flows({ searchParams }: { searchParams: Promise<{ 
     <>
       <PageHead title="Автолента" sub="Новости из источников сами отбираются, пересказываются в вашем стиле и публикуются в ваши каналы." />
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad">{err}</p>}
-      <div className="mx-auto w-full max-w-[560px]">
-        <div className="space-y-3">
+      <div className="w-full">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {flows.length === 0 && <Empty icon={<Rss />} title="Потоков пока нет" text="Создайте поток: выберите источники из «Мониторинга» и каналы, куда публиковать. По умолчанию каждая новость сначала ждёт вашего одобрения." />}
           {flows.map((f) => (
-            <Link key={f.id} href={`/app/flows/${f.id}`} className="card block p-5 text-center transition hover:bg-tile/50">
-              <b className="block text-sm">{f.name}</b>
-              <div className="mt-1 flex flex-wrap items-center justify-center gap-2"><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span>
+            <Link key={f.id} href={`/app/flows/${f.id}`} className="block rounded-3xl bg-tile p-6 transition hover:bg-tile2">
+              <b className="block text-lg font-semibold">{f.name}</b>
+              <div className="mt-1 flex flex-wrap items-center gap-2"><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span>
                 <span className="chip">{f.mode === "auto" ? "автоматом" : "с одобрением"}</span><span className="chip">{f.brand}</span>
               </div>
               <p className="mt-3 text-xs text-ink2">Ждут: <b>{f.pending}</b> · в очереди и опубликовано: <b>{f.queued}</b> · отбраковано: <b>{f.rejected}</b></p>
@@ -44,7 +44,7 @@ export default async function Flows({ searchParams }: { searchParams: Promise<{ 
             </Link>
           ))}
         </div>
-        <div className="mt-5 flex justify-center">
+        <div className="mt-5 flex">
           <ModalButton label="Добавить поток" title="Новый поток" className="pill">
           {!write ? <p className="text-sm text-ink2">Создавать потоки могут редакторы и выше.</p> : brands.length === 0 ? <p className="text-sm text-ink2">Сначала создайте бренд.</p> : (
             <form action={createFlowAction} className="space-y-3">
