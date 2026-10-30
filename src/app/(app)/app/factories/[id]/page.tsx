@@ -48,6 +48,8 @@ import { updateSeoMetaAction } from "@/lib/actions";
 // генерация идёт в server action этой страницы — нужен длинный лимит функции
 export const maxDuration = 300;
 import { Status, KIND, STATUS } from "@/components/ui";
+import { FactoryRename } from "@/components/FactoryRename";
+import { FactoryImagesToggle } from "@/components/FactoryImagesToggle";
 import { OrgTabs } from "@/components/shell/OrgTabs";
 
 import { SubmitButton } from "@/components/SubmitButton";
@@ -119,7 +121,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <FactoryTabMemory tab={tab} />
       <OrgTabs action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link> : null} />
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{f.name}</h1>
+        <FactoryRename id={id} name={f.name} />
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
@@ -155,7 +157,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
             items={[
               { label: "Каналы публикации", value: chans.filter((x) => x.on).map((x) => x.title).join(", ") || "не выбраны", modal: "publish" },
               { label: "Автопубликация по расписанию", value: set?.autopublish ? "Включена" : "Выключена", modal: "publish" },
-              { label: "Картинки к материалам", value: set?.images ? "Да" : "Нет", modal: "publish" },
+              { label: "Картинки к материалам", value: set?.images ? "Да" : "Нет", modal: "publish", control: <FactoryImagesToggle id={id} on={!!set?.images} disabled={!canWrite(c.org.role)} /> },
               { label: "Утверждение идей", value: set?.approval === "auto" ? "Автоматически" : "Вручную", modal: "publish" },
               { label: "Расписание публикаций", value: scheduleSummary, modal: "schedule" },
               { label: "Контент-стратегия и рубрики", value: strategy ? `${strategy.rubrics.length} рубрик` : "не составлена", modal: "strategy" },

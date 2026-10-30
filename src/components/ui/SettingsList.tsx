@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Modal } from "./Modal";
 
-export interface SettingItem { label: string; value: string; modal: string }
+export interface SettingItem { label: string; value: string; modal: string; /** вместо таблетки показывается свой элемент (например, тумблер) */ control?: React.ReactNode }
 export interface SettingModal { title: string; wide?: boolean; node: React.ReactNode }
 
 /**
@@ -18,7 +18,9 @@ export function SettingsList({ items, modals, stamp }: { items: SettingItem[]; m
   return (
     <>
       <div className="divide-y divide-line rounded-[28px] bg-surface px-5 shadow-float outline outline-1 -outline-offset-1 outline-line">
-        {items.map((it) => (
+        {items.map((it) => it.control ? (
+          <div key={it.label} className="flex w-full items-center justify-between gap-4 py-4"><span className="text-[15px] font-medium">{it.label}</span>{it.control}</div>
+        ) : (
           <button key={it.label} type="button" onClick={() => { sent.current = false; setOpen(it.modal); }} className="flex w-full items-center justify-between gap-4 py-4 text-left transition hover:opacity-80">
             <span className="text-[15px] font-medium">{it.label}</span>
             <span className="inline-flex max-w-[55%] items-center gap-2 rounded-full bg-accent-soft px-4 py-1.5 text-sm"><span className="truncate">{it.value}</span><ChevronDown size={15} className="shrink-0 text-ink2" /></span>

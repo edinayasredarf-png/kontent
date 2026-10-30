@@ -211,6 +211,22 @@ export async function setFactoryChannels(f: FormData) {
   revalidatePath(`/app/factories/${id}`);
 }
 
+/** Переключатель «Картинки к материалам» на странице завода: сохраняется сразу. */
+export async function setFactoryImages(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id");
+  await q("update kz_factories set brief = brief || jsonb_build_object('images', $3::boolean) where id=$1 and org_id=$2", [id, c.org.id, f.get("images") === "on"]);
+  revalidatePath(`/app/factories/${id}`);
+}
+
+export async function renameFactoryAction(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id"), name = s(f, "name").trim().slice(0, 120);
+  if (!name) return;
+  await q("update kz_factories set name=$3 where id=$1 and org_id=$2", [id, c.org.id, name]);
+  revalidatePath(`/app/factories/${id}`); revalidatePath("/app/factories"); revalidatePath("/app", "layout");
+}
+
 export async function saveAiRoutes(f: FormData) {
   const c = await requireCtx();
   if (!c.isAdmin) return;
