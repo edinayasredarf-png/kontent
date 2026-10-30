@@ -2,19 +2,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { ArrowUp, Loader2, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { countNewAction, refreshFeedAction } from "@/lib/monitor/actions";
 import { filterQuery, type FeedFilter } from "@/lib/monitor/feed-query";
 
-const PILL = "inline-flex h-10 items-center gap-2 rounded-full bg-accent-soft px-4 text-sm font-semibold text-ink transition hover:bg-tile2 disabled:opacity-60";
+const PILL = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tile px-3.5 text-sm font-semibold text-ink transition hover:bg-tile2 disabled:opacity-60";
 
 /**
  * Панель над лентой: «Анализ ленты», «Обновить», «Фильтр», «Настройки». «Обновить» опрашивает источники фильтра и,
  * если появились новые посты, показывает строку «Загружено N новых постов»; по нажатию лента перезагружается и плавно прокручивается к самым свежим.
  * Раз в минуту новые посты проверяются и сами (без опроса источников).
  */
-export function FeedToolbar({ filter, since, sources, keywords, analysis, settings, children }: { filter: FeedFilter; since: string; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; settings: React.ReactNode; children: React.ReactNode }) {
+export function FeedToolbar({ filter, since, sources, keywords, analysis, settings, tabs, write, children }: { tabs: React.ReactNode; write: boolean; filter: FeedFilter; since: string; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; settings: React.ReactNode; children: React.ReactNode }) {
   const router = useRouter();
   const [modal, setModal] = useState<"filter" | "analysis" | "settings" | null>(null);
   const [busy, setBusy] = useState(false), [fresh, setFresh] = useState(0), [note, setNote] = useState("");
@@ -57,20 +57,27 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-        <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
-        <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
-        <button type="button" className={PILL} onClick={() => setModal("filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
-        <button type="button" className={PILL} onClick={() => setModal("settings")}><Settings2 size={16} />Настройки</button>
+      {/* шапка закреплена: вкладки и кнопки остаются на месте при прокрутке ленты */}
+      <div className="sticky top-0 z-30 -mx-1 bg-surface px-1 pb-4 pt-0">
+        <div className="flex min-h-12 items-center justify-between gap-3 border-b border-ink/10">
+          <nav className="no-scrollbar -mb-px flex min-w-0 overflow-x-auto" aria-label="Раздел новостей">{tabs}</nav>
+          {write && <button type="button" className="btn-rect mb-1 shrink-0" onClick={() => setModal("settings")}>Добавить источник<Plus size={16} /></button>}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
+          <button type="button" className={PILL} onClick={() => setModal("filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
+          <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
+          <button type="button" className={PILL} onClick={() => setModal("settings")}><Settings2 size={16} />Настройки</button>
+        </div>
       </div>
-      {note && <p className="mb-4 text-center text-xs text-ink2">{note}</p>}
+      {note && <p className="mb-4 text-xs text-ink2">{note}</p>}
       {fresh > 0 && (
-        <div className="sticky top-24 z-30 mb-4 flex justify-center">
+        <div className="sticky top-40 z-20 mb-4 flex justify-center">
           <button type="button" onClick={show} disabled={loading} aria-busy={loading} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90 disabled:cursor-wait disabled:opacity-90">{loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}{loading ? "Загружаем новые посты…" : `Загружено ${fresh} ${plural(fresh)} · показать`}</button>
         </div>
       )}
       {applying && loading && (
-        <div role="status" className="sticky top-24 z-30 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
+        <div role="status" className="sticky top-40 z-20 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
       )}
       <div key={qs} className={applying && loading ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>{children}</div>
 

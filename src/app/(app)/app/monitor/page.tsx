@@ -15,6 +15,7 @@ import { AiPanel } from "@/components/AiPanel";
 import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
+import { AskBox } from "@/components/monitor/AskBox";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
 import { ImagePicker } from "@/components/ImagePicker";
@@ -62,15 +63,18 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const since = list.length ? new Date(Math.max(...list.map((r) => new Date(r.fetched_at).getTime()))).toISOString() : new Date().toISOString();
   const noSources = Number(stat[0].n) === 0;
   const write = c.org.role !== "viewer";
+  const TAB = "relative flex h-12 items-center whitespace-nowrap px-2.5 text-base font-medium transition-colors";
+  const tabs = (
+    <>
+      <Link href={href({ show: "new", p: "" })} className={`${TAB} ${!inLiked ? "text-ink" : "text-ink/70 hover:text-ink"}`}>Лента{!inLiked && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent" />}</Link>
+      <Link href={href({ show: "saved", p: "" })} className={`${TAB} ${inLiked ? "text-ink" : "text-ink/70 hover:text-ink"}`}>Понравившееся{liked ? <span className="ml-1.5 text-xs font-normal text-ink3">{liked}</span> : null}{inLiked && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent" />}</Link>
+    </>
+  );
 
   return (
     <div className="w-full">
-      <h1 className="mb-6 text-[28px] font-semibold leading-8 md:text-4xl">Мониторинг новостей</h1>
-      <div className="w-full max-w-[600px]">
-      <nav className="-mt-3 mb-6 flex w-fit max-w-full items-center overflow-x-auto rounded-full bg-tile p-1 text-sm no-scrollbar" aria-label="Раздел новостей">
-        <Link href={href({ show: "new", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${!inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}>Лента</Link>
-        <Link href={href({ show: "saved", p: "" })} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${inLiked ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`}><Heart size={14} className={liked ? "text-bad" : ""} fill={liked ? "currentColor" : "none"} />Понравившееся{liked ? <span className="text-xs font-normal text-ink3">{liked}</span> : null}</Link>
-      </nav>
+      <h1 className="sr-only">Мониторинг новостей</h1>
+      <div className="w-full">
       {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={here} err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
       {one(sp.note) && !draftIds.length && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
@@ -78,10 +82,11 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
 
       {f.id && <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm"><span>Показан один пост из сводки трендов</span><Link href="/app/monitor" className="link-btn">Показать всю ленту</Link></div>}
 
-      {noSources ? (
+      {noSources ? (<>
+        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <Link href="/app/monitor/settings" className="btn-rect mb-1">Добавить источник</Link>}</div>
         <Empty icon={<Radar />} title="Источников пока нет" text="Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама."
           action={write ? <Link href="/app/monitor/settings" className="btn btn-accent">Добавить источники</Link> : undefined} />
-      ) : (<FeedToolbar filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
+      </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
           {write && brands.length > 0 && (
@@ -109,18 +114,20 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           ) : <p className="mb-5 text-center text-xs text-ink3">Чтобы создавать материалы, заведите завод.</p>
         )}
         {list.length === 0 && !inLiked && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
-        <FadeList className="space-y-5">
+        <div className="grid items-start gap-10 lg:grid-cols-[600px_minmax(0,650px)]">
+        <div className="min-w-0">
+        <FadeList className="space-y-8" topEdge={170}>
           {list.map((r, idx) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
-            <article key={r.id} style={{ "--i": idx } as React.CSSProperties} className={`feed-card rounded-3xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
-              <header className="flex items-center gap-3 rounded-2xl bg-accent-soft px-3 py-2.5">
+            <article key={r.id} style={{ "--i": idx } as React.CSSProperties} className={`feed-card rounded-xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
+              <header className="flex items-center gap-3 rounded-[10px] bg-surface px-3 py-2.5">
                 <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold leading-5">{sv.name}</p>
                   {sv.href ? <a href={sv.href} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sv.address}</a> : <p className="truncate text-xs leading-4 text-ink2">{sv.address}</p>}
                 </div>
-                <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs text-ink3">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+                <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs font-medium text-ink">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
               </header>
               <div className="px-2.5 pb-1 pt-3">
                 {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-bad-soft !text-bad">понравилось</span>}</p>}
@@ -142,7 +149,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                 <div className="mt-2 flex flex-wrap items-center gap-2 px-2.5 pb-2 pt-2">
                   {factories.length > 0 ? (
                     <details className="w-full sm:w-auto">
-                      <summary className="btn btn-accent !py-1.5 cursor-pointer list-none"><PenLine size={14} />Создать материал из новости</summary>
+                      <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white"><PenLine size={14} />Создать</summary>
                       <form action={createFromNewsAction} data-keep-scroll className="mt-3 space-y-3 rounded-xl bg-tile p-3">
                         <input type="hidden" name="id" value={r.id} /><input type="hidden" name="ret" value={here} />
                         <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}</select></div>
@@ -166,13 +173,13 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}
                   {inLiked && write && factories.length > 0 && <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" name="ids" value={r.id} form="liked-bulk" />Выбрать</label>}
                   <div className="ml-auto flex items-center gap-1">
-                    {!r.url.startsWith("manual:") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
-                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className={`grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2 ${r.status === "saved" ? "text-bad" : "text-ink2"}`} title={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось: сохранить в «Понравившееся»"} aria-label={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось"} aria-pressed={r.status === "saved"}><Heart size={15} fill={r.status === "saved" ? "currentColor" : "none"} /></SubmitButton></form>
-                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="dismissed" /><SubmitButton className="grid size-8 place-items-center rounded-full bg-surface hover:bg-tile2" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>
+                    {!r.url.startsWith("manual:") && <a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть<ExternalLink size={12} /></a>}
+                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === "saved" ? "new" : "saved"} /><SubmitButton className={`grid size-8 place-items-center rounded-lg bg-surface hover:bg-tile2 ${r.status === "saved" ? "text-bad" : "text-ink2"}`} title={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось: сохранить в «Понравившееся»"} aria-label={r.status === "saved" ? "Убрать из понравившегося" : "Понравилось"} aria-pressed={r.status === "saved"}><Heart size={15} fill={r.status === "saved" ? "currentColor" : "none"} /></SubmitButton></form>
+                    <form action={setItemStatusAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value="dismissed" /><SubmitButton className="grid size-8 place-items-center rounded-lg bg-surface hover:bg-tile2" title="Скрыть"><EyeOff size={14} /></SubmitButton></form>
                   </div>
                 </div>
               )}
-              {r.status === "used" && !r.url.startsWith("manual:") && <div className="px-2.5 pb-2 pt-1"><a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть источник<ExternalLink size={12} /></a></div>}
+              {r.status === "used" && !r.url.startsWith("manual:") && <div className="px-2.5 pb-2 pt-1"><a href={r.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface px-3 text-xs font-medium hover:bg-tile2">Открыть источник<ExternalLink size={12} /></a></div>}
             </article>
             );
           })}
@@ -183,13 +190,9 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             {hasMore && <Link className="btn btn-ghost" href={href({ p: String(page + 1) })}>Дальше →</Link>}
           </div>
         )}
-        {/* строка вопроса ровно по ширине карточек и всегда у нижнего края окна */}
-        <form action="/app" className="sticky bottom-4 z-30 mt-6">
-          <div className="flex items-center gap-2 rounded-full bg-surface py-2 pl-5 pr-2 shadow-float outline outline-1 -outline-offset-1 outline-accent">
-            <input name="q" required maxLength={1500} placeholder="Спросите по новостному фонду или попросите создать материал" aria-label="Вопрос ассистенту" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink3" />
-            <SubmitButton className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-white" aria-label="Отправить в чат"><ArrowUp size={18} /></SubmitButton>
-          </div>
-        </form>
+        </div>
+        <AskBox />
+        </div>
       </FeedToolbar>)}
       </div>
     </div>
