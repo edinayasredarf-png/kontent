@@ -61,7 +61,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
       <div className="sticky top-0 z-30 -mx-1 bg-surface px-1 pb-4 pt-0">
         <div className="flex min-h-12 items-center justify-between gap-3 border-b border-ink/10">
           <nav className="no-scrollbar -mb-px flex min-w-0 overflow-x-auto" aria-label="Раздел новостей">{tabs}</nav>
-          {write && <button type="button" className="btn-rect mb-1 shrink-0" onClick={() => setModal("settings")}>Добавить источник<Plus size={16} /></button>}
+          {write && <button type="button" className="btn-rect mb-1 shrink-0" onClick={() => setModal("settings")} aria-label="Добавить источник"><span className="max-sm:hidden">Добавить источник</span><Plus size={16} /></button>}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
