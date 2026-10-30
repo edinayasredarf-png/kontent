@@ -1,4 +1,4 @@
-import { Plus, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { pageCtx } from "@/lib/auth";
 import { can, ROLE_MATRIX } from "@/lib/roles";
 import { EXPIRY, listGuestLinks } from "@/lib/guest";
@@ -10,6 +10,7 @@ import { OrgTabs } from "@/components/shell/OrgTabs";
 import { Avatar } from "@/components/Avatar";
 import { q } from "@/lib/db";
 import { ModalButton } from "@/components/ui/ModalButton";
+import { InviteUser } from "@/components/InviteUser";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export default async function Team() {
@@ -19,47 +20,36 @@ export default async function Team() {
   const manage = canManageTeam(c.org.role);
   const lim = c.org.unlimited ? null : PLANS[c.org.plan].members;
   const roles = c.org.role === "owner" ? ["admin", "editor", "viewer"] : ["editor", "viewer"];
-  const inviteBtn = (
-          <ModalButton label="Добавить пользователя" title="Приглашение пользователя" className="btn-rect" icon={<Plus size={16} />}>
-          {manage ? (
-            <Form action={inviteAction} submit="Создать ссылку">
-              <Field label="Email (необязательно)"><input name="email" type="email" className="input" placeholder="colleague@company.ru" /></Field>
-              <Field label="Роль"><select name="role" className="input" defaultValue="editor">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_HINT[r]}</option>)}</select></Field>
-              <p className="text-xs text-ink3">Если указан email, ему уйдёт письмо со ссылкой (если почта на сервере настроена; ссылка всё равно покажется здесь). Принять приглашение сможет только его владелец.</p>
-            </Form>
-          ) : <p className="text-sm text-ink2">Приглашать могут владелец и администратор.</p>}
-          </ModalButton>
-  );
+  const inviteBtn = <InviteUser manage={manage} roles={roles.map((r) => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }))} />;
   return (
     <>
       <OrgTabs action={inviteBtn} />
-      <h1 className="text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">Пользователи</h1>
-      <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">{`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`}</p>
-      <div className="w-full max-w-[640px]">
-        <section className="card">
+      <div className="w-full max-w-[742px]">
+        <h1 className="mb-2.5 text-2xl font-medium leading-6 text-ink">Пользователи</h1>
+        <p className="mb-2 text-sm text-ink2">{`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`}</p>
+        <section>
           {members.map((m) => {
             const editable = manage && m.role !== "owner" && (m.role !== "admin" || c.org.role === "owner") && m.user_id !== c.user.id;
             return (
-              <div key={m.user_id} className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 last:border-0">
-                <Avatar id={m.user_id} v={avs.get(m.user_id)} name={m.name} email={m.email} className="size-9" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{m.name || m.email}{m.user_id === c.user.id && <span className="ml-2 text-xs font-normal text-ink3">это вы</span>}</div><div className="truncate text-xs text-ink3">{m.email}</div></div>
-                {editable ? (
-                  <form action={setRoleAction} className="flex items-center gap-2"><input type="hidden" name="user" value={m.user_id} />
-                    <select name="role" defaultValue={m.role} className="input !w-auto !py-1.5 text-xs">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}{!roles.includes(m.role) && <option value={m.role}>{ROLE_LABEL[m.role]}</option>}</select>
-                    <SubmitButton className="btn btn-ghost !py-1.5 text-xs">Сохранить</SubmitButton></form>
-                ) : <span className="chip">{ROLE_LABEL[m.role]}</span>}
+              <div key={m.user_id} className="flex items-center justify-between gap-3 border-b border-ink/10 py-4">
+                <div className="min-w-0">
+                  <div className="truncate text-base font-medium text-ink">{m.name || m.email}{m.user_id === c.user.id && <span className="ml-2 text-xs font-normal text-ink3">это вы</span>}</div>
+                  {editable ? (
+                    <form action={setRoleAction} className="mt-2 flex items-center gap-2"><input type="hidden" name="user" value={m.user_id} />
+                      <select name="role" defaultValue={m.role} className="rounded-lg bg-tile px-2 py-1 text-sm font-medium text-ink/70">{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}{!roles.includes(m.role) && <option value={m.role}>{ROLE_LABEL[m.role]}</option>}</select>
+                      <SubmitButton className="text-sm font-medium text-accent">Сохранить</SubmitButton></form>
+                  ) : <div className="mt-2 text-sm font-medium text-ink/70">{ROLE_LABEL[m.role]}</div>}
+                </div>
                 {(editable || (m.user_id === c.user.id && m.role !== "owner")) && (
-                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><SubmitButton data-confirm="Убрать участника из команды? Доступ к организации у него пропадёт." data-confirm-ok="Убрать" className="text-ink3 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={15} /></SubmitButton></form>
+                  <form action={removeMemberAction}><input type="hidden" name="user" value={m.user_id} /><SubmitButton data-confirm="Убрать участника из команды? Доступ к организации у него пропадёт." data-confirm-ok="Убрать" className="grid size-10 place-items-center rounded-2xl text-ink/60 hover:text-bad" title={m.user_id === c.user.id ? "Выйти из организации" : "Убрать из команды"}><Trash2 size={20} /></SubmitButton></form>
                 )}
               </div>
             );
           })}
-          {invites.length > 0 && <div className="border-t border-line bg-tile/50 px-5 py-2 text-xs font-medium text-ink2">Ожидают принятия</div>}
           {invites.map((i) => (
-            <div key={i.id} className="flex items-center gap-3 border-b border-line px-5 py-3 last:border-0">
-              <div className="min-w-0 flex-1 truncate text-sm">{i.email ?? "Любой, у кого есть ссылка"}</div>
-              <span className="chip">{ROLE_LABEL[i.role]}</span>
-              <span className="text-xs text-ink3">до {new Date(i.expires_at).toLocaleDateString("ru-RU")}</span>
-              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Отозвать приглашение? Ссылка перестанет работать." data-confirm-ok="Отозвать" className="text-ink3 hover:text-bad" title="Отозвать"><X size={15} /></SubmitButton></form>}
+            <div key={i.id} className="flex items-center justify-between gap-3 border-b border-ink/10 py-4">
+              <div className="min-w-0"><div className="truncate text-base font-medium text-ink">{i.email ?? "Любой, у кого есть ссылка"}</div><div className="mt-2 text-sm font-medium text-ink/70">{ROLE_LABEL[i.role]} · ожидает принятия, до {new Date(i.expires_at).toLocaleDateString("ru-RU")}</div></div>
+              {manage && <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><SubmitButton data-confirm="Отозвать приглашение? Ссылка перестанет работать." data-confirm-ok="Отозвать" className="grid size-10 place-items-center rounded-2xl text-ink/60 hover:text-bad" title="Отозвать"><X size={20} /></SubmitButton></form>}
             </div>
           ))}
         </section>
@@ -90,7 +80,7 @@ export default async function Team() {
             </div>
           </section>
         )}
-        <section className="mt-8">
+        <section id="roles" className="mt-8">
           <h3 className="mb-3 text-base font-semibold">Кто что может</h3>
           <div className="card overflow-x-auto">
             <table className="w-full text-sm">

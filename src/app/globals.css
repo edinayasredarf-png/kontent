@@ -162,6 +162,8 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 /* Модальные окна и новые карточки в ленте */
 @keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(.98) } to { opacity: 1; transform: none } }
 @keyframes modal-out { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(10px) scale(.98) } }
+@keyframes drawer-in { from { transform: translateX(100%) } to { transform: none } }
+@keyframes drawer-out { from { transform: none } to { transform: translateX(100%) } }
 @keyframes backdrop-out { from { opacity: 1 } to { opacity: 0 } }
 @keyframes feed-in { from { opacity: 0; transform: translateY(-26px) scale(.97) } to { opacity: 1; transform: none } }
 .feed-fresh { animation: feed-in .55s cubic-bezier(.2,.9,.3,1) both; }
