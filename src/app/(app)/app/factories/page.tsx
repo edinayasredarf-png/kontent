@@ -14,19 +14,18 @@ export default async function Factories() {
   const add = !canWrite(c.org.role) ? null : <Link href="/app/factories/new" className="pill"><Plus size={16} />Создать завод</Link>;
   return (
     <>
-      <PageHead title="Заводы" sub="Завод — автоматический конвейер: идеи → текст → публикация." />
+      <PageHead title="Заводы" sub="Завод — автоматический конвейер: идеи → текст → публикация." action={add} />
       {rows.length === 0 ? <Empty icon={<Factory />} title="Заводов пока нет" text="Создайте бренд, затем завод — он сам предложит темы и напишет материалы." /> : (
-        <div className="mx-auto w-full max-w-[560px] space-y-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((f) => (
-            <Link key={f.id} href={`/app/factories/${f.id}`} className="card block p-5 text-center transition hover:border-accent/40">
-              <b className="block">{f.name}</b>
-              <div className="mt-1 flex flex-wrap justify-center gap-2"><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span><span className="chip">{f.brand}</span></div>
-              <div className="mt-3 flex flex-wrap justify-center gap-2"><span className="chip">Идей: {f.ideas}</span><span className="chip">Готово: {f.ready}</span>{f.autopublish && <span className="chip">Автопубликация</span>}</div>
+            <Link key={f.id} href={`/app/factories/${f.id}`} className="block rounded-3xl bg-tile p-6 transition hover:bg-tile2">
+              <b className="block text-lg font-semibold">{f.name}</b>
+              <div className="mt-2 flex flex-wrap gap-2"><span className={`chip ${f.status === "active" ? "!bg-good-soft !text-good" : ""}`}>{f.status === "active" ? "работает" : "пауза"}</span><span className="chip">{f.brand}</span></div>
+              <div className="mt-4 flex flex-wrap gap-2"><span className="chip">Идей: {f.ideas}</span><span className="chip">Готово: {f.ready}</span>{f.autopublish && <span className="chip">Автопубликация</span>}</div>
             </Link>
           ))}
         </div>
       )}
-      <div className="mt-5 flex justify-center">{add}</div>
     </>
   );
 }

@@ -3,11 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
-import { Bell, HelpCircle, LogOut, Menu, PanelLeft, Settings, Wallet, X } from "lucide-react";
+import { Bell, ChevronDown, HelpCircle, LogOut, Menu, PanelLeft, Plus, Wallet, X } from "lucide-react";
 import { Logo } from "../Logo";
 import { Search } from "./Search";
 import { ThemeToggle } from "./ThemeToggle";
-import { NAV } from "./nav";
+import { NAV, type NavItem } from "./nav";
 import { RoleProvider, READONLY_HINT } from "./RoleContext";
 import { NotificationBell } from "./NotificationBell";
 import { Eye } from "lucide-react";
@@ -19,22 +19,27 @@ import { sweepDrafts } from "@/lib/draft-store";
 
 export interface ShellProps {
   orgs: { id: string; name: string }[]; orgId: string; userName: string; email: string; userId: string; avatarV: number | null; isAdmin: boolean;
-  free: boolean; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; unread: number; role: string; guest: boolean; children: React.ReactNode;
+  free: boolean; factories: { id: string; name: string }[]; initialCollapsed?: boolean; balance: string; unlimited: boolean; planName: string; unread: number; role: string; guest: boolean; children: React.ReactNode;
 }
 
 
-/** Оболочка кабинета: плавающее меню слева, шапка с поиском и быстрыми действиями, на телефоне меню выезжает поверх страницы. */
+const VIEWER_HIDE = ["/app/studio", "/app/channels", "/app/create", "/app/billing", "/app/team", "/app/brands"];
+
+/** Оболочка кабинета: плоское меню с подпапками слева, белая «страница» со скруглением справа, действия (поиск, помощь, уведомления, баланс) над ней. */
 export function AppShell(p: ShellProps) {
   const path = usePathname();
   // состояние меню приходит с сервера из cookie: так первая отрисовка сразу правильной ширины, без «прыжка» после загрузки
   const [collapsed, setCollapsed] = useState(!!p.initialCollapsed), [drawer, setDrawer] = useState(false);
+  const [closed, setClosed] = useState<Record<string, boolean>>({}), [opened, setOpened] = useState<Record<string, boolean>>({});
   useEffect(() => { sweepDrafts(); }, []);
   useEffect(() => { setDrawer(false); }, [path]);
   const toggle = () => setCollapsed((c) => { try { document.cookie = `lt_nav=${c ? "0" : "1"}; path=/; max-age=31536000; samesite=lax`; } catch { /* ок */ } return !c; });
   const slim = collapsed && !drawer;
   const viewer = p.role === "viewer";
   // наблюдателю нет ассистента, ИИ-инструментов и подключений: вместо чата — сводка
-  const nav = viewer ? NAV.filter((n) => !["/app/studio", "/app/channels"].includes(n.href)).map((n) => (n.href === "/app" ? { ...n, href: "/app/overview", label: "Сводка", exact: false } : n)) : NAV;
+  const nav: NavItem[] = viewer
+    ? NAV.filter((n) => !VIEWER_HIDE.includes(n.href)).map((n) => (n.href === "/app" ? { ...n, href: "/app/overview", label: "Сводка", exact: false } : { ...n, children: n.children?.filter((c) => !VIEWER_HIDE.includes(c.href) && !(p.guest && c.href === "/app/profile")) }))
+    : NAV;
   // запасная защита: даже если какая-то форма не знает про роль, отправка из режима просмотра не уйдёт на сервер
   useEffect(() => {
     if (!viewer) return;
@@ -58,51 +63,66 @@ export function AppShell(p: ShellProps) {
     return () => { document.removeEventListener("submit", stop, true); mo.disconnect(); };
   }, [viewer]);
   const title = path === "/app" ? "Чат" : "";
+  const here = (href: string, exact?: boolean) => (exact ? path === href : path === href || path.startsWith(href + "/"));
 
+  const row = "relative flex h-12 items-center rounded-2xl text-base font-medium text-ink transition-colors";
   const sidebar = (
-    <aside className={clsx("flex flex-col overflow-hidden bg-surface shadow-float transition-[width] duration-200",
-      "fixed bottom-0 left-0 top-0 z-40 w-[300px] max-w-[86vw] rounded-r-[20px] md:bottom-5 md:left-5 md:top-[30px] md:max-w-none md:rounded-[20px]",
-      drawer ? "translate-x-0" : "-translate-x-full md:translate-x-0", slim ? "md:w-[88px]" : "md:w-80")}>
-      <div className={clsx("flex h-[118px] shrink-0 items-center border-b border-line", slim ? "justify-center" : "justify-between pl-10 pr-6")}>
-        {slim ? <PanelBtn onClick={toggle} label="Развернуть меню" /> : <><Logo h={44} /><span className="hidden md:block"><PanelBtn onClick={toggle} label="Свернуть меню" /></span><button type="button" onClick={() => setDrawer(false)} aria-label="Закрыть меню" className="md:hidden"><X size={20} /></button></>}
+    <aside className={clsx("flex flex-col overflow-hidden transition-[width] duration-200",
+      "fixed bottom-0 left-0 top-0 z-40 w-[300px] max-w-[86vw] bg-surface shadow-float max-md:rounded-r-[20px] md:bg-transparent md:shadow-none", drawer ? "translate-x-0" : "-translate-x-full md:translate-x-0", slim ? "md:w-[88px]" : "md:w-72")}>
+      <div className={clsx("flex shrink-0 items-start px-4 py-5", slim ? "justify-center" : "justify-between")}>
+        {slim ? <PanelBtn onClick={toggle} label="Развернуть меню" /> : <><Logo h={32} /><span className="hidden md:block"><PanelBtn onClick={toggle} label="Свернуть меню" /></span><button type="button" onClick={() => setDrawer(false)} aria-label="Закрыть меню" className="md:hidden"><X size={20} /></button></>}
       </div>
       {!slim && p.orgs.length > 1 && (
-        <form action={switchOrgAction} data-allow-readonly className="px-6 pt-4">
-          <select name="org" defaultValue={p.orgId} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="input !rounded-full !py-2">{p.orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
+        <form action={switchOrgAction} data-allow-readonly className="px-4 pb-2">
+          <select name="org" defaultValue={p.orgId} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="input !rounded-full !bg-surface !py-2">{p.orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
         </form>
       )}
-      <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 py-6">
-        {nav.map(({ href, label, icon: Icon, ...rest }) => {
-          const on = "exact" in rest && rest.exact ? path === href : path.startsWith(href);
-          const pro = "pro" in rest && rest.pro && p.free;
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 pb-4 pt-3">
+        {nav.map((n) => {
+          const Icon = n.icon;
+          const kids = n.factories ? p.factories.map((f) => ({ href: `/app/factories/${f.id}`, label: f.name })) : n.children ?? [];
+          const hasKids = !slim && (kids.length > 0 || !!n.factories);
+          const inside = here(n.href, n.exact) || kids.some((k) => here(k.href));
+          const open = hasKids && (opened[n.href] ?? (inside && !closed[n.href]));
+          const pro = n.pro && p.free;
           return (
-            <Link key={href} href={href} title={slim ? label : undefined}
-              className={clsx("relative flex h-12 items-center rounded-2xl text-base font-semibold transition-colors", slim ? "justify-center" : "gap-4 pl-5 pr-4", on ? "bg-accent-soft text-ink" : "text-ink hover:bg-accent-soft/70")}>
-              <Icon size={20} strokeWidth={1.8} className={clsx("shrink-0", on ? "text-accent" : "text-ink/80")} />
-              {!slim && <span className="flex-1 truncate">{label}</span>}
-              {!slim && pro && <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">PRO</span>}
-            </Link>
+            <div key={n.href}>
+              <div className={clsx(row, slim ? "justify-center" : "gap-4 pl-5 pr-2", open || (inside && !hasKids) ? "bg-ink/[.07]" : "hover:bg-ink/[.04]")}>
+                <Link href={n.href} title={slim ? n.label : undefined} className={clsx("flex h-full min-w-0 items-center", slim ? "justify-center" : "flex-1 gap-4")}>
+                  <Icon size={20} strokeWidth={1.7} className={clsx("shrink-0", inside ? "text-accent" : "text-ink2")} />
+                  {!slim && <span className="flex-1 truncate">{n.label}</span>}
+                  {!slim && pro && <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-semibold text-accent">PRO</span>}
+                </Link>
+                {hasKids && <button type="button" aria-label={open ? "Свернуть" : "Развернуть"} aria-expanded={open} onClick={() => { if (open) { setOpened((o) => ({ ...o, [n.href]: false })); setClosed((c) => ({ ...c, [n.href]: true })); } else { setOpened((o) => ({ ...o, [n.href]: true })); setClosed((c) => ({ ...c, [n.href]: false })); } }} className="grid size-9 shrink-0 place-items-center rounded-xl text-ink2 hover:text-ink"><ChevronDown size={16} className={clsx("transition-transform", open && "rotate-180")} /></button>}
+              </div>
+              {open && (
+                <div className="mb-1 mt-0.5 space-y-0.5 pl-[3.25rem] pr-1">
+                  {kids.map((k) => <Link key={k.href} href={k.href} className={clsx("flex h-9 items-center truncate rounded-xl px-3 text-[15px] transition-colors", here(k.href) ? "font-semibold text-accent" : "text-ink2 hover:text-ink")}><span className="truncate">{k.label}</span></Link>)}
+                  {n.factories && !viewer && <Link href="/app/factories/new" className="mt-1.5 flex h-8 items-center justify-between rounded-lg bg-ink2/80 pl-3 pr-1.5 text-xs font-medium text-white hover:bg-ink2">Создать завод<span className="grid size-5 place-items-center rounded-full bg-white text-ink2"><Plus size={13} strokeWidth={2.5} /></span></Link>}
+                </div>)}
+            </div>
           );
         })}
       </nav>
       {!slim && p.free && (
-        <div className="relative mx-6 mb-5 mt-6 shrink-0 rounded-2xl px-6 pb-6 pt-12 text-center text-white max-md:hidden" style={{ background: "linear-gradient(285deg, #4d63ff, #1734fc 70%)", boxShadow: "0 21px 27px -10px rgba(96,60,255,.48)" }}>
-          <span className="absolute -top-10 left-1/2 grid size-20 -translate-x-1/2 place-items-center rounded-full border-4 border-white" style={{ background: "linear-gradient(285deg, #4d63ff, #1734fc 70%)" }}>
+        <div className="relative mx-5 mb-4 mt-10 shrink-0 rounded-2xl bg-accent px-5 pb-5 pt-12 text-center text-white max-md:hidden" style={{ boxShadow: "0 21px 27px -10px rgba(0,112,240,.45)" }}>
+          <span className="absolute -top-10 left-1/2 grid size-20 -translate-x-1/2 place-items-center rounded-full border-4 border-white bg-accent shadow-soft dark:border-[var(--bg)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mark-white.svg" alt="" className="size-9" />
           </span>
           <b className="block text-lg font-semibold">Выберите тариф</b>
-          <p className="mt-3 text-sm font-semibold leading-6">Баланс: {p.balance}. Подключите тариф, чтобы снять ограничения и подключить больше брендов и заводов.</p>
+          <p className="mt-2 text-sm font-semibold leading-6">Баланс: {p.balance}. Подключите тариф, чтобы снять ограничения.</p>
           <Link href="/app/billing" className="mt-4 block rounded-full bg-white/15 py-2.5 text-sm font-semibold hover:bg-white/25">Подключить тариф</Link>
         </div>
       )}
-      <form action={logoutAction} data-allow-readonly className={clsx("mb-5 shrink-0", slim ? "px-3" : "px-6")}>
-        <div className={clsx("flex items-center rounded-[30px] bg-surface p-3 shadow-soft", slim ? "justify-center" : "justify-between")}>
+      <form action={logoutAction} data-allow-readonly className={clsx("shrink-0 pb-4", slim ? "px-3" : "px-5")}>
+        <div className="border-t border-ink/10" />
+        <div className={clsx("flex items-center pt-3", slim ? "justify-center" : "justify-between gap-2 px-0.5")}>
           <Link href={p.guest ? "/app/overview" : "/app/profile"} title={p.guest ? "Гостевой доступ" : "Профиль и безопасность"} className="flex min-w-0 items-center gap-3">
-            <Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-8" />
-            {!slim && <span className="truncate text-sm font-semibold">{p.userName || p.email}</span>}
+            <Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" />
+            {!slim && <span className="truncate text-base font-semibold">{p.userName || p.email}</span>}
           </Link>
-          {!slim && <SubmitButton allowReadOnly title="Выйти" aria-label="Выйти" className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-ink hover:bg-accent-soft"><LogOut size={14} /></SubmitButton>}
+          {!slim && <SubmitButton allowReadOnly title="Выйти" aria-label="Выйти" className="grid size-9 shrink-0 place-items-center rounded-full text-ink2 hover:bg-ink/[.06] hover:text-ink"><LogOut size={16} /></SubmitButton>}
         </div>
       </form>
     </aside>
@@ -110,27 +130,27 @@ export function AppShell(p: ShellProps) {
 
   return (
     <RoleProvider value={{ role: p.role, guest: p.guest }}>
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[var(--bg)]">
       <Suspense fallback={null}><ScrollKeeper /></Suspense>
       {sidebar}
       {drawer && <button type="button" aria-label="Закрыть меню" onClick={() => setDrawer(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
-      <div className={clsx("min-h-screen transition-[padding] duration-200", slim ? "md:pl-[108px]" : "md:pl-[340px]")}>
-        <header className="flex min-h-[72px] items-center gap-3 px-5 pb-2 pt-4 max-md:pr-[19rem] md:min-h-[116px] md:px-10 md:pt-[57px]">
-          <button type="button" onClick={() => setDrawer(true)} aria-label="Открыть меню" className="grid size-10 place-items-center rounded-full bg-accent-soft md:hidden"><Menu size={20} /></button>
-          <h1 className="min-w-0 truncate text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>
-          <div className="fixed right-4 top-4 z-[35] flex items-center gap-1.5 rounded-[30px] bg-surface py-2 pl-3 pr-2 shadow-soft md:right-10 md:top-[57px] md:gap-3 md:pl-5">
+      <div className={clsx("flex min-h-screen flex-col transition-[padding] duration-200", slim ? "md:pl-[88px]" : "md:pl-72")}>
+        <header className="flex h-[72px] shrink-0 items-center gap-2 px-4 md:pr-5">
+          <button type="button" onClick={() => setDrawer(true)} aria-label="Открыть меню" className="grid size-10 place-items-center rounded-full text-ink md:hidden"><Menu size={22} /></button>
+          <div className="ml-auto flex items-center gap-1">
             <Search />
-            {!p.guest && <Link href={`/app/help?from=${encodeURIComponent(path)}`} aria-label="Помощь" title="Помощь и поддержка" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><HelpCircle size={20} /></Link>}
-            {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Bell size={20} /></Link> : <NotificationBell unread={p.unread} />}
+            {!p.guest && <Link href={`/app/help?from=${encodeURIComponent(path)}`} aria-label="Помощь" title="Помощь и поддержка" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-ink/[.06]"><HelpCircle size={20} /></Link>}
+            {p.guest ? <Link href="/app/overview" aria-label="Что требует внимания" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-ink/[.06]"><Bell size={20} /></Link> : <NotificationBell unread={p.unread} />}
             <ThemeToggle />
-            {!viewer && <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink2 hover:bg-accent-soft"><Wallet size={20} /><span className="hidden lg:inline">{p.unlimited ? "∞" : p.balance}</span></Link>}
-            <Link href="/app/settings" aria-label="Настройки" title="Настройки" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft"><Settings size={20} /></Link>
-            <Link href={p.guest ? "/app/overview" : "/app/profile"} aria-label="Профиль" title={p.planName} className="rounded-full"><Avatar id={p.userId} v={p.avatarV} name={p.userName} email={p.email} className="size-10" /></Link>
+            {!viewer && <Link href="/app/billing" title="Баланс и тариф" className="flex h-10 items-center gap-2 rounded-full px-2.5 text-sm font-semibold text-ink2 hover:bg-ink/[.06]"><Wallet size={20} /><span>{p.unlimited ? "∞" : p.balance}</span></Link>}
           </div>
         </header>
-        {/* область начинается ровно у правого края меню (20 px поле + 88 или 320 px), поэтому расстояния от меню и от края окна до колонки равны */}
-        {viewer && <div className="px-5 md:px-10"><div className="mx-auto flex max-w-[1280px] items-center gap-2 rounded-2xl bg-accent-soft px-4 py-2.5 text-sm text-ink"><Eye size={16} className="shrink-0 text-accent" /><span>{p.guest ? "Гостевой доступ: можно смотреть, изменять нельзя." : "Режим просмотра: ваша роль «Наблюдатель», изменять данные нельзя."}</span></div></div>}
-        <main className="px-5 pb-10 pt-4 md:px-10"><div className="mx-auto max-w-[1280px]">{p.children}</div></main>
+        <div className="flex-1 px-2 pb-2 md:pl-3 md:pr-5 md:pb-3.5">
+          <div className="min-h-[calc(100vh-92px)] rounded-[20px] bg-surface px-5 py-6 md:px-12 md:py-9">
+            {viewer && <div className="mb-5"><div className="mx-auto flex max-w-[1280px] items-center gap-2 rounded-2xl bg-accent-soft px-4 py-2.5 text-sm text-ink"><Eye size={16} className="shrink-0 text-accent" /><span>{p.guest ? "Гостевой доступ: можно смотреть, изменять нельзя." : "Режим просмотра: ваша роль «Наблюдатель», изменять данные нельзя."}</span></div></div>}
+            <main>{title && <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{title}</h1>}<div className="mx-auto max-w-[1280px]">{p.children}</div></main>
+          </div>
+        </div>
       </div>
     </div>
     </RoleProvider>
@@ -138,5 +158,5 @@ export function AppShell(p: ShellProps) {
 }
 
 function PanelBtn({ onClick, label }: { onClick: () => void; label: string }) {
-  return <button type="button" onClick={onClick} aria-label={label} title={label} className="grid size-10 place-items-center rounded-xl text-accent hover:bg-accent-soft"><PanelLeft size={20} /></button>;
+  return <button type="button" onClick={onClick} aria-label={label} title={label} className="grid size-8 place-items-center rounded-xl text-ink2 hover:bg-ink/[.06] hover:text-ink"><PanelLeft size={20} /></button>;
 }

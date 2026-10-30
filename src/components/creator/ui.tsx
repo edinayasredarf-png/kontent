@@ -17,7 +17,7 @@ export function Pop({ trigger, children, wide, chevron = true, className = "", l
   }, [open]);
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={label} title={label} className={`inline-flex items-center gap-1.5 rounded-xl bg-tile px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-tile2 ${className}`}>{trigger}{chevron && <ChevronDown size={12} className="text-ink3" />}</button>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={label} title={label} className={`inline-flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-accent-soft ${className}`}>{trigger}{chevron && <ChevronDown size={12} className="text-ink3" />}</button>
       {open && <div className={`absolute bottom-full left-0 z-30 mb-2 max-h-80 max-w-[88vw] overflow-auto rounded-2xl border border-line bg-surface p-2 shadow-xl ${wide ? "w-80" : "w-64"}`}>{children(() => setOpen(false))}</div>}
     </div>
   );

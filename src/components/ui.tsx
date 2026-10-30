@@ -1,9 +1,12 @@
 import clsx from "clsx";
 
+/** Заголовок страницы: слева вверху белой области, как в макете; действие справа. */
 export const PageHead = ({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) => (
-  <div className="mx-auto mb-8 max-w-[640px] text-center">
-    <h1 className="text-[28px] font-semibold leading-8 tracking-tight md:text-3xl">{title}</h1>{sub && <p className="mt-2 text-sm text-ink2">{sub}</p>}
-    {action && <div className="mt-4 flex justify-center">{action}</div>}
+  <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+    <div className="min-w-0">
+      <h1 className="text-[28px] font-semibold leading-8 text-ink md:text-4xl">{title}</h1>{sub && <p className="mt-3 max-w-2xl text-sm text-ink2">{sub}</p>}
+    </div>
+    {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
   </div>
 );
 

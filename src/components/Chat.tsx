@@ -9,10 +9,10 @@ import { pendingStore } from "@/lib/pending-store";
 import type { ChatMsg } from "@/lib/agent/agent";
 import type { Thread } from "@/lib/agent/threads";
 import { ChatCards } from "@/components/ChatCards";
+import { Orb } from "@/components/Orb";
 
 const SUGGEST: { text: string; icon: typeof Pencil }[] = [
-  { text: "Что сейчас происходит в моём контент-заводе?", icon: Globe },
-  { text: "Напиши пост по самой подходящей новости за неделю", icon: Pencil },
+  { text: "Создай пост из новостей за вчера связанные с нашим брендом", icon: Pencil },
   { text: "Проанализируй посты за неделю", icon: Pencil },
   { text: "Покажи последние новости из моих источников за вчера", icon: Globe },
 ];
@@ -145,7 +145,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
   const composer = (
     <div className="relative">
       <div onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDrag(true); } }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); void upload(e.dataTransfer.files); }}
-        className={`rounded-3xl bg-surface shadow-soft outline outline-1 -outline-offset-1 outline-accent focus-within:outline-2 ${drag ? "ring-2 ring-accent" : ""}`}>
+        className={`rounded-3xl bg-tile outline outline-1 -outline-offset-1 outline-transparent focus-within:outline-accent ${drag ? "ring-2 ring-accent" : ""}`}>
         <input ref={pick} type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.docx,.html,.htm,.csv,.pdf,.xlsx" onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
         {(files.length > 0 || upl > 0) && (
           <div className="flex flex-wrap gap-2 px-3 pt-3">
@@ -184,17 +184,16 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
 
   if (empty) {
     return (
-      <div className="relative flex min-h-[calc(100vh-230px)] flex-col items-center justify-center pb-10">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/mark-watermark.svg" alt="" aria-hidden className="pointer-events-none absolute left-1/2 top-0 h-[588px] -translate-x-1/2 select-none opacity-90" />
+      <div className="relative flex min-h-[calc(100vh-300px)] flex-col items-center justify-center pb-6">
         <div className="relative w-full max-w-[808px] px-2">
           {threads.length > 0 && bar}
+          <div className="mb-10 flex justify-center"><Orb size={132} /></div>
           <h2 className="text-center text-2xl font-bold">{hello}</h2>
-          <p className="mb-8 mt-2 text-center text-base text-ink2">Сегодня отличный день, чтобы создать отличный контент</p>
+          <p className="mb-8 mt-3 text-center text-base text-ink2">Сегодня отличный день, чтобы создать отличный контент</p>
           {composer}
           <div className="mt-6">
             {SUGGEST.map((s) => (
-              <button key={s.text} type="button" onClick={() => send(s.text)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-2 text-left text-base leading-snug hover:bg-accent-soft/70"><s.icon size={18} className="shrink-0 text-ink2" />{s.text}</button>
+              <button key={s.text} type="button" onClick={() => send(s.text)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-2 text-left text-base leading-snug text-ink hover:bg-ink/[.04]"><s.icon size={18} className="shrink-0 text-ink2" />{s.text}</button>
             ))}
           </div>
         </div>
@@ -222,7 +221,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
         {busy && <div className="flex items-center gap-2 text-sm text-ink2"><Loader2 size={16} className="animate-spin text-accent" />Работаю над ответом, написание может занять до минуты…</div>}
         <div ref={end} />
       </div>
-      <div className="sticky bottom-4 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent pt-4">{composer}</div>
+      <div className="sticky bottom-4 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)] to-transparent pt-4">{composer}</div>
     </div>
   );
 }

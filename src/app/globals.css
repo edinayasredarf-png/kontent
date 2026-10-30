@@ -2,23 +2,23 @@
 
 :root {
   color-scheme: light;
-  --bg: #ffffff; --surface: #ffffff; --tile: #f5f5fb; --tile2: #ebebf6; --ink: #172554; --ink2: #64748b; --ink3: #94a3b8;
-  --line: #ede9fe; --black: #172554; --on-black: #ffffff; --accent: #1734fc; --accent-ink: #1226c9; --accent-soft: #f1f2ff;
+  --bg: #f5f5f5; --surface: #ffffff; --tile: #f5f5f5; --tile2: #ebebeb; --ink: #172554; --ink2: #64748b; --ink3: #94a3b8;
+  --line: #e7eaf0; --black: #172554; --on-black: #ffffff; --accent: #0070f0; --accent-ink: #0058bd; --accent-soft: #e8f2ff;
   --good: #1f9d57; --good-soft: #e8f6ee; --warn: #d98600; --warn-soft: #fbf1db; --bad: #e24a41; --bad-soft: #fcecea;
 }
 /* Тёмная палитра задана дважды: явный выбор в профиле (data-theme="dark") и «как в системе» (prefers-color-scheme).
    Явный выбор «светлая» (data-theme="light") перебивает системную тёмную. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e1020; --surface: #151833; --tile: #1c2040; --tile2: #262b52; --ink: #eceefb; --ink2: #9aa3c7; --ink3: #6f789e;
-  --line: #262b52; --black: #eceefb; --on-black: #0e1020; --accent: #5b72ff; --accent-ink: #8fa0ff; --accent-soft: #1a2046;
+  --bg: #0b0e14; --surface: #131722; --tile: #1a1f2b; --tile2: #252b3a; --ink: #eaf0fb; --ink2: #98a4bd; --ink3: #6b7690;
+  --line: #252b3a; --black: #eaf0fb; --on-black: #0b0e14; --accent: #3a93ff; --accent-ink: #7db8ff; --accent-soft: #10264a;
   --good: #3ec97b; --good-soft: #12301f; --warn: #f0a93a; --warn-soft: #3a2c10; --bad: #f0766d; --bad-soft: #3d1b19;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0e1020; --surface: #151833; --tile: #1c2040; --tile2: #262b52; --ink: #eceefb; --ink2: #9aa3c7; --ink3: #6f789e;
-    --line: #262b52; --black: #eceefb; --on-black: #0e1020; --accent: #5b72ff; --accent-ink: #8fa0ff; --accent-soft: #1a2046;
+    --bg: #0b0e14; --surface: #131722; --tile: #1a1f2b; --tile2: #252b3a; --ink: #eaf0fb; --ink2: #98a4bd; --ink3: #6b7690;
+  --line: #252b3a; --black: #eaf0fb; --on-black: #0b0e14; --accent: #3a93ff; --accent-ink: #7db8ff; --accent-soft: #10264a;
     --good: #3ec97b; --good-soft: #12301f; --warn: #f0a93a; --warn-soft: #3a2c10; --bad: #f0766d; --bad-soft: #3d1b19;
   }
 }
@@ -138,7 +138,7 @@ details.lt-faq[open] .lt-plus { transform: rotate(45deg); }
 @keyframes pa-pencil { 0%, 100% { transform: translate(0, 0) rotate(0) } 50% { transform: translate(5px, -3px) rotate(8deg) } }
 @keyframes pa-pop { 0% { transform: scale(0); opacity: 0 } 70% { transform: scale(1.18); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
 .pa-tile { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; overflow: hidden; border-radius: 14px; background: #f1f2ff; }
-.pa-line { position: absolute; left: 10px; height: 4px; border-radius: 2px; background: #1734fc; animation: pa-type 3.2s ease-in-out infinite; }
+.pa-line { position: absolute; left: 10px; height: 4px; border-radius: 2px; background: #0070F0; animation: pa-type 3.2s ease-in-out infinite; }
 .pa-sl { position: absolute; left: 14px; top: 11px; width: 17px; height: 25px; border-radius: 5px; animation: pa-slide 2.6s ease-in-out infinite; }
 .pa-shimmer { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); animation: pa-sweep 2.4s ease-in-out infinite; }
 .pa-ring { animation: pa-ring 3s ease-in-out infinite; }
@@ -238,3 +238,21 @@ select.input:not([multiple]) { appearance: none; -webkit-appearance: none; paddi
 .orb-phrase { animation: orb-rise .5s ease both; }
 .slide-in { animation: orb-rise .45s ease both; }
 @media (prefers-reduced-motion: reduce) { .orb-wave, .orb-wave2, .orb-glow, .orb-phrase, .slide-in { animation: none; } }
+
+/* ───── Шар ассистента (компонент Orb) ───── */
+.ai-orb { position: relative; flex: none; }
+.ai-orb-halo { position: absolute; inset: -70%; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(139,92,246,.28) 0%, rgba(0,112,240,.14) 38%, transparent 68%); animation: ai-breathe 5.5s ease-in-out infinite; }
+.ai-orb-blob { position: absolute; inset: 0; border: 2.5px solid rgba(255,255,255,.38); box-shadow: inset 0 0 14px rgba(255,255,255,.22); }
+.ai-orb-b1 { background: linear-gradient(140deg, rgba(6,182,212,.8), rgba(0,112,240,.55)); animation: ai-wob1 7s ease-in-out infinite; }
+.ai-orb-b2 { background: linear-gradient(40deg, rgba(244,63,142,.65), rgba(217,70,239,.5)); animation: ai-wob2 8.5s ease-in-out infinite; }
+.ai-orb-b3 { background: linear-gradient(200deg, rgba(139,92,246,.7), rgba(79,70,229,.45)); animation: ai-wob3 6s ease-in-out infinite; }
+.ai-orb-core { position: absolute; inset: 5%; overflow: hidden; border-radius: 50%; background: linear-gradient(140deg, #38bdf8 0%, #2f7cf5 24%, #8b5cf6 50%, #d63ad8 74%, #fb5a8f 100%); box-shadow: inset 0 -12px 24px rgba(20,24,100,.38), inset 0 6px 14px rgba(255,255,255,.3); animation: ai-hue 12s ease-in-out infinite; }
+.ai-orb-wave { position: absolute; inset: -35%; background: linear-gradient(118deg, transparent 40%, rgba(24,28,110,.55) 51%, rgba(24,28,110,.12) 58%, transparent 65%); animation: ai-spin 10s linear infinite; }
+.ai-orb-shine { position: absolute; left: 14%; top: 8%; width: 58%; height: 30%; border-radius: 50%; background: radial-gradient(ellipse at 50% 30%, rgba(255,255,255,.5), transparent 70%); }
+@keyframes ai-breathe { 0%,100% { transform: scale(.92); opacity: .75; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@keyframes ai-hue { 0%,100% { filter: hue-rotate(0deg); } 50% { filter: hue-rotate(-38deg) saturate(1.1); } }
+@keyframes ai-wob1 { 0%,100% { border-radius: 50% 50% 48% 52% / 52% 48% 52% 48%; transform: translate(-3%,2%) scale(1); } 50% { border-radius: 46% 54% 52% 48% / 50% 52% 48% 50%; transform: translate(-6%,-1%) scale(1.04); } }
+@keyframes ai-wob2 { 0%,100% { border-radius: 52% 48% 50% 50% / 48% 52% 48% 52%; transform: translate(4%,-2%) scale(1.02); } 50% { border-radius: 48% 52% 46% 54% / 54% 46% 54% 46%; transform: translate(6%,2%) scale(.98); } }
+@keyframes ai-wob3 { 0%,100% { border-radius: 50%; transform: translate(0,-4%) scale(1.02); } 50% { border-radius: 53% 47% 50% 50% / 47% 53% 47% 53%; transform: translate(1%,3%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .ai-orb *, .ai-orb { animation: none !important; } }

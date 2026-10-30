@@ -351,17 +351,17 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
 
         {/* тип материала + цена */}
         <div className="flex items-center justify-center gap-2">
-          <div role="tablist" aria-label="Тип материала" className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-surface p-1 shadow-sm">
+          <div role="tablist" aria-label="Тип материала" className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-tile p-1">
             {TYPES.map((x) => (
               <button key={x.kind} type="button" role="tab" aria-selected={x.kind === kind} disabled={working} onClick={() => pickKind(x.kind)} title={x.what}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${x.kind === kind ? "bg-accent font-medium text-white" : "text-ink2 hover:bg-tile"}`}>{x.short}</button>))}
+                className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${x.kind === kind ? "bg-accent font-medium text-white" : "text-ink2 hover:bg-tile2"}`}>{x.short}</button>))}
           </div>
           <span className="hidden shrink-0 rounded-full border border-accent/40 bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent-ink sm:inline-block" title={isCar ? `${count} слайдов = ${rub(total)}` : "Цена материала"}>
             {unlimited ? "Безлимит" : isCar ? `${rub(per)}/слайд` : rub(total)}</span>
         </div>
 
         {/* ввод */}
-        <div className="rounded-3xl border border-line bg-surface p-3 shadow-xl">
+        <div className="rounded-3xl bg-tile p-3 shadow-float">
           {(refs.length > 0 || uploading) && (
             <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
               {refs.map((r) => (

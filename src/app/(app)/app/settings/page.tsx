@@ -46,7 +46,7 @@ export default async function Settings() {
   ] });
   const learn = canWrite(c.org.role) && !c.user.guest;
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="max-w-3xl space-y-8">
       <div><h2 className="text-2xl font-semibold">Настройки</h2><p className="mt-1 text-sm text-ink2">Подключения, деньги, команда и интеграции. Остальное — в главном меню слева и в чате.</p></div>
       {learn && (
         <form action={restartOnboardingAction} className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4">

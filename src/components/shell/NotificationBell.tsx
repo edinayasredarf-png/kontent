@@ -70,7 +70,7 @@ export function NotificationBell({ unread: u0 }: { unread: number }) {
   const row = (n: Notification, compact = false) => {
     const I = ICON[n.kind] ?? { i: Bell, c: "text-accent" }; const Ic = I.i;
     return (
-      <button key={n.id} type="button" onClick={() => go(n)} className={`flex w-full items-start gap-3 text-left ${compact ? "" : "px-4 py-3 hover:bg-accent-soft/60"} ${!n.read_at && !compact ? "bg-accent-soft/40" : ""}`}>
+      <button key={n.id} type="button" onClick={() => go(n)} className={`flex w-full items-start gap-3 text-left ${compact ? "" : "px-4 py-3 hover:bg-ink/[.06]/60"} ${!n.read_at && !compact ? "bg-accent-soft/40" : ""}`}>
         <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-tile ${I.c}`}><Ic size={16} /></span>
         <span className="min-w-0 flex-1"><span className="block text-sm font-medium leading-5">{n.title}</span>{n.body && <span className="mt-0.5 line-clamp-2 block text-xs text-ink2">{n.body}</span>}<span className="mt-0.5 block text-[11px] text-ink3">{ago(n.created_at)}</span></span>
         {!n.read_at && !compact && <span className="mt-2 size-2 shrink-0 rounded-full bg-accent" />}
@@ -79,7 +79,7 @@ export function NotificationBell({ unread: u0 }: { unread: number }) {
   };
   return (
     <div className="relative" ref={box}>
-      <button type="button" onClick={() => { setOpen((v) => !v); if (!open) void load().catch(() => {}); }} aria-label="Уведомления" title="Уведомления" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-accent-soft">
+      <button type="button" onClick={() => { setOpen((v) => !v); if (!open) void load().catch(() => {}); }} aria-label="Уведомления" title="Уведомления" className="relative grid size-10 place-items-center rounded-full text-ink2 hover:bg-ink/[.06]">
         <Bell size={20} />{badge > 0 && <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white">{badge > 9 ? "9+" : badge}</span>}
       </button>
       {open && (

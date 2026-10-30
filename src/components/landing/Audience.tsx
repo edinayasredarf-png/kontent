@@ -14,7 +14,7 @@ export function Audience({ items }: { items: AudienceItem[] }) {
       {items.map((a, i) => {
         const on = open === i, blue = i === 0;
         return (
-          <article key={a.title} className={`relative flex w-[84vw] max-w-96 shrink-0 snap-start flex-col overflow-hidden rounded-3xl sm:w-96 md:h-[480px] ${blue ? "bg-[#1734fc] text-white" : "bg-[#f5f5f5] text-black"}`}>
+          <article key={a.title} className={`relative flex w-[84vw] max-w-96 shrink-0 snap-start flex-col overflow-hidden rounded-3xl sm:w-96 md:h-[480px] ${blue ? "bg-[#0070F0] text-white" : "bg-[#f5f5f5] text-black"}`}>
             <h3 className="px-8 pt-8 text-center text-2xl font-semibold leading-7">{a.title}</h3>
             {on ? (
               <p className="px-8 pb-20 pt-8 text-lg font-semibold leading-6">{a.text}</p>

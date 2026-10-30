@@ -14,10 +14,11 @@ export function Search() {
   useEffect(() => { const h = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
   const go = (href: string) => { setOpen(false); setV(""); router.push(href); };
   return (
-    <div ref={box} className="relative hidden w-52 sm:block">
-      <label className="flex h-10 items-center gap-3 rounded-full bg-accent-soft px-5 text-sm font-medium text-ink2">
+    <div ref={box} className="relative">
+      {!open && <button type="button" onClick={() => setOpen(true)} aria-label="Поиск по разделам" title="Поиск" className="grid size-10 place-items-center rounded-full text-ink2 hover:bg-ink/[.06]"><SearchIcon size={20} /></button>}
+      <label className={`h-10 items-center gap-3 rounded-full bg-surface px-4 text-sm font-medium text-ink2 shadow-soft ${open ? "flex w-56 max-sm:w-40" : "hidden"}`}>
         <SearchIcon size={15} className="shrink-0 text-ink" />
-        <input value={v} onChange={(e) => { setV(e.target.value); setOpen(true); setI(0); }} onFocus={() => setOpen(true)} placeholder="Поиск" aria-label="Поиск по разделам"
+        <input autoFocus={open} value={v} onChange={(e) => { setV(e.target.value); setOpen(true); setI(0); }} onFocus={() => setOpen(true)} placeholder="Поиск" aria-label="Поиск по разделам"
           onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setI((x) => Math.min(x + 1, res.length - 1)); } else if (e.key === "ArrowUp") { e.preventDefault(); setI((x) => Math.max(x - 1, 0)); } else if (e.key === "Enter" && res[i]) go(res[i].href); else if (e.key === "Escape") setOpen(false); }}
           className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink2" />
       </label>

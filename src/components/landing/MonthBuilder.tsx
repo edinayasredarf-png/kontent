@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const POSTS = 30, CAROUSELS = 8, CYCLE = 11_000;
-const POST_COL = ["#1734fc", "#bef264", "#a5b4fc", "#fb923c"];
+const POST_COL = ["#0070F0", "#bef264", "#a5b4fc", "#fb923c"];
 
 /** «Месяц контента собирается»: 30 постов и 8 каруселей по очереди попадают на полку, сумма растёт до ≈ 900 ₽. Зациклено, играет только пока блок виден. */
 export function MonthBuilder({ total = 900 }: { total?: number }) {
@@ -38,7 +38,7 @@ export function MonthBuilder({ total = 900 }: { total?: number }) {
             <span key={i} className="relative block h-8 w-6" style={{ transform: i < cars ? "scale(1)" : "scale(.6)", opacity: i < cars ? 1 : .25, transition: "transform .3s cubic-bezier(.3,1.6,.5,1), opacity .2s" }}>
               <i className="absolute inset-0 rounded-md bg-[#a5b4fc]" style={{ transform: "translate(-3px,-2px) rotate(-8deg)" }} />
               <i className="absolute inset-0 rounded-md bg-[#bef264]" style={{ transform: "translate(0,0)" }} />
-              <i className="absolute inset-0 rounded-md bg-[#1734fc]" style={{ transform: "translate(3px,2px) rotate(8deg)" }} />
+              <i className="absolute inset-0 rounded-md bg-[#0070F0]" style={{ transform: "translate(3px,2px) rotate(8deg)" }} />
             </span>
           ))}
         </div>
