@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import { PlanToolbar } from "@/components/PlanToolbar";
 import { FactoryTabs } from "@/components/FactoryTabs";
@@ -67,8 +66,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const f = await one<{ id: string; name: string; brand: string; brand_id: string; status: string; niche: string; product: string }>(
     "select f.id,f.name,b.name brand,f.brand_id,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
-  const saved = (await cookies()).get("ftab")?.value;
-  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : saved === "plan" || saved === "create" ? saved : "settings";
+  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : "settings";
   const view = sp.view === "calendar" ? "calendar" : "list";
   const kindF = KINDS.includes(sp.kind as never) ? sp.kind : "";
   const statusF = sp.status && STATUS[sp.status] ? sp.status : "";
@@ -125,8 +123,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
         <form action={toggleFactory}>{hid}<SubmitButton className="pill">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
-      <p className="-mt-2 mb-5 text-sm text-ink2">{f.brand}{f.niche ? " · " + f.niche : ""}</p>
-      <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} /></div>
+      {tab !== "settings" && <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} /></div>}
       {note && !draftIds.length && <div className="mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {err && !draftIds.length && <div className="mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
 
