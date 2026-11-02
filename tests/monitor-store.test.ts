@@ -38,4 +38,12 @@ describe("batched news storage", { skip: !url && "нет TEST_DATABASE_URL" }, (
     assert.equal(await storeItems(org, source, Array.from({ length: 30 }, (_, i) => post(String(100 + i))), true), 30);
     assert.equal(await storeItems(org, source, []), 0);
   });
+  it("preserves extracted article images and attachments when RSS is polled again", async () => {
+    const media = [{ type: "image", url: "https://example.org/article.jpg" }, { type: "file", url: "https://example.org/document.pdf" }];
+    await q("update kz_feed_items set full_status='article-v2',full_text='Чистая статья',media=$2 where org_id=$1 and ext_id='1'", [org, JSON.stringify(media)]);
+    await storeItems(org, source, [post("1", "Обновлённый анонс RSS", "feed.jpg")], true);
+    const row = (await one<{ media: unknown; full_text: string; full_status: string }>("select media,full_text,full_status from kz_feed_items where org_id=$1 and ext_id='1'", [org]))!;
+    assert.deepEqual(row.media, media); assert.equal(row.full_text, "Чистая статья"); assert.equal(row.full_status, "article-v2");
+  });
+
 });

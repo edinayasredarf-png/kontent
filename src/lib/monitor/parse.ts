@@ -1,3 +1,4 @@
+import { articleUrl, cleanArticleFragment } from "../article-content";
 import { createHash } from "node:crypto";
 import { telegramPostPath } from "./telegram-widget";
 import { parse as parseHtml } from "node-html-parser";
@@ -17,23 +18,33 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…"
 
 export const looksLikeFeed = (t: string) => /<(rss|feed|rdf:RDF)[\s>]/i.test(t.slice(0, 3000));
 
-/** RSS 2.0 / Atom. */
+/** RSS stores HTML either in CDATA or XML-escaped text. Decode the wrapper before parsing its markup. */
+function feedMarkup(raw: string): string {
+  const value = raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  return !/<\/?[a-z][^>]*>/i.test(value) && /&lt;\/?(?:p|div|br|img|a|ul|ol|h[1-6]|article|section|span)\b/i.test(value) ? parseHtml(`<span>${value}</span>`).text : value;
+}
+
+/** RSS 2.0 / Atom: retain article paragraphs and images, never pass HTML tags through as text. */
 export function parseFeed(xml: string, baseUrl: string): Item[] {
   const out: Item[] = [];
   for (const b of xml.match(/<(?:item|entry)[\s>][\s\S]*?<\/(?:item|entry)>/gi) ?? []) {
-    const title = strip(tag(b, "title"));
+    const title = cleanArticleFragment(feedMarkup(tag(b, "title")), baseUrl).text.replace(/\s+/g, " ");
     let link = decode(tag(b, "link")).trim();
-    if (!link) link = b.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1]?.trim() ?? "";
-    if (!title || !link) continue;
-    try { link = new URL(link, baseUrl).toString(); } catch { continue; }
+    if (!link) {
+      const links = [...b.matchAll(/<link\b[^>]*>/gi)].map((m) => parseHtml(m[0]).querySelector("link")).filter((n) => n && (!n.getAttribute("rel") || n.getAttribute("rel") === "alternate"));
+      link = links[0]?.getAttribute("href") ?? "";
+    }
+    const url = articleUrl(link, baseUrl);
+    if (!title || !link || !url) continue;
     const pub = Date.parse(strip(tag(b, "pubDate") || tag(b, "published") || tag(b, "updated") || tag(b, "dc:date")));
-    const body = strip(tag(b, "content:encoded") || tag(b, "description") || tag(b, "summary") || tag(b, "content"));
+    const markup = ["content:encoded", "description", "summary", "content"].map((name) => feedMarkup(tag(b, name))).find(Boolean) || "";
+    const content = cleanArticleFragment(markup, url, title);
     const media: Media[] = [];
-    const add = (u: string | undefined) => { const url = (u ?? "").replace(/&amp;/g, "&").trim(); if (/^https?:\/\//i.test(url) && !media.some((m) => m.url === url)) media.push({ type: "image", url }); };
-    for (const m of b.matchAll(/<enclosure[^>]*>/gi)) if (/type=["']image\//i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
-    for (const m of b.matchAll(/<media:(?:content|thumbnail)[^>]*>/gi)) if (!/medium=["']video/i.test(m[0]) && !/type=["']video/i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
-    if (!media.length) add((tag(b, "content:encoded") || tag(b, "description")).match(/<img[^>]+src=["']([^"']+)["']/i)?.[1]);
-    out.push({ extId: sha(tag(b, "guid") || link), url: link, title: clip(title, 300), body: clip(body, 4000), publishedAt: Number.isNaN(pub) ? new Date() : new Date(pub), media: media.slice(0, 6) });
+    const add = (raw: string | undefined) => { const u = raw && articleUrl(decode(raw), url); if (u && !media.some((m) => m.url === u)) media.push({ type: "image", url: u }); };
+    for (const m of b.matchAll(/<enclosure\b[^>]*>/gi)) if (/type=["']image\//i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
+    for (const m of b.matchAll(/<media:(?:content|thumbnail)\b[^>]*>/gi)) if (!/(?:medium|type)=["'](?:video|audio)/i.test(m[0])) add(m[0].match(/url=["']([^"']+)["']/i)?.[1]);
+    for (const image of content.media) if (!media.some((m) => m.url === image.url)) media.push(image);
+    out.push({ extId: sha(tag(b, "guid") || tag(b, "id") || url), url, title: clip(title, 300), body: clip(content.text, 20_000), publishedAt: Number.isNaN(pub) ? new Date() : new Date(pub), media: media.slice(0, 10) });
   }
   return out;
 }

@@ -1,3 +1,4 @@
+import { ARTICLE_STATUS } from "../article-content";
 import { q } from "../db";
 import { matchItem, type Kw } from "./keywords";
 import type { Item } from "./parse";
@@ -18,11 +19,11 @@ export async function storeItems(orgId: string, sourceId: string, items: Item[],
        from jsonb_to_recordset($3::jsonb) as r(ext_id text,url text,title text,body text,published_at timestamptz,matched text[],score int,excluded boolean,media jsonb)
        order by r.ext_id
      on conflict(source_id,ext_id) do update
-       set title=excluded.title,body=excluded.body,url=excluded.url,media=excluded.media,
+       set title=excluded.title,body=excluded.body,url=excluded.url,media=case when current.full_status=$5 then current.media else excluded.media end,
            matched=excluded.matched,score=excluded.score,excluded=excluded.excluded
        where $4::boolean and current.org_id=excluded.org_id
-         and (current.title,current.body,current.media) is distinct from (excluded.title,excluded.body,excluded.media)
+         and (current.title,current.body,case when current.full_status=$5 then excluded.media else current.media end) is distinct from (excluded.title,excluded.body,excluded.media)
      returning (xmax=0) inserted`,
-    [orgId, sourceId, JSON.stringify(rows), refreshExisting]);
+    [orgId, sourceId, JSON.stringify(rows), refreshExisting, ARTICLE_STATUS]);
   return result.filter((r) => r.inserted).length;
 }

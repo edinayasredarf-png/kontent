@@ -43,7 +43,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
   const s = await one<{ id: string; org_id: string; kind: Kind; ref: string; config: Record<string, unknown> }>("select id,org_id,kind,ref,config from kz_sources where id=$1", [id]);
   if (!s || s.kind === "manual") return { added: 0 };
   try {
-    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }), s.kind === "telegram");
+    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }), ["telegram", "site", "news"].includes(s.kind));
     if (s.kind === "site" || s.kind === "news") await enrichRecent(s.org_id, s.id, 3).catch(() => 0); // полные тексты свежих новостей (RSS отдаёт только анонс)
     await q("update kz_sources set last_fetched_at=now(), last_error=null where id=$1", [id]);
     await refreshMeta(s.id, s.kind, s.ref, s.config).catch(() => {}); // название и иконка не должны ломать опрос

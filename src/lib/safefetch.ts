@@ -134,10 +134,19 @@ export async function safeFetchText(raw: string, opts: { maxBytes?: number; acce
       chunks.push(value);
     }
     const ct = res.headers.get("content-type") ?? "";
-    const cs = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase();
-    let text: string;
-    try { text = new TextDecoder(cs && cs !== "utf-8" ? cs : "utf-8").decode(Buffer.concat(chunks)); } catch { text = Buffer.concat(chunks).toString("utf8"); }
+    const text = decodeFetchedText(Buffer.concat(chunks), ct);
     return { text, url: url.toString(), contentType: ct };
   }
   throw new Error("Слишком много перенаправлений");
+}
+
+/** RSS/XML and legacy news sites often declare Windows-1251 only inside the document. */
+export function decodeFetchedText(data: Uint8Array, contentType: string): string {
+  const head = Buffer.from(data).subarray(0, 4096).toString("latin1");
+  const charset = /charset\s*=\s*["']?([\w-]+)/i.exec(contentType)?.[1]
+    || /<\?xml[^>]*encoding\s*=\s*["']([\w-]+)/i.exec(head)?.[1]
+    || /<meta\b[^>]*charset\s*=\s*["']?([\w-]+)/i.exec(head)?.[1]
+    || "utf-8";
+  try { return new TextDecoder(charset).decode(data); }
+  catch { return new TextDecoder("utf-8").decode(data); }
 }

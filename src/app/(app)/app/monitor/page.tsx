@@ -9,6 +9,7 @@ import { POST_TYPES } from "@/lib/postsettings";
 import { ANGLES } from "@/lib/monitor/angles";
 import { KIND } from "@/components/ui";
 import { Form } from "@/components/Form";
+import { ARTICLE_STATUS } from "@/lib/article-content";
 import { bestText } from "@/lib/monitor/news";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { AiPanel } from "@/components/AiPanel";
@@ -145,21 +146,17 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                 </TelegramPost> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
                 {(r.kind === "site" || r.kind === "news") && (
-                  r.full_text ? (
-                    <details className="mt-2 text-xs text-ink2"><summary className="cursor-pointer text-good">Полный текст загружен · {r.full_text.length.toLocaleString("ru-RU")} знаков</summary><p className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">{r.full_text}</p></details>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink3">
-                      <span>{r.full_status === "unsupported" ? "Текст статьи недоступен для этого источника" : r.full_status === "failed" || r.full_status === "short" ? "Не удалось получить полный текст" : "Только заголовок и анонс из ленты"}</span>
-                      {write && r.full_status !== "unsupported" && !r.url.startsWith("manual:") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">Прочитать полностью</SubmitButton></form>}
-                    </div>
-                  )
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink3">
+                    <span>{r.full_status === ARTICLE_STATUS && r.full_text ? (r.full_text.length < 150 && r.media?.some((m) => m.type === "file") ? "Документ во вложении" : `Статья загружена · ${r.full_text.length.toLocaleString("ru-RU")} знаков`) : r.full_status === "unsupported" ? "Статья доступна на сайте источника" : r.full_status.endsWith(":failed") || r.full_status.endsWith(":short") ? "Показан анонс из RSS. Полный материал — на сайте источника." : "Анонс из RSS"}</span>
+                    {write && r.full_status !== "unsupported" && !r.url.startsWith("manual:") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">{r.full_status === ARTICLE_STATUS ? "Обновить статью" : "Загрузить статью"}</SubmitButton></form>}
+                  </div>
                 )}
                 {r.matched.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{r.matched.map((m) => <span key={m} className="chip !bg-warn-soft !text-warn">{m}</span>)}</div>}
               </div>
               {r.status !== "used" && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 px-2.5 pb-2 pt-2">
                   {factories.length > 0 ? (
-                    <NewsCreate id={r.id} here={here} factories={factories} kinds={MATERIAL_KINDS} fullText={!!r.full_text} />
+                    <NewsCreate id={r.id} here={here} factories={factories} kinds={MATERIAL_KINDS} fullText={r.full_status === ARTICLE_STATUS && !!r.full_text} />
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}
                   {inLiked && write && factories.length > 0 && <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" name="ids" value={r.id} form="liked-bulk" />Выбрать</label>}
                   <div className="ml-auto flex items-center gap-1">

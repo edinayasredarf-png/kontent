@@ -36,7 +36,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
     try {
       const r = await refreshFeedAction(params, since); setFresh(r.count);
       setNote(r.count ? "" : `Источников проверено: ${r.polled}${r.failed ? `, с ошибкой: ${r.failed}` : ""}. Новых постов нет.`);
-      if (!r.count) setTimeout(() => setNote(""), 6000);
+      if (!r.count) { start(() => router.refresh()); setTimeout(() => setNote(""), 6000); }
     } catch { setNote("Не удалось обновить. Попробуйте ещё раз."); } finally { setBusy(false); }
   };
   const show = useCallback(() => {

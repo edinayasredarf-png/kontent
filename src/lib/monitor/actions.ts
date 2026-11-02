@@ -100,9 +100,9 @@ export async function digestAction(_: unknown) {
 /** Загрузить полный текст новости по ссылке (кнопка «Прочитать полностью»). */
 export async function enrichItemAction(f: FormData) {
   const c = await requireWriter();
-  const r = await enrichItem(c.org.id, s(f, "id"));
+  const r = await enrichItem(c.org.id, s(f, "id"), true);
   back();
-  redirect(r.ok ? `/app/monitor?note=${encodeURIComponent("Полный текст загружен")}` : `/app/monitor?err=${encodeURIComponent(r.note ?? "Не удалось загрузить текст")}`);
+  redirect(r.ok ? `/app/monitor?note=${encodeURIComponent(r.note || "Статья загружена")}` : `/app/monitor?err=${encodeURIComponent(r.note ?? "Не удалось загрузить текст")}`);
 }
 
 /** Подборка новостей под бренд: оценки сохраняются в ленте, дальше можно фильтровать «подходит мне». */

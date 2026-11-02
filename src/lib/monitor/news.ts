@@ -4,65 +4,60 @@ import { POST_TYPES } from "../postsettings";
 import { kbText } from "../kb/use";
 import { one, q, tx } from "../db";
 import { aiReady, brandBlock, chat, extractObject, extractArray, type BrandCtx } from "../ai";
-import { htmlTitle, htmlToText } from "../repurpose";
+import { extractArticle } from "../article";
+import { ARTICLE_STATUS } from "../article-content";
+import type { Media } from "./parse";
 import { safeFetchText } from "../safefetch";
 import { InsufficientFunds, PRICES, charge, refund } from "../wallet";
 import { buildItem } from "../pipeline";
 import { allocateDates } from "../plan";
 import { KINDS } from "../plan";
 
-const SHORT = 700;        // анонс короче этого считаем «только заголовком»
 const MAX_FULL = 20_000;
+export interface FeedRow { id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; kind: string; media: Media[] }
 
-export interface FeedRow { id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; kind: string }
+/** A cleaned article is authoritative even when shorter than an RSS excerpt. Legacy page dumps must not win by length. */
+export const bestText = (r: { title: string; body: string; full_text: string | null; full_status?: string }) => {
+  if (r.full_status !== undefined) return r.full_status === ARTICLE_STATUS && r.full_text ? r.full_text : r.body || r.title;
+  return r.full_text && r.full_text.length > r.body.length ? r.full_text : r.body || r.title;
+};
 
-/** Лучший доступный текст новости: полный, если загружен, иначе анонс из ленты. */
-export const bestText = (r: { title: string; body: string; full_text: string | null }) => (r.full_text && r.full_text.length > r.body.length ? r.full_text : r.body || r.title);
-
-/**
- * Загружает полный текст статьи по ссылке новости (RSS отдаёт только заголовок и короткий анонс). Только для сайтов и новостей по запросу:
- * посты Telegram, VK и MAX уже содержат весь текст. Результат хранится в full_text; статус объясняет, почему текста нет.
- */
-export async function enrichItem(orgId: string, itemId: string): Promise<{ ok: boolean; status: string; note?: string }> {
+/** Extract only article content; reader-mode failures never fall back to a whole-page text dump. */
+export async function enrichItem(orgId: string, itemId: string, force = false): Promise<{ ok: boolean; status: string; note?: string }> {
   const it = await one<FeedRow>(
-    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
+    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.media,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) return { ok: false, status: "failed", note: "Новость не найдена" };
-  if (it.full_text) return { ok: true, status: "ok" };
   if (!["site", "news"].includes(it.kind)) return { ok: true, status: "ok", note: "Текст уже полный" };
-  if (!/^https?:\/\//i.test(it.url)) return { ok: false, status: "unsupported", note: "У новости нет ссылки" };
-  if (/(^|\.)news\.google\.com$/i.test(new URL(it.url).hostname)) {
-    await q("update kz_feed_items set full_status='unsupported' where id=$1", [itemId]);
-    return { ok: false, status: "unsupported", note: "Google Новости не отдаёт текст статьи: откройте оригинал и вставьте текст вручную («Источники и слова» → «Добавить пост вручную»)" };
-  }
+  if (!force && it.full_text && it.full_status === ARTICLE_STATUS) return { ok: true, status: "ok" };
+  const fail = async (status: string, note: string) => {
+    await q("update kz_feed_items set full_text=null,full_status=$3 where id=$1 and org_id=$2", [itemId, orgId, status === "unsupported" ? status : `${ARTICLE_STATUS}:${status}`]);
+    return { ok: false, status, note };
+  };
+  if (!/^https?:\/\//i.test(it.url)) return fail("unsupported", "У новости нет ссылки");
+  if (/(^|\.)news\.google\.com$/i.test(new URL(it.url).hostname)) return fail("unsupported", "Google Новости не отдаёт текст статьи: откройте оригинал или добавьте его RSS-ленту.");
   try {
     const page = await safeFetchText(it.url, { maxBytes: 3_000_000 });
-    const text = /<(html|body|p|div|article)\b/i.test(page.text) ? htmlToText(page.text) : page.text.trim();
-    const full = text.slice(0, MAX_FULL);
-    if (full.length < Math.max(it.body.length + 200, 400)) {
-      await q("update kz_feed_items set full_status='short' where id=$1", [itemId]);
-      return { ok: false, status: "short", note: "На странице нашёлся только короткий текст (возможно, статья закрыта или собирается скриптами)" };
-    }
-    await q("update kz_feed_items set full_text=$2, full_status='ok' where id=$1", [itemId, full]);
-    void htmlTitle;
-    return { ok: true, status: "ok" };
-  } catch (e) {
-    await q("update kz_feed_items set full_status='failed' where id=$1", [itemId]);
-    return { ok: false, status: "failed", note: `Не удалось открыть страницу: ${(e as Error).message.slice(0, 120)}` };
-  }
+    const article = await extractArticle(page.text, page.url);
+    if (!article) return fail("short", "На странице не найден текст статьи. Показан анонс из RSS; полный материал можно открыть на сайте источника.");
+    const images = article.media.filter((m) => m.type === "image");
+    const media = [...(images.length ? images : (it.media ?? []).filter((m) => m.type === "image")), ...article.media.filter((m) => m.type === "file")];
+    await q("update kz_feed_items set full_text=$3,full_status=$4,media=$5,title=$6 where id=$1 and org_id=$2", [itemId, orgId, article.text.slice(0, MAX_FULL), ARTICLE_STATUS, JSON.stringify(media), article.title.slice(0, 300) || it.title]);
+    return { ok: true, status: "ok", ...(article.text.length < 150 && article.media.some((m) => m.type === "file") ? { note: "Источник содержит прикреплённый документ. Ссылка добавлена в карточку." } : {}) };
+  } catch (e) { return fail("failed", `Не удалось открыть статью: ${(e as Error).message.slice(0, 120)}`); }
 }
 
-/** Фоновая подгрузка полных текстов для свежих новостей сайтов: до 5 за раз, по 3 параллельно. Сбой одной не мешает остальным. */
+/** New entries and legacy unclean copies are repaired in bounded background batches, never while rendering a page. */
 export async function enrichRecent(orgId: string, sourceId: string, limit = 5): Promise<number> {
   const rows = await q<{ id: string }>(
     `select i.id from kz_feed_items i join kz_sources s on s.id=i.source_id
-      where i.org_id=$1 and i.source_id=$2 and s.kind in ('site','news') and i.full_text is null and i.full_status='' and length(i.body) < ${SHORT} and i.url like 'http%'
-      order by i.published_at desc limit $3`, [orgId, sourceId, limit]);
-  let ok = 0;
+      where i.org_id=$1 and i.source_id=$2 and s.kind in ('site','news') and i.full_status<>$4 and i.full_status not like $5 and i.full_status<>'unsupported' and i.url like 'http%'
+      order by i.published_at desc limit $3`, [orgId, sourceId, limit, ARTICLE_STATUS, `${ARTICLE_STATUS}:%`]);
+  let count = 0;
   for (let i = 0; i < rows.length; i += 3) {
-    const rs = await Promise.all(rows.slice(i, i + 3).map((r) => enrichItem(orgId, r.id).catch(() => ({ ok: false, status: "failed" }))));
-    ok += rs.filter((r) => r.ok).length;
+    const rs = await Promise.all(rows.slice(i, i + 3).map((r) => enrichItem(orgId, r.id).catch(() => ({ ok: false }))));
+    count += rs.filter((r) => r.ok).length;
   }
-  return ok;
+  return count;
 }
 
 /* ───────── контекст бренда для подсказок ───────── */
@@ -84,8 +79,8 @@ export async function scoreNews(orgId: string, brandId: string): Promise<{ ok: t
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const ctx = await brandContext(orgId, brandId);
   if (!ctx) return { ok: false, error: "Выберите бренд" };
-  const items = await q<{ id: string; title: string; body: string; full_text: string | null }>(
-    `select id,title,body,full_text from kz_feed_items where org_id=$1 and not excluded and status in ('new','saved') and published_at > now() - interval '7 days' order by published_at desc limit 40`, [orgId]);
+  const items = await q<{ id: string; title: string; body: string; full_text: string | null; full_status: string }>(
+    `select id,title,body,full_text,full_status from kz_feed_items where org_id=$1 and not excluded and status in ('new','saved') and published_at > now() - interval '7 days' order by published_at desc limit 40`, [orgId]);
   if (items.length < 3) return { ok: false, error: "Для подборки нужно хотя бы 3 свежие новости. Добавьте источники и обновите ленту." };
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Подборка новостей под бренд"); }
@@ -142,14 +137,14 @@ export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonl
 export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; note?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
-  const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; status: string; source: string }>(
-    `select i.id,i.title,i.body,i.url,i.full_text,i.status,s.title source from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
+  const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; status: string; source: string }>(
+    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.status,s.title source from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) return { ok: false, error: "Новость не найдена" };
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [factoryId, orgId]);
   if (!fac) return { ok: false, error: "Выберите завод" };
-  if (!it.full_text) await enrichItem(orgId, itemId); // не получилось — работаем с анонсом
-  const full = (await one<{ full_text: string | null }>("select full_text from kz_feed_items where id=$1", [itemId]))?.full_text ?? null;
-  const text = bestText({ title: it.title, body: it.body, full_text: full });
+  if (it.full_status !== ARTICLE_STATUS) await enrichItem(orgId, itemId);
+  const full = await one<{ full_text: string | null; full_status: string }>("select full_text,full_status from kz_feed_items where id=$1 and org_id=$2", [itemId, orgId]);
+  const text = bestText({ ...it, full_text: full?.full_text ?? null, full_status: full?.full_status ?? "" });
   const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + (opts.note ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${opts.note}\n\n` : "") + text.slice(0, 8000) };
   // дата не выбрана — ближайшие свободные дни по расписанию завода
   const picked = opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;

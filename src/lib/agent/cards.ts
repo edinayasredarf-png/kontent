@@ -1,3 +1,4 @@
+import { ARTICLE_STATUS } from "../article-content";
 import { one, q } from "../db";
 import { loadDrafts, type DraftItem } from "../drafts";
 import { analytics } from "../engage";
@@ -56,13 +57,13 @@ const dayStr = (d: string | Date | null) => (d ? new Date(d).toISOString().slice
 
 async function newsCard(orgId: string, idList: string[]): Promise<Card | null> {
   if (!idList.length) return null;
-  const rows = await q<{ id: string; title: string; body: string; full_text: string | null; source: string; kind: string; url: string; published_at: string; status: string; fit_score: number | null }>(
-    `select i.id,i.title,i.body,i.full_text,coalesce(nullif(s.title,''),s.ref) source,s.kind,i.url,i.published_at,i.status,i.fit_score from kz_feed_items i join kz_sources s on s.id=i.source_id where i.org_id=$1 and i.id = any($2::uuid[])`, [orgId, idList]);
+  const rows = await q<{ id: string; title: string; body: string; full_text: string | null; full_status: string; source: string; kind: string; url: string; published_at: string; status: string; fit_score: number | null }>(
+    `select i.id,i.title,i.body,i.full_text,i.full_status,coalesce(nullif(s.title,''),s.ref) source,s.kind,i.url,i.published_at,i.status,i.fit_score from kz_feed_items i join kz_sources s on s.id=i.source_id where i.org_id=$1 and i.id = any($2::uuid[])`, [orgId, idList]);
   if (!rows.length) return null;
   const order = new Map(idList.map((x, i) => [x, i]));
   rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   const [factories, kinds] = [await q<{ id: string; name: string }>("select id,name from kz_factories where org_id=$1 and status='active' order by name", [orgId]), ["post", "carousel", "story", "article", "seo", "poll"].map((id) => ({ id, label: KIND[id] ?? id }))];
-  return { t: "news", factories, kinds, items: rows.map((r) => ({ id: r.id, title: r.title, text: (r.full_text || r.body || r.title).slice(0, 1400), source: r.source, sourceKind: r.kind, url: r.url.startsWith("manual:") ? "" : r.url, at: r.published_at, liked: r.status === "saved", used: r.status === "used", fit: r.fit_score })) };
+  return { t: "news", factories, kinds, items: rows.map((r) => ({ id: r.id, title: r.title, text: ((r.full_status === ARTICLE_STATUS && r.full_text) || r.body || r.title).slice(0, 1400), source: r.source, sourceKind: r.kind, url: r.url.startsWith("manual:") ? "" : r.url, at: r.published_at, liked: r.status === "saved", used: r.status === "used", fit: r.fit_score })) };
 }
 
 async function itemCard(orgId: string, idList: string[]): Promise<Card | null> {
