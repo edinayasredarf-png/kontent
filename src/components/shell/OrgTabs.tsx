@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { NavLink as Link } from "./NavLink";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { useRole } from "./RoleContext";

@@ -131,6 +131,7 @@ async function loadCtx(): Promise<Ctx> {
   const admins = (process.env.PLATFORM_ADMIN_EMAILS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   // всё, что нужно для шапки и прав, одним запросом (раньше было пять): каждый запрос к удалённой базе стоит сетевой задержки.
   // Аватарка и срок пробного безлимита необязательны: до миграций 023 и 027 их полей нет, поэтому берём их только если схема умеет.
+  const prices = ensurePrices();
   const fl = await billingCols();
   const [row] = await Promise.all([
     one<{ email: string; name: string; org_name: string; plan: PlanKey; balance_kop: string; role: string; unlimited: boolean; want_unlimited: boolean; session_ver: number; has_password: boolean; ref_code: string | null; disabled: boolean; suspended: boolean; theme: "light" | "dark" | "system"; av: string | null; until: string | null; orgs: { id: string; name: string }[] }>(
@@ -141,7 +142,7 @@ async function loadCtx(): Promise<Ctx> {
               (select coalesce(json_agg(json_build_object('id',o3.id,'name',o3.name) order by o3.name),'[]'::json) from kz_memberships m3 join kz_orgs o3 on o3.id=m3.org_id where m3.user_id=u.id) orgs
          from kz_memberships m join kz_users u on u.id=m.user_id join kz_orgs o on o.id=m.org_id
         where m.user_id=$1 and m.org_id=$2`, [s.uid, s.org, admins]),
-    ensurePrices(),
+    prices,
   ]);
   const orgs = row?.orgs ?? [], av = row?.av ? { v: row.av } : null, tu = row?.until ? { until: row.until } : null;
   setUsageCtx({ orgId: s.org, userId: s.uid });

@@ -10,23 +10,8 @@ import { PLANS, type PlanKey } from "../plans";
 import { allocateDates } from "../plan";
 import { enrichRecent } from "./news";
 
-export const loadKeywords = (orgId: string) => q<Kw & { id: string }>("select id,word,kind from kz_keywords where org_id=$1 order by kind,word", [orgId]);
-
-/** Записывает новые посты источника (повторные — игнорирует) и считает совпадения с ключевыми словами. */
-async function storeItems(orgId: string, sourceId: string, items: Item[]): Promise<number> {
-  if (!items.length) return 0;
-  const kws = await loadKeywords(orgId);
-  let added = 0;
-  for (const it of items) {
-    const m = matchItem(it.title, it.body, kws);
-    const r = await q(
-      `insert into kz_feed_items(org_id,source_id,ext_id,url,title,body,published_at,matched,score,excluded,media)
-       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict(source_id,ext_id) do nothing returning id`,
-      [orgId, sourceId, it.extId, it.url, it.title, it.body, it.publishedAt, m.matched, m.score, m.excluded, JSON.stringify(it.media ?? [])]);
-    added += r.length;
-  }
-  return added;
-}
+import { loadKeywords, storeItems } from "./store";
+export { loadKeywords } from "./store";
 
 export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean, kind: Kind, input: string): Promise<{ error?: string }> {
   const lim = unlimited ? null : PLANS[plan].sources;
@@ -58,7 +43,7 @@ export async function pollSource(id: string): Promise<{ added: number; error?: s
   const s = await one<{ id: string; org_id: string; kind: Kind; ref: string; config: Record<string, unknown> }>("select id,org_id,kind,ref,config from kz_sources where id=$1", [id]);
   if (!s || s.kind === "manual") return { added: 0 };
   try {
-    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }));
+    const added = await storeItems(s.org_id, s.id, await fetchItems(s.kind, s.ref, { ...s.config, orgId: s.org_id }), s.kind === "telegram");
     if (s.kind === "site" || s.kind === "news") await enrichRecent(s.org_id, s.id, 3).catch(() => 0); // полные тексты свежих новостей (RSS отдаёт только анонс)
     await q("update kz_sources set last_fetched_at=now(), last_error=null where id=$1", [id]);
     await refreshMeta(s.id, s.kind, s.ref, s.config).catch(() => {}); // название и иконка не должны ломать опрос

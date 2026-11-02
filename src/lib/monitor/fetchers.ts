@@ -22,7 +22,7 @@ export async function resolveSource(kind: Kind, input: string, orgId = ""): Prom
     const name = v.replace(/^https?:\/\/(t\.me|telegram\.me)\/(s\/)?/i, "").replace(/^@/, "").split(/[/?#]/)[0];
     if (!TG.test(name)) throw new Error("Нужен username публичного канала: @name или https://t.me/name");
     const items = await fetchItems("telegram", name, {});
-    if (!items.length) throw new Error("Канал не найден, закрыт или в нём нет текстовых постов");
+    if (!items.length) throw new Error("Канал не найден, закрыт или в нём нет доступных постов");
     return { ref: name.toLowerCase(), title: `Telegram @${name}`, config: {} };
   }
   if (kind === "vk") {

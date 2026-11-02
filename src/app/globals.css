@@ -30,11 +30,8 @@
   --color-bad: var(--bad); --color-bad-soft: var(--bad-soft);
   --font-sans: "Involve", var(--font-inter), system-ui, sans-serif;
 }
-/* Шрифт Involve: положите файлы в public/fonts (Involve-Regular/Medium/SemiBold/Bold .woff2). Пока их нет, используется Inter. */
-@font-face { font-family: "Involve"; font-weight: 400; font-display: swap; src: url("/fonts/Involve-Regular.woff2") format("woff2"); }
-@font-face { font-family: "Involve"; font-weight: 500; font-display: swap; src: url("/fonts/Involve-Medium.woff2") format("woff2"); }
-@font-face { font-family: "Involve"; font-weight: 600; font-display: swap; src: url("/fonts/Involve-SemiBold.woff2") format("woff2"); }
-@font-face { font-family: "Involve"; font-weight: 700; font-display: swap; src: url("/fonts/Involve-Bold.woff2") format("woff2"); }
+/* Involve можно подключить после добавления файлов шрифта. Пока используется Inter;
+   не объявляем отсутствующие .woff2, чтобы браузер не запрашивал четыре 404 на страницах. */
 html, body { background: var(--bg); color: var(--ink); }
 body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 

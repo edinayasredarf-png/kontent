@@ -3,7 +3,7 @@ import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, P
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
-import { createFromLikedAction, createFromNewsAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
+import { createFromLikedAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KINDS } from "@/lib/plan";
 import { POST_TYPES } from "@/lib/postsettings";
 import { ANGLES } from "@/lib/monitor/angles";
@@ -19,10 +19,13 @@ import { ModalButton } from "@/components/ui/ModalButton";
 import { AskBox } from "@/components/monitor/AskBox";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
-import { ImagePicker } from "@/components/ImagePicker";
+import { NewsCreate } from "@/components/monitor/NewsCreate";
 import { DraftHost } from "@/components/DraftHost";
 import { NoResults } from "@/components/monitor/NoResults";
-import { SettingsBody } from "@/components/monitor/SettingsBody";
+import { LazySettings } from "@/components/monitor/LazySettings";
+import { TelegramPost } from "@/components/monitor/TelegramPost";
+import { NewsMedia } from "@/components/monitor/NewsMedia";
+import type { Media } from "@/lib/monitor/parse";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
 import { sourceView } from "@/lib/monitor/display";
 
@@ -31,9 +34,10 @@ export const maxDuration = 60;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
 
-interface Row { id: string; fetched_at: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; config: Record<string, unknown> | null; kind: Kind; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
+interface Row { id: string; fetched_at: string; title: string; body: string; url: string; published_at: string; matched: string[]; score: number; status: string; source: string; ref: string; config: Record<string, unknown> | null; kind: Kind; media: Media[]; full_text: string | null; full_status: string; fit_score: number | null; fit_reason: string }
 
 const MAKE = KINDS.filter((k) => k !== "reels");
+const MATERIAL_KINDS = MAKE.map((value) => ({ value, label: KIND[value] }));
 
 export default async function Monitor({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -45,14 +49,13 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const freshSince = Number.isNaN(Date.parse(one(sp.fresh))) ? 0 : Date.parse(one(sp.fresh));
   const { sql, args } = feedWhere(c.org.id, f);
 
-  const [rows, sources, kws, factories, stat, brands, likedN] = await Promise.all([
-    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.fetched_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.full_text,i.full_status,i.fit_score,i.fit_reason
+  const [rows, sources, kws, factories, brands, likedN] = await Promise.all([
+    q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.fetched_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.media,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
              order by ${feedOrder(f)} limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
     q<{ id: string; title: string; last_error: string | null }>("select id,title,last_error from kz_sources where org_id=$1 order by title", [c.org.id]),
     q<{ word: string }>("select word from kz_keywords where org_id=$1 and kind='include' order by word", [c.org.id]),
     q<{ id: string; name: string; brand: string }>("select f.id,f.name,b.name brand from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.status='active' order by f.name", [c.org.id]),
-    q<{ n: string; err: string }>("select count(*) n, count(*) filter (where last_error is not null) err from kz_sources where org_id=$1", [c.org.id]),
     q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]),
     q<{ n: string }>("select count(*) n from kz_feed_items where org_id=$1 and not excluded and status='saved'", [c.org.id]),
   ]);
@@ -62,7 +65,8 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const href = (o: Record<string, string>) => `/app/monitor${filterQuery(f, o)}`;
   const here = href(page > 1 ? { p: String(page) } : {});
   const since = list.length ? new Date(Math.max(...list.map((r) => new Date(r.fetched_at).getTime()))).toISOString() : new Date().toISOString();
-  const noSources = Number(stat[0].n) === 0;
+  const noSources = sources.length === 0;
+  const sourceErrors = sources.filter((s) => s.last_error).length;
   const write = c.org.role !== "viewer";
   const TAB = "relative flex h-12 items-center whitespace-nowrap px-2.5 text-base font-medium transition-colors";
   const tabs = (
@@ -79,17 +83,17 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
       {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={here} err={one(sp.err) || undefined} note={one(sp.note) || undefined} free={c.org.unlimited} />}
       {one(sp.note) && !draftIds.length && <div className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-sm text-good">{one(sp.note)}</div>}
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
-      {Number(stat[0].err) > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {stat[0].err}. Подробности в «Настройках».</p>}
+      {sourceErrors > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {sourceErrors}. Подробности в «Настройках».</p>}
 
       {f.id && <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm"><span>Показан один пост из сводки трендов</span><Link href="/app/monitor" className="link-btn">Показать всю ленту</Link></div>}
 
       {noSources ? (<>
-        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <ModalButton label="Добавить источник" title="Источники и ключевые слова" className="btn-rect mb-1" icon={null}><SettingsBody /></ModalButton>}</div>
+        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <ModalButton label="Добавить источник" title="Источники и ключевые слова" className="btn-rect mb-1" icon={null}><LazySettings stamp={Date.now()} /></ModalButton>}</div>
         <div className="w-full max-w-[956px] rounded-xl bg-tile px-6 py-5">
           <p className="flex items-center gap-3 text-xl font-semibold"><Info size={22} className="shrink-0 text-ink2" />Источников пока нет</p>
           <p className="mt-2 pl-[34px] text-base text-ink2">Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама.</p>
         </div>
-      </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<SettingsBody />} analysis={
+      </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<LazySettings stamp={Date.now()} />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
           {write && brands.length > 0 && (
@@ -117,24 +121,28 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           ) : <p className="mb-5 text-center text-xs text-ink3">Чтобы создавать материалы, заведите завод.</p>
         )}
         {list.length === 0 && !inLiked && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
-        <div className="grid items-start gap-10 lg:grid-cols-[600px_minmax(0,650px)]">
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,600px)_minmax(0,1fr)]">
         <div className="min-w-0">
         <FadeList className="space-y-8" topEdge={170}>
           {list.map((r, idx) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
             <article key={r.id} style={{ "--i": idx } as React.CSSProperties} className={`feed-card rounded-xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
-              <header className="flex items-center gap-3 rounded-[10px] bg-surface px-3 py-2.5">
+              {r.kind !== "telegram" && (<header className="flex items-center gap-3 rounded-[10px] bg-surface px-3 py-2.5">
                 <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold leading-5">{sv.name}</p>
                   {sv.href ? <a href={sv.href} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sv.address}</a> : <p className="truncate text-xs leading-4 text-ink2">{sv.address}</p>}
                 </div>
                 <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs font-medium text-ink">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
-              </header>
+              </header>)}
               <div className="px-2.5 pb-1 pt-3">
                 {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-bad-soft !text-bad">понравилось</span>}</p>}
-                <PostText title={r.title} text={text} />
+                {r.kind === "telegram" ? <TelegramPost url={r.url}>
+                  <p className="mb-2 text-sm font-semibold text-ink2">{sv.name}</p>
+                  <NewsMedia media={r.media ?? []} title={r.title} />
+                  <PostText title={r.title} text={text} full />
+                </TelegramPost> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
                 {(r.kind === "site" || r.kind === "news") && (
                   r.full_text ? (
@@ -151,28 +159,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
               {r.status !== "used" && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 px-2.5 pb-2 pt-2">
                   {factories.length > 0 ? (
-                    <details className="w-full sm:w-auto">
-                      <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white"><PenLine size={14} />Создать</summary>
-                      <form action={createFromNewsAction} data-keep-scroll className="mt-3 space-y-3 rounded-xl bg-tile p-3">
-                        <input type="hidden" name="id" value={r.id} /><input type="hidden" name="ret" value={here} />
-                        <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}</select></div>
-                        <div><span className="label">Какие материалы создать по этой новости</span>
-                          <div className="flex flex-wrap gap-2">{MAKE.map((k) => <label key={k} className="chip cursor-pointer !px-3 !py-1.5 chip-toggle"><input type="checkbox" name="kinds" value={k} defaultChecked={k === "post"} className="hidden" />{KIND[k]}</label>)}</div></div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div><label className="label">Как подать новость</label><select name="angle" defaultValue="retell" className="input !bg-surface">{Object.entries(ANGLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
-                          <div><label className="label">Стиль написания</label><select name="postType" defaultValue="" className="input !bg-surface"><option value="">По настройкам завода</option>{Object.entries(POST_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div><label className="label">Дата в плане (для идей)</label><input type="date" name="date" className="input !bg-surface" /><p className="mt-1 text-xs text-ink3">Нужна, если выбрано «Только в контент-план». При «Создать сразу» дату и время спросим, когда отправите материал в план.</p></div>
-                          <div><span className="label">Изображение</span><ImagePicker hint="Своё фото к посту; ИИ его не заменит." /></div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <select name="mode" className="input !w-auto !bg-surface"><option value="now">Создать сразу</option><option value="ideas">Только в контент-план (идеи)</option></select>
-                          <SubmitButton className="btn !py-1.5">Создать</SubmitButton>
-                        </div>
-                        <p className="text-xs text-ink3">Тексты пишутся по {r.full_text ? "полному тексту статьи" : "тексту новости из ленты (для сайтов загрузите полный текст кнопкой выше)"}, факты берутся оттуда, манера письма и факты о компании берутся из базы знаний бренда. Цена за каждый тип как обычно.</p>
-                      </form>
-                    </details>
+                    <NewsCreate id={r.id} here={here} factories={factories} kinds={MATERIAL_KINDS} fullText={!!r.full_text} />
                   ) : <span className="text-xs text-ink3">Чтобы создавать материалы, заведите завод.</span>}
                   {inLiked && write && factories.length > 0 && <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink2"><input type="checkbox" name="ids" value={r.id} form="liked-bulk" />Выбрать</label>}
                   <div className="ml-auto flex items-center gap-1">

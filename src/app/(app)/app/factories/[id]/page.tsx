@@ -65,8 +65,8 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const err = sp.err, note = sp.note;
   const c = await requireCtx();
-  const f = await one<{ id: string; name: string; brand: string; brand_id: string; status: string; niche: string; product: string }>(
-    "select f.id,f.name,b.name brand,f.brand_id,f.status,f.niche,f.product from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
+  const f = await one<{ id: string; name: string; brand: string; brand_id: string; status: string; niche: string; product: string; brief: unknown; kit: unknown; schedule: { days: number[]; times: string[]; tz: string }; formats: string[]; autopublish: boolean; approval: string; images: boolean }>(
+    "select f.id,f.name,b.name brand,f.brand_id,f.status,f.niche,f.product,f.brief,b.kit,f.schedule,f.formats,f.autopublish,f.approval,coalesce((f.brief->>'images')::boolean,false) images from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
   const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : "settings";
   const view = sp.view === "calendar" ? "calendar" : "list";
@@ -83,28 +83,32 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   // список материалов подгружается порциями: тяжёлые карточки с формами не нужны все сразу
   const hasMore = view === "list" && items.length > lim;
   if (hasMore) items.length = lim;
-  const carAssets = tab !== "plan" ? [] : await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
-  const fb = tab !== "plan" ? [] : await q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
-  const brandColors = tab !== "plan" ? [] : cleanKit((await one<{ kit: unknown }>("select b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1", [id]))?.kit).colors?.map((x) => x.hex) ?? [];
-  const strategy = tab !== "settings" ? null : strategyOf((await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
-  const matrix = strategy ? await planMatrix(id, strategy.rubrics) : null;
-  const abMap = new Map<string, AbResult | null>(await Promise.all(items.filter((x) => x.ab?.pair).map(async (x) => [x.id, await abResult(c.org.id, x.id)] as const)));
-  const st = cleanSettings(tab !== "settings" ? undefined : (await one<{ brief: unknown }>("select brief from kz_factories where id=$1", [id]))?.brief);
-  const sched = await one<{ schedule: { days: number[]; times: string[]; tz: string }; formats: string[] }>("select schedule,formats from kz_factories where id=$1", [id]);
-  const runway = tab !== "plan" ? null : await planRunway(id);
+  const carAssetsPromise = tab !== "plan" ? Promise.resolve([]) : q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [c.org.id, items.filter((x) => x.kind === "carousel" || x.kind === "infographic").map((x) => x.id)]);
+  const fbPromise = tab !== "plan" ? Promise.resolve([]) : q<{ item_id: string; author: string; verdict: string; comment: string; created_at: string }>("select item_id,author,verdict,comment,created_at from kz_item_feedback where org_id=$1 and item_id = any($2::uuid[]) order by created_at", [c.org.id, items.map((x) => x.id)]);
+  const brandColors = tab !== "plan" ? [] : cleanKit(f.kit).colors?.map((x) => x.hex) ?? [];
+  const strategy = tab !== "settings" ? null : strategyOf(f.brief);
+  const matrixPromise = strategy ? planMatrix(id, strategy.rubrics) : Promise.resolve(null);
+  const abResultsPromise = Promise.all(items.filter((x) => x.ab?.pair).map(async (x) => [x.id, await abResult(c.org.id, x.id)] as const));
+  const st = cleanSettings(tab !== "settings" ? undefined : f.brief);
+  const sched = f;
+  const runwayPromise = tab !== "plan" ? Promise.resolve(null) : planRunway(id);
   const href = (o: Record<string, string>) => {
     const u = new URLSearchParams();
     const { err: _e, note: _n, open: _o, item: _i, ...keep } = sp; void _e; void _n; void _o; void _i;
     for (const [k, v] of Object.entries({ ...keep, tab: "plan", ...o })) if (v) u.set(k, v);
     return `/app/factories/${id}${u.size ? `?${u}` : ""}`;
   };
-  const pubs = tab !== "plan" ? [] : await q<Pub>(
+  const pubsPromise = tab !== "plan" ? Promise.resolve([]) : q<Pub>(
     `select p.item_id,p.status,p.error,p.external_url,ch.title channel,ch.kind from kz_publications p join kz_channels ch on ch.id=p.channel_id
       where p.org_id=$1 and p.item_id in (select id from kz_content_items where factory_id=$2)`, [c.org.id, id]);
-  const chans = tab !== "settings" ? [] : await q<{ id: string; kind: string; title: string; on: boolean }>(
+  const chansPromise = tab !== "settings" ? Promise.resolve([]) : q<{ id: string; kind: string; title: string; on: boolean }>(
     `select ch.id,ch.kind,ch.title,(ch.id = any(fa.channel_ids)) "on" from kz_factories fa join kz_channels ch on ch.brand_id=fa.brand_id
       where fa.id=$1 and fa.org_id=$2 and ch.org_id=$2 order by ch.created_at`, [id, c.org.id]);
-  const set = tab !== "settings" ? null : await one<{ autopublish: boolean; approval: string; images: boolean }>("select autopublish,approval,coalesce((brief->>'images')::boolean,false) images from kz_factories where id=$1", [id]);
+  const set = tab !== "settings" ? null : f;
+  const [carAssets, fb, matrix, runway, pubs, chans, abResults] = await Promise.all([
+    carAssetsPromise, fbPromise, matrixPromise, runwayPromise, pubsPromise, chansPromise, abResultsPromise,
+  ]);
+  const abMap = new Map<string, AbResult | null>(abResults);
   const hid = <input type="hidden" name="id" value={id} />;
   // вкладка: после создания и других действий возвращаемся в план (там открывается нужный материал)
   const stamp = Date.now();

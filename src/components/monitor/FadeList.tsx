@@ -14,8 +14,9 @@ export function FadeList({ children, topEdge = 96, className = "" }: { children:
     const apply = () => {
       raf = 0;
       const vh = window.innerHeight, top = topEdge, fadeTop = 150, fadeBottom = 200;
-      for (const c of Array.from(el.children) as HTMLElement[]) {
-        const r = c.getBoundingClientRect();
+      // Read geometry first, then write styles: interleaving them forced layout once per card.
+      const cards = (Array.from(el.children) as HTMLElement[]).map((c) => ({ c, r: c.getBoundingClientRect() }));
+      for (const { c, r } of cards) {
         // сверху: чем выше нижний край карточки ушёл под шапку, тем прозрачнее; снизу: чем ниже верхний край, тем прозрачнее
         const up = Math.min(1, Math.max(0, (r.bottom - top) / fadeTop));
         const down = Math.min(1, Math.max(0, (vh - r.top - 24) / fadeBottom));
@@ -27,8 +28,9 @@ export function FadeList({ children, topEdge = 96, className = "" }: { children:
     const on = () => { if (!raf) raf = requestAnimationFrame(apply); };
     apply();
     window.addEventListener("scroll", on, { passive: true }); window.addEventListener("resize", on);
+    const ro = new ResizeObserver(on); ro.observe(el);
     const mo = new MutationObserver(on); mo.observe(el, { childList: true, subtree: true });
-    return () => { window.removeEventListener("scroll", on); window.removeEventListener("resize", on); mo.disconnect(); if (raf) cancelAnimationFrame(raf); };
+    return () => { window.removeEventListener("scroll", on); window.removeEventListener("resize", on); mo.disconnect(); ro.disconnect(); if (raf) cancelAnimationFrame(raf); };
   }, [topEdge]);
   return <div ref={box} className={className}>{children}</div>;
 }

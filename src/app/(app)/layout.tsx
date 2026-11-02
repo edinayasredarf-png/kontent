@@ -13,12 +13,16 @@ import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const sess = await readSession();
-  const navCollapsed = (await cookies()).get("lt_nav")?.value === "1";
-  // в шапке нужен только счётчик непрочитанных уведомлений (один лёгкий запрос параллельно с контекстом); список и «что горит» колокольчик подгружает при открытии
-  const [c, unread] = await Promise.all([requireCtx(), sess ? unreadCount(sess.uid) : Promise.resolve(0)]);
-  // заводы для подпапки «Заводы» в меню: короткий запрос по индексу организации
-  const factories = await q<{ id: string; name: string }>("select id,name from kz_factories where org_id=$1 order by created_at desc limit 15", [c.org.id]).catch(() => []);
+  const context = requireCtx();
+  const session = readSession();
+  // The menu query depends on context, not on the notification counter. Start each as soon as its input is available.
+  const [c, unread, factories, cookieStore] = await Promise.all([
+    context,
+    session.then((sess) => sess ? unreadCount(sess.uid) : 0),
+    context.then((c) => q<{ id: string; name: string }>("select id,name from kz_factories where org_id=$1 order by created_at desc limit 15", [c.org.id]).catch(() => [])),
+    cookies(),
+  ]);
+  const navCollapsed = cookieStore.get("lt_nav")?.value === "1";
   return (
     <>
       <ThemeSync theme={c.user.theme} />

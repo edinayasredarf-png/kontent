@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { telegramPostPath } from "./telegram-widget";
 import { parse as parseHtml } from "node-html-parser";
 
 export interface Media { type: "image" | "video" | "audio" | "file"; url?: string; token?: string; name?: string }
@@ -41,10 +42,14 @@ export function parseFeed(xml: string, baseUrl: string): Item[] {
 export function parseTelegram(html: string, username: string): Item[] {
   const out: Item[] = [];
   for (const post of parseHtml(html).querySelectorAll(".tgme_widget_message_wrap")) {
-    const text = post.querySelector(".tgme_widget_message_text")?.text.replace(/\s+/g, " ").trim();
-    if (!text) continue;
+    const bodyNode = post.querySelector(".tgme_widget_message_text");
+    // innerText/text drops <br>. Preserve explicit blank lines, indentation and decoded entities.
+    const text = bodyNode ? parseHtml(bodyNode.innerHTML.replace(/<br\s*\/?\s*>/gi, "\n").replace(/(<\/(?:p|div|blockquote|pre)>)/gi, "\n$1")).text.replace(/\r\n?/g, "\n").trim() : "";
     const a = post.querySelector(".tgme_widget_message_date");
-    const link = a?.getAttribute("href") || `https://t.me/${username}`;
+    const rawLink = a?.getAttribute("href") || post.querySelector("[data-post]")?.getAttribute("data-post")?.replace(/^/, "https://t.me/") || "";
+    const path = telegramPostPath(rawLink);
+    if (!path || path.split("/")[0].toLowerCase() !== username.toLowerCase()) continue;
+    const link = `https://t.me/${path}`;
     const dt = Date.parse(post.querySelector(".tgme_widget_message_date time")?.getAttribute("datetime") ?? "");
     // фото поста: адрес в стиле background-image:url('…') у блоков .tgme_widget_message_photo_wrap
     const media: Media[] = [];
@@ -52,7 +57,9 @@ export function parseTelegram(html: string, username: string): Item[] {
       const u = (ph.getAttribute("style") ?? "").match(/url\(['"]?([^'")]+)['"]?\)/i)?.[1];
       if (u && /^https?:\/\//i.test(u) && !media.some((m) => m.url === u)) media.push({ type: "image", url: u });
     }
-    out.push({ extId: sha(link), url: link, title: clip(text, 140), body: clip(text, 4000), publishedAt: Number.isNaN(dt) ? new Date() : new Date(dt), media: media.slice(0, 6) });
+    if (!text && !media.length && !post.querySelector(".tgme_widget_message_video_player")) continue;
+    const title = text ? clip(text.replace(/\s+/g, " "), 140) : media.length ? "Фото из Telegram" : "Видео из Telegram";
+    out.push({ extId: sha(link), url: link, title, body: text, publishedAt: Number.isNaN(dt) ? new Date() : new Date(dt), media: media.slice(0, 10) });
   }
   return out;
 }

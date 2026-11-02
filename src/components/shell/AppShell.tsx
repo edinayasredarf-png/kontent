@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { NavLink as Link } from "./NavLink";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
