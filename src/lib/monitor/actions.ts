@@ -6,7 +6,7 @@ import { q } from "../db";
 import { addManual, addSource, digest, itemToPlan, pollSource, recompute } from "./service";
 import type { Kind } from "./fetchers";
 import { feedWhere, parseFilter } from "./feed-query";
-import { createFromNews, enrichItem, scoreNews, suggestKeywords, type KwSuggestion } from "./news";
+import { createFromNews, enrichItem, enrichVisibleItems, scoreNews, suggestKeywords, type KwSuggestion } from "./news";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const KINDS = ["site", "telegram", "vk", "news", "max"];
@@ -187,4 +187,10 @@ export async function refreshFeedAction(params: Record<string, string | string[]
   }
   const { count } = await countNewAction(params, since);
   return { count, polled: src.length, failed, added };
+}
+
+/** Reading the cache is available to viewers too; it never generates paid content or changes editorial statuses. */
+export async function loadArticlesAction(ids: string[]) {
+  const c = await requireCtx();
+  return enrichVisibleItems(c.org.id, Array.isArray(ids) ? ids.slice(0, 3).filter((id): id is string => typeof id === "string") : []);
 }

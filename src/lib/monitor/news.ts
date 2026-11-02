@@ -5,7 +5,7 @@ import { kbText } from "../kb/use";
 import { one, q, tx } from "../db";
 import { aiReady, brandBlock, chat, extractObject, extractArray, type BrandCtx } from "../ai";
 import { extractArticle } from "../article";
-import { ARTICLE_STATUS } from "../article-content";
+import { ARTICLE_STATUS, articleNeedsLoading, type ArticleData } from "./article-state";
 import type { Media } from "./parse";
 import { safeFetchText } from "../safefetch";
 import { InsufficientFunds, PRICES, charge, refund } from "../wallet";
@@ -58,6 +58,17 @@ export async function enrichRecent(orgId: string, sourceId: string, limit = 5): 
     count += rs.filter((r) => r.ok).length;
   }
   return count;
+}
+
+/** Read only requested entries from the caller's organization, with at most three external requests at once. */
+export async function enrichVisibleItems(orgId: string, requested: string[]): Promise<ArticleData[]> {
+  const ids = [...new Set(requested.slice(0, 3).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 3);
+  if (!ids.length) return [];
+  const rows = await q<FeedRow>(
+    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.media,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id
+      where i.org_id=$1 and i.id=any($2::uuid[]) and s.kind in ('site','news')`, [orgId, ids]);
+  await Promise.all(rows.filter((r) => articleNeedsLoading(r.kind, r.full_status, r.full_text)).map((r) => enrichItem(orgId, r.id).catch(() => ({ ok: false }))));
+  return q<ArticleData>("select id,title,body,full_text,full_status,media from kz_feed_items where org_id=$1 and id=any($2::uuid[])", [orgId, rows.map((r) => r.id)]);
 }
 
 /* ───────── контекст бренда для подсказок ───────── */

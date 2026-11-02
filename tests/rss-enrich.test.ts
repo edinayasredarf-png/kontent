@@ -4,7 +4,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
 import { one, q } from "../src/lib/db";
-import { enrichItem, bestText } from "../src/lib/monitor/news";
+import { enrichItem, enrichVisibleItems, bestText } from "../src/lib/monitor/news";
 
 const url = process.env.TEST_DATABASE_URL;
 if (url) process.env.DATABASE_URL = url;
@@ -55,4 +55,23 @@ describe("article enrichment and repair", { skip: !url && "нет TEST_DATABASE_
   it("cannot read or modify a news item from another organization", async () => {
     assert.equal((await enrichItem(randomUUID(), id)).ok, false);
   });
+  it("automatically reads a visible batch and returns the updated text and image", async () => {
+    await q("update kz_feed_items set url=replace(url,'/missing','/article'),full_text=null,full_status='' where id=$1", [id]);
+    const results = await enrichVisibleItems(org, [id]);
+    assert.equal(results.length, 1); assert.equal(results[0].full_status, "article-v2");
+    assert.match(results[0].full_text!, /Городской проект/); assert.equal(results[0].media[0].type, "image");
+    const n = requests; await enrichVisibleItems(org, [id]); assert.equal(requests, n);
+    assert.deepEqual(await enrichVisibleItems(randomUUID(), [id]), []);
+  });
+  it("bounds a batch to three entries and never loops failed articles", async () => {
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) ids.push((await one<{id:string}>("insert into kz_feed_items(org_id,source_id,ext_id,url,title,body,published_at) values($1,$2,$3,$4,'Статья','Анонс',now()) returning id", [org,source,`auto-${i}`,`${base}/article`]))!.id);
+    const n = requests;
+    const results = await enrichVisibleItems(org, ids);
+    assert.equal(results.length, 3); assert.equal(requests, n + 3);
+    await q("update kz_feed_items set full_text=null,full_status='article-v2:failed' where id=$1", [id]);
+    const after = requests; await enrichVisibleItems(org, [id]); assert.equal(requests, after);
+  });
+
 });

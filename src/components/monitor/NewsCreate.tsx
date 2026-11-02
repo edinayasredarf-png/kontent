@@ -1,4 +1,6 @@
 "use client";
+import { useAutoArticle } from "./AutoArticles";
+import { ARTICLE_STATUS } from "@/lib/monitor/article-state";
 import { useState } from "react";
 import { PenLine } from "lucide-react";
 import { createFromNewsAction } from "@/lib/monitor/actions";
@@ -11,6 +13,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 export function NewsCreate({ id, here, factories, kinds, fullText }: {
   id: string; here: string; factories: { id: string; name: string; brand: string }[]; kinds: { value: string; label: string }[]; fullText: boolean;
 }) {
+  const auto = useAutoArticle();
+  const hasFullText = fullText || auto.data[id]?.full_status === ARTICLE_STATUS;
   const [opened, setOpened] = useState(false);
   return (<details className="w-full sm:w-auto" onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
     <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white"><PenLine size={14} />Создать</summary>
@@ -31,7 +35,7 @@ export function NewsCreate({ id, here, factories, kinds, fullText }: {
         <select name="mode" className="input !w-auto !bg-surface"><option value="now">Создать сразу</option><option value="ideas">Только в контент-план (идеи)</option></select>
         <SubmitButton className="btn !py-1.5">Создать</SubmitButton>
       </div>
-      <p className="text-xs text-ink3">Тексты пишутся по {fullText ? "полному тексту статьи" : "тексту новости из ленты (для сайтов загрузите полный текст кнопкой выше)"}, факты берутся оттуда, манера письма и факты о компании берутся из базы знаний бренда. Цена за каждый тип как обычно.</p>
+      <p className="text-xs text-ink3">{hasFullText ? "Для создания используется загруженная статья." : "Для создания используется текст новости. Статьи сайтов загружаются автоматически."} Манера письма и факты о компании берутся из базы знаний бренда. Цена за каждый тип как обычно.</p>
     </form>}
   </details>);
 }

@@ -1,7 +1,7 @@
 import { parse, type HTMLElement, type Node } from "node-html-parser";
 import type { Media } from "./monitor/parse";
 
-export const ARTICLE_STATUS = "article-v2";
+export { ARTICLE_STATUS } from "./monitor/article-state";
 export const NOISE_SELECTOR = "head,script,style,noscript,svg,iframe,form,nav,header,footer,aside,button,select,input,textarea,dialog,[role=navigation],[role=banner],[role=contentinfo],[role=dialog],[aria-hidden=true],[hidden],[inert]";
 export const NOISE_CLASS = /(?:^|[-_\s])(?:nav|menu|cookie|consent|breadcrumb|sidebar|share|sharing|social|comments?|related|recommended|recommendations|subscribe|newsletter|login|signup|auth|modal|popup|advert\w*|adfox\w*|ads?|footer|toolbar|pagination|print|promo|banner|sr-only|visually-hidden)(?:[-_\s]|$)/i;
 

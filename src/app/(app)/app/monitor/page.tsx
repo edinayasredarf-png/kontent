@@ -3,13 +3,15 @@ import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, P
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PRICES, rub } from "@/lib/wallet";
-import { createFromLikedAction, digestAction, enrichItemAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
+import { createFromLikedAction, digestAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KINDS } from "@/lib/plan";
 import { POST_TYPES } from "@/lib/postsettings";
 import { ANGLES } from "@/lib/monitor/angles";
 import { KIND } from "@/components/ui";
 import { Form } from "@/components/Form";
-import { ARTICLE_STATUS } from "@/lib/article-content";
+import { ARTICLE_STATUS, articleNeedsLoading } from "@/lib/monitor/article-state";
+import { AutoArticles } from "@/components/monitor/AutoArticles";
+import { RssArticle } from "@/components/monitor/RssArticle";
 import { bestText } from "@/lib/monitor/news";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
 import { AiPanel } from "@/components/AiPanel";
@@ -124,6 +126,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
         {list.length === 0 && !inLiked && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,600px)_minmax(0,1fr)]">
         <div className="min-w-0">
+        <AutoArticles key={list.map((r) => `${r.id}:${r.full_status}`).join(",")} ids={list.filter((r) => articleNeedsLoading(r.kind, r.full_status, r.full_text)).map((r) => r.id)}>
         <FadeList className="space-y-8" topEdge={170}>
           {list.map((r, idx) => {
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
@@ -143,14 +146,8 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
                   <p className="mb-2 text-sm font-semibold text-ink2">{sv.name}</p>
                   <NewsMedia media={r.media ?? []} title={r.title} />
                   <PostText title={r.title} text={text} full />
-                </TelegramPost> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
+                </TelegramPost> : (r.kind === "site" || r.kind === "news") ? <RssArticle item={{ id: r.id, title: r.title, body: r.body, full_text: r.full_text, full_status: r.full_status, media: r.media }} kind={r.kind} write={write} /> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
-                {(r.kind === "site" || r.kind === "news") && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink3">
-                    <span>{r.full_status === ARTICLE_STATUS && r.full_text ? (r.full_text.length < 150 && r.media?.some((m) => m.type === "file") ? "Документ во вложении" : `Статья загружена · ${r.full_text.length.toLocaleString("ru-RU")} знаков`) : r.full_status === "unsupported" ? "Статья доступна на сайте источника" : r.full_status.endsWith(":failed") || r.full_status.endsWith(":short") ? "Показан анонс из RSS. Полный материал — на сайте источника." : "Анонс из RSS"}</span>
-                    {write && r.full_status !== "unsupported" && !r.url.startsWith("manual:") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">{r.full_status === ARTICLE_STATUS ? "Обновить статью" : "Загрузить статью"}</SubmitButton></form>}
-                  </div>
-                )}
                 {r.matched.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{r.matched.map((m) => <span key={m} className="chip !bg-warn-soft !text-warn">{m}</span>)}</div>}
               </div>
               {r.status !== "used" && (
@@ -171,6 +168,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             );
           })}
         </FadeList>
+        </AutoArticles>
         {(page > 1 || hasMore) && (
           <div className="mt-4 flex justify-center gap-2">
             {page > 1 && <Link className="btn btn-ghost" href={href({ p: String(page - 1) })}>← Назад</Link>}
