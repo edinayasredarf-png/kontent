@@ -35,6 +35,10 @@ export const typeOf = (k: string) => TYPES.find((t) => t.kind === k) ?? TYPES[1]
 
 /** Опции, которые клиент задаёт перед созданием любого материала. Пустое значение — «как в настройках завода / бренда». */
 export interface CreateOpts {
+  /** Текстовая модель из списка, разрешённого администратором. */
+  textModel?: string;
+  /** Требования к выбранному формату: ключевые слова, хронометраж, структура. */
+  requirements?: string;
   /** news | humor | sales | expert | info | friendly или пусто */ postType: string;
   /** ключ манеры письма из STYLES или пусто */ voice: string;
   /** «своя» аудитория вместо аудитории бренда; пусто — аудитория бренда */ audience: string;

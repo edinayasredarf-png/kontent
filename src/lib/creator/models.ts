@@ -34,3 +34,16 @@ export async function imageModels(): Promise<ImgModel[]> {
   const def = await modelFor("image");
   return def ? [{ id: def, label: "Стандарт", hint: "Основная модель платформы", kop: PRICES.carousel_slide, text: true }] : [];
 }
+
+/** Только текстовые модели, уже назначенные администратором рабочим задачам.
+ * Не обращаемся к медленному gateway /models при открытии страницы. */
+export async function textModels(): Promise<string[]> {
+  const routes = await q<{model: string}>("select distinct model from kz_ai_routes where task in ('default','post','article','reels','carousel','plan','assistant') and model<>''").catch(() => []);
+  const fallback = await modelFor("post");
+  return [...new Set([fallback, ...routes.map(r => r.model)].filter(Boolean))];
+}
+export async function validateTextModel(model?: string): Promise<string> {
+  if (!model) return "";
+  if (!(await textModels()).includes(model)) throw new Error("Модель недоступна. Обновите страницу и выберите модель из списка.");
+  return model;
+}

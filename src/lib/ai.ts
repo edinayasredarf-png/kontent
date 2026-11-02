@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { fixLayout, type SlideLayout } from "./carousel/layouts";
 import { one, q } from "./db";
 import { recordUsage } from "./billing";
@@ -51,10 +52,16 @@ export async function listGatewayModels(): Promise<string[]> {
   return (j.data ?? []).map((m) => m.id).filter((x): x is string => !!x).sort();
 }
 
+const creatorTextModel = new AsyncLocalStorage<string>();
+/** Изолированный выбор модели на один запрос, без изменения глобальных маршрутов. */
+export function withCreatorTextModel<T>(model: string, work: () => Promise<T>): Promise<T> {
+  return creatorTextModel.run(model, work);
+}
+
 export async function chat(task: AiTask, system: string, user: string, opts: { maxTokens: number; temperature: number; timeoutMs?: number }): Promise<string> {
   const base = baseUrl();
   if (!base) throw new Error("AI Gateway не настроен: задайте SELFHOSTED_LLM_URL");
-  const model = await modelFor(task);
+  const model = (task !== "vision" && task !== "image" && task !== "video" && task !== "tts" ? creatorTextModel.getStore() : "") || await modelFor(task);
   if (!model) throw new Error("Не выбрана модель: задайте SELFHOSTED_LLM_MODEL или назначьте модель в «Настройки ИИ»");
   const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
   const timeoutMs = opts.timeoutMs ?? 50_000;

@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { requireWriter } from "../auth";
 import { one, q } from "../db";
-import { aiReady } from "../ai";
+import { aiReady, withCreatorTextModel } from "../ai";
 import { charge, refund, InsufficientFunds, rub } from "../wallet";
 import { cleanKit, generateImage, LOGO_POSITIONS, rawCopy, type LogoPos } from "../images";
 import { loadAsset, saveAsset } from "../assets";
@@ -15,7 +15,7 @@ import { processImage } from "../assets";
 import { briefMaterial } from "./brief";
 import type { Brief, CreateOpts } from "./consts";
 import { composePhotoSlide } from "../carousel/photo";
-import { imageModels, isQuality, QUALITY, slidePrice, FORMATS, type FormatKey, type QualityKey } from "./models";
+import { validateTextModel, imageModels, isQuality, QUALITY, slidePrice, FORMATS, type FormatKey, type QualityKey } from "./models";
 import { planCarousel, slidePrompt, sourceFrom, type CarouselPlan, type PlanSlide } from "./plan";
 
 /** Настройки одной сессии студии. Хранятся и в пресете. */
@@ -54,14 +54,14 @@ export async function planCarouselAction(factoryId: string, prompt: string, raw:
   const st = cleanStudio(raw, await imageModels());
   const o = cleanOpts(opts);
   applyCreateOverrides(fac, { audience: o.audience });
-  try { return { ok: true, plan: await planCarousel({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, prompt: p, n: st?.n ?? 5, style: st?.style, structure: st?.structure, postType: o.postType, voice: o.voice }) }; }
+  try { return { ok: true, plan: await withCreatorTextModel(await validateTextModel(o.textModel), () => planCarousel({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, prompt: p, n: st?.n ?? 5, style: st?.style, structure: [st?.structure, o.requirements].filter(Boolean).join("\n").slice(0, 1200), postType: o.postType, voice: o.voice })) }; }
   catch (e) { return { ok: false, error: slideErr(e) }; }
 }
 
 /** Выбор клиента из панели: только известные ключи, длины ограничены. */
 function cleanOpts(raw: Partial<CreateOpts> | undefined): CreateOpts {
   const t = String(raw?.postType ?? ""), v = String(raw?.voice ?? "");
-  return { postType: t in POST_TYPES ? t : "", voice: v in STYLES && v !== "normal" ? v : "", audience: String(raw?.audience ?? "").replace(/\s+/g, " ").trim().slice(0, 400) };
+  return { requirements: String(raw?.requirements ?? "").trim().slice(0, 600), textModel: String(raw?.textModel ?? "").slice(0, 160), postType: t in POST_TYPES ? t : "", voice: v in STYLES && v !== "normal" ? v : "", audience: String(raw?.audience ?? "").replace(/\s+/g, " ").trim().slice(0, 400) };
 }
 const cleanRef = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 900);
 
@@ -202,7 +202,7 @@ export async function briefAction(factoryId: string, kind: string, prompt: strin
   if (!fac) return { ok: false, error: "Выберите завод: из него берутся бренд, тон и аудитория" };
   const o = cleanOpts(opts);
   applyCreateOverrides(fac, { audience: o.audience });
-  try { return { ok: true, brief: await briefMaterial({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, kind, prompt: p, postType: o.postType, voice: o.voice, refText: cleanRef(refText) }) }; }
+  try { return { ok: true, brief: await withCreatorTextModel(await validateTextModel(o.textModel), () => briefMaterial({ brand: brandOf(fac, p), product: fac.product, niche: fac.niche, kind, prompt: [p, o.requirements ? `Требования к формату: ${o.requirements}` : ""].filter(Boolean).join("\n"), postType: o.postType, voice: o.voice, refText: cleanRef(refText) })) }; }
   catch (e) { return { ok: false, error: slideErr(e) }; }
 }
 
@@ -218,6 +218,8 @@ export async function createMaterialAction(i: { factoryId: string; kind: string;
   const full = String(i.prompt ?? "").trim().slice(0, 20000);
   if (full.length < 3) return { ok: false, error: "Введите тему, идею или текст (минимум 3 символа)" };
   const o = cleanOpts(i.opts), ref = cleanRef(i.refText);
+  let selectedModel: string;
+  try { selectedModel = await validateTextModel(o.textModel); } catch (e) { return { ok: false, error: slideErr(e) }; }
   const longText = full.length > 300;
   const topic = (longText ? full.split(/\n/)[0].trim() : full).slice(0, 120) || full.slice(0, 120);
   let source: { title: string; body: string; url: string } | null = longText ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
@@ -226,11 +228,11 @@ export async function createMaterialAction(i: { factoryId: string; kind: string;
     try { const s = await sourceFrom(full); if (s) { source = { title: s.title, body: s.text, url: s.url }; topicFinal = s.title.slice(0, 120); } }
     catch (e) { return { ok: false, error: slideErr(e) }; }
   }
-  const meta = { manual: true, draft: true, creator: true, ...(o.postType ? { postType: o.postType } : {}), ...(o.voice ? { voice: o.voice } : {}), ...(o.audience ? { audience: o.audience } : {}), ...(ref ? { refText: ref } : {}), ...(source ? { source } : {}) };
+  const meta = { ...(o.requirements ? {requirements:o.requirements} : {}), ...(selectedModel ? {textModel:selectedModel} : {}), manual: true, draft: true, creator: true, ...(o.postType ? { postType: o.postType } : {}), ...(o.voice ? { voice: o.voice } : {}), ...(o.audience ? { audience: o.audience } : {}), ...(ref ? { refText: ref } : {}), ...(source ? { source } : {}) };
   const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,null,'approved',$7::jsonb) returning id",
     [c.org.id, fac.id, fac.brand_id, kind, topicFinal, String(i.angle ?? "").slice(0, 300), JSON.stringify(meta)]);
   const id = row!.id;
-  const r = await buildItem(c.org.id, id);
+  const r = await withCreatorTextModel(selectedModel, () => buildItem(c.org.id, id));
   if (!r.ok) {
     await q("delete from kz_content_items where id=$1 and org_id=$2 and status in ('approved','failed','generating')", [id, c.org.id]);
     return { ok: false, error: r.error };

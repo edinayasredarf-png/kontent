@@ -2,17 +2,17 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, Bookmark, Check, Clock, Copy, Download, ImageIcon, Layers, Loader2, Paperclip, Plus, RefreshCw, Save, Send, Sparkles, Trash2, Type, UserRound, Wallet, Wand2, X } from "lucide-react";
-import { QUALITY, FORMATS, NO_OPTS, TYPES, typeOf, slidePrice, type Brief, type CreateOpts, type ImgModel, type QualityKey, type FormatKey, type RefItem } from "@/lib/creator/consts";
+import { ArrowLeft, ArrowUp, Bookmark, Check, Clock, Copy, Download, ImageIcon, Layers, Loader2, Paperclip, Plus, RefreshCw, Save, Send, Sparkles, Trash2, Type, Wallet, Wand2, X } from "lucide-react";
+import { QUALITY, NO_OPTS, TYPES, typeOf, slidePrice, type Brief, type CreateOpts, type ImgModel, type RefItem } from "@/lib/creator/consts";
 import { POST_TYPES } from "@/lib/postsettings";
-import { STYLES } from "@/lib/studio-catalog";
 import type { MadeItem, StudioSettings } from "@/lib/creator/actions";
 import type { PresetRow, RecentWork } from "@/lib/creator/data";
 import { briefAction, createMaterialAction, deletePresetAction, describeRefAction, dropStudioAssetsAction, planCarouselAction, recomposeSlideAction, saveWorkAction, savePresetAction, saveTextPresetAction } from "@/lib/creator/actions";
 import type { PlanSlide } from "@/lib/creator/plan";
+import { CreatorSettings } from "./CreatorSettings";
 import { GenOrb } from "./GenOrb";
 import { ExamplesModal, type ExampleRef } from "./ExamplesModal";
-import { Opt, Pop, img, rub } from "./ui";
+import { Pop, img, rub } from "./ui";
 
 export interface FactoryOpt { id: string; name: string; brandId: string; brand: string; audience: string; hasLogo: boolean }
 type SlideState = { status: "wait" | "run" | "ok" | "err"; finalId?: string; bgId?: string; error?: string; startedAt?: number };
@@ -20,11 +20,8 @@ type Phase = "compose" | "briefing" | "brief" | "making";
 type Plan = { slides: PlanSlide[]; caption: string; style: string };
 
 const POS: [string, string][] = [["tl", "Сверху слева"], ["tr", "Сверху справа"], ["bl", "Снизу слева"], ["br", "Снизу справа"], ["bc", "Снизу по центру"], ["tc", "Сверху по центру"]];
-const HINTS: Record<string, string[]> = {
-  carousel: ["5 ошибок, из-за которых клиенты не доходят до покупки", "Как мы упаковываем заказ: путь товара от склада до двери", "Ссылка на новость отрасли + наш комментарий экспертов"],
-  post: ["Почему клиенты возвращаются именно к нам", "Новость отрасли и наш взгляд", "Ответ на частый вопрос клиентов"],
-  reels: ["Один день работы нашей команды", "3 мифа о нашей нише", "Как выбрать без переплаты"],
-};
+const PRIMARY_TYPES = ["post", "seo", "carousel", "reels", "infographic"];
+const ORDERED_TYPES = PRIMARY_TYPES.map(k => TYPES.find(t => t.kind === k)!);
 const WORDS: Record<string, string[]> = {
   post: ["Читаю задачу…", "Подбираю цепляющий хук…", "Пишу текст в голосе бренда…", "Вычитываю и убираю воду…"],
   reels: ["Придумываю хук для первых секунд…", "Раскладываю ролик по кадрам…", "Пишу текст за кадром…", "Проверяю хронометраж…"],
@@ -33,8 +30,8 @@ const WORDS: Record<string, string[]> = {
 };
 const fallbackWords = ["Читаю задачу…", "Пишу материал в голосе бренда…", "Вычитываю текст…", "Почти готово…"];
 
-export function CreateStudio({ factories, startFactory, startKind, models, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited }: {
-  factories: FactoryOpt[]; startFactory: string; startKind: string; models: ImgModel[]; presets: PresetRow[]; examples: ExampleRef[]; recent: RecentWork[];
+export function CreateStudio({ factories, startFactory, startKind, models, textModels, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited }: {
+  factories: FactoryOpt[]; startFactory: string; startKind: string; models: ImgModel[]; textModels: string[]; presets: PresetRow[]; examples: ExampleRef[]; recent: RecentWork[];
   kindPrices: Record<string, number>; balanceKop: number; unlimited: boolean;
 }) {
   const router = useRouter();
@@ -87,7 +84,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
   const dirty = () => (isCar && allOk && !saved) || (phase === "making" && running);
   const resetFlow = () => { setPhase("compose"); setPlan(null); setSl([]); setBrief(null); setMade(null); setSaved(null); setErr(""); setAngle(""); };
   const guard = () => !dirty() || window.confirm("Текущая карусель не сохранена и пропадёт. Продолжить?");
-  const pickKind = (k: string) => { if (k === kind || working) return; if (!guard()) return; resetFlow(); setKind(k); };
+  const pickKind = (k: string) => { if (k === kind || working) return; if (!guard()) return; resetFlow(); setKind(k); setOpts(o => ({...o,requirements:""})); };
   const pickFactory = (id: string) => { setFid(id); const f = factories.find((x) => x.id === id); set({ logo: !!f?.hasLogo && S.logo }); };
 
   /* ───── референсы ───── */
@@ -212,15 +209,14 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
   const aspect = S.format === "portrait" ? "aspect-[4/5]" : "aspect-square";
   const noModel = isCar && !model;
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* буфер недоступен */ } };
-  const toneLabel = opts.postType ? POST_TYPES[opts.postType] : "По настройкам завода";
-  const voice = opts.voice ? STYLES[opts.voice]?.label : "";
+
   const picked = refs.map((r) => r.id);
   const openLink = (id: string, f: string) => `/app/factories/${f}?tab=create&draft=${id}`;
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-5xl flex-col">
+    <div className="creator-studio mx-auto grid min-h-[calc(100dvh-164px)] w-full max-w-[1440px] grid-cols-1 gap-x-3 gap-y-5 rounded-[24px] bg-surface px-0 py-0 lg:grid-cols-[minmax(0,1fr)_255px] xl:px-8">
       {/* шапка */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Wand2 size={20} className="text-accent" />Создание материала</h1>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <select className="input !w-auto !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
@@ -231,17 +227,14 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
       </div>
 
       {/* холст */}
-      <div className="flex-1">
+      <div className="min-w-0 self-stretch">
         {phase === "compose" && (
-          <div className="grid min-h-72 place-items-center rounded-3xl border border-dashed border-line p-6 text-center sm:p-8">
-            <div className="max-w-xl">
-              <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={22} /></div>
+          <div className="grid min-h-[180px] place-items-center px-2 py-10 text-center lg:min-h-[min(28dvh,300px)] lg:pb-6">
+            <div className="max-w-xl text-balance">
+
               <p className="font-medium">{isCar ? "Опишите карусель: ИИ разобьёт тему на слайды и нарисует отдельную картинку к каждому" : `Опишите, какой материал нужен: ИИ напишет ${t.noun} в голосе вашего бренда`}</p>
               <p className="mt-1 text-sm text-ink2">Выберите тип ниже, при желании укажите стиль, аудиторию и референс. Перед запуском вы увидите описание материала и цену. Можно вставить ссылку на новость: факты возьмём оттуда.</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {(HINTS[kind] ?? HINTS.post).map((x) => <button key={x} type="button" onClick={() => setPrompt(x)} className="rounded-full bg-tile px-3 py-1.5 text-xs text-ink2 hover:bg-tile2">{x}</button>)}
-                <button type="button" onClick={() => setGallery(true)} className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90"><Layers size={12} />Посмотреть примеры</button>
-              </div>
+
             </div>
           </div>
         )}
@@ -325,10 +318,10 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
         )}
       </div>
 
-      {err && <p className="mt-3 rounded-xl bg-bad-soft px-4 py-2.5 text-sm text-bad" role="alert">{err}</p>}
+      {err && <p className="lg:col-start-1 rounded-xl bg-bad-soft px-4 py-2.5 text-sm text-bad" role="alert">{err}</p>}
 
       {/* нижняя панель */}
-      <div className="sticky bottom-3 z-20 mt-4 space-y-2">
+      <div className="min-w-0 self-end space-y-3 lg:col-start-1 lg:row-start-3">
         {hasResult && (
           <div className="flex flex-wrap items-center justify-center gap-2">
             {isCar ? (saved
@@ -350,18 +343,20 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
           </div>)}
 
         {/* тип материала + цена */}
-        <div className="flex items-center justify-center gap-2">
-          <div role="tablist" aria-label="Тип материала" className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-tile p-1">
-            {TYPES.map((x) => (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div role="tablist" aria-label="Тип материала" className="flex max-w-full items-center gap-1 rounded-lg bg-tile p-1">
+            <div className="flex min-w-0 gap-1 overflow-x-auto">{ORDERED_TYPES.map((x) => (
               <button key={x.kind} type="button" role="tab" aria-selected={x.kind === kind} disabled={working} onClick={() => pickKind(x.kind)} title={x.what}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${x.kind === kind ? "bg-accent font-medium text-white" : "text-ink2 hover:bg-tile2"}`}>{x.short}</button>))}
+                className={`shrink-0 whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${x.kind === kind ? "bg-accent font-medium text-white" : "text-ink2 hover:bg-tile2"}`}>{x.short}</button>))}
+            </div><Pop label="Другие форматы" trigger={PRIMARY_TYPES.includes(kind) ? "Ещё" : t.short} className="!rounded-md !py-1.5">
+              {(close) => TYPES.filter(x => !PRIMARY_TYPES.includes(x.kind)).map(x => <button type="button" key={x.kind} disabled={working} aria-pressed={kind === x.kind} className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${kind === x.kind ? "bg-accent-soft text-accent" : "hover:bg-tile"}`} onClick={() => {pickKind(x.kind);close();}}>{x.short}<span className="mt-0.5 block text-[11px] text-ink3">{x.what}</span></button>)}
+            </Pop>
           </div>
-          <span className="hidden shrink-0 rounded-full border border-accent/40 bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent-ink sm:inline-block" title={isCar ? `${count} слайдов = ${rub(total)}` : "Цена материала"}>
-            {unlimited ? "Безлимит" : isCar ? `${rub(per)}/слайд` : rub(total)}</span>
+
         </div>
 
         {/* ввод */}
-        <div className="rounded-3xl bg-tile p-3 shadow-float">
+        <div className="overflow-visible rounded-lg border border-accent bg-surface p-2 focus-within:ring-2 focus-within:ring-accent/10">
           {(refs.length > 0 || uploading) && (
             <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
               {refs.map((r) => (
@@ -377,7 +372,8 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
           <textarea className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-ink3" rows={phase === "compose" ? 3 : 2} maxLength={isCar ? 2000 : 20000} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={working}
             placeholder={isCar ? "Опишите тему или вставьте ссылку на новость. Например: «5 ошибок при выборе подрядчика»" : `О чём ${t.noun}? Тема, идея, ссылка или готовый текст`}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void makeBrief(); }} aria-label="Запрос" />
-          <div className="mt-1 flex items-center gap-2">
+          <div className="px-2 pb-1 text-right text-[10px] tabular-nums text-ink3">{prompt.length} / {isCar ? 2000 : 20000}</div>
+          <div className="flex items-center gap-2 rounded-b-md bg-tile px-1.5 py-1">
             <Pop chevron={false} label="Приложить референс" trigger={uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} className="!size-9 !justify-center !rounded-full !p-0">
               {(close) => <>
                 <p className="px-3 pb-1 pt-1 text-sm font-semibold">Приложить референс</p>
@@ -394,47 +390,12 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
             <span className="ml-auto" />
             {short && <span className="hidden text-xs text-bad sm:inline">Не хватает {rub(total - balanceKop)} · <Link href="/app/billing" className="underline">пополнить</Link></span>}
-            <button type="button" className="btn btn-accent !h-10 !w-10 !justify-center !rounded-full !p-0" disabled={working || noModel || prompt.trim().length < 3} onClick={() => void makeBrief()} aria-label="Составить описание материала" title="Составить описание (Ctrl+Enter)">
-              {phase === "briefing" ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
+            <button type="button" className="btn btn-accent !h-8 !justify-center !rounded-md !px-2.5 !py-0" disabled={working || noModel || prompt.trim().length < 3} onClick={() => void makeBrief()} aria-label="Составить описание материала" title="Составить описание (Ctrl+Enter)">
+              {phase === "briefing" ? <Loader2 size={16} className="animate-spin" /> : <><span className="text-[11px]">{unlimited ? "Безлимит" : rub(total)}</span><ArrowUp size={16} /></>}
             </button>
           </div>
 
-          {/* параметры */}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Pop trigger={<><Sparkles size={13} className="text-accent" />{toneLabel}{voice ? ` · ${voice}` : ""}</>} wide label="Стиль и манера">
-              {(close) => <>
-                <p className="px-3 pb-1 pt-1 text-sm font-semibold">Стиль материала</p>
-                <Opt on={!opts.postType} onClick={() => { setOpts((o) => ({ ...o, postType: "" })); close(); }} title="По настройкам завода" hint="Типы постов, заданные в настройках контента" />
-                {Object.entries(POST_TYPES).map(([k, v]) => <Opt key={k} on={opts.postType === k} onClick={() => { setOpts((o) => ({ ...o, postType: k })); close(); }} title={v} />)}
-                <p className="px-3 pb-1 pt-3 text-sm font-semibold">Манера письма</p>
-                <div className="flex flex-wrap gap-1.5 px-2 pb-2">
-                  {Object.entries(STYLES).map(([k, v]) => { const on = (opts.voice || "normal") === k; return <button key={k} type="button" title={v.hint} onClick={() => setOpts((o) => ({ ...o, voice: k === "normal" ? "" : k }))} className={`rounded-full px-2.5 py-1 text-xs ${on ? "bg-accent text-white" : "bg-tile text-ink2 hover:bg-tile2"}`}>{v.label}</button>; })}
-                </div>
-              </>}
-            </Pop>
-            <Pop trigger={<><UserRound size={13} />{opts.audience ? "Другая аудитория" : "Наша аудитория"}</>} wide label="Аудитория">
-              {(close) => <AudiencePicker own={opts.audience} brand={fac?.audience ?? ""} brandName={fac?.brand ?? ""} onPick={(a) => { setOpts((o) => ({ ...o, audience: a })); close(); }} />}
-            </Pop>
-            {isCar && <>
-              <Pop trigger={<><Sparkles size={13} className="text-accent" />{model?.label ?? "Нет моделей"} · {model ? rub(per) : ""}</>} wide label="Модель отрисовки">
-                {(close) => <><p className="px-3 pb-1 pt-1 text-sm font-semibold">Модель отрисовки</p><p className="px-3 pb-2 text-xs text-ink3">Чем рисуем картинки слайдов. Цена за слайд с учётом качества.</p>
-                  {models.map((m) => <Opt key={m.id} on={m.id === S.model} onClick={() => { set({ model: m.id }); close(); }} title={m.label} price={`${rub(slidePrice(m, S.quality))}/слайд`} hint={m.hint} />)}</>}
-              </Pop>
-              <Pop trigger={<><Layers size={13} />{S.n} сл.</>} label="Сколько слайдов">
-                {(close) => <><p className="px-3 pb-2 pt-1 text-sm font-semibold">Сколько слайдов</p>{[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <Opt key={n} on={S.n === n} onClick={() => { set({ n }); close(); }} title={`${n} слайдов`} price={rub(per * n)} />)}</>}
-              </Pop>
-              <Pop trigger={<><ImageIcon size={13} />{QUALITY[S.quality].label}</>} label="Качество">
-                {(close) => <><p className="px-3 pb-1 pt-1 text-sm font-semibold">Качество</p><p className="px-3 pb-2 text-xs text-ink3">Размер готового слайда. Для лент хватает 1K.</p>
-                  {(Object.keys(QUALITY) as QualityKey[]).map((k) => <Opt key={k} on={S.quality === k} onClick={() => { set({ quality: k }); close(); }} title={QUALITY[k].label} price={model ? rub(slidePrice(model, k)) : ""} hint={`${QUALITY[k].hint} · ${QUALITY[k].width} px`} />)}</>}
-              </Pop>
-              <Pop trigger={<>{FORMATS[S.format].label}</>} label="Формат">
-                {(close) => <>{(Object.keys(FORMATS) as FormatKey[]).map((k) => <Opt key={k} on={S.format === k} onClick={() => { set({ format: k }); close(); }} title={FORMATS[k].label} />)}</>}
-              </Pop>
-              <Pop trigger={<><Type size={13} />{S.textInImage && model?.text ? "Текст рисует ИИ" : "Текст нашим шрифтом"}</>} wide label="Текст на слайдах">
-                {(close) => <><Opt on={!S.textInImage} onClick={() => { set({ textInImage: false }); close(); }} title="Нашим шрифтом" hint="Ровная кириллица и фирменный шрифт бренда. Рекомендуем." />
-                  <Opt on={S.textInImage && !!model?.text} onClick={() => { if (model?.text) { set({ textInImage: true }); close(); } }} title="Рисует нейросеть" hint={model?.text ? "Красивее вписан в картинку, но возможны ошибки в буквах." : "Эта модель плохо рисует текст, выберите другую."} /></>}
-              </Pop>
-            </>}
             <button type="button" onClick={() => setGallery(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-tile px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-tile2"><Layers size={13} />примеры</button>
             <Pop trigger={<><Bookmark size={13} />Пресеты{presets.length ? ` · ${presets.length}` : ""}</>} wide label="Пресеты">
               {(close) => presets.length === 0 ? <p className="p-3 text-xs text-ink3">Пресетов пока нет. Создайте материал и нажмите «Сохранить как пресет»: стиль, тон, аудитория и (для каруселей) модель с качеством запомнятся.</p> : presets.map((p) => (
@@ -459,6 +420,8 @@ export function CreateStudio({ factories, startFactory, startKind, models, prese
           {noModel && <p className="mt-2 px-1 text-xs text-bad">Модель изображений не настроена. Администратору: «Настройки ИИ».</p>}
         </div>
       </div>
+
+      <CreatorSettings kind={kind} models={models} textModels={textModels} settings={S} opts={opts} audience={fac?.audience ?? ""} hasLogo={hasLogo} disabled={working || phase !== "compose"} set={set} setOpts={setOpts}/>
 
       {gallery && <ExamplesModal examples={examples} kind={kind} picked={picked} onToggle={toggleRef} onClose={() => setGallery(false)} />}
 
@@ -506,21 +469,6 @@ function BriefCard({ brief, kindLabel, audience, own, brand }: { brief: Brief; k
         <div><span className="label">Структура</span>
           <ol className="grid gap-1 text-sm text-ink2 sm:grid-cols-2">{brief.outline.map((o, i) => <li key={i} className="flex gap-2"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-tile text-[11px] text-ink3">{i + 1}</span>{o}</li>)}</ol></div>)}
       <p className="text-xs text-ink3">Другая аудитория или стиль? Поменяйте их в панели ниже и нажмите стрелку: описание составится заново. Это бесплатно.</p>
-    </div>
-  );
-}
-
-function AudiencePicker({ own, brand, brandName, onPick }: { own: string; brand: string; brandName: string; onPick: (a: string) => void }) {
-  const [text, setText] = useState(own);
-  return (
-    <div className="space-y-2 p-1">
-      <Opt on={!own} onClick={() => onPick("")} title={`Наша аудитория («${brandName}»)`} hint={brand ? brand.slice(0, 140) : "Из карточки бренда"} />
-      <div className={`rounded-xl p-3 ${own ? "bg-accent-soft" : "bg-tile"}`}>
-        <p className="mb-1.5 text-sm font-medium">Другая аудитория</p>
-        <textarea className="input min-h-16 text-xs" maxLength={400} value={text} onChange={(e) => setText(e.target.value)} placeholder="Например: владельцы малого бизнеса 30–45 лет, ищут способ привлекать клиентов без рекламы" aria-label="Другая аудитория" />
-        <button type="button" className="btn btn-accent mt-2 !py-1.5 text-xs" disabled={text.trim().length < 5} onClick={() => onPick(text.trim())}>Применить</button>
-      </div>
-      <p className="px-1 text-[11px] text-ink3">Можно и просто написать в запросе: «для студентов», «для владельцев ресторанов».</p>
     </div>
   );
 }

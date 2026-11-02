@@ -45,11 +45,11 @@ export async function loadFactory(orgId: string, id: string): Promise<FactoryRow
 export const brandOf = (r: FactoryRow, topic = ""): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [], notes: r.rules?.notes ?? [], kb: r.kb_profile || r.kb_style ? kbBlock(cleanProfile(r.kb_profile), cleanStyle(r.kb_style), topic) : undefined });
 
 /** Выбор клиента в панели создания: другая аудитория, манера письма, референс подачи. Подменяем в загруженном бренде: дальше все генераторы берут их как обычно. */
-export function applyCreateOverrides(fac: FactoryRow, meta: { audience?: string; voice?: string; refText?: string } | null | undefined) {
+export function applyCreateOverrides(fac: FactoryRow, meta: { audience?: string; voice?: string; requirements?: string; refText?: string } | null | undefined) {
   if (!meta) return;
   if (meta.audience) fac.audience = String(meta.audience).slice(0, 400);
   const v = meta.voice && STYLES[meta.voice];
-  const extra = [v && v.hint ? `манера «${v.label}»: ${v.hint}` : "", meta.refText ? `референс подачи (структуру и манеру перенимай, факты и слова не копируй): ${String(meta.refText).slice(0, 900)}` : ""].filter(Boolean);
+  const extra = [meta.requirements ? `обязательные требования к материалу: ${String(meta.requirements).slice(0, 600)}` : "", v && v.hint ? `манера «${v.label}»: ${v.hint}` : "", meta.refText ? `референс подачи (структуру и манеру перенимай, факты и слова не копируй): ${String(meta.refText).slice(0, 900)}` : ""].filter(Boolean);
   if (extra.length) fac.tone = `${fac.tone}; ${extra.join("; ")}`;
 }
 
@@ -171,7 +171,7 @@ export async function brandNotes(orgId: string, brandId: string) {
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
 export async function buildItem(orgId: string, itemId: string): Promise<Result> {
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
+  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; requirements?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
     `update kz_content_items set status='generating', updated_at=now()
       where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
       returning id,factory_id,kind,topic,hook,meta`, [itemId, orgId]);
