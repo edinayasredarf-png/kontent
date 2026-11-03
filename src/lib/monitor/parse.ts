@@ -68,8 +68,12 @@ export function parseTelegram(html: string, username: string): Item[] {
       const u = (ph.getAttribute("style") ?? "").match(/url\(['"]?([^'")]+)['"]?\)/i)?.[1];
       if (u && /^https?:\/\//i.test(u) && !media.some((m) => m.url === u)) media.push({ type: "image", url: u });
     }
+    for (const video of post.querySelectorAll("video")) {
+      const u = video.getAttribute("src") || video.querySelector("source")?.getAttribute("src");
+      if (u && /^https?:\/\//i.test(u) && !media.some(m => m.url === u)) media.push({type:"video",url:u});
+    }
     if (!text && !media.length && !post.querySelector(".tgme_widget_message_video_player")) continue;
-    const title = text ? clip(text.replace(/\s+/g, " "), 140) : media.length ? "Фото из Telegram" : "Видео из Telegram";
+    const title = text ? clip(text.replace(/\s+/g, " "), 140) : media.some(m => m.type === "image") ? "Фото из Telegram" : "Видео из Telegram";
     out.push({ extId: sha(link), url: link, title, body: text, publishedAt: Number.isNaN(dt) ? new Date() : new Date(dt), media: media.slice(0, 10) });
   }
   return out;

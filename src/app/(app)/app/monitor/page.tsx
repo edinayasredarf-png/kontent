@@ -26,7 +26,6 @@ import { NewsCreate } from "@/components/monitor/NewsCreate";
 import { DraftHost } from "@/components/DraftHost";
 import { NoResults } from "@/components/monitor/NoResults";
 import { LazySettings } from "@/components/monitor/LazySettings";
-import { TelegramPost } from "@/components/monitor/TelegramPost";
 import { NewsMedia } from "@/components/monitor/NewsMedia";
 import type { Media } from "@/lib/monitor/parse";
 import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/feed-query";
@@ -132,21 +131,20 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             const sv = sourceView(r.kind, r.source, r.ref, r.config ?? {}), text = bestText(r), when = new Date(r.published_at);
             return (
             <article key={r.id} style={{ "--i": idx } as React.CSSProperties} className={`feed-card rounded-xl bg-tile p-2.5 will-change-transform [transition:opacity_.15s_linear] ${freshSince && new Date(r.fetched_at).getTime() > freshSince ? "feed-fresh" : ""}`}>
-              {r.kind !== "telegram" && (<header className="flex items-center gap-3 rounded-[10px] bg-surface px-3 py-2.5">
-                <SourceIcon kind={r.kind} avatar={typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
+              <header className="flex items-center gap-3 rounded-[10px] bg-surface px-3 py-2.5">
+                <SourceIcon kind={r.kind} avatar={r.kind !== "telegram" && typeof r.config?.avatar === "string" ? r.config.avatar : undefined} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold leading-5">{sv.name}</p>
                   {sv.href ? <a href={sv.href} target="_blank" rel="noreferrer noopener" className="block truncate text-xs leading-4 text-ink2 hover:text-accent-ink">{sv.address}</a> : <p className="truncate text-xs leading-4 text-ink2">{sv.address}</p>}
                 </div>
-                <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs font-medium text-ink">{when.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
-              </header>)}
+                <time dateTime={when.toISOString()} className="shrink-0 self-start pt-0.5 text-xs font-medium text-ink">{when.toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+              </header>
               <div className="px-2.5 pb-1 pt-3">
                 {(r.status === "used" || r.status === "saved") && <p className="mb-2">{r.status === "used" ? <span className="chip !bg-good-soft !text-good">в плане</span> : <span className="chip !bg-bad-soft !text-bad">понравилось</span>}</p>}
-                {r.kind === "telegram" ? <TelegramPost url={r.url}>
-                  <p className="mb-2 text-sm font-semibold text-ink2">{sv.name}</p>
-                  <NewsMedia media={r.media ?? []} title={r.title} />
+                {r.kind === "telegram" ? <>
+                  <NewsMedia media={r.media ?? []} title={r.title} itemId={r.id} />
                   <PostText title={r.title} text={text} full />
-                </TelegramPost> : (r.kind === "site" || r.kind === "news") ? <RssArticle item={{ id: r.id, title: r.title, body: r.body, full_text: r.full_text, full_status: r.full_status, media: r.media }} kind={r.kind} write={write} /> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
+                </> : (r.kind === "site" || r.kind === "news") ? <RssArticle item={{ id: r.id, title: r.title, body: r.body, full_text: r.full_text, full_status: r.full_status, media: r.media }} kind={r.kind} write={write} /> : <><NewsMedia media={r.media ?? []} title={r.title} /><PostText title={r.title} text={text} /></>}
                 {r.fit_score != null && <p className="mt-2 text-xs"><span className={`chip ${r.fit_score >= 7 ? "!bg-good-soft !text-good" : r.fit_score >= 4 ? "!bg-warn-soft !text-warn" : ""}`}>Подходит {r.fit_score}/10</span>{r.fit_reason && <span className="ml-2 text-ink2">{r.fit_reason}</span>}</p>}
                 {r.matched.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{r.matched.map((m) => <span key={m} className="chip !bg-warn-soft !text-warn">{m}</span>)}</div>}
               </div>
