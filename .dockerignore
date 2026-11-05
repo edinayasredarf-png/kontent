@@ -1,0 +1,14 @@
+.git
+.github
+.next
+node_modules
+.env*
+!.env.example
+.vercel
+deploy
+docs
+tools
+tests
+*.log
+*.pem
+.admin*
