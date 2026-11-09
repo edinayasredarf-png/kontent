@@ -1,4 +1,6 @@
 "use server";
+import { rescheduleItem } from "./drafts";
+import { validDay } from "./calendar";
 import { aiEditText, stripProofreadRequest } from "./text-tools";
 import { allocateDates } from "./plan";
 import { sourceFrom } from "./creator/plan";
@@ -76,7 +78,10 @@ export async function setRepeatAction(f: FormData) {
 /** Вызывается из календаря при перетаскивании. Возвращает результат, а не перенаправляет: страница остаётся на месте. */
 export async function moveItemDateAction(id: string, date: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const c = await requireWriter();
-  const r = await moveItem(c.org.id, String(id), String(date));
+  if (!validDay(date)) return { ok: false, error: "Неверная дата" };
+  const timed = await one<{ time: string | null }>(`select to_char((i.meta->>'publishAt')::timestamptz at time zone coalesce(f.schedule->>'tz','Europe/Moscow'),'HH24:MI') time
+    from kz_content_items i left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2 and i.status='ready'`, [id, c.org.id]);
+  const r = timed?.time ? await rescheduleItem(c.org.id, id, date, timed.time) : await moveItem(c.org.id, String(id), String(date));
   if (r.ok) revalidatePath("/app/calendar");
   return r.ok ? { ok: true } : { ok: false, error: r.error ?? "Не удалось перенести" };
 }

@@ -12,15 +12,16 @@ import { ModalButton } from "@/components/ui/ModalButton";
 import { addCalendarIdea, extendCalendarPlan } from "@/lib/calendar-actions";
 import { PRICES, rub } from "@/lib/wallet";
 import { SubmitButton } from "@/components/SubmitButton";
+import { calendarRange, calendarHref, moscowToday, PERIODS, shiftPeriod, validDay, type CalendarPeriod } from "@/lib/calendar";
 const MOVABLE = ["idea", "approved", "ready", "failed", "rejected"];
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const c = await requireCtx();
-  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.m ?? "") ? sp.m! : new Date().toISOString().slice(0, 7);
-  const [y, m] = month.split("-").map(Number);
-  // сетка показывает хвосты соседних месяцев — берём с запасом в неделю с каждой стороны
-  const from = new Date(y, m - 1, -6).toISOString().slice(0, 10), to = new Date(y, m, 8).toISOString().slice(0, 10);
+  const period: CalendarPeriod = sp.period && Object.hasOwn(PERIODS, sp.period) ? sp.period as CalendarPeriod : "month";
+  const date = validDay(sp.date ?? "") ? sp.date! : /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.m ?? "") && validDay(`${sp.m}-01`) ? `${sp.m}-01` : moscowToday();
+  const month = date.slice(0, 7);
+  const { from, to } = calendarRange(period, date);
   const factories = await q<{ id: string; name: string }>("select id,name from kz_factories where org_id=$1 order by name", [c.org.id]);
   const args: unknown[] = [c.org.id, from, to];
   const cond: string[] = [];
@@ -28,22 +29,22 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   if (f) { args.push(f); cond.push(`i.factory_id=$${args.length}`); }
   if (KINDS.includes(sp.kind as never)) { args.push(sp.kind); cond.push(`i.kind=$${args.length}`); }
   if (sp.status && STATUS[sp.status]) { args.push(sp.status); cond.push(`i.status=$${args.length}`); }
-  const rows = await q<{ id: string; date: string; kind: string; topic: string; status: string; factory_id: string; factory: string }>(
-    `select i.id,to_char(i.planned_for,'YYYY-MM-DD') date,i.kind,i.topic,i.status,i.factory_id,f.name factory
-       from kz_content_items i join kz_factories f on f.id=i.factory_id
-      where i.org_id=$1 and not coalesce((i.meta->>'draft')::boolean,false) and i.planned_for between $2 and $3 ${cond.map((x) => "and " + x).join(" ")} order by i.planned_for, i.created_at limit 1500`, args);
-  const shift = (n: number) => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const rows = await q<{ id: string; date: string; kind: string; topic: string; status: string; factory_id: string; factory: string; color: string | null; time: string | null }>(
+    `select i.id,to_char(i.planned_for,'YYYY-MM-DD') date,i.kind,i.topic,i.status,i.factory_id,f.name factory,i.meta->>'calendarColor' color,
+            to_char((i.meta->>'publishAt')::timestamptz at time zone coalesce(f.schedule->>'tz','Europe/Moscow'),'HH24:MI') time
+       from kz_content_items i left join kz_factories f on f.id=i.factory_id
+      where i.org_id=$1 and not coalesce((i.meta->>'draft')::boolean,false) and i.planned_for between $2 and $3 ${cond.map((x) => "and " + x).join(" ")} order by i.planned_for, i.created_at`, args);
   const qs = (o: Record<string, string>) => { const u = new URLSearchParams(); const { item: _i, err: _e, note: _n, ...keep } = sp; void _i; void _e; void _n; for (const [k, v] of Object.entries({ ...keep, ...o })) if (v) u.set(k, v); return `/app/calendar?${u}`; };
   const itemId = /^[0-9a-f-]{36}$/.test(sp.item ?? "") ? sp.item! : "";
   const view = sp.view === "list" ? "list" : "calendar";
-  const returnFields = ["m", "view", "factory", "kind", "status"].map((key) => <input key={key} type="hidden" name={`return_${key}`} value={key === "m" ? month : sp[key] ?? ""} />);
+  const returnFields = ["m", "date", "period", "view", "factory", "kind", "status"].map((key) => <input key={key} type="hidden" name={`return_${key}`} value={key === "m" ? month : key === "date" ? date : key === "period" ? period : sp[key] ?? ""} />);
   const factorySelect = <label className="block space-y-2"><span className="text-sm text-ink2">Завод</span><select name="factory" defaultValue={f || factories[0]?.id} required className="input">{factories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>;
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-medium leading-8">Контент план</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <CalendarFilters month={month} factory={f ?? ""} kind={sp.kind ?? ""} status={sp.status ?? ""} view={view}
+          <CalendarFilters month={month} date={date} period={period} factory={f ?? ""} kind={sp.kind ?? ""} status={sp.status ?? ""} view={view}
             factories={factories.map((x) => ({ value: x.id, label: x.name }))} kinds={KINDS.map((k) => ({ value: k, label: KIND[k] }))} statuses={Object.entries(STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
           {canWrite(c.org.role) && <>
             <ModalButton label="Добавить идею" title="Добавить идею" className="btn btn-ghost !rounded-lg" stamp={Date.now()}>
@@ -71,8 +72,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       </div>
       {sp.err && !itemId && <p role="alert" className="mb-4 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">{sp.err}</p>}
       {itemId && <ItemModal orgId={c.org.id} id={itemId} returnTo={qs({})} err={sp.err} note={sp.note} canWrite={canWrite(c.org.role)} />}
-      <CalendarGrid key={`${month}|${f ?? ""}|${sp.kind ?? ""}|${sp.status ?? ""}`} month={month} view={view} prevHref={qs({ m: shift(-1) })} nextHref={qs({ m: shift(1) })}
-        items={rows.map((r) => ({ id: r.id, date: r.date, kind: r.kind, topic: r.topic, status: r.status, label: r.factory, href: qs({ item: r.id }), movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />
+      <CalendarGrid key={`${date}|${period}|${view}|${f ?? ""}|${sp.kind ?? ""}|${sp.status ?? ""}`} month={month} date={date} period={period} view={view} baseHref={qs({})}
+        prevHref={calendarHref(qs({}), { date: shiftPeriod(period, date, -1), m: shiftPeriod(period, date, -1).slice(0, 7) })}
+        nextHref={calendarHref(qs({}), { date: shiftPeriod(period, date, 1), m: shiftPeriod(period, date, 1).slice(0, 7) })}
+        items={rows.map((r) => ({ id: r.id, date: r.date, time: r.time, color: r.color, kind: r.kind, topic: r.topic, status: r.status, label: r.factory || "Без завода", href: qs({ item: r.id }), movable: canWrite(c.org.role) && MOVABLE.includes(r.status) }))} />
     </>
   );
 }
