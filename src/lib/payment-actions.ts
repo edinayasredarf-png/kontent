@@ -11,7 +11,7 @@ import { saveYooConfig, yooConfig, yooRequest } from "./yookassa";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 export async function checkoutAction(f: FormData) {
   const c = await requireManager();
-  if (f.get("accept") !== "on") redirect("/app/billing?err="+encodeURIComponent("Подтвердите условия выбранного тарифа"));
+  if (!(await yooConfig()).testMode && f.get("accept") !== "on") redirect("/app/billing?err="+encodeURIComponent("Подтвердите условия выбранного тарифа"));
   let url: string;
   try { url = (await createCheckout(c.org.id, c.user.id, c.user.email, s(f, "plan"), s(f, "requestKey"))).url; }
   catch (e) { redirect(`/app/billing?err=${encodeURIComponent((e as Error).message)}`); }
