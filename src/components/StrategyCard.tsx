@@ -1,7 +1,7 @@
 import { Compass, Sparkles } from "lucide-react";
 import { genStrategyAction, saveStrategyAction } from "@/lib/growth-actions";
 import type { Strategy } from "@/lib/strategy";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
 interface Matrix { weeks: string[]; rows: { name: string; counts: number[]; total: number }[]; untagged: number[] }

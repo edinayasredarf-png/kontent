@@ -1,3 +1,4 @@
+import { requireFeature, orgPlan } from "../plan-catalog";
 import { notify } from "../notify";
 import { one, q, tx } from "../db";
 import { fetchItems, fetchSourceMeta, resolveSource, type Kind } from "./fetchers";
@@ -14,9 +15,10 @@ import { loadKeywords, storeItems } from "./store";
 export { loadKeywords } from "./store";
 
 export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean, kind: Kind, input: string): Promise<{ error?: string }> {
-  const lim = unlimited ? null : PLANS[plan].sources;
+  await requireFeature(orgId, "monitor");
+  const lim = unlimited ? null : (await orgPlan(orgId)).sources;
   const n = Number((await one<{ n: string }>("select count(*) n from kz_sources where org_id=$1 and kind<>'manual'", [orgId]))!.n);
-  if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[plan].name}»: максимум источников — ${lim}. Повысьте тариф.` };
+  if (lim !== null && n >= lim) return { error: `Тариф «${(await orgPlan(orgId)).name}»: максимум источников — ${lim}. Повысьте тариф.` };
   let r;
   try { r = await resolveSource(kind, input, orgId); } catch (e) { return { error: (e as Error).message }; }
   if (kind === "max") { try { await fetchItems("max", r.ref, { ...r.config, orgId }); } catch (e) { return { error: (e as Error).message }; } } // сразу проверяем, что чтение разрешено
@@ -113,12 +115,12 @@ export async function itemToPlan(orgId: string, itemId: string, factoryId: strin
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const cost = PRICES.idea;
   try { await charge(orgId, cost, `Идея из поста: ${it.title.slice(0, 50)}`, it.id); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   let idea;
   try {
     idea = await genIdea({ name: fac.brand_name, description: fac.description, audience: fac.audience, tone: fac.tone, forbidden: fac.rules?.forbidden ?? [] },
       fac.product, fac.niche, fac.formats, { title: it.title, body: it.body, url: it.url });
-  } catch (e) { await refund(orgId, cost, "ошибка генерации идеи", it.id); return { ok: false, error: `Не удалось придумать идею, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка генерации идеи", it.id); return { ok: false, error: `Не удалось придумать идею, токены возвращены: ${(e as Error).message}` }; }
   const [planDate] = await allocateDates(factoryId, 1);
   const meta = JSON.stringify({ source: { title: it.title, body: it.body.slice(0, 3000), url: it.url, name: it.source } });
   const id = await tx(async (run) => {
@@ -144,7 +146,7 @@ export async function digest(orgId: string): Promise<{ text?: string; links?: Di
   if (items.length < 3) return { error: "Для сводки нужно хотя бы 3 поста за неделю. Добавьте источники или обновите ленту." };
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Сводка трендов по источникам"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно токенов" }; throw e; }
   try { return { text: await genDigest(items, (await loadKeywords(orgId)).filter((k) => k.kind === "include").map((k) => k.word)), links: items.map((it, n) => ({ n: n + 1, title: it.title.slice(0, 140), source: it.source, href: `/app/monitor?id=${it.id}` })) }; }
-  catch (e) { await refund(orgId, cost, "ошибка сводки"); return { error: `Сводка не получилась, деньги возвращены: ${(e as Error).message}` }; }
+  catch (e) { await refund(orgId, cost, "ошибка сводки"); return { error: `Сводка не получилась, токены возвращены: ${(e as Error).message}` }; }
 }

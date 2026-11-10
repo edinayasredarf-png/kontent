@@ -1,3 +1,4 @@
+import { effectiveModel } from "./ai";
 import { chat, aiReady } from "./ai";
 import { charge, refund, InsufficientFunds, PRICES } from "./wallet";
 
@@ -128,8 +129,8 @@ export async function aiEditText(orgId: string, text: string, op: EditOp, instru
   if (t.length < 3) return { ok: false, error: "Сначала напишите или вставьте текст" };
   if (op === "custom" && instruction.trim().length < 3) return { ok: false, error: "Напишите, что поправить" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен" };
-  try { await charge(orgId, PRICES.edit, "Правка текста ИИ"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, PRICES.edit, "Правка текста ИИ", undefined, await effectiveModel("post")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   const r = await runEdit((system, user, o) => chat("post", system, user, o), t, op, instruction).catch((e: Error) => ({ ok: false as const, error: e.message.slice(0, 220) }));
   if (!r.ok) { await refund(orgId, PRICES.edit, "ошибка правки текста"); return { ok: false, error: `${r.error.replace(/[.\s]+$/, "")}. Деньги возвращены` }; }
   return r;

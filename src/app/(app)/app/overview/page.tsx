@@ -4,7 +4,7 @@ import { progress } from "@/lib/agent/onboarding";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
 import { PLANS, fmtLimit } from "@/lib/plans";
-import { rub } from "@/lib/wallet";
+import { tokens as rub } from "@/lib/wallet";
 import { KIND, PageHead, Status } from "@/components/ui";
 
 export default async function Overview({ searchParams }: { searchParams: Promise<{ d?: string }> }) {

@@ -1,3 +1,4 @@
+import { orgPlan } from "./plan-catalog";
 import { one, q, tx } from "./db";
 import { aiReady, chat, extractObject } from "./ai";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
@@ -30,11 +31,11 @@ export async function askLia(orgId: string, history: Msg[], message: string): Pr
     `select (select count(*) from kz_brands where org_id=$1) brands,(select count(*) from kz_factories where org_id=$1) factories,(select count(*) from kz_channels where org_id=$1) channels,(select plan from kz_orgs where id=$1) plan`, [orgId]);
   const past = history.slice(-8).filter((h) => (h.role === "user" || h.role === "assistant") && typeof h.content === "string").map((h) => `${h.role === "user" ? "Пользователь" : "Лия"}: ${h.content.slice(0, 1500)}`).join("\n");
   const cost = PRICES.idea;
-  try { await charge(orgId, cost, "Лия: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, "Лия: ответ"); } catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно токенов" }; throw e; }
   try {
     const text = await chat("assistant", SYSTEM, `Состояние аккаунта: тариф ${ctx?.plan}, брендов ${ctx?.brands}, заводов ${ctx?.factories}, каналов ${ctx?.channels}.\n${past ? `\nДиалог до этого:\n${past}\n` : ""}\nПользователь: ${m}\nЛия:`, { maxTokens: 500, temperature: 0.4, timeoutMs: 40_000 });
     return { text };
-  } catch (e) { await refund(orgId, cost, "ошибка ответа Лии"); return { error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка ответа Лии"); return { error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }
 
 /** «Быстрый режим»: из описания бизнеса собираем бренд и завод. Лимиты тарифа действуют так же, как при ручном создании. */
@@ -44,11 +45,11 @@ export async function quickLaunch(o: { orgId: string; plan: PlanKey; unlimited: 
   if (d.length > 3000) return { ok: false, error: "Описание слишком длинное (до 3000 знаков)" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const counts = await one<{ b: string; f: string }>("select (select count(*) from kz_brands where org_id=$1) b,(select count(*) from kz_factories where org_id=$1) f", [o.orgId]);
-  const lim = { b: o.unlimited ? null : PLANS[o.plan].brands, f: o.unlimited ? null : PLANS[o.plan].factories };
-  if (lim.b !== null && Number(counts!.b) >= lim.b) return { ok: false, error: `Тариф «${PLANS[o.plan].name}»: максимум брендов — ${lim.b}` };
-  if (lim.f !== null && Number(counts!.f) >= lim.f) return { ok: false, error: `Тариф «${PLANS[o.plan].name}»: максимум заводов — ${lim.f}` };
+  const lim = { b: o.unlimited ? null : (await orgPlan(o.orgId)).brands, f: o.unlimited ? null : (await orgPlan(o.orgId)).factories };
+  if (lim.b !== null && Number(counts!.b) >= lim.b) return { ok: false, error: `Тариф «${(await orgPlan(o.orgId)).name}»: максимум брендов — ${lim.b}` };
+  if (lim.f !== null && Number(counts!.f) >= lim.f) return { ok: false, error: `Тариф «${(await orgPlan(o.orgId)).name}»: максимум заводов — ${lim.f}` };
   const cost = PRICES.idea * 2;
-  try { await charge(o.orgId, cost, "Быстрый запуск"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(o.orgId, cost, "Быстрый запуск"); } catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const raw = await chat("assistant", "Ты помощник по запуску контент-маркетинга. Отвечай ТОЛЬКО валидным JSON-объектом, без пояснений.",
       `Описание бизнеса от владельца:\n«${d}»\n\nВерни JSON: {"brand":{"name":"название компании","description":"чем занимается, 2–3 предложения","audience":"кто клиенты","tone":"professional|friendly|humor|serious|inspiring","forbidden":["что не упоминать, если явно сказано"]},"factory":{"name":"название завода, например «Блог про …»","niche":"ниша","product":"продукт или направление","formats":["post"]}}\nformats — из: post, carousel, article, reels, seo (1–3 подходящих). Ничего не выдумывай сверх описания.`,
@@ -67,5 +68,5 @@ export async function quickLaunch(o: { orgId: string; plan: PlanKey; unlimited: 
       return f.id;
     });
     return { ok: true, factoryId: id };
-  } catch (e) { await refund(o.orgId, cost, "ошибка быстрого запуска"); return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(o.orgId, cost, "ошибка быстрого запуска"); return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }

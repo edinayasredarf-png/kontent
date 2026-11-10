@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireCtx } from "@/lib/auth";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { Chat } from "@/components/Chat";
 import { loadHistoryWithCards } from "@/lib/agent/agent";
 import { currentThread, listThreads } from "@/lib/agent/threads";

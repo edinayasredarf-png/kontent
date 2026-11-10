@@ -4,7 +4,7 @@ import { loadDrafts, type DraftItem } from "@/lib/drafts";
 import { allocateDates } from "@/lib/plan";
 import { q } from "@/lib/db";
 import { IMAGE_KINDS } from "@/lib/item-images";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { draftAttachImageAction, draftDiscardAction, draftImageGenAction, draftPublishAction, draftRemoveImageAction, draftReworkImageAction, draftToPlanAction, regenDraftAction, saveDraftTextAction, saveDraftPollAction } from "@/lib/draft-actions";
 import { KIND } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
@@ -46,6 +46,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
     return (
       <article key={it.id} className="space-y-3 rounded-3xl bg-tile p-3">
         <div className="flex flex-wrap items-center gap-2"><span className="chip !bg-surface">{KIND[it.kind] ?? it.kind}</span><b className="min-w-0 flex-1 text-sm">{it.topic}</b></div>
+        {!returnTo.startsWith("/app/create") && <Link href={`/app/create?item=${it.id}`} className="link-btn text-sm">Доработать в создании контента</Link>}
         {!ready && it.status !== "failed" && <p className="rounded-2xl bg-surface p-3 text-sm text-ink2">Материал ещё создаётся. <Link href={`${returnTo}${returnTo.includes("?") ? "&" : "?"}draft=${items.map((x) => x.id).join(",")}`} className="font-semibold text-accent-ink">Обновить</Link></p>}
         {it.status === "failed" && (
           <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-bad-soft p-3 text-sm text-bad">{hid(it.id)}<AlertTriangle size={15} />Не удалось создать материал.

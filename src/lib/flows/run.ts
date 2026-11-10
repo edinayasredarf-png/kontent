@@ -207,8 +207,8 @@ export async function rewriteFlowItem(orgId: string, flowItemId: string, note = 
     await q("update kz_flow_items set text=$2, cost_kop=cost_kop+$3, updated_at=now() where id=$1", [flowItemId, t.v, t.cost]);
     return { ok: true, text: t.v };
   } catch (e) {
-    if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" };
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 

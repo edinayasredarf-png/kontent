@@ -41,7 +41,7 @@ export default async function Settings() {
         <SubmitButton className="btn">Сохранить</SubmitButton>
       </form>
       <form action={saveCreatorModelsAction} className="card mt-6 space-y-3 p-6">
-        <div><b>Модели для клиентов (студия каруселей)</b><p className="mt-1 text-xs text-ink3">Клиент сам выбирает модель отрисовки слайдов и видит цену. Одна модель на строку: <code>id модели | Название | Подсказка | цена в ₽ за слайд в 1K | text</code>. Слово <code>text</code> в конце значит, что модель ровно рисует русский текст. Цена 2K и 4K считается от неё (×1,7 и ×2,7). {custom ? "" : "Сейчас список не задан: клиентам доступна одна модель из пункта «Генерация изображений»."}</p></div>
+        <div><b>Модели для клиентов (студия каруселей)</b><p className="mt-1 text-xs text-ink3">Клиент сам выбирает модель отрисовки слайдов и видит цену. Одна модель на строку: <code>id модели | Название | Подсказка | цена в токенах за слайд в 1K | text</code>. Слово <code>text</code> в конце значит, что модель ровно рисует русский текст. Цена 2K и 4K считается от неё (×1,7 и ×2,7). {custom ? "" : "Сейчас список не задан: клиентам доступна одна модель из пункта «Генерация изображений»."}</p></div>
         <textarea name="models" rows={5} defaultValue={catalog} spellCheck={false} className="input font-mono text-xs" placeholder="gpt-image-1 | GPT Image | Ровный русский текст на слайде | 7 | text&#10;gemini-2.5-flash-image | Nano | Дешевле, текст может поплыть | 5" />
         <SubmitButton className="btn">Сохранить список</SubmitButton>
       </form>

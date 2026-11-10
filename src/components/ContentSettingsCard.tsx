@@ -3,7 +3,7 @@ import { Settings2 } from "lucide-react";
 import { CAROUSEL_STYLES, EMOJI, HASHTAGS, LENGTHS, LOGO_POS_LABEL, POST_TYPES, type ContentSettings } from "@/lib/postsettings";
 import { STYLES } from "@/lib/images";
 import { saveContentSettingsAction } from "@/lib/carousel/actions";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
 import { Switch } from "@/components/ui/Switch";

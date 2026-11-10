@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { one, q } from "./db";
+import { buildItem } from "./pipeline";
 import { cleanHtml } from "./seo";
 import { snapshot } from "./versions";
 import { calendarColor } from "./calendar";
@@ -58,4 +59,19 @@ export async function itemColorAction(f: FormData) {
   const rows = await q(`update kz_content_items set meta=case when $3::text='' then meta-'calendarColor'
     else meta || jsonb_build_object('calendarColor',$3::text) end, updated_at=now() where id=$1 and org_id=$2 returning id`, [s(f, "id"), c.org.id, color]);
   back(f, rows.length ? { ok: true, note: "Цвет материала сохранён" } : { ok: false, error: "Материал не найден" });
+}
+
+/** Generate the existing item without moving it out of the plan or losing source metadata. */
+export async function itemGenerateAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id");
+  const it = await one<{ status: string; version: string; photo: unknown }>(
+    "select status,updated_at::text version,meta->'carousel'->'photo' photo from kz_content_items where id=$1 and org_id=$2 and factory_id is not null", [id, c.org.id]);
+  if (!it || !CALENDAR_EDITABLE.includes(it.status)) back(f, { ok: false, error: "Материал недоступен для генерации" });
+  if (it!.photo) back(f, { ok: false, error: "Для этой карусели используйте редактор слайдов" });
+  await snapshot(c.org.id, id, "До повторной генерации");
+  const changed = await q("update kz_content_items set status='approved',updated_at=now() where id=$1 and org_id=$2 and updated_at=$3::timestamptz and status=any($4::text[]) returning id", [id, c.org.id, it!.version, CALENDAR_EDITABLE]);
+  if (!changed.length) back(f, { ok: false, error: "Материал изменился. Обновите страницу" });
+  const result = await buildItem(c.org.id, id);
+  back(f, result.ok ? { ok: true, note: "Материал создан" } : result);
 }

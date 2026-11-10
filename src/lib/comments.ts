@@ -41,7 +41,7 @@ const GUIDE: Record<Tone, string> = {
   spam: "Это похоже на спам: ответ не нужен.",
 };
 
-/** Черновик ответа от ИИ: учитывает бренд, пост и тон комментария. Платно (мало), при сбое деньги возвращаются. */
+/** Черновик ответа от ИИ: учитывает бренд, пост и тон комментария. Платно (мало), при сбое токены возвращаются. */
 export async function suggestReply(orgId: string, commentId: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const c = await one<{ id: string; body: string; author: string; tone: Tone | null; brand_id: string; topic: string | null; post_body: string | null; name: string; description: string; audience: string; btone: string; rules: { forbidden?: string[] } | null; product: string | null; niche: string | null }>(
@@ -53,7 +53,7 @@ export async function suggestReply(orgId: string, commentId: string): Promise<{ 
   const tone = c.tone ?? classifyComment(c.body);
   if (tone === "spam") return { ok: false, error: "Это похоже на спам. Скройте комментарий, отвечать на него не нужно." };
   try { await charge(orgId, PRICES.reply, "Черновик ответа на комментарий", c.id); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   const brand: BrandCtx = { name: c.name, description: c.description, audience: c.audience, tone: c.btone, forbidden: c.rules?.forbidden ?? [], kb: (await kbText(orgId, c.brand_id, c.topic ?? c.body).catch(() => "")) || undefined };
   try {
     const text = (await chat("post",
@@ -63,5 +63,5 @@ export async function suggestReply(orgId: string, commentId: string): Promise<{ 
     if (!text) throw new Error("пустой ответ модели");
     await q("update kz_comments set draft=$2 where id=$1", [c.id, text]);
     return { ok: true, text };
-  } catch (e) { await refund(orgId, PRICES.reply, "ошибка черновика ответа", c.id); return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, PRICES.reply, "ошибка черновика ответа", c.id); return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }

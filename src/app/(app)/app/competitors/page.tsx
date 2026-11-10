@@ -4,7 +4,7 @@ import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { groupSummaries, KIND_NAME, MAX_COMPETITORS, type CKind } from "@/lib/competitors";
 import { addCompetitorAction, analyzeCompetitorsAction } from "@/lib/competitors-actions";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { AiPanel } from "@/components/AiPanel";
 import { Field, Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";

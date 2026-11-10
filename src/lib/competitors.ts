@@ -187,7 +187,7 @@ export async function analyzeCompetitors(orgId: string): Promise<{ text?: string
     `select i.topic,s.views from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id where p.org_id=$1 and p.status='published' order by s.views desc limit 5`, [orgId]);
   const own = await one<{ avg: string | null }>("select round(avg(s.views)) avg from kz_publications p join kz_post_stats s on s.publication_id=p.id where p.org_id=$1 and p.status='published' and p.published_at > now() - interval '30 days'", [orgId]);
   try { await charge(orgId, PRICES.digest, "Разбор конкурентов"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно токенов" }; throw e; }
   try {
     const data = [
       `Конкуренты: ${stats.map((s) => `${s.gname} / ${KIND_NAME[s.kind]} ${s.title} (${s.kind === "site" ? `${s.perWeek} материалов в неделю` : `${s.members ?? "?"} подписчиков, ${s.perWeek} постов в неделю, в среднем ${s.avgViews} просмотров`}${s.bestHour != null ? `, лучшее время ${s.bestHour}:00 МСК` : ""})`).join("; ")}`,
@@ -198,7 +198,7 @@ export async function analyzeCompetitors(orgId: string): Promise<{ text?: string
     const text = await chat("analyst", "Ты аналитик контента. Пиши по-русски, конкретно, без воды. Опирайся только на переданные данные и честно говори, где данных мало. Не советуй копировать тексты конкурентов.",
       `${data}\n\nДай: 1) что заходит у конкурентов (темы, форматы, заходы, длина, время); 2) чем они сильнее и слабее нас по данным; 3) 5 идей для нашего плана с новым углом (не копии), по одной строке: тема + почему сработает.`, { maxTokens: 1600, temperature: 0.4, timeoutMs: 55_000 });
     return { text };
-  } catch (e) { await refund(orgId, PRICES.digest, "ошибка разбора конкурентов"); return { error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, PRICES.digest, "ошибка разбора конкурентов"); return { error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }
 
 /** Тема конкурента в наш план: идея с источником (его текст нужен только как фактура, пишем своими словами). */

@@ -18,7 +18,7 @@ const clip = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\r/g
 const DRAFT = "coalesce((meta->>'draft')::boolean,false)";
 
 const notFree = async (orgId: string, kop: number, reason: string, ref?: string): Promise<string | null> => {
-  try { await charge(orgId, kop, reason, ref); return null; } catch (e) { if (e instanceof InsufficientFunds) return "Недостаточно средств на балансе"; throw e; }
+  try { await charge(orgId, kop, reason, ref); return null; } catch (e) { if (e instanceof InsufficientFunds) return "Недостаточно токенов"; throw e; }
 };
 
 /** Несколько вариантов заголовка, первой строки или всего поста: показываются карточкой, выбранный вариант применяется кнопкой. */
@@ -41,7 +41,7 @@ export async function makeVariants(orgId: string, a: Args): Promise<SetupResult>
     const arr = (extractArray(raw) ?? []).map((x) => String(x).trim()).filter((x) => x.length > 3).slice(0, count);
     if (arr.length < 2) throw new Error("модель вернула меньше двух вариантов");
     return { ok: true, text: `Подготовил вариантов: ${arr.length}`, refs: [{ t: "variants", itemId: id, what: what as "headline" | "hook" | "post", options: arr.map((x) => x.slice(0, 6000)) }] };
-  } catch (e) { await refund(orgId, PRICES.variants, "ошибка вариантов текста"); return { ok: false, text: `Не получилось, деньги возвращены: ${(e as Error).message.slice(0, 120)}` }; }
+  } catch (e) { await refund(orgId, PRICES.variants, "ошибка вариантов текста"); return { ok: false, text: `Не получилось, токены возвращены: ${(e as Error).message.slice(0, 120)}` }; }
 }
 
 /** Применить выбранный вариант. Для поста заменяется весь текст, для заголовка и первой строки — только начало. */
@@ -118,7 +118,7 @@ export async function makeSeries(orgId: string, a: Args): Promise<SetupResult> {
         [orgId, f.id, f.brand_id, k, String(ideas[i].topic).slice(0, 300), String(ideas[i].hook ?? "").slice(0, 400), dates[i], f.approval === "auto" ? "approved" : "idea"]);
     }
     return { ok: true, text: `Добавил в контент-план «${f.name}» идей: ${ideas.length}${f.approval === "auto" ? " (одобрены, воркер напишет их по расписанию)" : ". Они ждут вашего одобрения"}`, refs: [{ t: "plan", id: f.id }] };
-  } catch (e) { await refund(orgId, cost, "ошибка серии материалов"); return { ok: false, text: `Не получилось, деньги возвращены: ${(e as Error).message.slice(0, 120)}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка серии материалов"); return { ok: false, text: `Не получилось, токены возвращены: ${(e as Error).message.slice(0, 120)}` }; }
 }
 
 /** Правка присланной картинки по описанию («убери надпись», «смени фон»). Результат показывается в чате; с itemId сразу ставится в материал. */
@@ -136,7 +136,7 @@ export async function editAttachedImage(orgId: string, a: Args): Promise<SetupRe
     const itemId = uuid(a.itemId);
     if (itemId && (await copyAssetToItem(orgId, id, itemId).catch(() => false))) return { ok: true, text: "Картинка изменена и поставлена в материал", itemIds: [itemId] };
     return { ok: true, text: "Картинка изменена", refs: [{ t: "image", ids: [id] }] };
-  } catch (e) { await refund(orgId, PRICES.image, "ошибка правки изображения"); return { ok: false, text: `Не получилось, деньги возвращены: ${(e as Error).message.slice(0, 140)}` }; }
+  } catch (e) { await refund(orgId, PRICES.image, "ошибка правки изображения"); return { ok: false, text: `Не получилось, токены возвращены: ${(e as Error).message.slice(0, 140)}` }; }
 }
 
 /** Запомнить правило бренда («не пиши про цены», «всегда добавляй ссылку»): попадает в каждую следующую генерацию. */

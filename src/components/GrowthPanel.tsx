@@ -1,7 +1,7 @@
 import { FlaskConical, Languages, RefreshCw, Repeat2 } from "lucide-react";
 import { createVariantAction, genVariantsAction, moreLikeThisAction, saveVariantsAction, setItemDateAction } from "@/lib/growth-actions";
 import { VARIANT_LABEL, type AbResult } from "@/lib/growth";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { ModalButton } from "@/components/ui/ModalButton";
 import { SubmitButton } from "@/components/SubmitButton";
 import { RegenVariantButton } from "@/components/RegenVariantButton";

@@ -69,31 +69,34 @@ export async function orgDetail(id: string) {
 }
 
 /** Ручное пополнение или списание. Баланс меняется под блокировкой строки, отрицательным не становится, запись попадает и в журнал баланса, и в аудит. */
-export async function adjustBalance(actor: { id: string; email: string }, orgId: string, rub: number, reason: string, kind: "paid" | "gift" = "paid"): Promise<R> {
+export async function adjustBalance(actor: { id: string; email: string }, orgId: string, tokenAmount: number, reason: string, kind: "paid" | "gift" = "gift", paidRub = 0): Promise<R> {
   if (!UUID.test(orgId)) return { ok: false, error: "Организация не найдена" };
-  const kop = Math.round(rub * 100);
-  if (!Number.isFinite(rub) || kop === 0) return { ok: false, error: "Укажите сумму, не равную нулю" };
-  if (Math.abs(kop) > MAX_ADJUST_KOP) return { ok: false, error: "Не больше 1 000 000 ₽ за одну операцию" };
+  const units = Math.round(tokenAmount * 100), cash = Math.round(paidRub * 100);
+  if (!Number.isSafeInteger(units) || units === 0 || Math.abs(units) > MAX_ADJUST_KOP) return { ok: false, error: "Количество токенов: от −1 000 000 до 1 000 000, кроме нуля" };
+  if (!Number.isSafeInteger(cash) || cash < 0 || cash > MAX_ADJUST_KOP || (kind === "paid" && units > 0 && cash <= 0)) return { ok: false, error: "Для платного начисления укажите фактически полученную сумму в рублях" };
   const why = reason.replace(/\s+/g, " ").trim();
-  if (why.length < 3) return { ok: false, error: "Укажите причину (минимум 3 символа) — она попадёт в журнал" };
-  return tx(async (run) => {
-    const [o] = await run<{ balance_kop: string }>("select balance_kop from kz_orgs where id=$1 for update", [orgId]);
-    if (!o) return { ok: false as const, error: "Организация не найдена" };
-    if (Number(o.balance_kop) + kop < 0) return { ok: false as const, error: "Баланс не может стать отрицательным" };
-    await run("update kz_orgs set balance_kop=balance_kop+$2 where id=$1", [orgId, kop]);
-    // пополнение — деньги клиента (paid) или подарок/компенсация (gift): подарочные деньги тратятся первыми и выручкой не считаются
-    const hasKind = kop > 0 && (await billingCols()).bonus;
-    if (hasKind) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,credit_kind) values($1,$2,$3,$4)", [orgId, kop, `Пополнение администратором: ${why.slice(0, 200)}`, kind]);
-    else await run("insert into kz_wallet_tx(org_id,amount_kop,reason) values($1,$2,$3)", [orgId, kop, `${kop > 0 ? "Пополнение" : "Списание"} администратором: ${why.slice(0, 200)}`]);
-    await run("insert into kz_audit(actor_id,actor_email,action,target_type,target_id,details) values($1,$2,'balance.adjust','org',$3,$4)", [actor.id, actor.email, orgId, JSON.stringify({ kop, reason: why })]);
-    if (kop > 0) void notify(orgId, { kind: "topup", title: `Баланс пополнен на ${(kop / 100).toLocaleString("ru-RU")} ₽`, body: why.slice(0, 120), href: "/app/billing", to: "managers" });
-    return { ok: true as const, message: `Баланс ${kop > 0 ? "пополнен" : "уменьшен"} на ${(Math.abs(kop) / 100).toLocaleString("ru-RU")} ₽` };
+  if (why.length < 3) return { ok: false, error: "Укажите причину" };
+  return tx(async run => {
+    const [o] = await run<{ balance_kop: string; token_value_kop: string }>("select balance_kop,token_value_kop from kz_orgs where id=$1 for update", [orgId]);
+    if (!o || Number(o.balance_kop) + units < 0) return { ok: false as const, error: "Недостаточно токенов или организация не найдена" };
+    let bonus = 0, valueChange = units > 0 && kind === "paid" ? cash : 0;
+    if (units < 0) {
+      const [b] = await run<{ pot: string }>("select coalesce(sum(amount_kop) filter(where credit_kind in ('bonus','gift')),0)-coalesce(sum(bonus_part),0) pot from kz_wallet_tx where org_id=$1", [orgId]);
+      const pot = Math.max(0,Math.min(Number(o.balance_kop),Number(b?.pot ?? 0)));
+      bonus = Math.min(pot,-units);
+      const paidBalance = Number(o.balance_kop)-pot;
+      valueChange = paidBalance > 0 ? -Math.min(Number(o.token_value_kop),Math.round(Number(o.token_value_kop)*(-units-bonus)/paidBalance)) : 0;
+    }
+    await run("update kz_orgs set balance_kop=balance_kop+$2,token_value_kop=token_value_kop+$3 where id=$1", [orgId,units,valueChange]);
+    await run("insert into kz_wallet_tx(org_id,amount_kop,reason,credit_kind,bonus_part,revenue_kop) values($1,$2,$3,$4,$5,0)", [orgId,units,`${units>0 ? "Пополнение" : "Списание"} администратором: ${why.slice(0,200)}`,units>0 ? kind : null,bonus]);
+    await run("insert into kz_audit(actor_id,actor_email,action,target_type,target_id,details) values($1,$2,'balance.adjust','org',$3,$4)", [actor.id,actor.email,orgId,JSON.stringify({ units,paidKop: units>0 && kind==='paid' ? cash : 0,reason:why })]);
+    return { ok:true as const,message:`Баланс изменён на ${(units/100).toLocaleString("ru-RU")} токенов` };
   });
 }
 
 export async function setOrgPlan(actor: { id: string; email: string }, orgId: string, plan: string): Promise<R> {
   if (!UUID.test(orgId) || !(plan in PLANS)) return { ok: false, error: "Неверный тариф" };
-  const r = await q<{ plan: string }>("update kz_orgs o set plan=$2 from (select plan from kz_orgs where id=$1) old where o.id=$1 returning old.plan", [orgId, plan]);
+  const r = await q<{ plan: string }>("update kz_orgs o set plan=$2,plan_terms=null,plan_until=null from (select plan from kz_orgs where id=$1) old where o.id=$1 returning old.plan", [orgId, plan]);
   if (!r.length) return { ok: false, error: "Организация не найдена" };
   await audit(actor, "org.plan", "org", orgId, { from: r[0].plan, to: plan });
   return { ok: true, message: `Тариф: ${PLANS[plan as PlanKey].name}` };

@@ -1,3 +1,4 @@
+import { effectiveModel } from "./ai";
 import { one, q } from "./db";
 import { loadAsset, processImage, saveAsset, type Processed } from "./assets";
 import { editImage } from "./images";
@@ -58,8 +59,8 @@ export async function reworkItemImage(orgId: string, itemId: string, instruction
   const a = await loadAsset(orgId, it.image_id);
   if (!a) return { ok: false, error: "Изображение не найдено" };
   const aspect = a.width > a.height * 1.2 ? "landscape" : a.height > a.width * 1.2 ? "portrait" : "square";
-  try { await charge(orgId, PRICES.image, `Доработка изображения: ${it.topic.slice(0, 50)}`, itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, PRICES.image, `Доработка изображения: ${it.topic.slice(0, 50)}`, itemId, await effectiveModel("image")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const r = await editImage(a.data, a.mime, ins, aspect);
     const p = await processImage(r.data, "generated");
@@ -69,7 +70,7 @@ export async function reworkItemImage(orgId: string, itemId: string, instruction
     return { ok: true, note: HOW[r.how] };
   } catch (e) {
     await refund(orgId, PRICES.image, "ошибка доработки изображения", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -111,8 +112,8 @@ export async function reworkFlowImage(orgId: string, flowItemId: string, instruc
   const a = await loadAsset(orgId, old);
   if (!a) return { ok: false, error: "Изображение не найдено" };
   const aspect = a.width > a.height * 1.2 ? "landscape" : a.height > a.width * 1.2 ? "portrait" : "square";
-  try { await charge(orgId, PRICES.image, "Доработка изображения (автолента)", flowItemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, PRICES.image, "Доработка изображения (автолента)", flowItemId, await effectiveModel("image")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const r = await editImage(a.data, a.mime, ins, aspect);
     const id = await saveAsset(orgId, fi.brand_id, "generated", "автолента.jpg", await processImage(r.data, "generated"), "доработано ИИ");
@@ -121,7 +122,7 @@ export async function reworkFlowImage(orgId: string, flowItemId: string, instruc
     return { ok: true, note: HOW[r.how] };
   } catch (e) {
     await refund(orgId, PRICES.image, "ошибка доработки изображения", flowItemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 

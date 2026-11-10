@@ -10,7 +10,7 @@ import Link from "next/link";
 import { Plus, Sparkles } from "lucide-react";
 import { ModalButton } from "@/components/ui/ModalButton";
 import { addCalendarIdea, extendCalendarPlan } from "@/lib/calendar-actions";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { SubmitButton } from "@/components/SubmitButton";
 import { calendarRange, calendarHref, moscowToday, PERIODS, shiftPeriod, validDay, type CalendarPeriod } from "@/lib/calendar";
 const MOVABLE = ["idea", "approved", "ready", "failed", "rejected"];

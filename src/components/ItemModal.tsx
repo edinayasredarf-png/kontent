@@ -1,16 +1,18 @@
+import Link from "next/link";
+import { priceOf } from "@/lib/pipeline";
 import { AlertTriangle, CalendarClock, ExternalLink, Send } from "lucide-react";
 import { q } from "@/lib/db";
 import { KIND, Status } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { SubmitButton } from "@/components/SubmitButton";
-import { itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
+import { itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
 
 import { CALENDAR_COLORS, calendarColor, moscowToday } from "@/lib/calendar";
 import { DraftBodyEditor } from "./DraftBodyEditor";
 import { ArticleEditor } from "./ArticleEditor";
 import { CarouselEditor } from "./CarouselEditor";
 import { CAROUSEL_STYLES } from "@/lib/postsettings";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import type { SlideLayout } from "@/lib/carousel/layouts";
 const NO_PUBLISH = ["reels", "email", "guide"], EDITABLE = ["idea", "approved", "ready", "failed", "rejected"];
 const plain = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
@@ -66,6 +68,15 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           <p className="text-sm text-ink2">{it.brand}{it.factory ? ` · ${it.factory}` : ""}</p>
         </div>
 
+        {canWrite && <div className="flex flex-wrap gap-2">
+          {!returnTo.startsWith("/app/create") && <Link className="btn btn-ghost" href={`/app/create?item=${it.id}`}>Открыть в создании контента</Link>}
+          {editable && it.factory_id && !it.carousel?.photo && <form action={itemGenerateAction}>{hid}
+            <SubmitButton className="btn btn-accent" data-confirm={it.body ? "Создать материал заново? Текущий текст будет заменён. Генерация оплачивается по тарифу формата." : "Создать контент по этой идее? Генерация оплачивается по тарифу формата."}>
+              {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind))}
+            </SubmitButton>
+          </form>}
+        </div>}
+
         <div className="grid gap-3 rounded-2xl bg-tile p-4 text-sm sm:grid-cols-2">
           <div><span className="text-xs text-ink3">Дата выхода</span><p className="font-medium">{dayLabel(it.planned)}{it.ptime ? ` в ${it.ptime}` : ""}</p></div>
           <div><span className="text-xs text-ink3">Каналы публикации</span><p className="font-medium">{it.chans?.length ? it.chans.join(", ") : "не выбраны"}</p></div>
@@ -104,7 +115,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           {["seo", "email", "guide"].includes(it.kind) ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={false} editPrice={rub(PRICES.edit)} /> : <DraftBodyEditor initial={it.body} images={it.image_id ? [`/api/assets/${it.image_id}`] : []} kinds={[]} oneMessageTg={false} name={it.brand} price={rub(PRICES.edit)} kind={it.kind} storeKey={`calendar:${it.id}`} />}
           </div>
           <SubmitButton className="btn btn-accent">Сохранить изменения</SubmitButton>
-          <p className="text-xs text-ink3">Сохранение не запускает публикацию. Вы останетесь в календаре.</p>
+          <p className="text-xs text-ink3">Сохранение не запускает публикацию. Материал обновится во всех разделах.</p>
         </form> : canWrite ? <form action={itemColorAction} className="space-y-3 rounded-2xl bg-tile p-4">{hid}{colorFields}<SubmitButton className="pill">Сохранить цвет</SubmitButton><p className="text-xs text-ink3">Текст опубликованного материала, материала в очереди или на генерации доступен только для просмотра.</p></form> : null}
         {canWrite && editable && it.factory_id && it.carousel?.slides?.length && !it.carousel.photo ? <details className="rounded-2xl bg-tile p-4"><summary className="cursor-pointer text-sm font-semibold">Редактировать слайды карусели</summary><div className="mt-4"><CarouselEditor key={`${it.id}:${it.version}`} itemId={it.id} factoryId={it.factory_id} slides={it.carousel.slides} style={it.carousel.style ?? "brand"} styles={CAROUSEL_STYLES} design={it.carousel.design} ret={openHref} editPrice={rub(PRICES.edit)} /></div></details> : null}
 

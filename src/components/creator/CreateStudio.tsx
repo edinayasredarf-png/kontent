@@ -30,9 +30,9 @@ const WORDS: Record<string, string[]> = {
 };
 const fallbackWords = ["Читаю задачу…", "Пишу материал в голосе бренда…", "Вычитываю текст…", "Почти готово…"];
 
-export function CreateStudio({ factories, startFactory, startKind, models, textModels, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited }: {
+export function CreateStudio({ factories, startFactory, startKind, models, textModels, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited, unlimitedModels = [], textDefaultModels = {} }: {
   factories: FactoryOpt[]; startFactory: string; startKind: string; models: ImgModel[]; textModels: string[]; presets: PresetRow[]; examples: ExampleRef[]; recent: RecentWork[];
-  kindPrices: Record<string, number>; balanceKop: number; unlimited: boolean;
+  kindPrices: Record<string, number>; balanceKop: number; unlimited: boolean; unlimitedModels?: string[]; textDefaultModels?: Record<string, string>;
 }) {
   const router = useRouter();
   const [fid, setFid] = useState(startFactory);
@@ -66,9 +66,10 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
   const isCar = kind === "carousel";
   const t = typeOf(kind);
   const model = models.find((m) => m.id === S.model) ?? models[0];
-  const per = model ? slidePrice(model, S.quality) : 0;
+  const per = model && !unlimited && !unlimitedModels.includes(model.id) ? slidePrice(model, S.quality) : 0;
   const count = plan ? plan.slides.length : S.n;
-  const total = isCar ? per * count : (kindPrices[kind] ?? 0);
+  const operationFree = unlimited || unlimitedModels.includes(isCar ? S.model : (opts.textModel || textDefaultModels[kind] || ""));
+  const total = operationFree ? 0 : isCar ? per * count : (kindPrices[kind] ?? 0);
   const short = !unlimited && total > balanceKop;
   const patch = (i: number, p: Partial<SlideState>) => setSl((a) => a.map((x, k) => (k === i ? { ...x, ...p } : x)));
   const allOk = sl.length > 0 && sl.every((x) => x.status === "ok");
@@ -135,7 +136,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
         if (old?.finalId) void dropStudioAssetsAction([old.finalId, old.bgId ?? ""]);
         patch(i, { status: "ok", finalId: j.finalId, bgId: j.bgId });
       } else patch(i, { status: "err", error: j.error ?? "Не получилось" });
-    } catch { patch(i, { status: "err", error: "Нет связи с сервером. Если деньги списались, они вернутся сами; проверьте баланс и повторите" }); }
+    } catch { patch(i, { status: "err", error: "Нет связи с сервером. Если токены списались, они вернутся сами; проверьте баланс и повторите" }); }
   }, []);
 
   async function run(idx: number[]) {
@@ -277,7 +278,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" className="btn btn-ghost" onClick={resetFlow}><ArrowLeft size={15} />Изменить запрос</button>
               <button type="button" className="btn btn-accent" disabled={short || noModel} onClick={() => (isCar && plan ? run(plan.slides.map((_, i) => i)) : makeText())}>
-                <Sparkles size={15} />{isCar && plan ? `Создать ${plan.slides.length} ${plan.slides.length < 5 ? "слайда" : "слайдов"}` : `Создать ${t.noun}`} · {unlimited ? "бесплатно" : rub(total)}</button>
+                <Sparkles size={15} />{isCar && plan ? `Создать ${plan.slides.length} ${plan.slides.length < 5 ? "слайда" : "слайдов"}` : `Создать ${t.noun}`} · {operationFree ? "Безлимит модели" : rub(total)}</button>
               {short && <span className="text-sm text-bad">Не хватает {rub(total - balanceKop)}. <Link href="/app/billing" className="underline">Пополнить</Link></span>}
             </div>
           </div>
@@ -391,7 +392,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
             <span className="ml-auto" />
             {short && <span className="hidden text-xs text-bad sm:inline">Не хватает {rub(total - balanceKop)} · <Link href="/app/billing" className="underline">пополнить</Link></span>}
             <button type="button" className="btn btn-accent !h-8 !justify-center !rounded-md !px-2.5 !py-0" disabled={working || noModel || prompt.trim().length < 3} onClick={() => void makeBrief()} aria-label="Составить описание материала" title="Составить описание (Ctrl+Enter)">
-              {phase === "briefing" ? <Loader2 size={16} className="animate-spin" /> : <><span className="text-[11px]">{unlimited ? "Безлимит" : rub(total)}</span><ArrowUp size={16} /></>}
+              {phase === "briefing" ? <Loader2 size={16} className="animate-spin" /> : <><span className="text-[11px]">{operationFree ? "Безлимит модели" : rub(total)}</span><ArrowUp size={16} /></>}
             </button>
           </div>
 
@@ -421,7 +422,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
         </div>
       </div>
 
-      <CreatorSettings kind={kind} models={models} textModels={textModels} settings={S} opts={opts} audience={fac?.audience ?? ""} hasLogo={hasLogo} disabled={working || phase !== "compose"} set={set} setOpts={setOpts}/>
+      <CreatorSettings unlimitedModels={unlimitedModels} kind={kind} models={models} textModels={textModels} settings={S} opts={opts} audience={fac?.audience ?? ""} hasLogo={hasLogo} disabled={working || phase !== "compose"} set={set} setOpts={setOpts}/>
 
       {gallery && <ExamplesModal examples={examples} kind={kind} picked={picked} onToggle={toggleRef} onClose={() => setGallery(false)} />}
 

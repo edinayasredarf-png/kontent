@@ -1,8 +1,9 @@
+import { requirePageFeature } from "@/lib/plan-catalog";
 import Link from "next/link";
 import { Heart, EyeOff, ExternalLink, RefreshCw, Settings2, SlidersHorizontal, PenLine, AlertTriangle, Info } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { createFromLikedAction, digestAction, refreshAllAction, scoreNewsAction, setItemStatusAction } from "@/lib/monitor/actions";
 import { KINDS } from "@/lib/plan";
 import { POST_TYPES } from "@/lib/postsettings";
@@ -46,6 +47,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
   const draftIds = one(sp.draft).split(",").filter((x) => /^[0-9a-f-]{36}$/.test(x));
   const c = await requireCtx();
+  await requirePageFeature(c.org.id, "monitor");
   const f = parseFilter(sp);
   const page = Math.max(1, Number(one(sp.p)) || 1);
   const freshSince = Number.isNaN(Date.parse(one(sp.fresh))) ? 0 : Date.parse(one(sp.fresh));

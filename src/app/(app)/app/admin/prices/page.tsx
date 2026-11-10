@@ -29,20 +29,20 @@ export default async function Prices() {
   );
   return (
     <>
-      <PageHead title="Цены" sub="Сколько клиент платит за действие и сколько нам стоит модель. Изменённые цены сразу действуют везде: в кнопках, подсказках и списаниях." />
+      <PageHead title="Цены" sub="Сколько токенов клиент тратит за действие и сколько рублей нам стоит модель. Изменённые цены сразу действуют везде: в кнопках, подсказках и списаниях." />
       <AdminNav active="/app/admin/prices" />
 
       <ActionTable rows={byAction} title="Что сейчас происходит: выручка и затраты по действиям за 30 дней (ориентир для цен)" />
 
       <section className="card mb-6 p-5">
-        <div className="mb-1 flex flex-wrap items-center gap-2"><b className="text-sm">Цены списания, ₽</b>
+        <div className="mb-1 flex flex-wrap items-center gap-2"><b className="text-sm">Стоимость действий, токены</b>
           <form action={resetPricesAction} className="ml-auto"><SubmitButton data-confirm="Вернуть все цены к значениям по умолчанию?" className="btn btn-ghost !py-1.5 text-xs">Сбросить к умолчанию</SubmitButton></form></div>
         <p className="mb-4 text-xs text-ink2">Цена списывается за одну операцию. Рядом — значение по умолчанию. Выделенные поля изменены вами. Новая цена начинает действовать в течение 10 секунд на всех страницах и в воркере.</p>
         <Form action={savePricesAction} submit="Сохранить цены" className="space-y-5">
           {[...groups].map(([g, keys]) => (
             <div key={g}><b className="mb-2 block text-xs font-semibold text-ink2">{g}</b>
               <div className="grid gap-3 sm:grid-cols-2">{keys.map((k) => { const changed = PRICES[k] !== DEFAULT_PRICES[k]; return (
-                <label key={k} className="block text-sm"><span className="flex items-center justify-between gap-2"><span>{PRICE_LABELS[k][0]}</span><span className="text-xs text-ink3">по умолч. {r2(DEFAULT_PRICES[k])} ₽</span></span>
+                <label key={k} className="block text-sm"><span className="flex items-center justify-between gap-2"><span>{PRICE_LABELS[k][0]}</span><span className="text-xs text-ink3">по умолч. {r2(DEFAULT_PRICES[k])} ток.</span></span>
                   <input name={`p_${k}`} inputMode="decimal" defaultValue={r2(PRICES[k])} className={`${inp} mt-1 ${changed ? "!bg-accent-soft ring-1 ring-accent" : ""}`} /></label>); })}</div></div>))}
         </Form>
       </section>

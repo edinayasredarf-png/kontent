@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listOrgs, requireAdmin } from "@/lib/admin";
 import { PLANS } from "@/lib/plans";
-import { rub } from "@/lib/wallet";
+import { tokens as rub } from "@/lib/wallet";
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
 

@@ -25,7 +25,7 @@ export async function moreLikeThis(orgId: string, itemId: string, count: number)
   if (!kinds.length) return { ok: false, error: "У завода нет форматов для постов, каруселей или опросов" };
   const cost = PRICES.idea * n;
   try { await charge(orgId, cost, `Ещё ${n} идей в духе материала`, itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const st = await settingsFor(orgId, fac);
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 40", [it.factory_id])).map((x) => x.topic);
@@ -53,7 +53,7 @@ export async function moreLikeThis(orgId: string, itemId: string, count: number)
     return { ok: true, added: angles.length };
   } catch (e) {
     await refund(orgId, cost, "ошибка подбора идей", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -77,7 +77,7 @@ export async function createVariant(orgId: string, itemId: string, date?: string
   const fac = await loadFactory(orgId, it.factory_id);
   if (!fac) return { ok: false, error: "Завод не найден" };
   try { await charge(orgId, PRICES.post, `A/B-вариант: ${it.topic.slice(0, 50)}`, itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const body = (await chat("post",
       "Ты редактор бренда. Перепиши пост так, чтобы получился вариант Б для A/B-теста: те же факты, смысл и призыв, но другой заход (иной первый абзац, другая интонация подачи) и другая структура. Не копируй формулировки варианта А. Не выдумывай новых фактов. Верни только текст поста.",
@@ -99,7 +99,7 @@ export async function createVariant(orgId: string, itemId: string, date?: string
     return { ok: true };
   } catch (e) {
     await refund(orgId, PRICES.post, "ошибка A/B-варианта", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -175,7 +175,7 @@ export async function genVariants(orgId: string, itemId: string, only?: string):
   if (!fac) return { ok: false, error: "Завод не найден" };
   const cost = only ? Math.round(PRICES.variants / 3) : PRICES.variants;
   try { await charge(orgId, cost, `Версии под площадки: ${it.topic.slice(0, 50)}`, itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const want = only ? [only] : Object.keys(VARIANT_SPEC);
     const sys = "Ты редактор бренда. Пиши по-русски. Факты, ссылки и призыв из исходного поста сохраняй, ничего не выдумывай. Отвечай только версиями в заданном формате, без пояснений.";
@@ -198,7 +198,7 @@ export async function genVariants(orgId: string, itemId: string, only?: string):
     return { ok: true };
   } catch (e) {
     await refund(orgId, cost, "ошибка версий под площадки", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 

@@ -1,4 +1,5 @@
 "use client";
+import { Modal } from "@/components/ui/Modal";
 import { useAutoArticle } from "./AutoArticles";
 import { ARTICLE_STATUS } from "@/lib/monitor/article-state";
 import { useState } from "react";
@@ -16,9 +17,9 @@ export function NewsCreate({ id, here, factories, kinds, fullText }: {
   const auto = useAutoArticle();
   const hasFullText = fullText || auto.data[id]?.full_status === ARTICLE_STATUS;
   const [opened, setOpened] = useState(false);
-  return (<details className="w-full sm:w-auto" onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
-    <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white"><PenLine size={14} />Создать</summary>
-    {opened && <form action={createFromNewsAction} data-keep-scroll className="mt-3 space-y-3 rounded-xl bg-tile p-3">
+  return (<div className="w-full sm:w-auto">
+    <button type="button" onClick={() => setOpened(true)} className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white"><PenLine size={14} />Создать</button>
+    {opened && <Modal title="Создать материал по новости" onClose={() => setOpened(false)}><form action={createFromNewsAction} data-keep-scroll className="mt-3 space-y-3 rounded-xl bg-tile p-3">
       <input type="hidden" name="id" value={id} /><input type="hidden" name="ret" value={here} />
       <div><label className="label">В какой завод</label><select name="factory" className="input !bg-surface">{factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}</select></div>
       <div><span className="label">Какие материалы создать по этой новости</span>
@@ -36,6 +37,6 @@ export function NewsCreate({ id, here, factories, kinds, fullText }: {
         <SubmitButton className="btn !py-1.5">Создать</SubmitButton>
       </div>
       <p className="text-xs text-ink3">{hasFullText ? "Для создания используется загруженная статья." : "Для создания используется текст новости. Статьи сайтов загружаются автоматически."} Манера письма и факты о компании берутся из базы знаний бренда. Цена за каждый тип как обычно.</p>
-    </form>}
-  </details>);
+    </form></Modal>}
+  </div>);
 }

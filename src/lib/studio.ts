@@ -1,7 +1,7 @@
 import { recordUsage } from "./billing";
 import { kbText } from "./kb/use";
 import { one, q } from "./db";
-import { aiReady, baseUrl, brandBlock, chat, modelFor, type BrandCtx } from "./ai";
+import { effectiveModel, aiReady, baseUrl, brandBlock, chat, modelFor, type BrandCtx } from "./ai";
 import { buildImagePrompt, cleanKit, finalizeImage, generateImage, visionAsk } from "./images";
 import { loadAsset, saveAsset } from "./assets";
 import { PRICES, InsufficientFunds, charge, refund } from "./wallet";
@@ -14,23 +14,23 @@ export interface Tool { key: string; title: string; agent: string; desc: string;
 const brandField: Field = { name: "brand", label: "Бренд (стиль и тон)", type: "select", options: [["", "Без бренда"]] };
 
 export const TOOLS: Tool[] = [
-  { key: "text", tags: ["Текст", "Посты"], title: "Пост и подпись", agent: "SMM-менеджер", desc: "Пост, подпись, описание для соцсетей по вашему заданию.", kind: "text", price: () => PRICES.post, priceLabel: "20 ₽",
+  { key: "text", tags: ["Текст", "Посты"], title: "Пост и подпись", agent: "SMM-менеджер", desc: "Пост, подпись, описание для соцсетей по вашему заданию.", kind: "text", price: () => PRICES.post, priceLabel: "Токены за действие",
     fields: [brandField, { name: "format", label: "Что написать", type: "select", options: [["post", "Пост"], ["caption", "Короткая подпись к картинке"], ["story", "Текст для сторис"], ["ad", "Рекламное объявление"]] },
       { name: "brief", label: "О чём писать", type: "textarea", required: true, max: 2000, rows: 4, placeholder: "Тема, главная мысль, что должен сделать читатель" }] },
-  { key: "hooks", tags: ["Текст", "Идеи", "Посты"], title: "Хуки", agent: "Генератор хуков", desc: "10 цепляющих первых строк для поста или ролика с разными приёмами.", kind: "text", price: () => PRICES.idea, priceLabel: "3 ₽",
+  { key: "hooks", tags: ["Текст", "Идеи", "Посты"], title: "Хуки", agent: "Генератор хуков", desc: "10 цепляющих первых строк для поста или ролика с разными приёмами.", kind: "text", price: () => PRICES.idea, priceLabel: "Токены за действие",
     fields: [brandField, { name: "topic", label: "Тема материала", type: "textarea", required: true, max: 600, rows: 3 }] },
-  { key: "script", tags: ["Видео", "Планирование"], title: "Сценарий ролика", agent: "Сценарист", desc: "Сценарий короткого видео: хук, кадры, закадровый текст, призыв.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
+  { key: "script", tags: ["Видео", "Планирование"], title: "Сценарий ролика", agent: "Сценарист", desc: "Сценарий короткого видео: хук, кадры, закадровый текст, призыв.", kind: "text", price: () => PRICES.script, priceLabel: "Токены за действие",
     fields: [brandField, { name: "idea", label: "Идея ролика", type: "textarea", required: true, max: 1000, rows: 3 },
       { name: "length", label: "Длительность", type: "select", options: [["15", "15 секунд"], ["30", "30 секунд"], ["60", "60 секунд"]] },
       { name: "tone", label: "Тон", type: "select", options: [["engaging", "Вовлекающий"], ["expert", "Экспертный"], ["humor", "С юмором"], ["calm", "Спокойный"]] }] },
-  { key: "viral", tags: ["Идеи", "Видео"], title: "Вирусные идеи", agent: "Вирусный контент", desc: "10 идей с оценкой потенциала вирусности и объяснением, почему сработает.", kind: "text", price: () => PRICES.script, priceLabel: "30 ₽",
+  { key: "viral", tags: ["Идеи", "Видео"], title: "Вирусные идеи", agent: "Вирусный контент", desc: "10 идей с оценкой потенциала вирусности и объяснением, почему сработает.", kind: "text", price: () => PRICES.script, priceLabel: "Токены за действие",
     fields: [brandField, { name: "product", label: "Продукт и его польза", type: "textarea", required: true, max: 1000, rows: 3 }, { name: "audience", label: "Кто аудитория", type: "textarea", max: 600, rows: 2 }] },
   { key: "image", tags: ["Изображения"], title: "Изображение", agent: "Дизайнер", desc: "Картинка по описанию в стиле вашего бренда, с логотипом в углу.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
     fields: [brandField, { name: "prompt", label: "Что нарисовать", type: "textarea", required: true, max: 1000, rows: 4, placeholder: "Сцена, объект, настроение. Текст на картинке модели рисуют плохо — лучше без него" },
       { name: "aspect", label: "Формат", type: "select", options: [["square", "Квадрат 1:1"], ["portrait", "Вертикальный"], ["landscape", "Горизонтальный"]] }] },
   { key: "cover", tags: ["Изображения", "Посты"], title: "Обложка карусели", agent: "Обложки каруселей", desc: "Яркая обложка для карусели Instagram или VK: сильная композиция без текста.", kind: "image", price: () => PRICES.image, priceLabel: "15 ₽",
     fields: [brandField, { name: "prompt", label: "Тема карусели", type: "textarea", required: true, max: 600, rows: 3 }] },
-  { key: "voice", tags: ["Видео", "Инструменты"], title: "Озвучка", agent: "Озвучка", desc: "Текст в аудио голосом модели шлюза. Файл сохраняется в библиотеке.", kind: "audio", price: (i) => Math.max(1, Math.ceil((i.text ?? "").length / 1000)) * PRICES.tts, priceLabel: "5 ₽ за 1000 знаков",
+  { key: "voice", tags: ["Видео", "Инструменты"], title: "Озвучка", agent: "Озвучка", desc: "Текст в аудио голосом модели шлюза. Файл сохраняется в библиотеке.", kind: "audio", price: (i) => Math.max(1, Math.ceil((i.text ?? "").length / 1000)) * PRICES.tts, priceLabel: "Токены за 1000 знаков",
     fields: [{ name: "text", label: "Текст для озвучки", type: "textarea", required: true, max: 3000, rows: 6 },
       { name: "voice", label: "Голос", type: "select", options: [["alloy", "alloy"], ["echo", "echo"], ["fable", "fable"], ["onyx", "onyx"], ["nova", "nova"], ["shimmer", "shimmer"]] }] },
 ];
@@ -38,7 +38,7 @@ export const TOOLS: Tool[] = [
 const priceLabel = (kop: number) => (kop === 0 ? "бесплатно" : `${kop / 100} ₽`.replace(".", ","));
 TOOLS.push(
   ...CATALOG.map((c): Tool => ({ key: c.key, tags: c.tags, title: c.title, agent: c.agent, desc: c.desc, kind: "text", price: () => c.kop, priceLabel: priceLabel(c.kop), fields: c.fields })),
-  { key: "image2text", tags: ["Изображения", "Текст", "Посты"], title: "Текст по изображению", agent: "Копирайтер по фото", desc: "Создайте текст на основе изображения: пост, описание или объявление.", kind: "text", price: () => 2000, priceLabel: "20 ₽",
+  { key: "image2text", tags: ["Изображения", "Текст", "Посты"], title: "Текст по изображению", agent: "Копирайтер по фото", desc: "Создайте текст на основе изображения: пост, описание или объявление.", kind: "text", price: () => 2000, priceLabel: "Токены за действие",
     fields: [brandField, { name: "image", label: "Изображение", type: "image", required: true }, { name: "what", label: "Что написать", type: "select", options: [["post", "Пост для соцсетей"], ["caption", "Короткая подпись"], ["ad", "Рекламное объявление"], ["card", "Описание товара"]] },
       { name: "extra", label: "Что важно учесть (необязательно)", type: "textarea", max: 600, rows: 3 },
       { name: "style", label: "Стиль текста", type: "select", options: Object.entries(STYLES).map(([k, v]) => [k, v.label] as [string, string]) }, { name: "lang", label: "Язык", type: "select", options: Object.entries(LANG_PROMPT).map(([k, v]) => [k, v] as [string, string]) }] },
@@ -118,8 +118,8 @@ export async function runTool(orgId: string, key: string, input: Record<string, 
   const bc = await brandCtx(orgId, input.brand ?? "");
   if (input.brand && !bc) return { error: "Бренд не найден" };
   const cost = tool.price(input);
-  try { await charge(orgId, cost, `Студия: ${tool.title}`); }
-  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, `Студия: ${tool.title}`, undefined, await effectiveModel(tool.kind === "image" ? "image" : tool.kind === "audio" ? "tts" : key === "hooks" ? "idea" : key === "script" || key === "viral" ? "reels" : catalogByKey(key)?.task ?? "post")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно токенов" }; throw e; }
   try {
     const bb = bc ? brandBlock(bc.ctx, "", "") : "";
     if (catalogByKey(key) || key === "image2text") return { text: await catalogText(key, input, bb) };
@@ -147,6 +147,6 @@ export async function runTool(orgId: string, key: string, input: Record<string, 
     return { assetId: await saveAsset(orgId, null, "studio", `voice-${Date.now()}.mp3`, { data: buf, mime: "audio/mpeg", width: 0, height: 0 }), mime: "audio/mpeg" };
   } catch (e) {
     await refund(orgId, cost, `ошибка: ${tool.title}`);
-    return { error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }

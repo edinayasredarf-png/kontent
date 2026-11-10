@@ -1,9 +1,10 @@
+import { requireFeature } from "./plan-catalog";
 import { pubImageUrl, publicizeImages } from "./pub-image";
 import { pollText, hasOptions, type PollMeta } from "./poll-format";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
-import { aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
+import { withCreatorTextModel, effectiveModel, aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, ensurePrices, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
@@ -65,8 +66,8 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
   if (!fac) return { ok: false, error: "Завод не найден" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   const cost = PRICES.plan_day * days;
-  try { await charge(orgId, cost, `Контент-план на ${days} дн.`, factoryId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, `Контент-план на ${days} дн.`, factoryId, await effectiveModel("plan")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 80", [factoryId])).map((x) => x.topic);
     const offset = Number((await one<{ n: string }>("select count(*) n from kz_content_items where factory_id=$1", [factoryId]))!.n);
@@ -82,7 +83,7 @@ export async function buildPlan(orgId: string, factoryId: string, days: number):
     return { ok: true };
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации плана", factoryId);
-    return { ok: false, error: `Генерация не удалась, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Генерация не удалась, токены возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -124,8 +125,8 @@ export async function repurposeSource(orgId: string, factoryId: string, o: { url
   if (!title) title = text.split("\n").find((l) => l.trim().length > 8)?.trim().slice(0, 120) ?? "Исходный материал";
 
   const cost = PRICES.idea * count;
-  try { await charge(orgId, cost, `Контент из источника (${count} идей)`, factoryId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, `Контент из источника (${count} идей)`, factoryId, await effectiveModel("idea")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const st = await settingsFor(orgId, fac), types = st.postTypes;
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 40", [factoryId])).map((x) => x.topic);
@@ -158,7 +159,7 @@ export async function repurposeSource(orgId: string, factoryId: string, o: { url
     return { ok: true, added: done };
   } catch (e) {
     await refund(orgId, cost, "ошибка разбора источника", factoryId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 
@@ -171,6 +172,10 @@ export async function brandNotes(orgId: string, brandId: string) {
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
 export async function buildItem(orgId: string, itemId: string): Promise<Result> {
+  const row = await one<{ model: string | null }>("select meta->>'textModel' model from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
+  return row?.model ? withCreatorTextModel(row.model, () => buildItemInternal(orgId, itemId)) : buildItemInternal(orgId, itemId);
+}
+async function buildItemInternal(orgId: string, itemId: string): Promise<Result> {
   const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; requirements?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
     `update kz_content_items set status='generating', updated_at=now()
       where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
@@ -183,8 +188,8 @@ export async function buildItem(orgId: string, itemId: string): Promise<Result> 
   applyCreateOverrides(fac, item.meta);
   const cost = priceOf(item.kind, fac.brief);
   let refundable = cost; // сколько вернуть при сбое: часть (обложка) может быть уже возвращена отдельно
-  try { await charge(orgId, cost, `Генерация: ${item.topic.slice(0, 60)}`, item.id); }
-  catch (e) { await revert(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, `Генерация: ${item.topic.slice(0, 60)}`, item.id, [await effectiveModel(["seo", "article", "guide", "email"].includes(item.kind) ? "article" : item.kind === "carousel" ? "carousel" : item.kind === "reels" ? "reels" : "post"), ...(item.kind === "carousel" && cleanSettings(fac.brief).carouselCover === "ai" ? [await effectiveModel("image")] : [])]); }
+  catch (e) { await revert(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   await q("update kz_content_items set cost_kop=$2 where id=$1", [item.id, cost]);
   try {
     if (item.kind === "seo") {
@@ -256,14 +261,14 @@ export async function setCarouselCover(orgId: string, itemId: string, mode: "ai"
     "select b.name,b.kit,f.brief from kz_brands b left join kz_factories f on f.id=(select factory_id from kz_content_items where id=$3) where b.id=$1 and b.org_id=$2", [it.brand_id, orgId, itemId]);
   if (!brand) return { ok: false, error: "Бренд не найден" };
   const st = cleanSettings(brand.brief), cost = PRICES.image;
-  try { await charge(orgId, cost, "Обложка карусели", itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, "Обложка карусели", itemId, await effectiveModel("image")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const prompt = await buildImagePrompt({ brandName: brand.name, kit: cleanKit(brand.kit), topic: slides[0].title, hook: slides[0].body, body: "", notes: await brandNotes(orgId, it.brand_id) });
     const cover = await prepCover(await generateImage(prompt, st.carouselFormat === "portrait" ? "portrait" : "square"), slideHeight(st.carouselFormat));
     await renderForItem(orgId, itemId, slides, style, cover);
     return { ok: true };
-  } catch (e) { await refund(orgId, cost, "ошибка обложки карусели", itemId); return { ok: false, error: `Обложка не создана, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка обложки карусели", itemId); return { ok: false, error: `Обложка не создана, токены возвращены: ${(e as Error).message}` }; }
 }
 
 /**
@@ -281,8 +286,8 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
   const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]);
   if (!brand) { await release(); return { ok: false, error: "Бренд не найден" }; }
   const cost = PRICES.image;
-  try { await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id); }
-  catch (e) { await release(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id, await effectiveModel("image")); }
+  catch (e) { await release(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const kit = { ...cleanKit(brand.kit), ...(over.aspect ? { aspect: over.aspect } : {}), ...(over.logoPos ? { logoPos: over.logoPos } : {}) };
     let prompt = customPrompt?.trim();
@@ -304,12 +309,13 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации картинки", it.id);
     await release();
-    return { ok: false, error: `Картинка не создана, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Картинка не создана, токены возвращены: ${(e as Error).message}` };
   }
 }
 
 /** Ставит материал в очередь на все каналы завода. Повтор для упавшей публикации — переводит её обратно в queued. */
 export async function enqueue(orgId: string, itemId: string): Promise<Result> {
+  try { await requireFeature(orgId, "autopublish"); } catch (e) { return { ok: false, error: (e as Error).message }; }
   const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
     // материалы автоленты не принадлежат заводу: каналы лежат в meta.channelIds
     `select i.factory_id,case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 or f.channel_ids is null then array(select jsonb_array_elements_text(coalesce(i.meta->'channelIds','[]'::jsonb))::uuid) else f.channel_ids end channel_ids,i.body,i.status,i.kind
@@ -479,7 +485,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const low = await q<{ id: string; org_id: string }>(
     `select f.id,f.org_id from kz_factories f where f.status='active' and f.approval='auto' and f.autopublish and not exists (select 1 from kz_orgs so where so.id=f.org_id and so.suspended)
         and (select count(*) from kz_content_items i where i.factory_id=f.id and i.status in ('idea','approved') and i.planned_for >= current_date) < 3
-        and (select balance_kop >= $1 or unlimited from kz_orgs o where o.id=f.org_id) limit 3`, [PRICES.plan_day * 7]);
+        and (select balance_kop >= $1 or unlimited or unlimited_until>now() or (plan_until>now() and jsonb_array_length(coalesce(plan_terms->'unlimitedModels','[]'::jsonb))>0) from kz_orgs o where o.id=f.org_id) limit 3`, [PRICES.plan_day * 7]);
   for (const f of low) {
     if (Date.now() - t0 > budgetMs) break;
     const r = await buildPlan(f.org_id, f.id, 7);
@@ -491,7 +497,7 @@ export async function tick(budgetMs = 200_000): Promise<TickReport> {
   const todo = await q<{ id: string; org_id: string }>(
     `select i.id,i.org_id from kz_content_items i join kz_factories f on f.id=i.factory_id join kz_orgs o on o.id=i.org_id
       where f.status='active' and not o.suspended and i.status='approved' and i.planned_for <= current_date + 1
-        and (o.unlimited or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int when 'guide' then $5::int else $4::int end)
+        and (o.unlimited or o.unlimited_until>now() or (o.plan_until>now() and jsonb_array_length(coalesce(o.plan_terms->'unlimitedModels','[]'::jsonb))>0) or o.balance_kop >= case i.kind when 'carousel' then $1::int when 'article' then $2::int when 'reels' then $3::int when 'guide' then $5::int else $4::int end)
       order by i.planned_for limit 4`, [PRICES.carousel + PRICES.image, PRICES.article, PRICES.reels, PRICES.post, PRICES.guide]);
   for (const it of todo) {
     if (Date.now() - t0 > budgetMs - 60_000) break;

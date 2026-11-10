@@ -5,7 +5,7 @@ import { CarouselEditor } from "./CarouselEditor";
 import { SlideEditor } from "./SlideEditor";
 import { CopyText } from "./CopyText";
 import type { SlideLayout } from "@/lib/carousel/layouts";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 
 import { SubmitButton } from "@/components/SubmitButton";
 export interface CarouselMeta { custom?: number[]; slides: { title: string; body: string; layout?: SlideLayout }[]; style: keyof typeof CAROUSEL_STYLES; design?: { color?: string; font?: string; format?: string }; photo?: unknown }

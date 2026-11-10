@@ -10,7 +10,7 @@ import { AdminNav } from "@/components/AdminNav";
 import { FilterBar } from "@/components/FilterBar";
 import { Form } from "@/components/Form";
 import { PageHead } from "@/components/ui";
-import { rub } from "@/lib/wallet";
+import { rub, tokens } from "@/lib/wallet";
 import { ActionTable } from "@/components/AdminActionTable";
 
 const PRESETS: [Preset, string][] = [["today", "Сегодня"], ["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
@@ -31,7 +31,7 @@ export default async function OrgEconomy({ params, searchParams }: { params: Pro
   return (
     <>
       <Link href="/app/admin/economy" className="mb-1 inline-flex items-center gap-1 text-sm text-ink2 hover:text-ink"><ArrowLeft size={14} />Экономика</Link>
-      <PageHead title={info.org.name} sub={`${info.members.map((m) => m.email).join(", ")} · тариф ${info.org.plan} · баланс ${rub(Number(info.org.balance_kop))}`} />
+      <PageHead title={info.org.name} sub={`${info.members.map((m) => m.email).join(", ")} · тариф ${info.org.plan} · баланс ${tokens(Number(info.org.balance_kop))}`} />
       <AdminNav active="/app/admin/economy" />
       <FilterBar path={`/app/admin/economy/${id}`} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[]} />
       <p className="-mt-2 mb-5 text-center text-xs text-ink3">Период: {rangeLabel(rg)}</p>

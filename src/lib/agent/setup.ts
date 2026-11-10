@@ -1,3 +1,4 @@
+import { orgPlan } from "../plan-catalog";
 import { one, q } from "../db";
 import { cleanKit, STYLES, type Kit } from "../images";
 import { PLANS, type PlanKey } from "../plans";
@@ -17,7 +18,7 @@ const list = (v: unknown, n = 20) => (Array.isArray(v) ? v : typeof v === "strin
 
 async function orgLimits(orgId: string) {
   const o = await one<{ plan: PlanKey; unlimited: boolean }>("select plan,unlimited from kz_orgs where id=$1", [orgId]);
-  return o ? { brands: o.unlimited ? null : PLANS[o.plan].brands, factories: o.unlimited ? null : PLANS[o.plan].factories, name: PLANS[o.plan].name } : null;
+  return o ? { brands: o.unlimited ? null : (await orgPlan(orgId)).brands, factories: o.unlimited ? null : (await orgPlan(orgId)).factories, name: (await orgPlan(orgId)).name } : null;
 }
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;

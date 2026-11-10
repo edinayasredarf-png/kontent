@@ -58,10 +58,14 @@ export function withCreatorTextModel<T>(model: string, work: () => Promise<T>): 
   return creatorTextModel.run(model, work);
 }
 
+export async function effectiveModel(task: AiTask): Promise<string> {
+  return (task !== "vision" && task !== "image" && task !== "video" && task !== "tts" ? creatorTextModel.getStore() : "") || await modelFor(task);
+}
+
 export async function chat(task: AiTask, system: string, user: string, opts: { maxTokens: number; temperature: number; timeoutMs?: number }): Promise<string> {
   const base = baseUrl();
   if (!base) throw new Error("AI Gateway не настроен: задайте SELFHOSTED_LLM_URL");
-  const model = (task !== "vision" && task !== "image" && task !== "video" && task !== "tts" ? creatorTextModel.getStore() : "") || await modelFor(task);
+  const model = await effectiveModel(task);
   if (!model) throw new Error("Не выбрана модель: задайте SELFHOSTED_LLM_MODEL или назначьте модель в «Настройки ИИ»");
   const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
   const timeoutMs = opts.timeoutMs ?? 50_000;

@@ -1,3 +1,4 @@
+import { effectiveModel } from "./ai";
 import { one, q } from "./db";
 import { saveAsset } from "./assets";
 import { buildImagePrompt, cleanKit, finalizeImage, generateImage, loadAsset, LOGO_POSITIONS, SIZES, STYLES } from "./images";
@@ -24,8 +25,8 @@ export async function sectionImage(orgId: string, itemId: string, html: string, 
   // текст раздела: от этого заголовка до следующего, чтобы картинка была про содержание
   const from = (heads[h2Index].index ?? 0) + heads[h2Index][0].length, to = heads[h2Index + 1]?.index ?? src.length;
   const section = src.slice(from, to).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  try { await charge(c.org.id, PRICES.image, `Картинка к разделу: ${title.slice(0, 50)}`, itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  try { await charge(c.org.id, PRICES.image, `Картинка к разделу: ${title.slice(0, 50)}`, itemId, await effectiveModel("image")); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, c.org.id]);
     if (!brand) throw new Error("Бренд не найден");
@@ -51,6 +52,6 @@ export async function sectionImage(orgId: string, itemId: string, html: string, 
     return { ok: true, html: clean, assetId };
   } catch (e) {
     await refund(c.org.id, PRICES.image, "ошибка картинки к разделу", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message.slice(0, 160)}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message.slice(0, 160)}` };
   }
 }

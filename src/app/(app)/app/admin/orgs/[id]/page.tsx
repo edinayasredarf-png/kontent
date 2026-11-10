@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { orgDetail, requireAdmin } from "@/lib/admin";
-import { PLANS } from "@/lib/plans";
-import { rub } from "@/lib/wallet";
+import { planCatalog } from "@/lib/plan-catalog";
+import { tokens as rub } from "@/lib/wallet";
 import { ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
 import { adjustBalanceAction, disableUserAction, logoutUserAction, resetLinkAction, setPlanAction, suspendOrgAction } from "@/lib/admin-actions";
@@ -12,6 +12,7 @@ import { PageHead } from "@/components/ui";
 export default async function OrgPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await requireAdmin();
+  const PLANS = await planCatalog();
   const d = await orgDetail(id);
   if (!d) notFound();
   const { org, members, factories, tx, usage } = d;
@@ -49,8 +50,9 @@ export default async function OrgPage({ params }: { params: Promise<{ id: string
             <p className="mb-4 text-xs text-ink2">Положительная сумма пополняет, отрицательная списывает. Операция попадает в журнал баланса клиента и в аудит.</p>
             <Form action={adjustBalanceAction} submit="Применить">
               <input type="hidden" name="org" value={org.id} />
-              <Field label="Сумма, ₽"><input name="amount" required inputMode="decimal" placeholder="500 или -200" className="input" /></Field>
-              <Field label="Что это"><select name="kind" className="input"><option value="paid">Оплата клиента (деньги получены)</option><option value="gift">Подарок, компенсация или тест (не выручка)</option></select></Field>
+              <Field label="Количество токенов"><input name="amount" required inputMode="decimal" placeholder="500 или -200" className="input" /></Field>
+              <Field label="Что это"><select name="kind" className="input"><option value="gift">Подарок, компенсация или тест</option><option value="paid">Токены за полученную оплату</option></select></Field>
+              <Field label="Получено рублей (для платного начисления)"><input name="paidRub" type="number" min="0" step="0.01" defaultValue="0" className="input" /></Field>
               <Field label="Причина"><input name="reason" required minLength={3} maxLength={200} placeholder="Оплата по счёту №12 / компенсация" className="input" /></Field>
             </Form>
           </section>

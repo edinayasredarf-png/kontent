@@ -11,7 +11,7 @@ import { q, one } from "@/lib/db";
 import { approveFlowItemAction, deleteFlowAction, rejectFlowItemAction, rescueFlowItemAction, rewriteFlowItemAction, saveFlowSettingsAction, toggleFlowAction } from "@/lib/flows/actions";
 import { cleanFlowSettings, REJECT, SCOPES, TOPICS, TYPES } from "@/lib/flows/settings";
 import { KIND_LABEL, type Kind } from "@/lib/monitor/fetchers";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { PageHead } from "@/components/ui";
 import { NewsCard, type NewsSource } from "@/components/monitor/NewsCard";

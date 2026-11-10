@@ -42,7 +42,7 @@ export async function genStrategy(orgId: string, factoryId: string): Promise<{ o
   const fac = await loadFactory(orgId, factoryId);
   if (!fac) return { ok: false, error: "Завод не найден" };
   try { await charge(orgId, PRICES.strategy, "Контент-стратегия завода", factoryId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const top = await q<{ topic: string; views: number }>(
       `select i.topic,s.views from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id
@@ -62,7 +62,7 @@ export async function genStrategy(orgId: string, factoryId: string): Promise<{ o
     return { ok: true };
   } catch (e) {
     await refund(orgId, PRICES.strategy, "ошибка стратегии", factoryId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` };
   }
 }
 

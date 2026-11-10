@@ -8,7 +8,7 @@ import { askAgent, clearHistory, runMessageAction } from "./agent";
 
 export async function sendChatAction(message: string, fileIds: string[] = [], threadId: string | null = null): Promise<{ error?: string; threadId?: string }> {
   const c = await requireCtx();
-  if (!canWrite(c.org.role)) return { error: "Ассистент тратит деньги на нейросети, поэтому недоступен роли «Наблюдатель»" };
+  if (!canWrite(c.org.role)) return { error: "Ассистент расходует токены, поэтому недоступен роли «Наблюдатель»" };
   const r = await askAgent({ orgId: c.org.id, userId: c.user.id, userName: c.user.name, role: c.org.role }, String(message ?? ""), Array.isArray(fileIds) ? fileIds.map(String) : [], threadId);
   revalidatePath("/app");
   return r.ok ? { threadId: r.threadId } : { error: r.error };

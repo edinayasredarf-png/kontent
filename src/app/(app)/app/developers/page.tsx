@@ -47,7 +47,7 @@ export default async function Developers() {
           </section>
           <section className="card p-5">
             <b className="mb-3 block text-sm">Методы API</b>
-            <p className="mb-3 text-xs text-ink2">Адрес: <code>{SITE}</code>. Заголовок <code>Authorization: Bearer lt_…</code>. Ответы в JSON, ошибки вида <code>{`{"error":"…"}`}</code>. Лимит {RATE_PER_MINUTE} запросов в минуту на ключ. Генерация списывает деньги так же, как в кабинете.</p>
+            <p className="mb-3 text-xs text-ink2">Адрес: <code>{SITE}</code>. Заголовок <code>Authorization: Bearer lt_…</code>. Ответы в JSON, ошибки вида <code>{`{"error":"…"}`}</code>. Лимит {RATE_PER_MINUTE} запросов в минуту на ключ. Генерация списывает токены так же, как в кабинете.</p>
             <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-sm"><tbody>
               {ENDPOINTS.map(([m, p, d]) => (
                 <tr key={m + p} className="border-t border-line align-top"><td className="py-2 pr-3"><span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${m === "GET" ? "bg-accent-soft text-accent-ink" : "bg-good-soft text-good"}`}>{m}</span></td><td className="py-2 pr-3"><code className="text-xs">{p}</code></td><td className="py-2 text-xs text-ink2">{d}</td></tr>

@@ -13,7 +13,7 @@ export default async function Register({ searchParams }: { searchParams: Promise
   return (
     <AuthShell logoHref="/register">
       <h1 className="mb-1 text-2xl font-semibold">Создать аккаунт</h1>
-      <p className="mb-6 text-sm text-ink2">100 ₽ на баланс в подарок — хватит на пробный контент-план.</p>
+      <p className="mb-6 text-sm text-ink2">100 токенов на баланс в подарок — хватит на пробный контент-план.</p>
       <Form action={registerAction} submit="Создать аккаунт" wide>
         <input type="hidden" name="next" value={nx} />
         <Field label="Ваше имя"><input name="name" required className="input" /></Field>

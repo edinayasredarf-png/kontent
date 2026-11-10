@@ -1,11 +1,11 @@
 import { one, q, tx } from "./db";
-import { notify } from "./notify";
+export { tokens } from "./tokens";
 import { actionOf, setUsageCtx, usageStore } from "./billing";
 
 export const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
-/** Цены операций в копейках по умолчанию. Администратор может переопределить любую в «Админ → Цены»: тогда действует его значение, везде сразу. */
-export const DEFAULT_PRICES = { plan_day: 300, post: 2000, carousel_slide: 700, article: 4000, reels: 2000, idea: 300, digest: 600, image: 1500, carousel: 3500, seo: 6000, script: 3000, tts: 500, infographic: 3000, strategy: 1000, reply: 300, variants: 2000, email: 3000, guide: 6000, flowClassify: 50, flowJudge: 30, flowRewrite: 200, kbDigest: 500, kbMerge: 1500, kbStyle: 1000, kbTest: 200, edit: 300 };
+/** Стоимость операций в сотых долях токена. Администратор может переопределить любую в «Админ → Цены»: тогда действует его значение, везде сразу. */
+export const DEFAULT_PRICES = { plan_day: 30, post: 300, carousel_slide: 100, article: 1200, reels: 500, idea: 50, digest: 100, image: 300, carousel: 1200, seo: 2000, script: 500, tts: 100, infographic: 800, strategy: 300, reply: 50, variants: 300, email: 600, guide: 2000, flowClassify: 10, flowJudge: 10, flowRewrite: 50, kbDigest: 100, kbMerge: 300, kbStyle: 200, kbTest: 50, edit: 50 };
 export type PriceKey = keyof typeof DEFAULT_PRICES;
 /** Действующие цены. Объект меняется на месте при загрузке переопределений, поэтому все, кто читает PRICES.xxx, видят актуальное значение. */
 export const PRICES: Record<PriceKey, number> = { ...DEFAULT_PRICES };
@@ -40,58 +40,61 @@ export async function billingCols() {
 
 export class InsufficientFunds extends Error {}
 
-export async function charge(orgId: string, kop: number, reason: string, ref?: string) {
-  // дальнейшие вызовы нейросети в этом запросе учитываются на эту организацию и это действие; ставится до первого await, чтобы контекст дошёл до вызывающего
-  // обучение нового клиента бесплатно: деньги не списываем, а расход на нейросеть записываем как «без выручки»
-  if (usageStore().waive) { setUsageCtx({ orgId, reason: `Обучение: ${reason}`, ref, free: true, bonusShare: 0 }); return; }
+export interface ChargeReceipt { id: string; units: number; ref?: string; free: boolean }
+
+export async function charge(orgId: string, units: number, reason: string, ref?: string, model?: string | string[]) {
+  if (!Number.isSafeInteger(units) || units < 0) throw new Error("Некорректная стоимость операции");
+  const context = usageStore();
+  const { planCatalog, effectiveTerms } = await import("./plan-catalog");
   setUsageCtx({ orgId, reason, ref, free: false });
   await ensurePrices();
-  const c = await billingCols();
-  let free = false, bonusTaken = 0;
-  await tx(async (run) => {
-    const [o] = await run<{ balance_kop: string; unlimited: boolean; timed: boolean }>(
-      `select balance_kop,unlimited,${c.until ? "(unlimited_until is not null and unlimited_until > now())" : "false"} timed from kz_orgs where id=$1 for update`, [orgId]);
-    if (o?.unlimited || o?.timed) { free = true; return; } // админ платформы или пробный безлимит: генерация бесплатна, баланс не трогаем
-    if (!o || Number(o.balance_kop) < kop) throw new InsufficientFunds();
-    await run("update kz_orgs set balance_kop=balance_kop-$2 where id=$1", [orgId, kop]);
-    // подарочные деньги (бонус при регистрации, подарки администратора) тратятся первыми и выручкой не считаются
-    let take = 0;
-    if (c.bonus) {
-      const [p] = await run<{ pot: string }>(`select coalesce(sum(amount_kop) filter (where credit_kind in ('bonus','gift') or reason='Бонус при регистрации'),0) - coalesce(sum(bonus_part),0) pot from kz_wallet_tx where org_id=$1`, [orgId]);
-      take = Math.min(Math.max(0, Number(p?.pot ?? 0)), kop);
+  const catalog = await planCatalog();
+  const receipt = await tx(async run => {
+    const [o] = await run<{ balance_kop: string; token_value_kop: string; unlimited: boolean; timed: boolean; active: boolean; plan: import("./plans").PlanKey; plan_terms: import("./plan-catalog").PlanTerms | null; plan_until: string | null }>("select plan,plan_terms,plan_until,balance_kop,token_value_kop,unlimited,unlimited_until>now() timed,(plan_until is null or plan_until>now()) active from kz_orgs where id=$1 for update", [orgId]);
+    if (!o) throw new InsufficientFunds();
+    const terms = effectiveTerms(catalog, o);
+    const feature = reason.startsWith("Студия:") || reason.startsWith("Слайд ") ? "studio" : "create";
+    if (!context.waive && !o.unlimited && !o.timed && !terms.capabilities?.includes(feature)) throw new Error("Эта функция не входит в ваш тариф. Выберите другой тариф в разделе оплаты.");
+    const free = !!(context.waive || o.unlimited || o.timed || (o.active && model && (Array.isArray(model) ? model.length > 0 && model.every(m => !!m && terms.unlimitedModels.includes(m)) : terms.unlimitedModels.includes(model))));
+    let bonus = 0, value = 0;
+    if (!free) {
+      if (Number(o.balance_kop) < units) throw new InsufficientFunds();
+      const [pot] = await run<{ pot: string }>("select coalesce(sum(amount_kop) filter(where credit_kind in ('bonus','gift') or reason='Бонус при регистрации'),0)-coalesce(sum(bonus_part),0) pot from kz_wallet_tx where org_id=$1", [orgId]);
+      const bonusBalance = Math.max(0, Math.min(Number(o.balance_kop), Number(pot?.pot ?? 0)));
+      bonus = Math.min(bonusBalance, units);
+      const paidBalance = Number(o.balance_kop) - bonusBalance;
+      value = paidBalance > 0 ? Math.min(Number(o.token_value_kop), Math.round(Number(o.token_value_kop) * (units - bonus) / paidBalance)) : 0;
+      await run("update kz_orgs set balance_kop=balance_kop-$2,token_value_kop=token_value_kop-$3 where id=$1", [orgId, units, value]);
     }
-    bonusTaken = take;
-    if (c.bonus) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part) values($1,$2,$3,$4,$5,$6)", [orgId, -kop, reason, ref ?? null, actionOf(reason), take]);
-    else if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,$5)", [orgId, -kop, reason, ref ?? null, actionOf(reason)]);
-    else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, -kop, reason, ref ?? null]);
+    const [row] = await run<{ id: string }>("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part,revenue_kop,nominal_units) values($1,$2,$3,$4,$5,$6,$7,$8) returning id", [orgId, free ? 0 : -units, free ? `Без списания: ${reason}` : reason, ref ?? null, actionOf(reason), bonus, -value, units]);
+    return { id: row.id, units, ref, free, bonusShare: units ? bonus / units : 0 };
   });
-  // вызовы нейросети после бесплатного списания отмечаются как «без выручки»
-  setUsageCtx({ free, bonusShare: kop > 0 ? bonusTaken / kop : 0, spent: (usageStore().spent ?? 0) + kop });
-  if (!free) {
-    const left = Number((await one<{ b: string }>("select balance_kop b from kz_orgs where id=$1", [orgId]).catch(() => null))?.b ?? 1e9);
-    if (left < 5000) void notify(orgId, { kind: "low_balance", title: left < 500 ? "Баланс почти закончился" : "Баланс ниже 50 ₽", body: "Пополните баланс, чтобы материалы продолжили создаваться и выходить по расписанию", href: "/app/billing", dedupe: `bal:${new Date().toISOString().slice(0, 10)}`, to: "managers" });
-  }
+  context.tokenCharges ??= [];
+  context.tokenCharges.push(receipt);
+  setUsageCtx({ free: receipt.free, bonusShare: receipt.bonusShare, spent: (context.spent ?? 0) + (receipt.free ? 0 : units) });
+  return receipt;
 }
 
-export async function refund(orgId: string, kop: number, reason: string, ref?: string) {
-  if (usageStore().waive) return; // списания не было, возвращать нечего
-  setUsageCtx({ spent: Math.max(0, (usageStore().spent ?? 0) - kop) });
-  const c = await billingCols();
-  await tx(async (run) => {
-    // не начисляем возврат за списание, которого не было
-    const [o] = await run<{ unlimited: boolean; timed: boolean }>(`select unlimited,${c.until ? "(unlimited_until is not null and unlimited_until > now())" : "false"} timed from kz_orgs where id=$1`, [orgId]);
-    if (o?.unlimited || o?.timed) return;
-    await run("update kz_orgs set balance_kop=balance_kop+$2 where id=$1", [orgId, kop]);
-    // если исходное списание частично шло из подарочных денег, возврат возвращает эту долю обратно в подарочный остаток
-    let part = 0;
-    if (c.bonus && ref) {
-      const [orig] = await run<{ bonus_part: string; amount_kop: string }>("select bonus_part,amount_kop from kz_wallet_tx where org_id=$1 and ref=$2 and amount_kop<0 order by created_at desc limit 1", [orgId, ref]);
-      if (orig && Number(orig.bonus_part) > 0) part = Math.min(Number(orig.bonus_part), Math.round((Number(orig.bonus_part) * kop) / -Number(orig.amount_kop)));
-    }
-    if (c.bonus) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part) values($1,$2,$3,$4,'refund',$5)", [orgId, kop, `Возврат: ${reason}`, ref ?? null, -part]);
-    else if (c.action) await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action) values($1,$2,$3,$4,'refund')", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
-    else await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref) values($1,$2,$3,$4)", [orgId, kop, `Возврат: ${reason}`, ref ?? null]);
+/** Refund the original debit, never a guessed amount or the organization's current entitlement. */
+export async function refund(orgId: string, units: number, reason: string, ref?: string) {
+  if (!Number.isSafeInteger(units) || units <= 0) return;
+  const ctx = usageStore();
+  const charges = [...(ctx.tokenCharges ?? [])].reverse();
+  const local = charges.find(x => x.ref === ref && x.units === units) ?? charges.find(x => x.ref === ref && x.units >= units);
+  await tx(async run => {
+    await run("select id from kz_orgs where id=$1 for update", [orgId]);
+    const [original] = await run<{ id: string; amount_kop: string; nominal_units: string; refunded_units: string; bonus_part: string; revenue_kop: string }>(
+      `select id,amount_kop,nominal_units,refunded_units,bonus_part,revenue_kop from kz_wallet_tx where org_id=$1 and nominal_units>refunded_units and ${local ? "id=$2" : "ref is not distinct from $2"} order by created_at desc limit 1 for update`, [orgId, local?.id ?? ref ?? null]);
+    if (!original) return;
+    const nominal = Number(original.nominal_units), already = Number(original.refunded_units);
+    const take = Math.min(units, nominal - already);
+    await run("update kz_wallet_tx set refunded_units=refunded_units+$2 where id=$1", [original.id, take]);
+    if (Number(original.amount_kop) === 0) return;
+    const portion = (total: number) => Math.round(total * (already + take) / nominal) - Math.round(total * already / nominal);
+    const bonus = portion(Number(original.bonus_part)), value = portion(-Number(original.revenue_kop));
+    await run("update kz_orgs set balance_kop=balance_kop+$2,token_value_kop=token_value_kop+$3 where id=$1", [orgId, take, value]);
+    await run("insert into kz_wallet_tx(org_id,amount_kop,reason,ref,action,bonus_part,revenue_kop,refund_of) values($1,$2,$3,$4,'refund',$5,$6,$7)", [orgId, take, `Возврат: ${reason}`, ref ?? null, -bonus, value, original.id]);
   });
-  // нейросеть для этой операции мы уже оплатили, а деньги вернули клиенту: затраты помечаются как потеря
-  if (ref) await q("update kz_ai_usage set no_revenue='refunded' where org_id=$1 and ref=$2 and no_revenue is null and created_at > now() - interval '45 minutes'", [orgId, ref]).catch(() => null);
+  setUsageCtx({ spent: Math.max(0, (ctx.spent ?? 0) - units) });
+  if (ref) await q("update kz_ai_usage set no_revenue='refunded' where org_id=$1 and ref=$2 and no_revenue is null and created_at>now()-interval '45 minutes'", [orgId, ref]).catch(() => null);
 }

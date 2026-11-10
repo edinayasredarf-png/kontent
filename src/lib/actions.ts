@@ -1,4 +1,5 @@
 "use server";
+import { orgPlan } from "./plan-catalog";
 import { clientIpFromHeaders } from "./proxy-trust";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -91,9 +92,9 @@ export async function saveBrand(_: unknown, f: FormData) {
     revalidatePath(`/app/brands/${id}`);
     return { ok: "Сохранено" };
   } else {
-    const lim = c.org.unlimited ? null : PLANS[c.org.plan].brands;
+    const lim = c.org.unlimited ? null : (await orgPlan(c.org.id)).brands;
     const n = Number((await one<{ n: string }>("select count(*) n from kz_brands where org_id=$1", [c.org.id]))!.n);
-    if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум брендов — ${lim}. Повысьте тариф.` };
+    if (lim !== null && n >= lim) return { error: `Тариф «${(await orgPlan(c.org.id)).name}»: максимум брендов — ${lim}. Повысьте тариф.` };
     await q("insert into kz_brands(org_id,name,description,audience,tone,rules) values($1,$2,$3,$4,$5,$6)",
       [c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules]);
   }
@@ -137,9 +138,9 @@ export async function saveFactory(_: unknown, f: FormData) {
   const brand = await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]);
   if (!brand) return { error: "Выберите бренд" };
   if (!s(f, "name")) return { error: "Укажите название завода" };
-  const lim = c.org.unlimited ? null : PLANS[c.org.plan].factories;
+  const lim = c.org.unlimited ? null : (await orgPlan(c.org.id)).factories;
   const n = Number((await one<{ n: string }>("select count(*) n from kz_factories where org_id=$1", [c.org.id]))!.n);
-  if (lim !== null && n >= lim) return { error: `Тариф «${PLANS[c.org.plan].name}»: максимум заводов — ${lim}. Повысьте тариф.` };
+  if (lim !== null && n >= lim) return { error: `Тариф «${(await orgPlan(c.org.id)).name}»: максимум заводов — ${lim}. Повысьте тариф.` };
   const formats = f.getAll("formats").map(String).filter(Boolean);
   const days = f.getAll("days").map(Number);
   const times = s(f, "times").split(",").map((x) => x.trim()).filter((x) => /^\d{2}:\d{2}$/.test(x));
@@ -329,7 +330,8 @@ export async function setPlan(f: FormData) {
   if (!(p in PLANS)) return;
   // Платёжного шлюза ещё нет: без флага смена тарифа закрыта, иначе любой владелец взял бы «Агентство» бесплатно.
   if (process.env.ALLOW_FREE_PLAN_SWITCH !== "1") return;
-  await q("update kz_orgs set plan=$2 where id=$1", [c.org.id, p]);
+  if (p !== "free") return;
+  await q("update kz_orgs set plan=$2,plan_terms=null,plan_until=null where id=$1", [c.org.id, p]);
   revalidatePath("/app", "layout");
 }
 

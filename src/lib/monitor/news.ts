@@ -95,7 +95,7 @@ export async function scoreNews(orgId: string, brandId: string): Promise<{ ok: t
   if (items.length < 3) return { ok: false, error: "Для подборки нужно хотя бы 3 свежие новости. Добавьте источники и обновите ленту." };
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Подборка новостей под бренд"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const list = items.map((it, n) => `${n + 1}. ${it.title}${bestText(it) && bestText(it) !== it.title ? " — " + bestText(it).replace(/\s+/g, " ").slice(0, 220) : ""}`).join("\n");
     const raw = await chat("idea", "Ты редактор-стратег контента. Отвечай ТОЛЬКО валидным JSON-массивом без пояснений.",
@@ -113,7 +113,7 @@ export async function scoreNews(orgId: string, brandId: string): Promise<{ ok: t
     });
     if (!n) throw new Error("Оценок нет в ответе модели");
     return { ok: true, scored: n };
-  } catch (e) { await refund(orgId, cost, "ошибка подборки новостей"); return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка подборки новостей"); return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }
 
 export interface KwSuggestion { include: { word: string; why: string }[]; exclude: { word: string; why: string }[] }
@@ -125,7 +125,7 @@ export async function suggestKeywords(orgId: string, brandId: string): Promise<{
   const have = (await q<{ word: string; kind: string }>("select word,kind from kz_keywords where org_id=$1", [orgId])).map((k) => k.word);
   const cost = PRICES.idea;
   try { await charge(orgId, cost, "Подбор ключевых слов"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const o = extractObject(await chat("idea", "Ты специалист по мониторингу новостей. Отвечай ТОЛЬКО валидным JSON-объектом без пояснений.",
       `${ctx.text}\n${have.length ? `Уже добавлены слова (не повторяй): ${have.slice(0, 80).join(", ")}\n` : ""}\nПодбери ключевые слова для отбора новостей, которые могут пригодиться этой компании для контента.\n"include" — 20 слов и коротких фраз (1–3 слова): темы, термины, события, законы, продукты, проблемы и вопросы аудитории, конкуренты и смежные отрасли. Давай слова в начальной форме без окончаний-вариантов (поиск сам находит падежи). "exclude" — 8 слов, по которым стоит отсекать мусор и посторонние темы (гороскопы, скандалы, реклама, нерелевантные отрасли). У каждого слова "why" — до 8 слов, зачем оно.\nФормат: {"include":[{"word":"...","why":"..."}],"exclude":[{"word":"...","why":"..."}]}`,
@@ -135,7 +135,7 @@ export async function suggestKeywords(orgId: string, brandId: string): Promise<{
     const s = { include: clean(o?.include, 25), exclude: clean(o?.exclude, 10) };
     if (!s.include.length) throw new Error("Модель не предложила слов");
     return { ok: true, s };
-  } catch (e) { await refund(orgId, cost, "ошибка подбора слов"); return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка подбора слов"); return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }
 
 /* ───────── материал из новости ───────── */

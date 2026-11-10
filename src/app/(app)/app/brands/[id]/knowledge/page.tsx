@@ -17,7 +17,7 @@ import { loadKb } from "@/lib/kb/use";
 import { profileToForm, styleToForm } from "@/lib/kb/edit";
 import { emptyProfile, emptyStyle, profileIsEmpty, styleIsEmpty } from "@/lib/kb/types";
 import { addLinksAction, addTextDocAction, analyzeAction, deleteDocAction, saveProfileAction, saveStyleAction, toggleStyleAction } from "@/lib/kb/actions";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;

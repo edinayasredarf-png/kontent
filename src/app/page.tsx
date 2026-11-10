@@ -14,7 +14,7 @@ import { SITE } from "@/lib/site";
 import { fill, landingPrices } from "@/lib/landing-prices";
 
 const TITLE = "Контент-завод — ИИ-контент для соцсетей и сайта на автопилоте";
-const DESC = "Опишите бренд один раз — Контент-завод сам составит контент-план, напишет посты, нарисует карусели и картинки и опубликует в Telegram, VK и MAX. Посты от %n_post% ₽, 100 ₽ в подарок при регистрации.";
+const DESC = "Опишите бренд один раз — Контент-завод сам составит контент-план, напишет посты, нарисует карусели и картинки и опубликует в Telegram, VK и MAX. Посты от %n_post% ток., 100 токенов в подарок при регистрации.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const D = fill(DESC, await landingPrices());
@@ -33,7 +33,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Что такое Контент-завод и чем он отличается от обычных нейросетей?", a: "Это готовая система, а не чат. Вы один раз описываете бренд: чем занимаетесь, для кого, каким тоном говорите, какие цвета и логотип. Дальше сервис сам придумывает темы, пишет тексты в голосе бренда, оформляет карусели и картинки в ваших цветах, ставит всё в расписание и публикует. В чате с нейросетью вы каждый раз пишете запрос, копируете текст и вручную выкладываете." },
   { q: "Куда можно публиковать?", a: "В Telegram-каналы, сообщества VK и каналы MAX, а также на сайт на WordPress. Для остальных площадок есть webhook: он передаёт готовый пост и картинки в n8n или Make, а оттуда вы направляете их куда угодно." },
   { q: "Нужно ли мне что-то писать и придумывать самому?", a: "Нет. Достаточно описать бренд. Идеи, тексты, заголовки и оформление карусели сервис делает сам. Каждый материал вы можете одобрить, отредактировать или отклонить. Если хотите полную автоматизацию, включите автопилот: он сам соберёт идеи и напишет черновики, а решение о публикации остаётся за вами." },
-  { q: "Сколько это стоит?", a: "Вы платите только за созданный контент, абонемента нет. Пост стоит примерно %n_post% ₽, карусель-картинки около %n_carousel% ₽, картинка к посту около %n_image% ₽, SEO-статья около %n_seo% ₽. При регистрации на счёт зачисляется 100 ₽, этого хватит на первые материалы. Если генерация не удалась, деньги возвращаются автоматически." },
+  { q: "Сколько это стоит?", a: "Вы выбираете тариф с функциями и пакетом токенов. Тариф оплачивается в рублях, генерации расходуют токены. Пост стоит примерно %n_post% ток., карусель-картинки около %n_carousel% ток., картинка к посту около %n_image% ток., SEO-статья около %n_seo% ток.. При регистрации на счёт зачисляется 100 токенов, этого хватит на первые материалы. Если генерация не удалась, токены возвращаются автоматически." },
   { q: "Тексты не будут похожи на безликий ИИ?", a: "Сервис пишет в тоне вашего бренда и учитывает аудиторию, запретные темы, примеры ваших постов, ссылки и призывы к действию. Вы выбираете тип постов (новости, экспертные, продающие, юмор и другие), длину, эмодзи и хештеги. Чем точнее описан бренд, тем более «вашим» получается текст." },
   { q: "Можно ли вести несколько брендов или проектов?", a: "Да. В одной организации можно создать любое число брендов и контент-заводов, у каждого свой стиль, каналы и расписание. Для агентств доступна команда с ролями: администратор, редактор, наблюдатель." },
   { q: "Как устроены карусели?", a: "Сервис сам придумывает структуру из 4–10 слайдов и собирает готовые картинки в стилях бренда (фирменный, светлый, тёмный). Для обложки можно добавить фон, созданный нейросетью. Карусель публикуется альбомом в Telegram и несколькими фото во VK или MAX. Её также можно скачать архивом." },
@@ -45,7 +45,7 @@ const jsonLd = (L: Record<string, string>) => ({
   "@graph": [
     { "@type": "Organization", name: "Контент-завод", url: SITE, logo: `${SITE}/logo-light.svg` },
     { "@type": "SoftwareApplication", name: "Контент-завод", applicationCategory: "BusinessApplication", operatingSystem: "Web", description: fill(DESC, L), url: SITE,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "RUB", description: "100 ₽ на счёте при регистрации, далее оплата за созданный контент" } },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "RUB", description: "100 токенов на счёте при регистрации, далее оплата за созданный контент" } },
     { "@type": "FAQPage", mainEntity: FAQ.map((f) => ({ "@type": "Question", name: fill(f.q, L), acceptedAnswer: { "@type": "Answer", text: fill(f.a, L) } })) },
   ],
 });
@@ -75,9 +75,9 @@ const AUDIENCE = [
 type Tone = "plain" | "blue" | "liquid";
 const FEATURES: { key: string; t: string; d: string; tone: Tone; chips?: string[]; time?: [string, string] }[] = [
   { key: "plan", t: "Контент-план на месяц", d: "Идеи с учётом ниши, типов постов и дат. Календарь публикаций и подбор лучшего времени выхода.", tone: "plain", time: ["≈ 4 часа", "≈ 5 минут"] },
-  { key: "carousel", t: "Карусели, которые листают до конца", d: "Сервис придумывает структуру, пишет текст каждого слайда и сразу собирает готовые картинки: обложка, нумерованные шаги, финальный призыв. Три стиля, ваши цвета, логотип. Около 35 ₽ за карусель.", tone: "blue", chips: ["4–10 слайдов", "Квадрат и 4:5", "Обложка от нейросети", "Скачать архивом"], time: ["≈ 5 часов", "≈ 3 минуты"] },
+  { key: "carousel", t: "Карусели, которые листают до конца", d: "Сервис придумывает структуру, пишет текст каждого слайда и сразу собирает готовые картинки: обложка, нумерованные шаги, финальный призыв. Три стиля, ваши цвета, логотип. Около %n_carousel% токенов за карусель.", tone: "blue", chips: ["4–10 слайдов", "Квадрат и 4:5", "Обложка от нейросети", "Скачать архивом"], time: ["≈ 5 часов", "≈ 3 минуты"] },
   { key: "posts", t: "Посты в голосе бренда", d: "Новости, экспертные, продающие, юмор: выбираете тип, длину, эмодзи, хештеги и добавляете примеры своего стиля.", tone: "liquid" },
-  { key: "images", t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — около %n_image% ₽.", tone: "plain" },
+  { key: "images", t: "Картинки к постам", d: "Изображения в стиле бренда по референсам, продуктам и цветам. Одна картинка — около %n_image% ток..", tone: "plain" },
   { key: "seo", t: "SEO-статьи для сайта", d: "Структурированные статьи с заголовками и метаданными, публикация прямо в WordPress.", tone: "blue" },
   { key: "monitor", t: "Мониторинг и идеи", d: "Следим за новостями, каналами VK и Telegram, сайтами и ключевыми словами. Находки превращаются в темы.", tone: "liquid" },
   { key: "analytics", t: "Аналитика", d: "Что вышло, что сработало, в какое время лучше публиковать. Решения на данных, а не на ощущениях.", tone: "plain" },
@@ -97,7 +97,7 @@ const COMPARE: [string, boolean | string, boolean | string, boolean | string][] 
   ["Автоматическая публикация по расписанию", true, false, "вручную"],
   ["Мониторинг новостей и идей из источников", true, false, "частично"],
   ["Скорость", "минуты", "минуты, но всё вручную", "дни"],
-  ["Стоимость месяца контента", "около %n_month% ₽", "подписка + ваше время", "от десятков тысяч ₽"],
+  ["Стоимость месяца контента", "около %n_month% ток.", "подписка + ваше время", "от десятков тысяч ₽"],
 ];
 
 const GUARANTEES = [
@@ -309,9 +309,9 @@ export default async function Landing() {
               <div className="flex flex-col rounded-3xl bg-gradient-to-b from-stone-50 to-zinc-100 px-8 py-10 outline outline-1 -outline-offset-1 outline-zinc-200 sm:px-14">
                 <div className="w-40 pb-6"><Logo href="/" light h={44} /></div>
                 <p className="text-sm font-semibold leading-5 text-neutral-900/80">Пример: контент на месяц</p>
-                <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ {L.n_month} руб</p>
+                <p className="mt-6 text-5xl font-semibold leading-[53px] text-blue-900">≈ {L.n_month} ток.</p>
                 <MonthBuilder total={Number(L.n_month)} />
-                <p className="mt-6 text-base font-semibold leading-6 text-neutral-900">30 постов и 8 каруселей. Это примерно стоимость обеда, а не месячной ставки SMM-специалиста. При регистрации на счёте уже 100 ₽.</p>
+                <p className="mt-6 text-base font-semibold leading-6 text-neutral-900">30 постов и 8 каруселей. Расход токенов зависит от выбранных форматов и моделей. При регистрации на счёте уже 100 токенов.</p>
                 <Link href="/register" className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-[10px] bg-[#1c1c1c] px-8 text-base font-medium text-white transition hover:opacity-85 lg:mt-8">Хочу также</Link>
               </div>
             </div>
@@ -342,7 +342,7 @@ export default async function Landing() {
               {/* 3D-картинки по краям: на широких экранах вылезают за края блока, на узких идут рядом под кнопками */}
               <Image src="/landing/cta-left.webp" alt="" width={815} height={760} aria-hidden className="pointer-events-none absolute -bottom-[7%] -left-[4%] hidden h-[30%] w-auto lg:block xl:h-[47%]" />
               <h2 className="relative mx-auto max-w-3xl text-balance text-3xl font-semibold leading-tight md:text-5xl">Запустите контент-завод для своего бренда сегодня</h2>
-              <p className="relative mx-auto mt-4 max-w-xl text-lg font-semibold">100 ₽ в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
+              <p className="relative mx-auto mt-4 max-w-xl text-lg font-semibold">100 токенов в подарок, чтобы убедиться самому. Первый пост — через пять минут.</p>
               <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link href="/register" className="inline-flex h-14 items-center rounded-xl bg-white px-10 text-lg font-semibold text-black transition hover:opacity-90">Начать бесплатно</Link>
                 <Link href="/login" className="inline-flex h-14 items-center px-6 text-base font-semibold underline-offset-4 hover:underline">У меня уже есть аккаунт</Link>
@@ -360,6 +360,7 @@ export default async function Landing() {
           <div className="space-y-3">
             <nav aria-label="Документы" className="flex flex-col gap-2 text-sm font-semibold">
               <Link href="/legal/privacy">Политика конфиденциальности</Link>
+              <Link href="/requisites" className="hover:underline">Реквизиты и контакты</Link>
               <Link href="/legal/terms" className="opacity-80 hover:opacity-100">Пользовательское соглашение</Link>
               <Link href="/legal/cookies" className="opacity-80 hover:opacity-100">Cookie</Link>
             </nav>

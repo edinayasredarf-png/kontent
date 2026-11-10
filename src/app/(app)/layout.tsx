@@ -1,8 +1,8 @@
 import { readSession, requireCtx } from "@/lib/auth";
 import { one, q } from "@/lib/db";
-import { rub } from "@/lib/wallet";
+import { tokens as rub } from "@/lib/wallet";
 import { unreadCount } from "@/lib/notify";
-import { PLANS } from "@/lib/plans";
+import { orgPlan } from "@/lib/plan-catalog";
 import { AppShell } from "@/components/shell/AppShell";
 import { ThemeSync } from "@/components/ThemeSync";
 import { PendingBar } from "@/components/PendingBar";
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <ThemeSync theme={c.user.theme} />
       <PendingBar /><Suspense fallback={null}><NavProgress /></Suspense>
       <AppShell factories={factories} orgs={c.orgs} orgId={c.org.id} userName={c.user.name} email={c.user.email} userId={c.user.id} avatarV={c.user.avatarV} isAdmin={c.isAdmin} free={c.org.plan === "free" && !c.org.unlimited} initialCollapsed={navCollapsed}
-        balance={rub(c.org.balance_kop)} unlimited={c.org.unlimited} planName={c.org.unlimited ? "Админ · без ограничений" : PLANS[c.org.plan].name} unread={c.user.guest ? 0 : unread} role={c.org.role} guest={c.user.guest}>
+        balance={rub(c.org.balance_kop)} unlimited={c.org.unlimited} planName={c.org.unlimited ? "Админ · без ограничений" : (await orgPlan(c.org.id)).name} unread={c.user.guest ? 0 : unread} role={c.org.role} guest={c.user.guest}>
         {children}
       </AppShell>
     </>

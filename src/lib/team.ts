@@ -1,3 +1,4 @@
+import { orgPlan } from "./plan-catalog";
 import { createHash, randomBytes } from "node:crypto";
 import { one, q, tx } from "./db";
 import { PLANS, type PlanKey } from "./plans";
@@ -32,8 +33,8 @@ export async function createInvite(o: { orgId: string; plan: PlanKey; unlimited:
   if (o.role === "admin" && o.actorRole !== "owner") return { ok: false, error: "Администратора может назначить только владелец" };
   const email = o.email.trim().toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Некорректный email" };
-  const lim = o.unlimited ? null : PLANS[o.plan].members;
-  if (lim !== null && (await seatsUsed(o.orgId)) >= lim) return { ok: false, error: `Тариф «${PLANS[o.plan].name}»: максимум участников — ${lim} (вместе с ожидающими приглашениями)` };
+  const lim = o.unlimited ? null : (await orgPlan(o.orgId)).members;
+  if (lim !== null && (await seatsUsed(o.orgId)) >= lim) return { ok: false, error: `Тариф «${(await orgPlan(o.orgId)).name}»: максимум участников — ${lim} (вместе с ожидающими приглашениями)` };
   if (email && (await one("select 1 from kz_memberships m join kz_users u on u.id=m.user_id where m.org_id=$1 and u.email=$2", [o.orgId, email]))) return { ok: false, error: "Этот человек уже в команде" };
   const token = randomBytes(24).toString("base64url");
   await q("insert into kz_invites(org_id,email,role,token_hash,invited_by,expires_at) values($1,$2,$3,$4,$5,now() + interval '7 days')", [o.orgId, email || null, o.role, hash(token), o.actorId]);

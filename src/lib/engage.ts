@@ -186,7 +186,7 @@ export async function recommendations(orgId: string, days: AFilter | Period): Pr
       where p.org_id=$1 and p.status='published'${w.sql} order by s.views asc limit 5`, [orgId, ...w.params]);
   const cost = PRICES.digest;
   try { await charge(orgId, cost, "Рекомендации по аналитике"); }
-  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { error: "Недостаточно токенов" }; throw e; }
   const data = [
     `Итого: постов ${a.tot.posts}, просмотров ${a.tot.views}, реакций ${Number(a.tot.likes) + Number(a.tot.comments) + Number(a.tot.reposts)}`,
     `По форматам (в среднем просмотров на пост): ${a.byKind.map((k) => `${k.kind} ${k.avg} (${k.posts} шт.)`).join("; ")}`,
@@ -198,7 +198,7 @@ export async function recommendations(orgId: string, days: AFilter | Period): Pr
     const text = await chat("analyst", "Ты аналитик контента для соцсетей. Пиши по-русски, конкретно, без воды. Опирайся только на переданные данные и честно говори, если данных мало для вывода.",
       `${data}\n\nДай: 1) что работает лучше всего и почему (по данным); 2) что не работает; 3) 5 конкретных рекомендаций на следующую неделю (темы, форматы, время публикации).`, { maxTokens: 1500, temperature: 0.3, timeoutMs: 55_000 });
     return { text };
-  } catch (e) { await refund(orgId, cost, "ошибка рекомендаций"); return { error: `Не получилось, деньги возвращены: ${(e as Error).message}` }; }
+  } catch (e) { await refund(orgId, cost, "ошибка рекомендаций"); return { error: `Не получилось, токены возвращены: ${(e as Error).message}` }; }
 }
 
 /* ───────── самообучение: выводы из статистики прошлых публикаций бренда ───────── */

@@ -7,8 +7,8 @@ import { STYLES } from "@/lib/studio-catalog";
 import type { StudioSettings } from "@/lib/creator/actions";
 import { rub } from "./ui";
 
-export function CreatorSettings({kind, models, textModels, settings: s, opts, audience, hasLogo, disabled, set, setOpts}: {
-  kind: string; models: ImgModel[]; textModels: string[]; settings: StudioSettings; opts: CreateOpts;
+export function CreatorSettings({unlimitedModels = [], kind, models, textModels, settings: s, opts, audience, hasLogo, disabled, set, setOpts}: {
+  unlimitedModels?: string[]; kind: string; models: ImgModel[]; textModels: string[]; settings: StudioSettings; opts: CreateOpts;
   audience: string; hasLogo: boolean; disabled: boolean;
   set: (p: Partial<StudioSettings>) => void; setOpts: (p: CreateOpts) => void;
 }) {
@@ -47,7 +47,7 @@ export function CreatorSettings({kind, models, textModels, settings: s, opts, au
         {select("Модель текста",opts.textModel || "", v=>setOpts({...opts,textModel:v}), <><option value="">Автоматически по формату</option>{textModels.map(m=><option key={m} value={m}>{m}</option>)}</>)}
         {car && <>
           <div className="flex gap-1.5" role="group" aria-label="Фильтр стоимости моделей">{[["all","Все"],["low","Дешевле"],["high","Дороже"]].map(([v,l])=><button key={v} type="button" aria-pressed={filter===v} onClick={()=>setFilter(v)} className={`rounded-md border px-2 py-1.5 text-[11px] ${filter===v ? "border-accent bg-accent-soft text-accent" : "border-line"}`}>{l}</button>)}</div>
-          {select("Модель изображений",s.model, v=>set({model:v,textInImage:false}),models.filter(m=>m.id===s.model || filter==="all" || (filter==="low" ? m.kop<=models.reduce((a,x)=>a+x.kop,0)/models.length : m.kop>models.reduce((a,x)=>a+x.kop,0)/models.length)).map(m=><option key={m.id} value={m.id}>{m.label} · {rub(slidePrice(m,s.quality))}/слайд</option>))}
+          {select("Модель изображений",s.model, v=>set({model:v,textInImage:false}),models.filter(m=>m.id===s.model || filter==="all" || (filter==="low" ? m.kop<=models.reduce((a,x)=>a+x.kop,0)/models.length : m.kop>models.reduce((a,x)=>a+x.kop,0)/models.length)).map(m=><option key={m.id} value={m.id}>{m.label} · {unlimitedModels.includes(m.id) ? "Безлимит" : `${rub(slidePrice(m,s.quality))}/слайд`}</option>))}
           {!models.length && <p className="text-xs text-bad">Нет доступных моделей изображений. Обратитесь к администратору.</p>}
         </>}
         <p className="text-[11px] leading-relaxed text-ink3">Доступны модели, подключённые администратором. Итоговая цена показана перед созданием.</p>

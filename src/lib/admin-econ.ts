@@ -14,10 +14,10 @@ async function sums() {
   const b = (await billingCols()).bonus;
   return {
     bonus: b,
-    charged: b ? "case when amount_kop<0 then -amount_kop - bonus_part end" : "case when amount_kop<0 then -amount_kop end",
-    refunded: b ? "case when amount_kop>0 and reason like 'Возврат:%' then amount_kop + bonus_part end" : "case when amount_kop>0 and reason like 'Возврат:%' then amount_kop end",
+    charged: b ? "case when amount_kop<0 then -coalesce(revenue_kop,amount_kop+bonus_part) end" : "case when amount_kop<0 then -amount_kop end",
+    refunded: b ? "case when amount_kop>0 and reason like 'Возврат:%' then coalesce(revenue_kop,amount_kop+bonus_part) end" : "case when amount_kop>0 and reason like 'Возврат:%' then amount_kop end",
     bonusNet: b ? "bonus_part" : "0",
-    day: b ? "case when amount_kop<0 then -amount_kop - bonus_part when reason like 'Возврат:%' then -(amount_kop + bonus_part) end" : "case when amount_kop<0 then -amount_kop when reason like 'Возврат:%' then -amount_kop end",
+    day: b ? "case when amount_kop<0 then -coalesce(revenue_kop,amount_kop+bonus_part) when reason like 'Возврат:%' then -coalesce(revenue_kop,amount_kop+bonus_part) end" : "case when amount_kop<0 then -amount_kop when reason like 'Возврат:%' then -amount_kop end",
   };
 }
 
@@ -153,7 +153,7 @@ export async function econByAction(r: Range, orgId: string | null): Promise<Acti
   let w1 = where("created_at", r, a1), w2 = where("created_at", r, a2);
   if (orgId) { a1.push(orgId); w1 += ` and org_id=$${a1.length}`; a2.push(orgId); w2 += ` and org_id=$${a2.length}`; }
   const S = await sums();
-  const refundExpr = S.bonus ? "case when amount_kop>0 and (reason like 'Возврат:%' or action='refund') then amount_kop + bonus_part end" : "case when amount_kop>0 and (reason like 'Возврат:%' or action='refund') then amount_kop end";
+  const refundExpr = S.bonus ? "case when amount_kop>0 and (reason like 'Возврат:%' or action='refund') then coalesce(revenue_kop,amount_kop + bonus_part) end" : "case when amount_kop>0 and (reason like 'Возврат:%' or action='refund') then amount_kop end";
   const tx_ = await q<{ action: string | null; reason: string; charged: string; refunded: string; bonus: string; ops: string }>(
     `select action, case when action is null then left(reason,28) else '' end reason, coalesce(sum(${S.charged}),0) charged, coalesce(sum(${refundExpr}),0) refunded, coalesce(sum(${S.bonusNet}) filter (where amount_kop<0),0) bonus, count(*) filter (where amount_kop<0) ops
        from kz_wallet_tx where reason not like '%администратором%'${w1} group by 1,2`, a1);

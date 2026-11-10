@@ -1,3 +1,4 @@
+import { requirePageFeature } from "@/lib/plan-catalog";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { analytics, membersReport } from "@/lib/engage";
@@ -8,7 +9,7 @@ import { bounds } from "@/lib/range";
 import { canWrite } from "@/lib/auth";
 import { parseRange, rangeLabel, uuidOrEmpty, type Preset } from "@/lib/range";
 import { recommendAction, refreshStatsAction } from "@/lib/engage-actions";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { AiPanel } from "@/components/AiPanel";
 import { Empty, KIND, PageHead } from "@/components/ui";
@@ -21,6 +22,7 @@ const PRESETS: [Preset, string][] = [["today", "Сегодня"], ["yesterday", 
 export default async function Analytics({ searchParams }: { searchParams: Promise<{ r?: string; d?: string; from?: string; to?: string; brand?: string; channel?: string; kind?: string }> }) {
   const sp = await searchParams;
   const c = await requireCtx();
+  await requirePageFeature(c.org.id, "analytics");
   const rg = parseRange(sp, [...PRESETS.map(([k]) => k), "custom"], "30");
   const kind = sp.kind && sp.kind in KIND ? sp.kind : "";
   const [brands, channels] = await Promise.all([

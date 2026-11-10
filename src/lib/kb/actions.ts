@@ -60,7 +60,7 @@ export async function analyzeAction(f: FormData) {
     const r = await analyzeBrand(c.org.id, brand, { force: f.get("force") === "on" });
     err = r.error ?? "";
     msg = `Разобрано материалов: ${r.digested}${r.failed ? `, с ошибкой: ${r.failed}` : ""}.${r.style ? " Стиль письма обновлён." : ""}${r.pending ? ` Осталось ещё ${r.pending} — нажмите «Проанализировать» ещё раз.` : " База знаний обновлена."}`;
-  } catch (e) { err = e instanceof InsufficientFunds ? "Недостаточно средств на балансе" : (e as Error).message; }
+  } catch (e) { err = e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message; }
   back(brand, err && !msg ? err : undefined, msg ? msg + (err ? ` Замечание: ${err}` : "") : undefined);
 }
 
@@ -84,5 +84,5 @@ export async function testStyleAction(brand: string, topic: string): Promise<{ t
   if (t.length < 3) return { error: "Введите тему" };
   if (!aiReady()) return { error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   try { return { text: await testStyle(c.org.id, brand, t) }; }
-  catch (e) { return { error: e instanceof InsufficientFunds ? "Недостаточно средств на балансе" : (e as Error).message }; }
+  catch (e) { return { error: e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message }; }
 }

@@ -4,7 +4,7 @@ import { requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { commentStatusAction, hideSpamAction, replyCommentAction, suggestReplyAction } from "@/lib/engage-actions";
 import { classifyPending, TONE_LABEL, type Tone } from "@/lib/comments";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 import { Form } from "@/components/Form";
 import { Empty, PageHead } from "@/components/ui";
 import { PostCard, RoundIcon } from "@/components/ui/PostCard";

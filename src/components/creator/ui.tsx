@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-export const rub = (kop: number) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
+export { tokens as rub } from "@/lib/tokens";
 export const img = (id: string, dl = false) => `/api/assets/${id}${dl ? "?dl=1" : ""}`;
 
 /** Выпадающая панель над кнопкой (панель создания внизу экрана, поэтому открывается вверх). */

@@ -55,7 +55,7 @@ async function digestOne(orgId: string, d: DocRow): Promise<{ ok: boolean; error
     await q("update kz_brand_docs set digest=$2, digest_error=null, digested_at=now() where id=$1", [d.id, JSON.stringify(out)]);
     return { ok: true };
   } catch (e) {
-    const m = e instanceof InsufficientFunds ? "Недостаточно средств на балансе" : (e as Error).message.slice(0, 300);
+    const m = e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message.slice(0, 300);
     await q("update kz_brand_docs set digest_error=$2 where id=$1", [d.id, m]);
     return { ok: false, error: m };
   }

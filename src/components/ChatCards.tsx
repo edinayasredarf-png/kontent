@@ -64,13 +64,27 @@ function ItemCard({ it, replace, drop }: { it: ItemRow; replace: (c: Card | null
   const [sel, setSel] = useState(""), [how, setHow] = useState(""), [vers, setVers] = useState(false), [copied, setCopied] = useState(false), [body, setBody] = useState(it.body), [plan, setPlan] = useState(false), [date, setDate] = useState(it.date), [time, setTime] = useState(it.time), [ask, setAsk] = useState(false), [prev, setPrev] = useState(false);
   useEffect(() => { setBody(it.body); }, [it.body]);
   const ready = it.status === "ready", dirty = body !== it.body;
+  // Re-read the same record after editing in another tab; preserve unsaved chat edits.
+  useEffect(() => {
+    if (dirty || busy) return;
+    let active = true;
+    const refresh = () => { void cardRefreshAction({ t: "item", ids: [it.id] }).then((r) => {
+      if (active && r.card?.t === "item") replace(r.card);
+    }).catch(() => {}); };
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); };
+  }, [it.id, dirty, busy, replace]);
   const done = it.published.length > 0;
   const upd = (r: Res) => { if (r.card && r.card.t === "item") replace(r.card); };
   const on = it.channels.filter((c) => c.on);
   return (
     <div className={box}>
       <div className="mb-2 flex flex-wrap items-center gap-2"><span className="chip">{it.kindLabel}</span><b className="min-w-0 flex-1 truncate text-sm">{it.topic}</b>{it.factoryName && <span className="text-xs text-ink3">{it.factoryName}</span>}</div>
-      {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="link-btn ml-2">Обновить</button></p>}
+      <div className="mb-3 flex flex-wrap gap-3 text-xs">
+        <Link href={`/app/create?item=${it.id}`} className="link-btn">Открыть материал для доработки</Link>
+        <button type="button" disabled={!!busy || dirty} onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="link-btn">Обновить материал</button>
+      </div>
+      {!ready && it.status !== "published" && it.status !== "scheduled" && <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{it.status === "failed" ? "Не удалось создать материал." : ["idea", "approved", "rejected"].includes(it.status) ? "Идея: откройте материал, чтобы создать контент." : "Материал создаётся…"} <button type="button" onClick={() => run("r", async () => ({ ok: true, card: (await cardRefreshAction({ t: "item", ids: [it.id] })).card }), upd)} className="link-btn ml-2">Обновить</button></p>}
       {(ready || it.status === "published" || it.status === "scheduled") && (
         <>
           <div className="space-y-3">

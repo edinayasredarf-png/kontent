@@ -20,7 +20,7 @@ export async function leadMagnetAction(itemId: string, mechanic: string, keyword
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен" };
   const kw = clip(keyword, 30) || "ГАЙД";
   try { await charge(c.org.id, PRICES.edit, "Тексты лид-магнита", itemId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно средств на балансе" }; throw e; }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const title = it.meta?.guide?.title || it.topic, text = it.body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 3500);
     const raw = await chat("post",
@@ -38,6 +38,6 @@ export async function leadMagnetAction(itemId: string, mechanic: string, keyword
     return { ok: true, lead };
   } catch (e) {
     await refund(c.org.id, PRICES.edit, "ошибка текстов лид-магнита", itemId);
-    return { ok: false, error: `Не получилось, деньги возвращены: ${(e as Error).message.slice(0, 160)}` };
+    return { ok: false, error: `Не получилось, токены возвращены: ${(e as Error).message.slice(0, 160)}` };
   }
 }

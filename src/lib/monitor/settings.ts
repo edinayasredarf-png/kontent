@@ -1,9 +1,10 @@
 "use server";
+import { orgPlan } from "../plan-catalog";
 import { requireWriter } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { KIND_LABEL, type Kind } from "./fetchers";
-import { PRICES, rub } from "@/lib/wallet";
+import { PRICES, tokens as rub } from "@/lib/wallet";
 
 /** Loaded only when the settings drawer is actually opened. Always scoped to the authenticated organization. */
 export async function loadMonitorSettings() {
@@ -16,7 +17,7 @@ export async function loadMonitorSettings() {
     q<{ id: string; title: string }>("select id,title from kz_channels where org_id=$1 and kind='max' and status='active' order by created_at", [c.org.id]),
     q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]),
   ]);
-  return { sources, kws, maxCh, brands, limit: c.org.unlimited ? null : PLANS[c.org.plan].sources,
+  return { sources, kws, maxCh, brands, limit: c.org.unlimited ? null : (await orgPlan(c.org.id)).sources,
     vkOn: !!process.env.VK_SERVICE_TOKEN?.trim(), kindLabels: KIND_LABEL,
     priceLabel: c.org.unlimited ? "бесплатно для админа" : rub(PRICES.idea) };
 }

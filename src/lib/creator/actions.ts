@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireWriter } from "../auth";
 import { one, q } from "../db";
 import { aiReady, withCreatorTextModel } from "../ai";
-import { charge, refund, InsufficientFunds, rub } from "../wallet";
+import { charge, refund, InsufficientFunds, tokens as rub } from "../wallet";
 import { cleanKit, generateImage, LOGO_POSITIONS, rawCopy, type LogoPos } from "../images";
 import { loadAsset, saveAsset } from "../assets";
 import { applyCreateOverrides, brandOf, buildItem, loadFactory, type FactoryRow } from "../pipeline";
@@ -89,8 +89,8 @@ export async function generateSlideAction(factoryId: string, index: number, tota
   const title = String(slide?.title ?? "").slice(0, 90), body = String(slide?.body ?? "").slice(0, 320), visual = String(slide?.visual ?? "").slice(0, 600);
   if (!title || !visual) return { ok: false, error: "У слайда нет заголовка или описания картинки" };
   const model = models.find((m) => m.id === st.model)!, cost = slidePrice(model, st.quality);
-  try { await charge(c.org.id, cost, `Слайд ${index + 1} карусели (${model.label}, ${QUALITY[st.quality].label})`, factoryId); }
-  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: `Недостаточно средств: слайд стоит ${rub(cost)}` }; throw e; }
+  try { await charge(c.org.id, cost, `Слайд ${index + 1} карусели (${model.label}, ${QUALITY[st.quality].label})`, factoryId, model.id); }
+  catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: `Недостаточно токенов: слайд стоит ${rub(cost)}` }; throw e; }
   try {
     const kit = cleanKit(fac.kit), palette = (kit.colors ?? []).map((x) => x.hex).join(", ");
     const textInImage = st.textInImage && model.text;
@@ -103,7 +103,7 @@ export async function generateSlideAction(factoryId: string, index: number, tota
     return { ok: true, finalId, bgId };
   } catch (e) {
     await refund(c.org.id, cost, "ошибка слайда карусели", factoryId);
-    return { ok: false, error: `Не получилось, деньги за слайд возвращены: ${slideErr(e)}` };
+    return { ok: false, error: `Не получилось, токены за слайд возвращены: ${slideErr(e)}` };
   }
 }
 
