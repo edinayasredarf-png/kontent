@@ -12,7 +12,7 @@ const ACCEPT_ALL = { functional: true, analytics: true };
 const COOKIE_NAME = "lt_cookie_preferences";
 
 export function CookieSettingsLink() {
-  return <button type="button" className="w-fit text-left hover:underline" onClick={() => window.dispatchEvent(new Event("lt:cookie-settings"))}>Настройки cookie</button>;
+  return <button type="button" className="w-fit text-left opacity-80 transition-opacity hover:opacity-100" onClick={() => window.dispatchEvent(new Event("lt:cookie-settings"))}>Настройки cookie</button>;
 }
 
 export function CookieNotice() {
@@ -57,12 +57,11 @@ export function CookieNotice() {
 
   return <>
     {preferences?.analytics && <Script id="yandex-metrika" strategy="afterInteractive">{METRIKA_SCRIPT}</Script>}
-    {open ? (
+    {open && (
       <aside aria-label="Настройки cookie" className="fixed bottom-4 right-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-line bg-surface p-4 text-sm text-ink shadow-lg sm:bottom-6 sm:right-6">
         <h2 className="font-semibold">Файлы cookie</h2>
         <p className="mt-1 text-xs leading-relaxed text-ink2">
           Необходимые cookie помогают сайту работать. Вы можете разрешить cookie для настроек и аналитики.
-          {" "}<Link href="/legal/cookies" className="text-accent-ink underline">Политика cookie</Link>
         </p>
         {custom && (
           <fieldset className="mt-3 space-y-2 text-xs">
@@ -72,14 +71,19 @@ export function CookieNotice() {
             <label className="flex items-center gap-2"><input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ ...draft, analytics: event.target.checked })} /> Аналитические</label>
           </fieldset>
         )}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" className="btn btn-ghost justify-center !px-2 text-xs" onClick={() => save(ACCEPT_ALL)}>Принять все</button>
-          <button type="button" className="btn btn-ghost justify-center !px-2 text-xs" onClick={() => save(REQUIRED_ONLY)}>Только необходимые</button>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <button type="button" className="btn btn-accent rounded-full px-5 text-xs" onClick={() => save(ACCEPT_ALL)}>Принять</button>
+          <button type="button" className="py-2 text-xs font-medium text-ink2 transition-colors hover:text-ink hover:underline" onClick={() => save(REQUIRED_ONLY)}>Отклонить</button>
         </div>
-        <button type="button" className="mt-2 text-xs text-accent-ink underline" onClick={() => custom ? save(draft) : setCustom(true)}>{custom ? "Сохранить выбор" : "Настроить"}</button>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink2">
+          <Link href="/legal/cookies" className="transition-colors hover:text-ink hover:underline">Политика cookie</Link>
+          {custom ? (
+            <button type="button" className="font-medium transition-colors hover:text-ink hover:underline" onClick={() => save(draft)}>Сохранить выбор</button>
+          ) : (
+            <button type="button" className="transition-colors hover:text-ink hover:underline" onClick={() => setCustom(true)}>Настройки</button>
+          )}
+        </div>
       </aside>
-    ) : preferences && (
-      <button type="button" className="fixed bottom-3 right-3 z-40 rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] text-ink2 shadow-sm" onClick={() => { setCustom(true); setOpen(true); }}>Настройки cookie</button>
     )}
   </>;
 }
