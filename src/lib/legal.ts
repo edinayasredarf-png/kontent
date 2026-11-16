@@ -1,13 +1,21 @@
 /** Версия текстов: меняйте при правке документов — у пользователей хранится, с какой версией они согласились. */
-export const LEGAL_VERSION = "2026-11-10";
+export const LEGAL_VERSION = "2026-11-16";
 
-/** Реквизиты оператора из переменных окружения. Пока не заполнены — в документах показываются заметные пометки. */
-export function operator() {
-  const E = process.env;
-  const v = (k: string) => E[k]?.trim() || "";
+// Новая редакция реквизитов из документа ИП. Администратор может обновлять её в кабинете.
+export const OPERATOR_SETTINGS_KEY = "legal_operator_2026_11";
+export function operator(): OperatorDetails {
   return {
-    name: v("LEGAL_NAME"), inn: v("LEGAL_INN"), ogrn: v("LEGAL_OGRN"), address: v("LEGAL_ADDRESS"), email: v("LEGAL_EMAIL"), phone: v("LEGAL_PHONE"),
-    site: v("APP_URL") || "https://juicerai.ru",
+    name: "ИП Статов Андрей Викторович",
+    inn: "616304774592",
+    ogrn: "320619600158597",
+    address: "344092, Ростовская область, г. Ростов-на-Дону, бул. Комарова 28е, офис. 302.",
+    email: "info@juicerai.ru",
+    phone: "8 (863)284-00-24",
+    site: "https://juicerai.ru",
+    bank: 'ООО "Банк Точка"',
+    account: "4080281040100121123",
+    corrAccount: "30101810745374525104",
+    bic: "044525104",
   };
 }
 export const operatorFilled = () => { const o = operator(); return !!(o.name && o.inn && o.address && o.email); };
@@ -15,10 +23,10 @@ export const operatorFilled = () => { const o = operator(); return !!(o.name && 
 export interface OperatorDetails { name: string; inn: string; ogrn: string; address: string; email: string; phone: string; site: string; bank: string; account: string; corrAccount: string; bic: string }
 export async function loadOperator(): Promise<OperatorDetails> {
   const { one } = await import("./db");
-  const saved = await one<{ value: Partial<OperatorDetails> }>("select value from kz_platform_settings where key='legal_operator'").catch(() => null);
-  const base = operator();
-  const o = { ...base, email: base.email.match(/[^\s:]+@[^\s()]+\.[^\s()]+/)?.[0] ?? base.email, bank: "", account: "", corrAccount: "", bic: "", ...saved?.value };
-  return o;
+  const saved = await one<{ value: Partial<OperatorDetails> }>(
+    "select value from kz_platform_settings where key=$1", [OPERATOR_SETTINGS_KEY],
+  ).catch(() => null);
+  return { ...operator(), ...saved?.value };
 }
 export function validateOperator(raw: OperatorDetails): OperatorDetails {
   const o = Object.fromEntries(Object.entries(raw).map(([k,v]) => [k, String(v ?? "").trim()])) as unknown as OperatorDetails;

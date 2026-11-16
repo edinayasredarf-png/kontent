@@ -20,7 +20,8 @@ export default async function Register({ searchParams }: { searchParams: Promise
         <Field label="Организация / агентство"><input name="org" required className="input" /></Field>
         <Field label="Email"><input name="email" type="email" required autoComplete="username" className="input" /></Field>
         <Field label="Пароль (от 8 символов)"><PasswordInput autoComplete="new-password" minLength={8} /></Field>
-        <label className="flex items-start gap-2.5 text-xs leading-relaxed text-ink2"><input type="checkbox" name="consent" required className="mt-0.5 size-4 shrink-0" /><span>Я принимаю <Link href="/legal/terms" target="_blank" className="text-accent-ink underline">пользовательское соглашение</Link> и даю согласие на обработку персональных данных согласно <Link href="/legal/privacy" target="_blank" className="text-accent-ink underline">политике конфиденциальности</Link></span></label>
+        <label className="flex items-start gap-2.5 text-xs leading-relaxed text-ink2"><input type="checkbox" name="terms" required className="mt-0.5 size-4 shrink-0" /><span>Я принимаю <Link href="/legal/terms" target="_blank" className="text-accent-ink underline">пользовательское соглашение</Link> </span></label>
+        <label className="flex items-start gap-2.5 text-xs leading-relaxed text-ink2"><input type="checkbox" name="consent" required className="mt-0.5 size-4 shrink-0" /><span>Даю <Link href="/legal/consent" target="_blank" className="text-accent-ink underline">согласие на обработку персональных данных</Link></span></label>
       </Form>
       <OAuthButtons verb="Зарегистрироваться" next={nx} />
       <p className="mt-4 text-xs text-ink3">Регистрируясь через Яндекс ID или VK ID, вы принимаете те же условия.</p>

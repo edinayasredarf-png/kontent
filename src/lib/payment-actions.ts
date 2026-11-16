@@ -59,9 +59,9 @@ export async function savePlanAction(_: unknown, f: FormData) {
 export async function saveOperatorAction(_: unknown, f: FormData) {
   const c = await requireAdmin();
   try {
-    const { validateOperator } = await import("./legal");
+    const { validateOperator, OPERATOR_SETTINGS_KEY } = await import("./legal");
     const o = validateOperator({ name:s(f,"name"),inn:s(f,"inn"),ogrn:s(f,"ogrn"),address:s(f,"address"),email:s(f,"email"),phone:s(f,"phone"),site:s(f,"site"),bank:s(f,"bank"),account:s(f,"account"),corrAccount:s(f,"corrAccount"),bic:s(f,"bic") });
-    await q("insert into kz_platform_settings(key,value) values('legal_operator',$1::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()", [JSON.stringify(o)]);
+    await q("insert into kz_platform_settings(key,value) values($1,$2::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()", [OPERATOR_SETTINGS_KEY, JSON.stringify(o)]);
     await audit(c.user,"legal.update","platform","operator",{ inn:o.inn });
     revalidatePath("/requisites");revalidatePath("/legal","layout");revalidatePath("/app/admin/billing");
     return { ok:"Реквизиты сохранены на странице и в документах сайта" };

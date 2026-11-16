@@ -1,3 +1,4 @@
+import { CookieSettingsLink } from "@/components/CookieNotice";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -359,10 +360,12 @@ export default async function Landing() {
         <div className={`${wrap} grid gap-8 py-10 md:grid-cols-2`}>
           <div className="space-y-3">
             <nav aria-label="Документы" className="flex flex-col gap-2 text-sm font-semibold">
-              <Link href="/legal/privacy">Политика конфиденциальности</Link>
+              <Link href="/legal/privacy">Политика обработки персональных данных</Link>
               <Link href="/requisites" className="hover:underline">Реквизиты и контакты</Link>
               <Link href="/legal/terms" className="opacity-80 hover:opacity-100">Пользовательское соглашение</Link>
               <Link href="/legal/cookies" className="opacity-80 hover:opacity-100">Cookie</Link>
+              <Link href="/legal/consent">Согласие на обработку персональных данных</Link>
+              <CookieSettingsLink />
             </nav>
             <p className="pt-2 text-xs font-semibold opacity-60">© Контент-завод, {new Date().getFullYear()}</p>
           </div>

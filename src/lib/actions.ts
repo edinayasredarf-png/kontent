@@ -50,6 +50,7 @@ export async function loginAction(_: unknown, f: FormData) {
   redirect(safeNext(s(f, "next")));
 }
 export async function registerAction(_: unknown, f: FormData) {
+  if (f.get("terms") !== "on") return { error: "Примите пользовательское соглашение" };
   let r: { error?: string };
   try { r = await register(s(f, "email"), s(f, "password"), s(f, "name"), s(f, "org"), (await cookies()).get("lt_ref")?.value, await clientIp(), f.get("consent") === "on"); }
   catch (e) { console.error("[register]", e); return { error: diagnose(e) }; }

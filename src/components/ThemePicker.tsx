@@ -9,6 +9,7 @@ export type Theme = "light" | "dark" | "system";
 export function applyTheme(t: Theme) {
   const root = document.documentElement;
   if (t === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
+  if (!/(?:^|; )lt_cookie_preferences=1[01](?:;|$)/.test(document.cookie)) return;
   document.cookie = `lt_theme=${t}; path=/; max-age=31536000; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
 }
 
