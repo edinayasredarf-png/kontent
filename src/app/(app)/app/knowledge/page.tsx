@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 
 export default async function KnowledgeIndex() {
   const c = await requireCtx();
-  const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
+  const brands = await q<{ id: string; name: string; knowledge: string | null }>("select id,name,rules->>'knowledgeName' knowledge from kz_brands where org_id=$1 order by name", [c.org.id]);
   if (brands.length) return <>
     <OrgTabs />
     <h1 className="mb-2 text-2xl font-semibold">База знаний бренда</h1>
     <p className="mb-5 text-sm text-ink2">Выберите бренд. Его документы используют заводы, привязанные к этому бренду.</p>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{brands.map(brand =>
       <Link key={brand.id} href={`/app/brands/${brand.id}/knowledge`} className="card flex items-center gap-3 p-4 hover:bg-tile">
-        <Building2 size={18} />{brand.name}
+        <Building2 size={18} /><span>{brand.knowledge || brand.name}{brand.knowledge && <span className="block text-xs text-ink2">{brand.name}</span>}</span>
       </Link>
     )}</div>
   </>;

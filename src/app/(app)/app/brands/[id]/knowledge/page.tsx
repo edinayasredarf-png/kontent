@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileText, Link2, Sparkles, Trash2, PenLine } from "lucide-react";
 import { requireCtx, canWrite } from "@/lib/auth";
+import { can } from "@/lib/roles";
+import { DeleteBrand } from "@/components/DeleteBrand";
+import { FactoryRename } from "@/components/FactoryRename";
 import { one, q } from "@/lib/db";
 import { OrgTabs } from "@/components/shell/OrgTabs";
 import { Field } from "@/components/Form";
@@ -16,7 +19,7 @@ import { KB_LIMITS } from "@/lib/kb/ingest";
 import { loadKb } from "@/lib/kb/use";
 import { profileToForm, styleToForm } from "@/lib/kb/edit";
 import { emptyProfile, emptyStyle, profileIsEmpty, styleIsEmpty } from "@/lib/kb/types";
-import { addLinksAction, addTextDocAction, analyzeAction, deleteDocAction, saveProfileAction, saveStyleAction, toggleStyleAction } from "@/lib/kb/actions";
+import { renameKnowledgeAction, addLinksAction, addTextDocAction, analyzeAction, deleteDocAction, saveProfileAction, saveStyleAction, toggleStyleAction } from "@/lib/kb/actions";
 import { PRICES, tokens as rub } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +31,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
   const { id } = await params;
   const { err, note } = await searchParams;
   const c = await requireCtx();
-  const b = await one<{ id: string; name: string }>("select id,name from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
+  const b = await one<{ id: string; name: string; knowledge: string | null }>("select id,name,rules->>'knowledgeName' knowledge from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
   if (!b) notFound();
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by created_at", [c.org.id]);
   const write = canWrite(c.org.role);
@@ -36,6 +39,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
     q<DocView>("select id,kind,title,url,chars,use_style,digest is not null analyzed,digest_error from kz_brand_docs where brand_id=$1 and org_id=$2 order by created_at desc", [id, c.org.id]),
     loadKb(c.org.id, id),
   ]);
+  const title = b.knowledge || "База знаний";
   const pending = docs.filter((d) => !d.analyzed).length;
   const p = profileToForm(kb?.profile ?? emptyProfile());
   const st = styleToForm(kb?.style ?? emptyStyle());
@@ -66,6 +70,10 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
       {note && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
 
       <div className="max-w-[749px]">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <FactoryRename key={title} id={id} name={title} rename={renameKnowledgeAction} label="Название базы знаний" canEdit={write} />
+          {can(c.org.role, "manage") && (docs.length > 0 || kb || b.knowledge) && <DeleteBrand id={id} name={title} knowledge />}
+        </div>
         <div className="border-b border-[var(--tile)] pb-4">
           <label className="label">База знаний бренда</label>
           <BrandSelect brands={brands} current={id} />

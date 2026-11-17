@@ -1,8 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { can } from "../roles";
 import { requireWriter } from "../auth";
-import { one, q } from "../db";
+import { one, q, tx } from "../db";
 import { aiReady } from "../ai";
 import { analyzeBrand, testStyle } from "./analyze";
 import { profileFromForm, styleFromForm } from "./edit";
@@ -85,4 +86,27 @@ export async function testStyleAction(brand: string, topic: string): Promise<{ t
   if (!aiReady()) return { error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
   try { return { text: await testStyle(c.org.id, brand, t) }; }
   catch (e) { return { error: e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message }; }
+}
+
+
+export async function renameKnowledgeAction(f: FormData) {
+  const id = s(f, "id"), name = s(f, "name").slice(0, 120);
+  if (!name || !/^[0-9a-f-]{36}$/i.test(id)) return;
+  const c = await own(id);
+  await q("update kz_brands set rules=jsonb_set(rules,'{knowledgeName}',to_jsonb($3::text)) where id=$1 and org_id=$2", [id, c.org.id, name]);
+  revalidatePath("/app", "layout");
+}
+
+export async function deleteKnowledgeAction(_: unknown, f: FormData) {
+  const id = s(f, "id");
+  if (s(f, "confirm_delete") !== "yes" || !/^[0-9a-f-]{36}$/i.test(id)) return { error: "Подтвердите удаление базы знаний" };
+  const c = await own(id);
+  if (!can(c.org.role, "manage")) return { error: "Недостаточно прав для удаления базы знаний" };
+  await tx(async run => {
+    await run("update kz_brands set rules=rules-'knowledgeName' where id=$1 and org_id=$2", [id, c.org.id]);
+    await run("delete from kz_brand_docs where brand_id=$1 and org_id=$2", [id, c.org.id]);
+    await run("delete from kz_brand_kb where brand_id=$1 and org_id=$2", [id, c.org.id]);
+  });
+  revalidatePath("/app", "layout");
+  redirect("/app/knowledge");
 }

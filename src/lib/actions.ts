@@ -76,7 +76,7 @@ export async function saveBrand(_: unknown, f: FormData) {
   const id = s(f, "id");
   const list = (k: string) => s(f, k).split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
   const rules = JSON.stringify({ forbidden: list("forbidden"), competitors: list("competitors") });
-  if (!s(f, "name")) return { error: "Укажите название" };
+  if ((!id || f.has("name")) && !s(f, "name")) return { error: "Укажите название" };
   if (id && f.get("color_invalid") === "1") return { error: "Проверьте код цвета: нужен формат #RRGGBB или #RGB" };
   if (id) {
     // 6 слотов цвета; включённые отмечены флажком (у <input type=color> «пустого» значения нет)
@@ -88,8 +88,8 @@ export async function saveBrand(_: unknown, f: FormData) {
       fonts: s(f, "fonts"), font: s(f, "font"), style: s(f, "style"), styleNotes: s(f, "styleNotes"), imageMust: s(f, "imageMust"), imageNever: s(f, "imageNever"),
       aspect: s(f, "aspect"), logoPos: f.has("logoPos") ? (s(f, "logoPos") as never) : prev.logoPos, logoScale: f.has("logoScale") ? Number(s(f, "logoScale")) : prev.logoScale, logoMargin: prev.logoMargin,
     })) : null;
-    await q("update kz_brands set name=$3,description=$4,audience=$5,tone=$6,rules=$7,kit=coalesce($8::jsonb,kit) where id=$1 and org_id=$2",
-      [id, c.org.id, s(f, "name"), s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules, kit]);
+    await q("update kz_brands set name=coalesce($3,name),description=$4,audience=$5,tone=$6,rules=rules || $7::jsonb,kit=coalesce($8::jsonb,kit) where id=$1 and org_id=$2",
+      [id, c.org.id, f.has("name") ? s(f, "name") : null, s(f, "description"), s(f, "audience"), s(f, "tone") || "professional", rules, kit]);
     revalidatePath(`/app/brands/${id}`);
     return { ok: "Сохранено" };
   } else {
@@ -395,19 +395,25 @@ export async function deleteBrandAction(_: unknown, f: FormData) {
   const c = await manager();
   const id = s(f, "id");
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Бренд не найден" };
+  if (s(f, "confirm_delete") !== "yes") return { error: "Подтвердите удаление бренда и связанных данных" };
   const error = await tx(async run => {
     const [brand] = await run("select id from kz_brands where id=$1 and org_id=$2 for update", [id, c.org.id]);
     if (!brand) return "Бренд не найден";
-    const [linked] = await run<{ used: boolean }>(`select exists(select 1 from kz_factories where brand_id=$1)
-      or exists(select 1 from kz_content_items where brand_id=$1)
-      or exists(select 1 from kz_channels where brand_id=$1)
-      or exists(select 1 from kz_flows where brand_id=$1)
-      or exists(select 1 from kz_competitor_groups where brand_id=$1) used`, [id]);
-    if (linked.used) return "Бренд связан с заводами, каналами, материалами, автолентой или группами конкурентов. Сначала разберите эти связи.";
+    await run("delete from kz_bank where brand_id=$1 and org_id=$2", [id, c.org.id]);
+    await run("delete from kz_external_posts where brand_id=$1 and org_id=$2", [id, c.org.id]);
+    await run("delete from kz_creator_presets where brand_id=$1 and org_id=$2", [id, c.org.id]);
     await run("delete from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
     return null;
   });
   if (error) return { error };
   revalidatePath("/app", "layout");
   redirect("/app/brands");
+}
+
+export async function renameBrandAction(f: FormData) {
+  const c = await writer();
+  const id = s(f, "id"), name = s(f, "name").slice(0, 120);
+  if (!name || !/^[0-9a-f-]{36}$/i.test(id)) return;
+  await q("update kz_brands set name=$3 where id=$1 and org_id=$2", [id, c.org.id, name]);
+  revalidatePath("/app", "layout");
 }

@@ -6,7 +6,7 @@ import { FactoryTabs } from "@/components/FactoryTabs";
 import { DraftHost } from "@/components/DraftHost";
 import { botConfigured, botLink, botUsername } from "@/lib/max-bot";
 import { ItemModal } from "@/components/ItemModal";
-import { listFactoryDrafts } from "@/lib/drafts";
+import { DRAFT, FACTORY_DRAFT_PAGE_SIZE, listFactoryDrafts } from "@/lib/drafts";
 import Link from "next/link";
 import { Check, X, Sparkles, Pause, Play, Trash2, AlertTriangle, Send, ExternalLink, ImageIcon, RefreshCw, Plus, CalendarDays, List, Clock, Layers, Download } from "lucide-react";
 import { canWrite, requireCtx } from "@/lib/auth";
@@ -69,7 +69,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const f = await one<{ id: string; name: string; brand: string; brand_id: string; status: string; niche: string; product: string; brief: unknown; kit: unknown; schedule: { days: number[]; times: string[]; tz: string }; formats: string[]; autopublish: boolean; approval: string; images: boolean }>(
     "select f.id,f.name,b.name brand,f.brand_id,f.status,f.niche,f.product,f.brief,b.kit,f.schedule,f.formats,f.autopublish,f.approval,coalesce((f.brief->>'images')::boolean,false) images from kz_factories f join kz_brands b on b.id=f.brand_id where f.id=$1 and f.org_id=$2", [id, c.org.id]);
   if (!f) notFound();
-  const tab = sp.tab === "create" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : "settings";
+  const tab = sp.tab === "create" || sp.tab === "drafts" || sp.tab === "plan" || sp.tab === "settings" ? sp.tab : sp.open || sp.view || sp.kind || sp.status || sp.m ? "plan" : "settings";
   const view = sp.view === "calendar" ? "calendar" : "list";
   const kindF = KINDS.includes(sp.kind as never) ? sp.kind : "";
   const statusF = sp.status && STATUS[sp.status] ? sp.status : "";
@@ -115,8 +115,14 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   const stamp = Date.now();
   const itemId = /^[0-9a-f-]{36}$/.test(sp.item ?? "") ? sp.item! : "";
   // созданное «сразу» открывается окном (черновики), а не уходит в план
-  const draftIds = (sp.draft ?? "").split(",").filter((x) => /^[0-9a-f-]{36}$/.test(x));
-  const drafts = tab === "create" ? await listFactoryDrafts(c.org.id, id) : [];
+  const selectedDrafts = (sp.draft ?? "").split(",").filter(id => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 20);
+  const draftIds = (tab === "create" || tab === "drafts") && selectedDrafts.length
+    ? (await q<{ id: string }>(`select id from kz_content_items where org_id=$1 and factory_id=$2 and id=any($3::uuid[]) and ${DRAFT}`, [c.org.id, id, selectedDrafts])).map(draft => draft.id)
+    : [];
+  const requestedPage = Number(sp.page);
+  const draftPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 1000000) : 1;
+  const draftHref = (page: number) => `/app/factories/${id}?tab=drafts&page=${page}`;
+  const drafts = tab === "drafts" ? await listFactoryDrafts(c.org.id, id, draftPage) : [];
   const DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   const scheduleSummary = sched ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => sched.schedule.days.includes(d)).map((d) => DAYS[d]).join(", ") || "дни не выбраны"} · ${sched.schedule.times.join(", ")}` : "не задано";
   // обычный пост — основной формат, поэтому он первый и выбран по умолчанию
@@ -126,24 +132,30 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <FactoryTabMemory tab={tab} />
       <OrgTabs action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link> : null} />
       <div className="mb-8 flex max-w-[749px] flex-wrap items-center gap-3">
-        <FactoryRename id={id} name={f.name} />
+        <div className="mr-auto min-w-0"><FactoryRename id={id} name={f.name} /></div>
         <Link className="pill !bg-tile !text-ink" href={`/app/brands/${f.brand_id}/knowledge`}>База знаний · {f.brand}</Link>
         <form action={toggleFactory}>{hid}<SubmitButton className="pill !bg-tile !text-ink">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
-      {tab !== "settings" && <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} /></div>}
+      <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} /></div>
       {note && !draftIds.length && <div className="mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {err && !draftIds.length && <div className="mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
 
-      {tab === "create" && draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={`/app/factories/${id}?tab=create`} err={err} note={note} free={c.org.unlimited} />}
-      {tab === "create" && drafts.length > 0 && (
+      {draftIds.length > 0 && <DraftHost orgId={c.org.id} ids={draftIds} returnTo={tab === "drafts" ? draftHref(draftPage) : `/app/factories/${id}?tab=create`} err={err} note={note} free={c.org.unlimited} />}
+      {tab === "drafts" && (
         <div className="mb-6 w-full max-w-[680px] space-y-2 rounded-[28px] bg-tile p-3">
-          <b className="px-2 text-sm">Черновики ({drafts.length})</b>
-          {drafts.map((d) => (
-            <Link key={d.id} href={`/app/factories/${id}?tab=create&draft=${d.id}`} className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 text-sm transition hover:opacity-80">
-              <span className="chip">{KIND[d.kind] ?? d.kind}</span><span className="min-w-0 flex-1 truncate">{d.topic}</span><span className="text-xs text-ink3">{d.status === "ready" ? "готов" : d.status === "failed" ? "ошибка" : "создаётся"}</span>
+          {drafts.length === 0 && <p className="p-3 text-sm text-ink2">{draftPage > 1 ? "На этой странице больше нет черновиков." : "У этого завода пока нет черновиков. Материалы появятся здесь после создания."}</p>}
+          {drafts.slice(0, FACTORY_DRAFT_PAGE_SIZE).map(draft => (
+            <Link key={draft.id} href={`${draftHref(draftPage)}&draft=${draft.id}`} className="flex flex-wrap items-center gap-3 rounded-2xl bg-surface px-4 py-3 text-sm transition hover:opacity-80">
+              <span className="chip">{KIND[draft.kind] ?? draft.kind}</span>
+              <span className="min-w-0 flex-1 truncate">{draft.topic}</span>
+              <span className="text-xs text-ink3">{STATUS[draft.status]?.label ?? draft.status}</span>
             </Link>
           ))}
+          {(draftPage > 1 || drafts.length > FACTORY_DRAFT_PAGE_SIZE) && <nav aria-label="Страницы черновиков" className="flex flex-wrap gap-2 px-2 py-1">
+            {draftPage > 1 && <Link className="btn btn-ghost" href={draftHref(draftPage - 1)}>Назад</Link>}
+            {drafts.length > FACTORY_DRAFT_PAGE_SIZE && <Link className="btn btn-ghost" href={draftHref(draftPage + 1)}>Дальше</Link>}
+          </nav>}
         </div>
       )}
       {tab === "create" && (

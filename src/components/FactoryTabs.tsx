@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
-const TABS = [["create", "Создание контента"], ["plan", "Контент-план"], ["settings", "Настройки контента"]] as const;
+const TABS = [["create", "Создание контента"], ["drafts", "Черновики"], ["plan", "Контент-план"], ["settings", "Настройки контента"]] as const;
 
 /** Вкладки завода: выбранная вкладка подсвечивается сразу при нажатии, пока сервер готовит содержимое, рядом крутится индикатор. */
 export function FactoryTabs({ factoryId, tab }: { factoryId: string; tab: string }) {

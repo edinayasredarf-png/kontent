@@ -39,8 +39,10 @@ export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftIte
   });
 }
 
-export async function listFactoryDrafts(orgId: string, factoryId: string): Promise<{ id: string; kind: string; topic: string; status: string }[]> {
-  return q(`select id,kind,topic,status from kz_content_items where org_id=$1 and factory_id=$2 and ${DRAFT} order by created_at desc limit 20`, [orgId, factoryId]);
+export const FACTORY_DRAFT_PAGE_SIZE = 20;
+
+export async function listFactoryDrafts(orgId: string, factoryId: string, page: number): Promise<{ id: string; kind: string; topic: string; status: string }[]> {
+  return q(`select id,kind,topic,status from kz_content_items where org_id=$1 and factory_id=$2 and ${DRAFT} order by created_at desc,id desc limit $3 offset $4`, [orgId, factoryId, FACTORY_DRAFT_PAGE_SIZE + 1, (page - 1) * FACTORY_DRAFT_PAGE_SIZE]);
 }
 
 export async function saveDraftBody(orgId: string, id: string, text: string): Promise<Result> {
