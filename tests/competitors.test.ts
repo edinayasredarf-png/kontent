@@ -36,6 +36,21 @@ describe("адрес сайта и ошибки VK", () => {
     assert.throws(() => normalizeRef("site", "localhost"));
     assert.throws(() => normalizeRef("site", "https://user:pw@a.ru"));
   });
+  it("Telegram сохраняет аватар, просмотры и публикации только с фотографией", async () => {
+    const { parseTelegramChannel } = await import("../src/lib/competitors");
+    const channel = parseTelegramChannel(`
+      <div class="tgme_channel_info_header_title">Канал</div>
+      <div class="tgme_page_photo_image"><img src="https://cdn.example.org/avatar.jpg"></div>
+      <div class="tgme_widget_message_wrap">
+        <a class="tgme_widget_message_date" href="https://t.me/channelname/42"><time datetime="2026-11-16T10:00:00Z"></time></a>
+        <a class="tgme_widget_message_photo_wrap" style="background-image:url('https://cdn.example.org/post.jpg')"></a>
+        <span class="tgme_widget_message_views">123</span>
+      </div>`, "channelname");
+    assert.equal(channel.avatar, "https://cdn.example.org/avatar.jpg");
+    assert.equal(channel.posts[0].views, 123);
+    assert.equal(channel.posts[0].body, "");
+    assert.deepEqual(channel.posts[0].images, ["https://cdn.example.org/post.jpg"]);
+  });
   it("текст поста VK: абзацы сохраняются, упоминания превращаются в названия", async () => {
     const { cleanPostText } = await import("../src/lib/competitors");
     assert.equal(cleanPostText("Привет!  Заказчик - [club161294771|Министерство лесного хозяйства]\r\n\r\n\n\nВ ходе работ"), "Привет! Заказчик - Министерство лесного хозяйства\n\nВ ходе работ");

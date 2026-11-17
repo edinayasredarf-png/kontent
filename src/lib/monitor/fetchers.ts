@@ -114,7 +114,7 @@ export async function fetchItems(kind: Kind, ref: string, config: Record<string,
 interface VkPost { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; attachments?: { type: string; photo?: { sizes?: { width: number; url: string }[] } }[] }
 
 /** Уменьшенная иконка в виде data-URI: хранится вместе с источником, чтобы не ходить за ней на сторонний сервер при каждом показе. */
-async function iconDataUri(url: string): Promise<string> {
+export async function iconDataUri(url: string): Promise<string> {
   const { data } = await safeFetchBuffer(url, 1_500_000);
   const png = await sharp(data, { limitInputPixels: 20_000_000 }).resize(72, 72, { fit: "cover" }).png({ compressionLevel: 9 }).toBuffer();
   return `data:image/png;base64,${png.toString("base64")}`;

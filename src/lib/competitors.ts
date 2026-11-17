@@ -5,15 +5,16 @@ import { parseCount } from "./engage";
 import { allocateDates } from "./plan";
 import { safeFetchText } from "./safefetch";
 import { vkServiceError } from "./vk-service";
-import { fetchItems, resolveSource } from "./monitor/fetchers";
+import { fetchItems, resolveSource, fetchSourceMeta, iconDataUri } from "./monitor/fetchers";
+import { parseTelegram, parseTelegramInfo } from "./monitor/parse";
 import { InsufficientFunds, PRICES, charge, refund } from "./wallet";
 
 export type CKind = "telegram" | "vk" | "site";
 export const MAX_COMPETITORS = 10;
 const TG = /^[A-Za-z][A-Za-z0-9_]{3,31}$/, VKD = /^[A-Za-z0-9_.]{2,50}$/;
 
-export interface CPost { ext: string; url: string; body: string; views: number; likes: number; at: Date }
-export interface CFetch { title: string; members: number | null; posts: CPost[] }
+export interface CPost { ext: string; url: string; body: string; views: number; likes: number; at: Date; images?: string[] }
+export interface CFetch { title: string; members: number | null; posts: CPost[]; avatar?: string }
 
 /** Приводит ввод («@name», ссылка t.me/…, vk.com/…) к имени публичного источника. Закрытые и несуществующие отклоняются при первой загрузке. */
 export function normalizeRef(kind: CKind, input: string): string {
@@ -42,15 +43,15 @@ export function parseTelegramChannel(html: string, name: string): CFetch {
   for (const c of root.querySelectorAll(".tgme_channel_info_counter")) {
     if (/subscriber|подписчик/i.test(c.querySelector(".counter_type")?.text ?? "")) { const n = parseCount(c.querySelector(".counter_value")?.text ?? ""); if (n) members = n; }
   }
-  const posts: CPost[] = [];
-  for (const p of root.querySelectorAll(".tgme_widget_message_wrap")) {
-    const body = p.querySelector(".tgme_widget_message_text")?.text.replace(/\s+/g, " ").trim();
-    const href = p.querySelector(".tgme_widget_message_date")?.getAttribute("href");
-    if (!body || !href) continue;
-    const dt = Date.parse(p.querySelector(".tgme_widget_message_date time")?.getAttribute("datetime") ?? "");
-    posts.push({ ext: href, url: href, body: body.slice(0, 4000), views: parseCount(p.querySelector(".tgme_widget_message_views")?.text ?? "0"), likes: 0, at: Number.isNaN(dt) ? new Date() : new Date(dt) });
-  }
-  return { title, members, posts };
+  const views = new Map(root.querySelectorAll(".tgme_widget_message_wrap").map(post => {
+    const href = post.querySelector(".tgme_widget_message_date")?.getAttribute("href");
+    return [href, parseCount(post.querySelector(".tgme_widget_message_views")?.text ?? "0")];
+  }));
+  const posts = parseTelegram(html, name).map(post => ({
+    ext: post.url, url: post.url, body: post.body.slice(0, 4000), views: views.get(post.url) ?? 0, likes: 0,
+    at: post.publishedAt, images: (post.media ?? []).filter(m => m.type === "image" && !!m.url).map(m => m.url!).slice(0, 6),
+  }));
+  return { title, members, posts, avatar: parseTelegramInfo(html).photo || undefined };
 }
 
 /** Текст поста с сохранением абзацев; упоминания VK «[club123|Название]» превращаются в обычное название. */
@@ -69,28 +70,37 @@ export async function fetchCompetitor(kind: CKind, ref: string): Promise<CFetch>
     const r = await safeFetchText(`${(process.env.TG_WEB_BASE?.trim() || "https://t.me").replace(/\/+$/, "")}/s/${encodeURIComponent(ref)}`);
     const f = parseTelegramChannel(r.text, ref);
     if (!f.posts.length) throw new Error("Канал не найден, закрыт или в нём нет текстовых постов");
-    return f;
+    return { ...f, avatar: f.avatar ? await iconDataUri(f.avatar).catch(() => undefined) : undefined };
   }
   if (kind === "site") {
     // сайт: лента RSS, если она есть, иначе заголовки материалов со страницы; просмотров и подписчиков у сайта нет
     const r = await resolveSource("site", ref);
     const items = (await fetchItems("site", r.ref, r.config)).slice(0, 40);
     if (!items.length) throw new Error("На сайте не нашли материалов: нужна страница со списком новостей или статей либо лента RSS");
-    return { title: r.title, members: null, posts: items.map((i) => ({ ext: i.url, url: i.url, body: (i.body && i.body.length > i.title.length ? i.body : i.title).slice(0, 4000), views: 0, likes: 0, at: i.publishedAt })) };
+    return { title: r.title, avatar: (await fetchSourceMeta("site", ref).catch(() => null))?.avatar, members: null, posts: items.map((i) => ({ ext: i.url, url: i.url, body: (i.body && i.body.length > i.title.length ? i.body : i.title).slice(0, 4000), views: 0, likes: 0, at: i.publishedAt, images: (i.media ?? []).filter(m => m.type === "image" && m.url).map(m => m.url!).slice(0, 6) })) };
   }
   const token = process.env.VK_SERVICE_TOKEN?.trim();
   if (!token) throw new Error("Для анализа VK на сервере не задан ключ VK_SERVICE_TOKEN (сервисный ключ приложения VK)");
+  type Attachment = { type: string; photo?: { sizes?: { width: number; url: string }[] } };
   const [wall, grp] = await Promise.all([
-    vk<{ items?: { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; views?: { count: number }; likes?: { count: number } }[] }>(token, "wall.get", { domain: ref, count: "40", filter: "owner" }),
-    vk<{ groups?: { name: string; members_count?: number }[] } | { name: string; members_count?: number }[]>(token, "groups.getById", { group_id: ref, fields: "members_count" }).catch(() => null),
+    vk<{ items?: { id: number; owner_id: number; date: number; text?: string; attachments?: Attachment[]; copy_history?: { text?: string; attachments?: Attachment[] }[]; views?: { count: number }; likes?: { count: number } }[] }>(token, "wall.get", { domain: ref, count: "40", filter: "owner" }),
+    vk<{ groups?: { name: string; members_count?: number; photo_100?: string }[] } | { name: string; members_count?: number; photo_100?: string }[]>(token, "groups.getById", { group_id: ref, fields: "members_count,photo_100" }).catch(() => null),
   ]);
   const g = Array.isArray(grp) ? grp[0] : grp?.groups?.[0];
-  const posts = (wall.items ?? []).map((p) => ({ ...p, text: p.text?.trim() ? p.text : p.copy_history?.[0]?.text })).filter((p) => p.text?.trim()).map((p) => {
+  const posts = (wall.items ?? []).flatMap(p => {
+    const attachments = [...(p.attachments ?? []), ...(p.copy_history?.[0]?.attachments ?? [])];
+    const images = [...new Set(attachments.flatMap(a => {
+      if (a.type !== "photo") return [];
+      const url = [...(a.photo?.sizes ?? [])].sort((x, y) => y.width - x.width)[0]?.url;
+      return url && /^https:\/\//i.test(url) ? [url] : [];
+    }))].slice(0, 6);
+    const body = cleanPostText(p.text?.trim() || p.copy_history?.[0]?.text || "").slice(0, 8000);
+    if (!body && !images.length) return [];
     const url = `https://vk.com/wall${p.owner_id}_${p.id}`;
-    return { ext: url, url, body: cleanPostText(p.text!).slice(0, 8000), views: p.views?.count ?? 0, likes: p.likes?.count ?? 0, at: new Date(p.date * 1000) };
+    return [{ ext: url, url, body, images, views: p.views?.count ?? 0, likes: p.likes?.count ?? 0, at: new Date(p.date * 1000) }];
   });
-  if (!posts.length) throw new Error("Сообщество не найдено, закрыто или без текстовых записей");
-  return { title: g?.name ?? `VK ${ref}`, members: g?.members_count ?? null, posts };
+  if (!posts.length) throw new Error("Сообщество не найдено, закрыто или без доступных записей");
+  return { title: g?.name ?? `VK ${ref}`, members: g?.members_count ?? null, posts, avatar: g?.photo_100 ? await iconDataUri(g.photo_100).catch(() => undefined) : undefined };
 }
 
 /** Загружает посты и обновляет карточку конкурента. Ошибка сохраняется в last_error и не роняет остальных. */
@@ -101,9 +111,9 @@ export async function refreshCompetitor(id: string): Promise<{ ok: true; posts: 
     const f = await fetchCompetitor(c.kind, c.ref);
     await tx(async (run) => {
       for (const p of f.posts) await run(
-        `insert into kz_competitor_posts(competitor_id,ext_id,url,body,views,likes,posted_at,fetched_at) values($1,$2,$3,$4,$5,$6,$7,now())
-         on conflict(competitor_id,ext_id) do update set views=excluded.views,likes=excluded.likes,body=excluded.body,fetched_at=now()`, [c.id, p.ext, p.url, p.body, p.views, p.likes, p.at.toISOString()]);
-      await run("update kz_competitors set title=$2, members=coalesce($3,members), last_fetched_at=now(), last_error=null where id=$1", [c.id, f.title.slice(0, 120), f.members]);
+        `insert into kz_competitor_posts(competitor_id,ext_id,url,body,views,likes,posted_at,fetched_at,images) values($1,$2,$3,$4,$5,$6,$7,now(),$8)
+         on conflict(competitor_id,ext_id) do update set views=excluded.views,likes=excluded.likes,body=excluded.body,images=case when cardinality(excluded.images)>0 then excluded.images else kz_competitor_posts.images end,fetched_at=now()`, [c.id, p.ext, p.url, p.body, p.views, p.likes, p.at.toISOString(), p.images ?? []]);
+      await run("update kz_competitors set title=$2, members=coalesce($3,members), last_fetched_at=now(), last_error=null, avatar=coalesce($4,avatar) where id=$1", [c.id, f.title.slice(0, 120), f.members, f.avatar ?? null]);
     });
     return { ok: true, posts: f.posts.length };
   } catch (e) {
@@ -154,11 +164,11 @@ export async function collectCompetitors(limit = 6): Promise<{ updated: number; 
   return out;
 }
 
-export interface CompStat { gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: number; perWeek: number; avgViews: number; erPct: number | null; bestHour: number | null }
+export interface CompStat { gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; avatar: string | null; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: number; perWeek: number; avgViews: number; erPct: number | null; bestHour: number | null }
 
 export async function competitorStats(orgId: string): Promise<CompStat[]> {
-  const rows = await q<{ gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: string; avgv: string | null }>(
-    `select c.id,c.group_id,c.kind,c.ref,c.title,c.members,c.last_error,c.last_fetched_at,g.brand_id,g.name gname,
+  const rows = await q<{ gname: string; id: string; group_id: string; kind: CKind; ref: string; title: string; avatar: string | null; members: number | null; last_error: string | null; last_fetched_at: string | null; brand_id: string | null; posts30: string; avgv: string | null }>(
+    `select c.id,c.group_id,c.kind,c.ref,c.title,coalesce(c.avatar,(select s.config->>'avatar' from kz_sources s where s.org_id=c.org_id and s.kind=c.kind and lower(s.ref)=lower(c.ref) and s.config ? 'avatar' order by s.created_at desc limit 1)) avatar,c.members,c.last_error,c.last_fetched_at,g.brand_id,g.name gname,
             (select count(*) from kz_competitor_posts p where p.competitor_id=c.id and p.posted_at > now() - interval '30 days') posts30,
             (select round(avg(views)) from kz_competitor_posts p where p.competitor_id=c.id and p.posted_at > now() - interval '30 days') avgv
        from kz_competitors c join kz_competitor_groups g on g.id=c.group_id where c.org_id=$1 order by g.created_at, c.created_at`, [orgId]);
@@ -264,8 +274,8 @@ export async function groupPosts(orgId: string, groupId: string, f: PostFilter) 
     const esc = f.q.replace(/[%_\\]/g, "\\$&"), cap = esc.charAt(0).toUpperCase() + esc.slice(1).toLowerCase();
     where += ` and p.body ilike any(${add([...new Set([esc, esc.toLowerCase(), esc.toUpperCase(), cap])].map((x) => `%${x}%`))}::text[])`;
   }
-  const rows = await q<TopPost & { platform: string }>(
-    `select p.competitor_id||'|'||p.ext_id id,c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.likes,p.posted_at at,c.id platform from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
+  const rows = await q<TopPost & { platform: string; photo_count: number }>(
+    `select p.competitor_id||'|'||p.ext_id id,c.title comp,c.kind,p.ext_id,p.url,p.body,p.views,p.likes,p.posted_at at,c.id platform,cardinality(p.images) photo_count from kz_competitor_posts p join kz_competitors c on c.id=p.competitor_id
       where c.org_id=$1 and c.group_id=$2${where} order by ${f.sort === "views" ? "p.views desc, p.posted_at desc" : "p.posted_at desc"} limit ${Math.min(300, f.limit) + 1}`, args);
   const more = rows.length > f.limit; if (more) rows.length = f.limit;
   return { rows, more };

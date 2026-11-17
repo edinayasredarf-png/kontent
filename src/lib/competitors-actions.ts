@@ -63,3 +63,11 @@ export async function competitorToPlanAction(_: unknown, f: FormData): Promise<S
   return r.ok ? { ok: "Тема добавлена в план завода" } : { error: r.error };
 }
 
+
+export async function renameCompetitorAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id"), name = s(f, "name").slice(0, 80);
+  if (!name || !/^[0-9a-f-]{36}$/i.test(id)) return;
+  await q("update kz_competitor_groups set name=$3 where id=$1 and org_id=$2", [id, c.org.id, name]);
+  revalidatePath("/app/competitors", "layout");
+}

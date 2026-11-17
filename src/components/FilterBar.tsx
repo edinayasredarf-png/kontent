@@ -2,7 +2,7 @@
 import { Modal } from "./ui/Modal";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { CalendarDays, ListFilter, Loader2, X } from "lucide-react";
+import { CalendarDays, ListFilter, Loader2, Search, X } from "lucide-react";
 
 export interface FilterSelect { name: string; label: string; all: string; value: string; options: { value: string; label: string }[] }
 
@@ -17,7 +17,7 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
   const [pending, start] = useTransition();
   const [s, setS] = useState({ r, from, to, sel: { ...Object.fromEntries(selects.map((x) => [x.name, x.value])), ...(search ? { [search.name]: search.value } : {}) } as Record<string, string> });
   useEffect(() => { setS({ r, from, to, sel: { ...Object.fromEntries(selects.map((x) => [x.name, x.value])), ...(search ? { [search.name]: search.value } : {}) } }); }, [r, from, to, selects, search]);
-  const [modal, setModal] = useState<"dates" | "filters" | null>(null);
+  const [modal, setModal] = useState<"dates" | "filters" | "search" | null>(null);
   const [openCal, setOpenCal] = useState(r === "custom");
   const go = (n: typeof s) => {
     setS(n);
@@ -45,10 +45,10 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
           <label className="flex items-center gap-2 text-ink2">по <input type="date" value={s.to} min={s.from || undefined} onChange={(e) => go({ ...s, r: "custom", to: e.target.value })} className="input !w-auto !py-2" aria-label="Конец периода" /></label>
         </div>
       )}
-      {(!compact || modal === "filters") && (selects.length > 0 || search) && (
+      {(!compact || modal === "filters" || modal === "search") && (selects.length > 0 || search) && (
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {search && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={() => { if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
-          {selects.map((x) => (
+          {search && (!compact || modal === "search") && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={() => { if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
+          {(!compact || modal === "filters") && selects.map((x) => (
             <select key={x.name} value={s.sel[x.name] ?? ""} onChange={(e) => go({ ...s, sel: { ...s.sel, [x.name]: e.target.value } })} aria-label={x.label} className={sel}>
               <option value="">{x.all}</option>{x.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -65,8 +65,9 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
       {prefix}
       <button type="button" aria-label="Выбрать период" title="Выбрать период" onClick={() => setModal("dates")} className={icon}><CalendarDays size={16} /></button>
       <button type="button" aria-label="Фильтры" title="Фильтры" onClick={() => setModal("filters")} className={`${icon} ${filtered ? "!bg-accent-soft !text-accent-ink" : ""}`}><ListFilter size={18} /></button>
+      {search && <button type="button" aria-label="Поиск" title="Поиск" onClick={() => setModal("search")} className={icon}><Search size={18} /></button>}
       {pending && <Loader2 size={14} className="animate-spin text-accent" aria-label="Загрузка" />}
-      {modal && <Modal title={modal === "dates" ? "Период публикаций" : "Фильтры публикаций"} onClose={() => setModal(null)}>{fields}</Modal>}
+      {modal && <Modal title={modal === "dates" ? "Период публикаций" : modal === "search" ? "Поиск по публикациям" : "Фильтры публикаций"} onClose={() => setModal(null)}>{fields}</Modal>}
     </div>
   );
 
