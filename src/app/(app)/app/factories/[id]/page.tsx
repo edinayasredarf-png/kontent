@@ -1,3 +1,4 @@
+import { priceOf } from "@/lib/pipeline";
 import { notFound } from "next/navigation";
 import { FactoryTabMemory } from "@/components/FactoryTabMemory";
 import { PlanToolbar } from "@/components/PlanToolbar";
@@ -126,6 +127,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
       <OrgTabs action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link> : null} />
       <div className="mb-8 flex max-w-[749px] flex-wrap items-center gap-3">
         <FactoryRename id={id} name={f.name} />
+        <Link className="pill !bg-tile !text-ink" href={`/app/brands/${f.brand_id}/knowledge`}>База знаний · {f.brand}</Link>
         <form action={toggleFactory}>{hid}<SubmitButton className="pill !bg-tile !text-ink">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
         <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
       </div>
@@ -149,7 +151,7 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
           <div className="mb-3 flex items-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-sm font-semibold"><Sparkles size={16} />Создать материал</div>
           <div className="px-2 pb-2">
             <CreateMaterialForm factoryId={id} kinds={[...KINDS]} labels={KIND} defaultKind={sched?.formats?.[0] ?? "post"} createAction={createMaterialsAction} repurposeAction={repurposeAction} editPrice={c.org.unlimited ? "" : rub(PRICES.edit)}
-              priceHint={`Каждый выбранный тип стоит как обычно (пост ${rub(PRICES.post)}, карусель ${rub(PRICES.carousel)}, SEO-статья ${rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.`}
+              priceHint={`Каждый выбранный тип стоит как обычно (пост ${rub(PRICES.post)}, карусель ${rub(priceOf("carousel", f.brief))}, SEO-статья ${rub(PRICES.seo)}). В режиме «сразу» первые три материала пишутся в этом окне, остальные в фоне; SEO-статья занимает 1–2 минуты.`}
               sourcePrice={c.org.unlimited ? "" : `${rub(PRICES.idea)} за материал.`} />
           </div>
         </div>

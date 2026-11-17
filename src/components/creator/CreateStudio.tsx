@@ -310,9 +310,11 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
           <div className="card space-y-3 p-5">
             <div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1.5 text-sm text-good"><Check size={16} />{typeOf(made.kind).short} готов и сохранён в черновики завода</span></div>
             <h2 className="text-lg font-semibold">{made.title}</h2>
+            {made.imageId && <img src={`/api/assets/${made.imageId}`} alt="Иллюстрация материала" className="max-h-80 rounded-2xl object-contain" />}
+            {made.imageError && <p role="status" className="text-sm text-warn">Картинка: {made.imageError}</p>}
             <div className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-2xl bg-tile p-4 text-sm leading-6">{made.body.replace(/<[^>]+>/g, made.kind === "seo" || made.kind === "email" || made.kind === "guide" ? " " : "") || "Материал создан: откройте его, чтобы посмотреть."}</div>
             <div className="flex flex-wrap gap-2">
-              <Link href={openLink(made.id, made.factoryId)} className="btn btn-accent"><Send size={15} />Открыть и опубликовать</Link>
+              <Link href={`/app/create?item=${made.id}`} className="btn btn-accent"><ImageIcon size={15} />Редактировать материал</Link>
               <button type="button" className="btn btn-ghost" onClick={() => void copy(made.body.replace(/<[^>]+>/g, " "))}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Скопировано" : "Копировать текст"}</button>
             </div>
           </div>

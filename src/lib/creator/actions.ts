@@ -149,7 +149,7 @@ export async function saveWorkAction(w: WorkInput): Promise<{ ok: true; id: stri
     `insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,body,meta,status,cost_kop) values($1,$2,$3,'carousel',$4,$5,$6,$7::jsonb,'ready',0) returning id`,
     [c.org.id, fac.id, fac.brand_id, topic, slides[0]?.body ?? "", String(w.caption ?? "").slice(0, 4000), JSON.stringify(meta)]);
   const id = it!.id;
-  const own = await q<{ id: string }>("select id from kz_assets where org_id=$1 and id = any($2::uuid[]) and kind='studio'", [c.org.id, [...w.finalIds, ...w.bgIds]]);
+  const own = await q<{ id: string }>("select id from kz_assets where org_id=$1 and id = any($2::uuid[]) and kind='studio' and brand_id=$3 and item_id is null", [c.org.id, [...w.finalIds, ...w.bgIds], fac.brand_id]);
   if (own.length !== w.finalIds.length + w.bgIds.length) { await q("delete from kz_content_items where id=$1", [id]); return { ok: false, error: "Файлы слайдов не найдены" }; }
   for (let i = 0; i < w.finalIds.length; i++) {
     await q("update kz_assets set item_id=$2, position=$3, kind='generated' where id=$1 and org_id=$4", [w.finalIds[i], id, i, c.org.id]);
@@ -206,7 +206,7 @@ export async function briefAction(factoryId: string, kind: string, prompt: strin
   catch (e) { return { ok: false, error: slideErr(e) }; }
 }
 
-export interface MadeItem { ok: true; id: string; factoryId: string; kind: string; title: string; body: string }
+export interface MadeItem { ok: true; id: string; factoryId: string; kind: string; title: string; body: string; imageId: string | null; imageError: string | null }
 
 /** Создать один материал (не карусель): запись → общий конвейер buildItem (списание, генерация, возврат при сбое). Результат сразу показываем в панели. */
 export async function createMaterialAction(i: { factoryId: string; kind: string; prompt: string; angle?: string; opts?: Partial<CreateOpts>; refText?: string }): Promise<MadeItem | Err> {
@@ -238,8 +238,8 @@ export async function createMaterialAction(i: { factoryId: string; kind: string;
     return { ok: false, error: r.error };
   }
   revalidatePath("/app", "layout");
-  const it = await one<{ topic: string; body: string }>("select topic,body from kz_content_items where id=$1 and org_id=$2", [id, c.org.id]);
-  return { ok: true, id, factoryId: fac.id, kind, title: it?.topic ?? topic, body: String(it?.body ?? "").slice(0, 12000) };
+  const it = await one<{ topic: string; body: string; image_id: string | null; image_error: string | null }>("select topic,body,image_id,meta->>'imageError' image_error from kz_content_items where id=$1 and org_id=$2", [id, c.org.id]);
+  return { ok: true, id, factoryId: fac.id, kind, title: it?.topic ?? topic, body: String(it?.body ?? "").slice(0, 12000), imageId: it?.image_id ?? null, imageError: it?.image_error ?? null };
 }
 
 /* ───────── референсы ───────── */

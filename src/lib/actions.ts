@@ -7,7 +7,7 @@ import { diagnose } from "./errors";
 import { performReset, requestReset } from "./reset";
 import { canWrite, login, logout, register, requireCtx, safeNext, switchOrg, type Ctx } from "./auth";
 import { cookies, headers } from "next/headers";
-import { one, q } from "./db";
+import { one, q, tx } from "./db";
 import { PLANS } from "./plans";
 import { AI_TASKS, saveRoute, type AiTask } from "./ai";
 import { buildImage, buildItem, buildPlan, enqueue, processQueue } from "./pipeline";
@@ -136,24 +136,42 @@ export async function removeImageAction(f: FormData) {
 // ---------- factories ----------
 export async function saveFactory(_: unknown, f: FormData) {
   const c = await writer();
-  const brand = await one("select 1 from kz_brands where id=$1 and org_id=$2", [s(f, "brand_id"), c.org.id]);
-  if (!brand) return { error: "Выберите бренд" };
+  const brandChoice = s(f, "brand_id");
+  const newBrand = s(f, "new_brand_name").slice(0, 120);
+  if (brandChoice === "new" && !newBrand) return { error: "Укажите название нового бренда" };
+  if (brandChoice !== "new" && !/^[0-9a-f-]{36}$/i.test(brandChoice)) return { error: "Выберите бренд" };
   if (!s(f, "name")) return { error: "Укажите название завода" };
-  const lim = c.org.unlimited ? null : (await orgPlan(c.org.id)).factories;
-  const n = Number((await one<{ n: string }>("select count(*) n from kz_factories where org_id=$1", [c.org.id]))!.n);
-  if (lim !== null && n >= lim) return { error: `Тариф «${(await orgPlan(c.org.id)).name}»: максимум заводов — ${lim}. Повысьте тариф.` };
+  const plan = await orgPlan(c.org.id);
   const formats = f.getAll("formats").map(String).filter(Boolean);
   const days = f.getAll("days").map(Number);
   const times = s(f, "times").split(",").map((x) => x.trim()).filter((x) => /^\d{2}:\d{2}$/.test(x));
   const schedule = JSON.stringify({ days: days.length ? days : [1, 2, 3, 4, 5], times: times.length ? times : ["10:00"], tz: "Europe/Moscow" });
-  const row = await one<{ id: string }>(
-    `insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish,brief)
-     values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id`,
-    [c.org.id, s(f, "brand_id"), s(f, "name"), s(f, "niche"), s(f, "product"), formats.length ? formats : ["post"], schedule,
-     s(f, "approval") === "auto" ? "auto" : "manual", f.get("autopublish") === "on",
-     JSON.stringify(NICHES[s(f, "niche_key")] ? cleanSettings(NICHES[s(f, "niche_key")].settings) : {})]);
+  const result = await tx(async run => {
+    await run("select id from kz_orgs where id=$1 for update", [c.org.id]);
+    const [counts] = await run<{ factories: string; brands: string }>("select (select count(*) from kz_factories where org_id=$1) factories,(select count(*) from kz_brands where org_id=$1) brands", [c.org.id]);
+    if (!c.org.unlimited && plan.factories !== null && Number(counts.factories) >= plan.factories) return { error: `Тариф «${plan.name}»: максимум заводов — ${plan.factories}` };
+    let brandId = brandChoice;
+    if (brandChoice === "new") {
+      if (!c.org.unlimited && plan.brands !== null && Number(counts.brands) >= plan.brands) return { error: `Тариф «${plan.name}»: максимум брендов — ${plan.brands}` };
+      const [brand] = await run<{ id: string }>("insert into kz_brands(org_id,name) values($1,$2) returning id", [c.org.id, newBrand]);
+      brandId = brand.id;
+    } else {
+      const [brand] = await run("select id from kz_brands where id=$1 and org_id=$2 for key share", [brandId, c.org.id]);
+      if (!brand) return { error: "Бренд не найден" };
+    }
+    const [factory] = await run<{ id: string }>(
+      `insert into kz_factories(org_id,brand_id,name,niche,product,formats,schedule,approval,autopublish,brief)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id`,
+      [c.org.id, brandId, s(f, "name"), s(f, "niche"), s(f, "product"), formats.length ? formats : ["post"], schedule,
+       s(f, "approval") === "auto" ? "auto" : "manual", f.get("autopublish") === "on",
+       JSON.stringify(NICHES[s(f, "niche_key")] ? cleanSettings(NICHES[s(f, "niche_key")].settings) : {})],
+    );
+    return { id: factory.id };
+  });
+  if ("error" in result) return { error: result.error };
+  revalidatePath("/app/brands");
   revalidatePath("/app/factories");
-  redirect(`/app/factories/${row!.id}`);
+  redirect(`/app/factories/${result.id}`);
 }
 
 export async function toggleFactory(f: FormData) {
@@ -370,4 +388,26 @@ export async function resetAction(_: unknown, f: FormData) {
   catch (e) { console.error("[reset]", e); return { error: diagnose(e) }; }
   if (!r.ok) return { error: r.error };
   redirect("/login?reset=1");
+}
+
+
+export async function deleteBrandAction(_: unknown, f: FormData) {
+  const c = await manager();
+  const id = s(f, "id");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Бренд не найден" };
+  const error = await tx(async run => {
+    const [brand] = await run("select id from kz_brands where id=$1 and org_id=$2 for update", [id, c.org.id]);
+    if (!brand) return "Бренд не найден";
+    const [linked] = await run<{ used: boolean }>(`select exists(select 1 from kz_factories where brand_id=$1)
+      or exists(select 1 from kz_content_items where brand_id=$1)
+      or exists(select 1 from kz_channels where brand_id=$1)
+      or exists(select 1 from kz_flows where brand_id=$1)
+      or exists(select 1 from kz_competitor_groups where brand_id=$1) used`, [id]);
+    if (linked.used) return "Бренд связан с заводами, каналами, материалами, автолентой или группами конкурентов. Сначала разберите эти связи.";
+    await run("delete from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
+    return null;
+  });
+  if (error) return { error };
+  revalidatePath("/app", "layout");
+  redirect("/app/brands");
 }

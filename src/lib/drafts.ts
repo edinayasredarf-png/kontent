@@ -23,18 +23,18 @@ export interface DraftItem {
 /** Материалы окна «Созданное»: только черновики этой организации, в порядке создания. */
 export async function loadDrafts(orgId: string, ids: string[]): Promise<DraftItem[]> {
   if (!ids.length) return [];
-  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo" | "poll" | "lead" | "imgOpts"> & { brief: unknown; kit: unknown; img_style: string | null; has_logo: boolean; lead_meta: import("./lead-magnet").LeadMeta | null; chan_ids: string[] | null; poll_meta: { question?: string; options?: string[]; mode?: "options" | "open"; multi?: boolean } | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string }; photo?: unknown } | null }>(
-    `select i.id,i.factory_id,i.kind,f.brief,(select kit from kz_brands where id=i.brand_id) kit,i.meta->>'imgStyle' img_style,exists(select 1 from kz_assets a where a.brand_id=i.brand_id and a.org_id=i.org_id and a.kind='logo') has_logo,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,i.meta->'carousel' carousel_meta,i.meta->'seo' seo_meta,i.meta->'poll' poll_meta,i.meta->'lead' lead_meta,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
+  const rows = await q<Omit<DraftItem, "slides" | "channels" | "carousel" | "seo" | "poll" | "lead" | "imgOpts"> & { brand_id: string; brief: unknown; kit: unknown; img_style: string | null; has_logo: boolean; lead_meta: import("./lead-magnet").LeadMeta | null; chan_ids: string[] | null; poll_meta: { question?: string; options?: string[]; mode?: "options" | "open"; multi?: boolean } | null; seo_meta: { title?: string; description?: string; slug?: string } | null; carousel_meta: { slides?: { title: string; body: string; layout?: string }[]; style?: string; custom?: number[]; design?: { color?: string; font?: string; format?: string }; photo?: unknown } | null }>(
+    `select i.id,i.factory_id,i.brand_id,f.brief,(select kit from kz_brands where id=i.brand_id and org_id=i.org_id) kit,i.meta->>'imgStyle' img_style,exists(select 1 from kz_assets a where a.brand_id=i.brand_id and a.org_id=i.org_id and a.kind='logo') has_logo,i.kind,i.topic,i.body,i.status,i.image_id,i.meta->>'imageError' image_error,i.meta->'carousel' carousel_meta,i.meta->'seo' seo_meta,i.meta->'poll' poll_meta,i.meta->'lead' lead_meta,coalesce((i.meta->>'imageOwn')::boolean,false) own_image,
             case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 then array(select jsonb_array_elements_text(i.meta->'channelIds')::uuid) else f.channel_ids end chan_ids
-       from kz_content_items i left join kz_factories f on f.id=i.factory_id
+       from kz_content_items i left join kz_factories f on f.id=i.factory_id and f.org_id=i.org_id and f.brand_id=i.brand_id
       where i.org_id=$1 and i.id = any($2::uuid[]) and ${DRAFT.replace(/meta/g, "i.meta")} order by i.created_at`, [orgId, ids]);
   const slides = await q<{ id: string; item_id: string }>("select id,item_id from kz_assets where org_id=$1 and position>=0 and item_id = any($2::uuid[]) order by item_id,position", [orgId, rows.map((r) => r.id)]);
-  const all = await q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 and status='active' order by created_at", [orgId]);
-  return rows.map(({ chan_ids, carousel_meta, seo_meta, poll_meta, lead_meta, brief, kit, img_style, has_logo, ...r }) => {
+  const all = await q<{ id: string; brand_id: string; title: string; kind: string }>("select id,brand_id,title,kind from kz_channels where org_id=$1 and status='active' order by created_at", [orgId]);
+  return rows.map(({ chan_ids, carousel_meta, seo_meta, poll_meta, lead_meta, brief, kit, img_style, has_logo, brand_id, ...r }) => {
     const seo = r.kind === "seo";
     const st = cleanSettings(brief), k = cleanKit(kit);
     const imgOpts = { style: img_style || st.imgStyle || k.style || "illustration", hasLogo: has_logo, logo: has_logo && st.imgLogo, pos: st.imgLogoPos, scale: st.imgLogoScale };
-    const opts = all.filter((c) => (seo ? SITE_CHANNELS.includes(c.kind) : !ARTICLE_ONLY.includes(c.kind)));
+    const opts = all.filter((c) => c.brand_id === brand_id && (seo ? SITE_CHANNELS.includes(c.kind) : !ARTICLE_ONLY.includes(c.kind)));
     return { ...r, slides: slides.filter((x) => x.item_id === r.id).map((x) => x.id), channels: opts.map((c) => ({ ...c, on: (chan_ids ?? []).includes(c.id) })), carousel: carousel_meta?.slides ? { slides: carousel_meta.slides, style: carousel_meta.style ?? "brand", custom: carousel_meta.custom ?? [], design: carousel_meta.design ?? {}, photo: !!carousel_meta.photo } : null, seo: seo_meta ? { title: seo_meta.title, description: seo_meta.description, slug: seo_meta.slug } : null, poll: poll_meta?.question ? { question: poll_meta.question, options: poll_meta.options ?? [], mode: poll_meta.mode, multi: poll_meta.multi } : null, lead: lead_meta?.headline ? lead_meta : null, imgOpts };
   });
 }
@@ -60,10 +60,10 @@ export async function regenDraft(orgId: string, id: string): Promise<Result> {
   return b.ok ? { ok: true } : { ok: false, error: b.error ?? "Не удалось создать материал" };
 }
 
-export async function imageForDraft(orgId: string, id: string, prompt: string): Promise<Result> {
+export async function imageForDraft(orgId: string, id: string, prompt: string, options?: Parameters<typeof buildImage>[3]): Promise<Result> {
   const it = await one<{ id: string }>(`select id from kz_content_items where id=$1 and org_id=$2 and ${DRAFT}`, [id, orgId]);
   if (!it) return { ok: false, error: "Черновик не найден" };
-  const r = await buildImage(orgId, id, prompt.trim() || undefined);
+  const r = await buildImage(orgId, id, prompt.trim() || undefined, options);
   return r.ok ? { ok: true } : { ok: false, error: r.error };
 }
 
@@ -152,7 +152,7 @@ export async function publishReport(orgId: string, id: string): Promise<{ ok: bo
 
 /** Каналы, выбранные в окне материала: запоминаются в самом материале и имеют приоритет над настройкой завода. */
 export async function setItemChannels(orgId: string, id: string, ids: string[]): Promise<Result> {
-  const ok = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[])", [orgId, uuidList(ids)]);
+  const ok = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and brand_id=(select brand_id from kz_content_items where id=$3 and org_id=$1)", [orgId, uuidList(ids), id]);
   if (!ok.length) return { ok: false, error: "Выберите хотя бы один канал публикации" };
   await q("update kz_content_items set meta = meta || jsonb_build_object('channelIds', $3::jsonb), updated_at=now() where id=$1 and org_id=$2", [id, orgId, JSON.stringify(ok.map((c) => c.id))]);
   return { ok: true };

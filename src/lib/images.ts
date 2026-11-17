@@ -181,10 +181,10 @@ export async function generateImage(prompt: string, aspect: keyof typeof SIZES, 
  * 3) запасной: vision-модель описывает картинку, а новая создаётся по описанию и пожеланию — это «по мотивам», не точная правка.
  * Возвращает буфер и способ, чтобы показать пользователю, насколько точно сделано.
  */
-export async function editImage(src: Buffer, mime: string, instruction: string, aspect: keyof typeof SIZES): Promise<{ data: Buffer; how: "edit" | "chat" | "redraw" }> {
+export async function editImage(src: Buffer, mime: string, instruction: string, aspect: keyof typeof SIZES, modelOverride?: string): Promise<{ data: Buffer; how: "edit" | "chat" | "redraw" }> {
   const base = baseUrl();
   if (!base) throw new Error("AI Gateway не настроен (SELFHOSTED_LLM_URL)");
-  const model = await modelFor("image");
+  const model = modelOverride || await modelFor("image");
   if (!model) throw new Error("Не выбрана модель изображений. Откройте «Настройки ИИ» и выберите её в пункте «Генерация изображений»");
   const key = process.env.SELFHOSTED_LLM_API_KEY?.trim();
   const auth: Record<string, string> = key ? { Authorization: `Bearer ${key}` } : {};
@@ -233,7 +233,7 @@ export async function editImage(src: Buffer, mime: string, instruction: string, 
 
   // 3) по мотивам: описание + новая картинка
   const desc = await visionAsk(dataUrl, "Опиши это изображение подробно для художника, который воссоздаст его: что изображено, композиция, ракурс, цвета, свет, фон, стиль. Только описание, 5–8 предложений.").catch((e) => { throw new Error(`Не удалось доработать изображение (${lastErr}); запасной способ тоже не сработал: ${(e as Error).message}`); });
-  return { data: await generateImage(`${desc.slice(0, 900)}\n\nВнеси изменения: ${instruction}.`, aspect), how: "redraw" };
+  return { data: await generateImage(`${desc.slice(0, 900)}\n\nВнеси изменения: ${instruction}.`, aspect, { model }), how: "redraw" };
 }
 
 /** Накладывает логотип бренда в угол. Лого не «рисует» нейросеть — модели искажают буквы, поэтому оно приклеивается готовым файлом. */

@@ -163,16 +163,26 @@ export interface SourceNote { title: string; body: string; url: string }
 
 export async function genPost(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {
   const st = settings ?? cleanSettings({});
+  // Источник и примеры дают факты и стиль, но не контактные данные для публикации.
+  const cleanBrandLinks = (value: string) => {
+    const removeForeign = (url: string) => url === st.link ? url : "";
+    const text = value.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi, (_, label: string, url: string) => removeForeign(url) ? `[${label}](${url})` : label)
+      .replace(/(?:https?:\/\/|www\.)[^\s<>"')]+/gi, url => {
+        const core = url.replace(/[.,!?;:]+$/, "");
+        return removeForeign(core) ? url : "";
+      });
+    return (st.hashtags === "none" ? text.replace(/(^|\s)#[\p{L}\p{N}_]+/gu, "$1") : text).trim();
+  };
   const text = cleanPostText(await genPostRaw(b, product, niche, topic, hook, kind, source, settings, postType), kind === "article");
   // сторис и короткий пост не должны выходить за свой объём: один повтор с просьбой сократить, дальше берём как есть
   const max = kind === "story" ? 400 : kind === "post" && st.length !== "long" ? 1000 : 0;
   if (max && text.length > max) {
     try {
       const again = cleanPostText(await chat("post", "Ты редактор. Сократи текст, сохранив смысл, тон, ссылку и хештеги. Верни только готовый текст без пояснений.", `Нужно уложиться примерно в ${kind === "story" ? 250 : 700} знаков (сейчас ${text.length}).\n\n<<<\n${text}\n>>>`, { maxTokens: 800, temperature: 0.3, timeoutMs: 30_000 }));
-      if (again.length > 20 && again.length < text.length) return again;
+      if (again.length > 20 && again.length < text.length) return cleanBrandLinks(again);
     } catch { /* оставляем длинный вариант: он годится, просто объёмнее */ }
   }
-  return text;
+  return cleanBrandLinks(text);
 }
 
 async function genPostRaw(b: BrandCtx, product: string, niche: string, topic: string, hook: string, kind: string, source?: SourceNote, settings?: ContentSettings, postType?: string): Promise<string> {

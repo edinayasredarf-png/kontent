@@ -2,9 +2,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
+import { materialImageOptions } from "./material-image-options";
 import { q } from "./db";
 import { setItemChannels, discardDraft, draftPublishNow, draftToPlan, imageForDraft, publishReport, regenDraft, saveDraftBody } from "./drafts";
-import { attachOwnImage, reworkItemImage } from "./item-images";
+import { attachOwnImage, removeItemImage, reworkItemImage } from "./item-images";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 type R = { ok: boolean; error?: string; note?: string };
@@ -49,7 +50,7 @@ export async function regenDraftAction(f: FormData) {
 
 export async function draftImageGenAction(f: FormData) {
   const c = await requireWriter();
-  back(f, await imageForDraft(c.org.id, s(f, "id"), s(f, "prompt")));
+  back(f, await imageForDraft(c.org.id, s(f, "id"), s(f, "prompt"), materialImageOptions(f)));
 }
 
 export async function draftAttachImageAction(f: FormData) {
@@ -64,9 +65,7 @@ export async function draftReworkImageAction(f: FormData) {
 
 export async function draftRemoveImageAction(f: FormData) {
   const c = await requireWriter();
-  const old = await q<{ image_id: string | null }>("update kz_content_items set image_id=null, meta = meta - 'imageOwn' where id=$1 and org_id=$2 returning (select image_id from kz_content_items where id=$1) image_id", [s(f, "id"), c.org.id]);
-  if (old[0]?.image_id) await q("delete from kz_assets where id=$1 and org_id=$2", [old[0].image_id, c.org.id]);
-  back(f, { ok: true });
+  back(f, await removeItemImage(c.org.id, s(f, "id")));
 }
 
 /** «В контент-план»: дата и время публикации спрашиваются здесь. */

@@ -33,14 +33,14 @@ export function normKind(v: unknown): string {
   return "post";
 }
 
-/** Завод для материала: указанный, иначе единственный активный, иначе тот, где недавно работали. */
+/** При наличии нескольких брендов чат использует явно выбранный завод. */
 async function pickFactory(orgId: string, want: unknown): Promise<{ id: string; brand_id: string; name: string } | null> {
   const id = uuid(want);
-  if (id) { const f = await one<{ id: string; brand_id: string; name: string }>("select id,brand_id,name from kz_factories where id=$1 and org_id=$2", [id, orgId]); if (f) return f; }
-  const list = await q<{ id: string; brand_id: string; name: string }>(
+  if (id) return one<{ id: string; brand_id: string; name: string }>("select id,brand_id,name from kz_factories where id=$1 and org_id=$2", [id, orgId]);
+  return one<{ id: string; brand_id: string; name: string }>(
     `select f.id,f.brand_id,f.name from kz_factories f where f.org_id=$1 and f.status='active'
-      order by (select max(created_at) from kz_content_items i where i.factory_id=f.id) desc nulls last, f.created_at limit 2`, [orgId]);
-  return list[0] ?? null;
+      and not exists (select 1 from kz_factories other where other.org_id=f.org_id and other.status='active' and other.brand_id<>f.brand_id)
+      order by (select max(created_at) from kz_content_items i where i.factory_id=f.id) desc nulls last, f.created_at limit 1`, [orgId]);
 }
 
 const factoryNames = async (orgId: string) => (await q<{ name: string }>("select name from kz_factories where org_id=$1 and status='active' order by name", [orgId])).map((f) => f.name).join(", ");
@@ -59,9 +59,15 @@ export async function articleFromUrl(url: string): Promise<{ ok: true; title: st
 /** Написать материал по новости из ленты, по ссылке, по теме или заново в другом формате из уже созданного материала. Результат — черновик, который чат показывает целиком. */
 export async function writeMaterial(orgId: string, a: Args): Promise<ActResult> {
   const kind = normKind(a.kind), note = clip(a.instructions, 600);
-  const fac = await pickFactory(orgId, a.factoryId);
-  if (!fac) return { ok: false, text: "Не нашёл завод, для которого писать. Создайте завод в разделе «Заводы»" };
   const newsId = uuid(a.newsId), itemId = uuid(a.itemId), url = clip(a.url, 500), topic = clip(a.topic, 300), fileId = uuid(a.fileId), picId = uuid(a.imageAssetId);
+  const original = itemId ? await one<{ factory_id: string | null; topic: string; meta: { source?: { title: string; url: string; name: string; body: string } } | null; body: string }>(
+    "select factory_id,topic,meta,body from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]) : null;
+  if (itemId && !original) return { ok: false, text: "Исходный материал не найден" };
+  const fac = await pickFactory(orgId, uuid(a.factoryId) || original?.factory_id);
+  if (!fac) {
+    const names = await factoryNames(orgId);
+    return { ok: false, text: names ? `Укажите завод для материала. Активные заводы: ${names}.` : "Создайте завод в разделе «Заводы»." };
+  }
 
   let src: { title: string; url: string; name: string; body: string } | null = null;
   let from = "";
@@ -76,10 +82,8 @@ export async function writeMaterial(orgId: string, a: Args): Promise<ActResult> 
     const text = f.data.toString("utf8").slice(0, 12_000);
     src = { title: topic || f.name.replace(/\.[a-z0-9]+$/i, ""), url: "", name: f.name, body: text };
     from = "по прикреплённому документу";
-  } else if (itemId) {
-    const it = await one<{ topic: string; meta: { source?: { title: string; url: string; name: string; body: string } } | null; body: string }>("select topic,meta,body from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
-    if (!it) return { ok: false, text: "Исходный материал не найден" };
-    src = it.meta?.source ? { ...it.meta.source, name: it.meta.source.name ?? "" } : { title: it.topic, url: "", name: "", body: it.body.slice(0, 8000) };
+  } else if (original) {
+    src = original.meta?.source ? { ...original.meta.source, name: original.meta.source.name ?? "" } : { title: original.topic, url: "", name: "", body: original.body.slice(0, 8000) };
     from = "из предыдущего материала";
   } else if (/^https?:\/\//i.test(url)) {
     const r = await articleFromUrl(url);

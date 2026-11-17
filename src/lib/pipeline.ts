@@ -1,10 +1,14 @@
+import { IMAGE_KINDS } from "./item-images";
+import { imageModels } from "./creator/models";
+import { planCarousel, slidePrompt } from "./creator/plan";
+import { composePhotoSlide } from "./carousel/photo";
 import { requireFeature } from "./plan-catalog";
 import { pubImageUrl, publicizeImages } from "./pub-image";
 import { pollText, hasOptions, type PollMeta } from "./poll-format";
 import { kbBlock } from "./kb/use";
 import { cleanProfile, cleanStyle } from "./kb/types";
 import { one, q, tx } from "./db";
-import { withCreatorTextModel, effectiveModel, aiReady, brandBlock, chat, extractArray, genCarousel, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
+import { withCreatorTextModel, effectiveModel, aiReady, brandBlock, chat, extractArray, genInfographic, genPlan, genPoll, genPost, type BrandCtx } from "./ai";
 import { PRICES, InsufficientFunds, charge, ensurePrices, refund } from "./wallet";
 import { open } from "./crypto";
 import { providerFor, PublishError, SITE_CHANNELS, ARTICLE_ONLY } from "./publishing";
@@ -29,7 +33,7 @@ import { dropAsset, snapshot } from "./versions";
 import { itemLink, notify } from "./notify";
 import { runNotifyJobs } from "./notify-jobs";
 import { cleanKit, buildImagePrompt, finalizeImage, generateImage, SIZES, rawCopy, type LogoPos } from "./images";
-import { loadAsset, processImage, saveAsset } from "./assets";
+import { loadAsset, processImage, saveAsset, ORG_QUOTA_BYTES } from "./assets";
 
 export interface FactoryRow {
   id: string; org_id: string; brand_id: string; name: string; niche: string; product: string; formats: string[];
@@ -40,7 +44,7 @@ export interface FactoryRow {
 export async function loadFactory(orgId: string, id: string): Promise<FactoryRow | null> {
   return one<FactoryRow>(
     `select f.id,f.org_id,f.brand_id,f.name,f.niche,f.product,f.formats,b.description,b.audience,b.tone,b.rules,b.name brand_name,f.brief,b.kit,k.profile kb_profile,k.style kb_style
-       from kz_factories f join kz_brands b on b.id=f.brand_id left join kz_brand_kb k on k.brand_id=b.id where f.id=$1 and f.org_id=$2`, [id, orgId]);
+       from kz_factories f join kz_brands b on b.id=f.brand_id left join kz_brand_kb k on k.brand_id=b.id and k.org_id=f.org_id where b.org_id=f.org_id and f.id=$1 and f.org_id=$2`, [id, orgId]);
 }
 /** Бренд для подсказки модели; с базой знаний (профиль и стиль), отобранной под тему. */
 export const brandOf = (r: FactoryRow, topic = ""): BrandCtx => ({ name: r.brand_name, description: r.description, audience: r.audience, tone: r.tone, forbidden: r.rules?.forbidden ?? [], notes: r.rules?.notes ?? [], kb: r.kb_profile || r.kb_style ? kbBlock(cleanProfile(r.kb_profile), cleanStyle(r.kb_style), topic) : undefined });
@@ -56,7 +60,7 @@ export function applyCreateOverrides(fac: FactoryRow, meta: { audience?: string;
 
 /** Цена материала. У карусели к базе добавляется обложка нейросетью, если она включена в настройках завода. */
 export const priceOf = (kind: string, brief?: unknown) =>
-  kind === "carousel" ? PRICES.carousel + (cleanSettings(brief).carouselCover === "ai" ? PRICES.image : 0) : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : kind === "infographic" ? PRICES.infographic : kind === "email" ? PRICES.email : kind === "guide" ? PRICES.guide : PRICES.post;
+  kind === "carousel" ? PRICES.carousel + Math.max(3, cleanSettings(brief).slides) * PRICES.image : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : kind === "seo" ? PRICES.seo : kind === "infographic" ? PRICES.infographic : kind === "email" ? PRICES.email : kind === "guide" ? PRICES.guide : PRICES.post;
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -171,50 +175,92 @@ export async function brandNotes(orgId: string, brandId: string) {
 }
 
 /** Материал: атомарный захват (два воркера не спишут деньги дважды) → списание → генерация. */
-export async function buildItem(orgId: string, itemId: string): Promise<Result> {
+export async function buildItem(orgId: string, itemId: string, version?: string): Promise<Result> {
   const row = await one<{ model: string | null }>("select meta->>'textModel' model from kz_content_items where id=$1 and org_id=$2", [itemId, orgId]);
-  return row?.model ? withCreatorTextModel(row.model, () => buildItemInternal(orgId, itemId)) : buildItemInternal(orgId, itemId);
+  return row?.model ? withCreatorTextModel(row.model, () => buildItemInternal(orgId, itemId, version)) : buildItemInternal(orgId, itemId, version);
 }
-async function buildItemInternal(orgId: string, itemId: string): Promise<Result> {
-  const item = await one<{ id: string; factory_id: string; kind: string; topic: string; hook: string; meta: { source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; requirements?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
-    `update kz_content_items set status='generating', updated_at=now()
-      where id=$1 and org_id=$2 and status in ('idea','approved','failed') and factory_id is not null
-      returning id,factory_id,kind,topic,hook,meta`, [itemId, orgId]);
+async function buildItemInternal(orgId: string, itemId: string, version?: string): Promise<Result> {
+  const item = await one<{ id: string; previous_status: string; factory_id: string; brand_id: string; kind: string; topic: string; hook: string; meta: { creator?: boolean; imageOwn?: boolean; fromNews?: boolean; source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; requirements?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
+    `with candidate as (
+        select id,status from kz_content_items where id=$1 and org_id=$2 and factory_id is not null
+        and (status in ('idea','approved','failed') or ($3::timestamptz is not null and status in ('ready','rejected')))
+        and ($3::timestamptz is null or updated_at=$3) for update
+      )
+      update kz_content_items i set status='generating', updated_at=now(), meta=i.meta-'generationError'
+      from candidate where i.id=candidate.id
+      returning i.id,i.factory_id,i.brand_id,i.kind,i.topic,i.hook,i.meta,candidate.status previous_status`, [itemId, orgId, version ?? null]);
   if (!item) return { ok: false, error: "Материал уже обрабатывается или недоступен" };
-  const revert = () => q("update kz_content_items set status='approved', updated_at=now() where id=$1", [item.id]);
+  const revert = () => q("update kz_content_items set status=$2, updated_at=now() where id=$1", [item.id, item.previous_status]);
   if (!aiReady()) { await revert(); return { ok: false, error: "AI Gateway не настроен" }; }
   const fac = await loadFactory(orgId, item.factory_id);
-  if (!fac) { await revert(); return { ok: false, error: "Завод не найден" }; }
+  if (!fac || fac.brand_id !== item.brand_id) { await revert(); return { ok: false, error: "Бренд материала не совпадает с брендом завода. Проверьте привязку материала." }; }
   applyCreateOverrides(fac, item.meta);
+  await ensurePrices();
   const cost = priceOf(item.kind, fac.brief);
-  let refundable = cost; // сколько вернуть при сбое: часть (обложка) может быть уже возвращена отдельно
-  try { await charge(orgId, cost, `Генерация: ${item.topic.slice(0, 60)}`, item.id, [await effectiveModel(["seo", "article", "guide", "email"].includes(item.kind) ? "article" : item.kind === "carousel" ? "carousel" : item.kind === "reels" ? "reels" : "post"), ...(item.kind === "carousel" && cleanSettings(fac.brief).carouselCover === "ai" ? [await effectiveModel("image")] : [])]); }
-  catch (e) { await revert(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
-  await q("update kz_content_items set cost_kop=$2 where id=$1", [item.id, cost]);
+  let imageModel = "";
+  try {
+    const textModel = await effectiveModel(["seo", "article", "guide", "email"].includes(item.kind) ? "article" : item.kind === "carousel" ? "carousel" : item.kind === "reels" ? "reels" : "post");
+    if (item.kind === "carousel") {
+      imageModel = await effectiveModel("image") || (await imageModels())[0]?.id || "";
+      if (!imageModel) throw new Error("Выберите модель изображений в разделе «Настройки ИИ».");
+    }
+    await charge(orgId, cost, `Генерация: ${item.topic.slice(0, 60)}`, item.id, imageModel ? [textModel, imageModel] : textModel);
+  } catch (e) {
+    await revert();
+    return { ok: false, error: e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message };
+  }
   try {
     if (item.kind === "seo") {
       // тема идеи — поисковый запрос, хук — угол статьи; тело — готовый HTML, SEO-поля — в meta.seo
       const art = await genSeoArticle(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, item.meta?.source);
       await q("update kz_content_items set body=$2,meta = (meta-'client') || jsonb_build_object('seo',$3::jsonb),status='ready',updated_at=now() where id=$1", [item.id, art.html, JSON.stringify(art.meta)]);
     } else if (item.kind === "carousel") {
-      // тексты слайдов — структурой от нейросети, сами картинки набираем и рисуем у себя (кириллица на картинках нейросетей искажается)
       const st = await settingsFor(orgId, fac, item.meta?.rubric);
-      const car = await genCarousel(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, st.slides, st, item.meta?.source, item.meta?.postType);
-      let cover: Buffer | null = null;
-      if (st.carouselCover === "ai") {
-        try {
-          const kit = cleanKit(fac.kit);
-          const prompt = await buildImagePrompt({ brandName: fac.brand_name, kit, topic: car.slides[0].title, hook: car.slides[0].body, body: car.caption, notes: await brandNotes(orgId, fac.brand_id) });
-          cover = await prepCover(await generateImage(prompt, st.carouselFormat === "portrait" ? "portrait" : "square"), slideHeight(st.carouselFormat));
-        } catch (e) {
-          // обложка — необязательная часть: карусель делаем без неё и возвращаем деньги за обложку
-          await refund(orgId, PRICES.image, "обложка не создана, карусель сделана без неё", item.id);
-          refundable -= PRICES.image;
-          await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, `Обложка нейросетью не создана: ${(e as Error).message}`.slice(0, 300)]);
+      const kit = cleanKit(fac.kit);
+      const source = item.meta?.source;
+      const plan = await planCarousel({
+        brand: brandOf(fac, item.topic), product: fac.product, niche: fac.niche,
+        prompt: [item.topic, item.hook].filter(Boolean).join("\n"),
+        source: source ? { url: source.url, text: source.body.slice(0, 6000) } : null,
+        n: st.slides, postType: item.meta?.postType, voice: item.meta?.voice,
+        style: kit.styleNotes, structure: item.meta?.requirements,
+      });
+      if (plan.slides.length !== st.slides) throw new Error("Модель вернула другое количество слайдов. Повторите генерацию.");
+      const logoRow = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, fac.brand_id]);
+      const logo = logoRow ? await loadAsset(orgId, logoRow.id) : null;
+      const format = st.carouselFormat;
+      const rendered = await Promise.allSettled(plan.slides.map(async (slide, index) => {
+        const visual = `Slide ${index + 1}: ${slide.visual}. Illustrate specifically: ${slide.title}`;
+        const prompt = slidePrompt({
+          style: plan.style, visual, title: slide.title, body: slide.body, aspect: format, textInImage: false,
+          palette: kit.colors?.map(color => color.hex).join(", "), must: kit.imageMust, never: kit.imageNever,
+        });
+        const raw = await generateImage(prompt, format, { model: imageModel });
+        const background = await rawCopy(raw);
+        const final = await composePhotoSlide({ bg: raw, title: slide.title, body: slide.body, index, total: plan.slides.length, brandName: fac.brand_name, format, width: 1080, kit, logo, overlay: true });
+        return { background, final };
+      }));
+      const photos = rendered.map(result => {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+      });
+      const carousel = {
+        slides: plan.slides.map(({ title, body }) => ({ title, body })), style: "photo", custom: [], design: { format },
+        photo: { visuals: plan.slides.map(slide => slide.visual), style: plan.style, settings: { model: imageModel, quality: "1k", format, n: plan.slides.length, logo: !!logo, logoPos: kit.logoPos, textInImage: false, style: plan.style } },
+      };
+      await tx(async run => {
+        await run("select id from kz_orgs where id=$1 for update", [orgId]);
+        const [usage] = await run<{ size: string }>("select coalesce(sum(size),0) size from kz_assets where org_id=$1 and not (item_id is not distinct from $2 and (position>=0 or position<=-10))", [orgId, item.id]);
+        if (Number(usage.size) + photos.reduce((sum, p) => sum + p.final.data.length + p.background.data.length, 0) > ORG_QUOTA_BYTES) throw new Error("Достигнут лимит хранилища. Освободите место для слайдов.");
+        await run("delete from kz_assets where org_id=$1 and item_id=$2 and (position>=0 or position<=-10)", [orgId, item.id]);
+        for (const [index, photo] of photos.entries()) {
+          for (const [position, asset] of [[index, photo.final], [-10-index, photo.background]] as const) {
+            await run("insert into kz_assets(org_id,brand_id,kind,name,mime,width,height,size,data,item_id,position) values($1,$2,'generated',$3,$4,$5,$6,$7,$8,$9,$10)", [orgId, fac.brand_id, `slide-${index+1}.jpg`, asset.mime, asset.width, asset.height, asset.data.length, asset.data, item.id, position]);
+          }
         }
-      }
-      await renderForItem(orgId, item.id, car.slides, st.carouselStyle, cover);
-      await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, car.caption]);
+        await run("update kz_content_items set body=$2,meta=(meta-'client'-'imageError') || jsonb_build_object('carousel',$3::jsonb),status='ready',cost_kop=$4,updated_at=now() where id=$1", [item.id, plan.caption, JSON.stringify(carousel), cost]);
+      });
+      return { ok: true };
     } else if (item.kind === "poll") {
       const po = item.meta?.pollOpts ?? { mode: "options", count: 4, multi: false };
       const poll = await genPoll(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.source, po);
@@ -234,18 +280,18 @@ async function buildItemInternal(orgId: string, itemId: string): Promise<Result>
       const body = await genPost(brandOf(fac, item.topic), fac.product, fac.niche, item.topic, item.hook, item.kind, item.meta?.source, await settingsFor(orgId, fac, item.meta?.rubric), item.meta?.postType);
       await q("update kz_content_items set body=$2,meta=meta-'client',status='ready',updated_at=now() where id=$1", [item.id, body]);
     }
-    // картинка не обязательна для результата: её сбой не должен ронять уже готовый и оплаченный текст (у карусели свои слайды)
-    // своё изображение, прикреплённое при создании, не заменяется сгенерированным
-    if (fac.brief?.images && !(item.meta as { imageOwn?: boolean } | null)?.imageOwn && !["carousel", "infographic", "poll", "email", "guide"].includes(item.kind)) {
-      const im = await buildImage(orgId, item.id);
-      if (!im.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, im.error]);
-    }
-    return { ok: true };
+    await q("update kz_content_items set cost_kop=$2 where id=$1", [item.id, cost]);
   } catch (e) {
-    await refund(orgId, refundable, "ошибка генерации текста", item.id);
-    await q("update kz_content_items set status='failed',cost_kop=0,updated_at=now() where id=$1", [item.id]);
-    return { ok: false, error: (e as Error).message };
+    await refund(orgId, cost, "ошибка генерации материала", item.id);
+    const error = (e as Error).message;
+    await q("update kz_content_items set status=$3,cost_kop=case when $3='ready' then cost_kop else 0 end,meta=meta || jsonb_build_object('generationError',$2::text),updated_at=now() where id=$1", [item.id, error.slice(0, 400), item.previous_status === 'ready' ? 'ready' : 'failed']);
+    return { ok: false, error };
   }
+  if ((item.meta?.creator || item.meta?.fromNews || fac.brief?.images !== false) && !item.meta?.imageOwn && IMAGE_KINDS.includes(item.kind)) {
+    const image = await buildImage(orgId, item.id).catch(error => ({ ok: false as const, error: (error as Error).message }));
+    if (!image.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, image.error.slice(0, 400)]);
+  }
+  return { ok: true };
 }
 
 /** Обложка карусели: «ai» — новый фон нейросетью (платно, при сбое возврат), «none» — убрать фон и вернуться к цветной обложке. */
@@ -275,7 +321,7 @@ export async function setCarouselCover(orgId: string, itemId: string, mode: "ai"
  * Картинка к материалу. Захват через meta.imageBusy защищает от двойного клика и параллельного воркера: без него
  * списалось бы дважды. Любой сбой после списания — возврат денег.
  */
-export async function buildImage(orgId: string, itemId: string, customPrompt?: string, over: { aspect?: "square" | "portrait" | "landscape"; logoPos?: LogoPos } = {}): Promise<Result> {
+export async function buildImage(orgId: string, itemId: string, customPrompt?: string, over: { aspect?: "square" | "portrait" | "landscape"; logoPos?: LogoPos; style?: string; model?: string } = {}): Promise<Result> {
   const it = await one<{ id: string; brand_id: string; topic: string; hook: string; body: string; image_id: string | null; kind: string }>(
     `update kz_content_items set meta = meta || jsonb_build_object('imageBusy', extract(epoch from now())::bigint), updated_at=now()
       where id=$1 and org_id=$2 and ((meta->>'imageBusy') is null or (meta->>'imageBusy')::bigint < extract(epoch from now())::bigint - 300)
@@ -286,15 +332,24 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
   const brand = await one<{ name: string; kit: unknown }>("select name,kit from kz_brands where id=$1 and org_id=$2", [it.brand_id, orgId]);
   if (!brand) { await release(); return { ok: false, error: "Бренд не найден" }; }
   const cost = PRICES.image;
-  try { await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id, await effectiveModel("image")); }
-  catch (e) { await release(); if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
+  let model = "";
   try {
-    const kit = { ...cleanKit(brand.kit), ...(over.aspect ? { aspect: over.aspect } : {}), ...(over.logoPos ? { logoPos: over.logoPos } : {}) };
+    const models = await imageModels();
+    if (over.model && !models.some(option => option.id === over.model)) throw new Error("Выбранная модель изображений недоступна.");
+    model = over.model || await effectiveModel("image") || models[0]?.id || "";
+    if (!model) throw new Error("Выберите модель изображений в разделе «Настройки ИИ».");
+    await charge(orgId, cost, `Картинка: ${it.topic.slice(0, 50)}`, it.id, model);
+  } catch (e) {
+    await release();
+    return { ok: false, error: e instanceof InsufficientFunds ? "Недостаточно токенов" : (e as Error).message };
+  }
+  try {
+    const kit = { ...cleanKit(brand.kit), ...(over.style ? { style: over.style } : {}), ...(over.aspect ? { aspect: over.aspect } : {}), ...(over.logoPos ? { logoPos: over.logoPos } : {}) };
     let prompt = customPrompt?.trim();
     if (!prompt) {
       prompt = await buildImagePrompt({ brandName: brand.name, kit, topic: it.topic, hook: it.kind === "story" ? `${it.hook} Vertical 9:16 story composition: a clear subject in the middle, calm areas at the top and bottom for interface and text overlay.`.trim() : it.hook, body: it.body, notes: await brandNotes(orgId, it.brand_id) });
     }
-    const raw = await generateImage(prompt, it.kind === "story" ? "portrait" : kit.aspect ?? "square");
+    const raw = await generateImage(prompt, over.aspect ?? (it.kind === "story" ? "portrait" : kit.aspect ?? "square"), { model });
     const logo = await one<{ id: string }>("select id from kz_assets where org_id=$1 and brand_id=$2 and kind='logo'", [orgId, it.brand_id]);
     const done = await finalizeImage(raw, logo ? await loadAsset(orgId, logo.id) : null, kit, { story: it.kind === "story" });
     const assetId = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 60)}.jpg`, done);
@@ -302,7 +357,7 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
     let rawId: string | null = null;
     try { rawId = await saveAsset(orgId, it.brand_id, "generated", "исходник", await rawCopy(raw), "исходник без логотипа", { itemId: it.id, position: -2 }); } catch { /* лимит хранилища: логотип тогда меняется только пересозданием */ }
     const oldRaw = await one<{ r: string | null }>("select meta->>'imageRawId' r from kz_content_items where id=$1", [it.id]);
-    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::uuid::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
+    await q("update kz_content_items set image_id=$2, meta = (meta - 'imageBusy' - 'imageError' - 'imageOwn' - 'imageRawId' - 'imageRawFor') || jsonb_build_object('imagePrompt',$3::text) || case when $4::text is null then '{}'::jsonb else jsonb_build_object('imageRawId',$4::text,'imageRawFor',$2::uuid::text) end, updated_at=now() where id=$1", [it.id, assetId, prompt, rawId]);
     if (oldRaw?.r) await q("delete from kz_assets where id=$1 and org_id=$2", [oldRaw.r, orgId]);
     if (it.image_id) await dropAsset(orgId, it.image_id); // прежняя версия остаётся, только если её сохранили как версию материала
     return { ok: true };
@@ -316,9 +371,9 @@ export async function buildImage(orgId: string, itemId: string, customPrompt?: s
 /** Ставит материал в очередь на все каналы завода. Повтор для упавшей публикации — переводит её обратно в queued. */
 export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   try { await requireFeature(orgId, "autopublish"); } catch (e) { return { ok: false, error: (e as Error).message }; }
-  const row = await one<{ factory_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
+  const row = await one<{ factory_id: string; brand_id: string; channel_ids: string[]; body: string; status: string; kind: string }>(
     // материалы автоленты не принадлежат заводу: каналы лежат в meta.channelIds
-    `select i.factory_id,case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 or f.channel_ids is null then array(select jsonb_array_elements_text(coalesce(i.meta->'channelIds','[]'::jsonb))::uuid) else f.channel_ids end channel_ids,i.body,i.status,i.kind
+    `select i.factory_id,i.brand_id,case when jsonb_array_length(coalesce(i.meta->'channelIds','[]'::jsonb))>0 or f.channel_ids is null then array(select jsonb_array_elements_text(coalesce(i.meta->'channelIds','[]'::jsonb))::uuid) else f.channel_ids end channel_ids,i.body,i.status,i.kind
        from kz_content_items i left join kz_factories f on f.id=i.factory_id
       where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!row) return { ok: false, error: "Материал не найден" };
@@ -327,7 +382,7 @@ export async function enqueue(orgId: string, itemId: string): Promise<Result> {
   if (!row.body.trim() && row.kind !== "poll") return { ok: false, error: "Нет текста для публикации" };
   if (!["ready", "scheduled", "failed"].includes(row.status)) return { ok: false, error: "Материал не готов к публикации" };
   // SEO-статьи идут только на сайты (WordPress, webhook), обычные посты — только в соцсети
-  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and (case when $4::boolean then kind = any($3::text[]) else not (kind = any($5::text[])) end)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo", ARTICLE_ONLY]);
+  const chans = await q<{ id: string }>("select id from kz_channels where org_id=$1 and status='active' and id = any($2::uuid[]) and brand_id=$6 and (case when $4::boolean then kind = any($3::text[]) else not (kind = any($5::text[])) end)", [orgId, row.channel_ids, SITE_CHANNELS, row.kind === "seo", ARTICLE_ONLY, row.brand_id]);
   if (!chans.length) return { ok: false, error: row.kind === "seo" ? "Для SEO-статей подключите канал WordPress или Webhook и выберите его в настройках публикации завода" : "У завода не выбраны каналы публикации. На странице завода в блоке «Публикация» нажмите на нужный канал (он сохраняется сразу). Для постов подходят Telegram, VK, MAX и Webhook" };
   await tx(async (run) => {
     for (const ch of chans) {
@@ -375,7 +430,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       returning id,org_id,item_id,channel_id,attempts`, onlyItem ? [limit, onlyItem] : [limit]);
   const out = { sent: 0, failed: 0, retried: 0 };
   for (const j of jobs) {
-    const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2", [j.channel_id, j.org_id]);
+    const ch = await one<{ kind: string; credentials: unknown; signature: string }>("select kind,credentials,signature from kz_channels where id=$1 and org_id=$2 and brand_id=(select brand_id from kz_content_items where id=$3 and org_id=$2)", [j.channel_id, j.org_id, j.item_id]);
     const item = await one<{ topic: string; body: string; image_id: string | null; kind: string; meta: { seo?: { title: string; description: string; slug: string; keywords: string[] }; poll?: PollMeta; variants?: Record<string, string> } }>("select topic,body,image_id,kind,meta from kz_content_items where id=$1", [j.item_id]);
     // инфографика — одна готовая картинка; у остальных материалов — картинка к посту (у карусели свои слайды)
     const infoAsset = item?.kind === "infographic" ? (await carouselAssets(j.item_id))[0] : undefined;
@@ -387,7 +442,7 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
       // ссылки на сайт из настроек завода получают UTM-метки или короткий адрес со счётчиком; SEO-статьи не трогаем
-      const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id join kz_brands b on b.id=i.brand_id where i.id=$1", [j.item_id]) : null;
+      const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id and f.org_id=i.org_id and f.brand_id=i.brand_id join kz_brands b on b.id=i.brand_id and b.org_id=i.org_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
       const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));

@@ -15,6 +15,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { calendarRange, calendarHref, moscowToday, PERIODS, shiftPeriod, validDay, type CalendarPeriod } from "@/lib/calendar";
 const MOVABLE = ["idea", "approved", "ready", "failed", "rejected"];
 
+export const maxDuration = 300;
+
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const c = await requireCtx();

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Plus, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { can } from "@/lib/roles";
 import { requireCtx, canWrite } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { listAssets, LIMITS } from "@/lib/assets";
@@ -10,7 +11,7 @@ import { ColorSlots } from "@/components/ColorSlots";
 import { FontPicker } from "@/components/FontPicker";
 import { AssetUploader } from "@/components/AssetUploader";
 import { LogoPlacement } from "@/components/LogoPlacement";
-import { deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
+import { deleteBrandAction, deleteAssetAction, redescribeAssetAction, saveBrand } from "@/lib/actions";
 import { OrgTabs } from "@/components/shell/OrgTabs";
 import { ShareCard } from "@/components/ShareCard";
 import { listLinks } from "@/lib/share";
@@ -36,6 +37,10 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
       <OrgTabs action={canEdit ? <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link> : null} />
       <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{b.name}</h1>
       <p className="mb-8 mt-3 max-w-2xl text-sm text-ink2">Профиль и брендбук: по ним пишутся тексты и рисуются картинки.</p>
+      {can(c.org.role, "manage") && <Form action={deleteBrandAction} submit="" className="mb-6">
+        <input type="hidden" name="id" value={id} />
+        <SubmitButton className="btn btn-ghost text-bad" data-confirm="Удалить бренд, его брендбук и базу знаний? Бренд со связанными материалами или заводами удалить нельзя." data-confirm-ok="Удалить"><Trash2 size={15} />Удалить бренд</SubmitButton>
+      </Form>}
       <div className="max-w-[780px]">
         <Form action={saveBrand} submit="Сохранить" className="space-y-0">
           <input type="hidden" name="id" value={id} /><input type="hidden" name="kit_present" value="1" />

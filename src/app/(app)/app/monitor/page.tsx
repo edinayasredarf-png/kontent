@@ -33,7 +33,7 @@ import { feedOrder, feedWhere, filterQuery, parseFilter } from "@/lib/monitor/fe
 import { sourceView } from "@/lib/monitor/display";
 
 import { SubmitButton } from "@/components/SubmitButton";
-export const maxDuration = 60;
+export const maxDuration = 300;
 const PAGE = 30;
 const ICON = "grid size-8 place-items-center rounded-full bg-accent-soft text-ink transition hover:bg-tile2";
 

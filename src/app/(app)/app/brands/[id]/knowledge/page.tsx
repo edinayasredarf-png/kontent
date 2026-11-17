@@ -33,7 +33,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by created_at", [c.org.id]);
   const write = canWrite(c.org.role);
   const [docs, kb] = await Promise.all([
-    q<DocView>("select id,kind,title,url,chars,use_style,digest is not null analyzed,digest_error from kz_brand_docs where brand_id=$1 order by created_at desc", [id]),
+    q<DocView>("select id,kind,title,url,chars,use_style,digest is not null analyzed,digest_error from kz_brand_docs where brand_id=$1 and org_id=$2 order by created_at desc", [id, c.org.id]),
     loadKb(c.org.id, id),
   ]);
   const pending = docs.filter((d) => !d.analyzed).length;

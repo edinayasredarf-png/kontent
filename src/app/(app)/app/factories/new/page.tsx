@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FactoryBrandPicker } from "@/components/FactoryBrandPicker";
 import { pageCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { Form, Field } from "@/components/Form";
@@ -14,16 +14,13 @@ const DAYS = [["1", "Пн"], ["2", "Вт"], ["3", "Ср"], ["4", "Чт"], ["5", 
 export default async function NewFactory() {
   const c = await pageCtx("write");
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
-  if (!brands.length) return (
-    <div className="w-full max-w-3xl"><PageHead title="Новый завод" /><div className="card p-6 text-sm">Сначала создайте бренд. <Link className="text-accent-ink" href="/app/brands/new">Добавить бренд →</Link></div></div>
-  );
   return (
     <div className="w-full max-w-3xl">
       <PageHead title="Новый завод" sub="Один завод — один продукт или направление. Не смешивайте темы." />
       <div className="card p-6">
         <Form action={saveFactory} submit="Создать завод">
           <NichePicker presets={PRESETS} hint="Подставит нишу, продукт, форматы, а также типы постов, длину, эмодзи, хештеги и призыв к действию завода." />
-          <Field label="Бренд"><select name="brand_id" className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
+          <FactoryBrandPicker brands={brands} />
           <Field label="Название завода"><input name="name" required className="input" placeholder="Например: Блог про закупки" /></Field>
           <Field label="Ниша"><input name="niche" className="input" /></Field>
           <Field label="Продукт / направление"><textarea name="product" rows={3} className="input" /></Field>

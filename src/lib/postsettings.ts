@@ -35,7 +35,7 @@ export function cleanSettings(raw: unknown): ContentSettings {
   return {
     postTypes: types, length: pick(b.length, Object.keys(LENGTHS) as (keyof typeof LENGTHS)[], "short"),
     examples: str(b.examples, 3000), link: cleanLink(b.link), cta: str(b.cta, 200),
-    hashtags: pick(b.hashtags, Object.keys(HASHTAGS) as (keyof typeof HASHTAGS)[], "few"), emoji: pick(b.emoji, Object.keys(EMOJI) as (keyof typeof EMOJI)[], "moderate"),
+    hashtags: pick(b.hashtags, Object.keys(HASHTAGS) as (keyof typeof HASHTAGS)[], "none"), emoji: pick(b.emoji, Object.keys(EMOJI) as (keyof typeof EMOJI)[], "moderate"),
     learn: b.learn !== false, learnings: "", strategy: null, rubricNote: "", linkMode: b.linkMode === "off" || b.linkMode === "track" ? b.linkMode : "utm",
     slides: Math.min(10, Math.max(4, Math.round(Number(b.slides)) || 6)),
     carouselStyle: pick(b.carouselStyle, Object.keys(CAROUSEL_STYLES) as (keyof typeof CAROUSEL_STYLES)[], "brand"),
@@ -55,6 +55,7 @@ export function styleBlock(s: ContentSettings, kind: string, postType?: string):
   lines.push(s.hashtags === "none" ? "Хештеги не добавлять." : s.hashtags === "many" ? "В конце добавь 5–8 тематических хештегов." : "В конце добавь 2–3 тематических хештега.");
   if (s.cta) lines.push(`Призыв к действию (используй близко к этому смыслу): «${s.cta}».`);
   if (s.link) lines.push(`Ссылка для читателя: ${s.link} — вставь её в конце как есть, ничего не меняя и не придумывая другие ссылки.`);
+  else lines.push("Ссылки и адреса сайтов не добавляй.");
   if (s.examples) lines.push(`Примеры постов автора. Перенимай манеру: длину фраз, интонацию, как начинаются и заканчиваются тексты. Содержание и факты из примеров НЕ копируй:\n---\n${s.examples}\n---`);
   if (s.rubricNote) lines.push(s.rubricNote);
   if (s.learnings) lines.push(s.learnings);

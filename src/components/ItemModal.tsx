@@ -5,7 +5,14 @@ import { q } from "@/lib/db";
 import { KIND, Status } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
 import { SubmitButton } from "@/components/SubmitButton";
-import { itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
+import { MaterialImageFields } from "./MaterialImageFields";
+import { imageModels } from "@/lib/creator/models";
+import { cleanKit } from "@/lib/images";
+import { IMAGE_KINDS } from "@/lib/item-images";
+import { ImagePicker } from "./ImagePicker";
+import { SlideEditor } from "./SlideEditor";
+import { CarouselPanel } from "./CarouselPanel";
+import { itemImageAction, itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
 
 import { CALENDAR_COLORS, calendarColor, moscowToday } from "@/lib/calendar";
 import { DraftBodyEditor } from "./DraftBodyEditor";
@@ -27,18 +34,18 @@ const PUB: Record<string, string> = { queued: "в очереди", sending: "о�
 export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { orgId: string; id: string; returnTo: string; err?: string; note?: string; canWrite: boolean }) {
   const [it] = await q<{
     id: string; kind: string; topic: string; hook: string; body: string; status: string; image_id: string | null; factory_id: string | null; factory: string | null; brand: string;
-    version: string; color: string | null; seo: {title?: string; description?: string; slug?: string} | null;
+    brief: unknown; kit: unknown; imageError: string | null; generationError: string | null; version: string; color: string | null; seo: {title?: string; description?: string; slug?: string} | null;
     carousel: { slides: {title: string; body: string; layout?: SlideLayout}[]; style?: string; photo?: boolean; design?: {color?: string; font?: string; format?: string} } | null;
     planned: string | null; pub_at: string | null; ptime: string | null; draft: boolean; slides: string[] | null; chans: string[] | null;
   }>(
     `select i.id,i.kind,i.topic,i.hook,i.body,i.status,i.image_id,i.factory_id,f.name factory,b.name brand,
-            i.updated_at::text version,i.meta->>'calendarColor' color,i.meta->'seo' seo,i.meta->'carousel' carousel,
+            f.brief,b.kit,i.meta->>'imageError' "imageError",i.meta->>'generationError' "generationError",i.updated_at::text version,i.meta->>'calendarColor' color,i.meta->'seo' seo,i.meta->'carousel' carousel,
             to_char(i.planned_for,'YYYY-MM-DD') planned, i.meta->>'publishAt' pub_at,
             to_char((i.meta->>'publishAt')::timestamptz at time zone coalesce(f.schedule->>'tz','Europe/Moscow'),'HH24:MI') ptime,
             coalesce((i.meta->>'draft')::boolean,false) draft,
             (select array_agg(a.id order by a.position) from kz_assets a where a.item_id=i.id and a.position>=0) slides,
-            (select array_agg(ch.title order by ch.created_at) from kz_channels ch where ch.id = any(f.channel_ids)) chans
-       from kz_content_items i join kz_brands b on b.id=i.brand_id left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2`, [id, orgId]);
+            (select array_agg(ch.title order by ch.created_at) from kz_channels ch where ch.id = any(f.channel_ids) and ch.org_id=i.org_id and ch.brand_id=i.brand_id) chans
+       from kz_content_items i join kz_brands b on b.id=i.brand_id and b.org_id=i.org_id left join kz_factories f on f.id=i.factory_id and f.org_id=i.org_id where i.id=$1 and i.org_id=$2`, [id, orgId]);
   if (!it) return null;
   const pubs = await q<{ channel: string; kind: string; status: string; url: string | null; error: string | null; at: string | null }>(
     `select ch.title channel,ch.kind,p.status,p.external_url url,p.error,to_char(p.published_at,'DD.MM.YYYY HH24:MI') at from kz_publications p join kz_channels ch on ch.id=p.channel_id where p.item_id=$1 and p.org_id=$2 order by p.created_at`, [id, orgId]);
@@ -47,6 +54,9 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
   const text = ["seo", "email", "guide"].includes(it.kind) ? plain(it.body) : it.body;
   const editable = EDITABLE.includes(it.status);
   const canPublish = canWrite && ["ready", "failed"].includes(it.status) && !NO_PUBLISH.includes(it.kind) && !it.draft && it.factory_id;
+  const canEditImage = canWrite && it.status === "ready" && IMAGE_KINDS.includes(it.kind);
+  const models = canEditImage ? await imageModels() : [];
+  const imageCost = IMAGE_KINDS.includes(it.kind) ? ` Если завод создаёт иллюстрации автоматически, картинка оплачивается отдельно (до ${rub(PRICES.image)}).` : "";
   const today = moscowToday();
   const openParams = new URLSearchParams({ item: id });
   const openHref = `${returnTo}${returnTo.includes("?") ? "&" : "?"}${openParams}`;
@@ -60,6 +70,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
     <AutoModal key={it.id} title={KIND[it.kind] ?? it.kind} closeHref={returnTo}>
       <div className="space-y-4">
         {err && <p className="flex items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</p>}
+        {it.status === "failed" && !err && it.generationError && <p role="alert" className="text-sm text-bad">{it.generationError}</p>}
         {note && <p className="rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</p>}
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2"><Status s={it.status} />{it.draft && <span className="chip">черновик</span>}</div>
@@ -70,9 +81,9 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
 
         {canWrite && <div className="flex flex-wrap gap-2">
           {!returnTo.startsWith("/app/create") && <Link className="btn btn-ghost" href={`/app/create?item=${it.id}`}>Открыть в создании контента</Link>}
-          {editable && it.factory_id && !it.carousel?.photo && <form action={itemGenerateAction}>{hid}
-            <SubmitButton className="btn btn-accent" data-confirm={it.body ? "Создать материал заново? Текущий текст будет заменён. Генерация оплачивается по тарифу формата." : "Создать контент по этой идее? Генерация оплачивается по тарифу формата."}>
-              {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind))}
+          {editable && it.factory_id && !it.carousel?.photo && <form action={itemGenerateAction}>{hid}<input type="hidden" name="version" value={it.version} />
+            <SubmitButton className="btn btn-accent" data-confirm-ok={it.body ? "Создать заново" : "Создать"} data-confirm={(it.body ? "Создать материал заново? Текущий текст будет заменён." : "Создать контент по этой идее?") + imageCost}>
+              {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind, it.brief))}
             </SubmitButton>
           </form>}
         </div>}
@@ -83,12 +94,39 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
         </div>
 
         {it.hook && <p className="text-sm text-ink2"><b>Хук:</b> {it.hook}</p>}
-        {it.slides?.length ? (
+        {it.slides?.length && !(canWrite && it.factory_id && it.carousel?.photo) ? (
           <div className="flex gap-2 overflow-x-auto">{it.slides.slice(0, 10).map((sid) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={sid} src={`/api/assets/${sid}`} alt="" className="h-44 w-auto shrink-0 rounded-xl border border-line" />)}</div>
         ) : it.image_id ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/assets/${it.image_id}`} alt="Изображение к материалу" className="max-h-64 w-auto max-w-full rounded-xl border border-line" />
         ) : null}
+        {canWrite && it.factory_id && it.carousel?.photo && it.slides?.length && <CarouselPanel itemId={it.id} factoryId={it.factory_id}
+          meta={{ ...it.carousel, style: "brand" }} assets={it.slides.map(id => ({ id }))} editable={editable} free={false} ret={openHref} />}
+        {canEditImage && <section className="space-y-4 rounded-2xl bg-tile p-4">
+          <h4 className="font-semibold">Изображение материала</h4>
+          {it.imageError && <p role="status" className="text-xs text-warn">{it.imageError}</p>}
+          {it.image_id && <>
+            <SlideEditor itemId={it.id} colors={(cleanKit(it.kit).colors ?? []).map(color => color.hex)} targets={[{ key: "image", label: "Править картинку", assetId: it.image_id }]} />
+            <form action={itemImageAction} className="space-y-2">{hid}
+              <input type="hidden" name="image_action" value="rework" />
+              <input name="instruction" className="input" required maxLength={400} placeholder="Что изменить в картинке?" />
+              <SubmitButton className="pill">Доработать ИИ · {rub(PRICES.image)}</SubmitButton>
+            </form>
+            <form action={itemImageAction}>{hid}
+              <input type="hidden" name="image_action" value="remove" />
+              <SubmitButton className="pill !text-bad" data-confirm="Удалить изображение из материала?">Удалить картинку</SubmitButton>
+            </form>
+          </>}
+          <form action={itemImageAction} className="space-y-2">{hid}
+            <MaterialImageFields models={models} />
+            <SubmitButton className="pill">{it.image_id ? "Создать заново" : "Создать картинку"} · {rub(PRICES.image)}</SubmitButton>
+          </form>
+          <form action={itemImageAction} className="space-y-2">{hid}
+            <input type="hidden" name="image_action" value="attach" />
+            <ImagePicker label="Прикрепить своё изображение" />
+            <SubmitButton className="pill">Загрузить</SubmitButton>
+          </form>
+        </section>}
         {(!canWrite || !editable) && text && <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-tile p-4 text-sm leading-6">{text}</div>}
 
         {pubs.length > 0 && (

@@ -1,3 +1,4 @@
+import { imageModels } from "./creator/models";
 import { effectiveModel } from "./ai";
 import { one, q } from "./db";
 import { loadAsset, processImage, saveAsset, type Processed } from "./assets";
@@ -47,6 +48,19 @@ export async function attachOwnImage(orgId: string, itemId: string, v: FormDataE
   return { ok: true };
 }
 
+export async function removeItemImage(orgId: string, itemId: string): Promise<Result> {
+  const it = await one<{ image_id: string; raw: string | null }>(
+    "select image_id,meta->>'imageRawId' raw from kz_content_items where id=$1 and org_id=$2 and status='ready' and image_id is not null", [itemId, orgId]);
+  if (!it) return { ok: false, error: "Изображение уже удалено или материал недоступен" };
+  await snapshot(orgId, itemId, "до удаления картинки");
+  const changed = await one(
+    "update kz_content_items set image_id=null,meta=meta-'imageOwn'-'imageError'-'imageRawId'-'imageRawFor',updated_at=now() where id=$1 and org_id=$2 and image_id=$3 and status='ready' returning id", [itemId, orgId, it.image_id]);
+  if (!changed) return { ok: false, error: "Изображение уже изменилось. Обновите страницу." };
+  await dropAsset(orgId, it.image_id);
+  if (it.raw) await q("delete from kz_assets where org_id=$1 and item_id=$2 and id=$3 and position=-2", [orgId, itemId, it.raw]);
+  return { ok: true };
+}
+
 const HOW: Record<string, string | undefined> = { redraw: "ИИ пересоздал изображение по мотивам вашего: эта модель не умеет точную правку." };
 
 /** Доработка изображения материала ИИ по пожеланию. Платно как картинка, при сбое возврат. Результат заменяет прежнее изображение. */
@@ -59,10 +73,12 @@ export async function reworkItemImage(orgId: string, itemId: string, instruction
   const a = await loadAsset(orgId, it.image_id);
   if (!a) return { ok: false, error: "Изображение не найдено" };
   const aspect = a.width > a.height * 1.2 ? "landscape" : a.height > a.width * 1.2 ? "portrait" : "square";
-  try { await charge(orgId, PRICES.image, `Доработка изображения: ${it.topic.slice(0, 50)}`, itemId, await effectiveModel("image")); }
+  const model = await effectiveModel("image") || (await imageModels())[0]?.id;
+  if (!model) return { ok: false, error: "Выберите модель изображений в разделе «Настройки ИИ»." };
+  try { await charge(orgId, PRICES.image, `Доработка изображения: ${it.topic.slice(0, 50)}`, itemId, model); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
-    const r = await editImage(a.data, a.mime, ins, aspect);
+    const r = await editImage(a.data, a.mime, ins, aspect, model);
     const p = await processImage(r.data, "generated");
     const id = await saveAsset(orgId, it.brand_id, "generated", `${it.topic.slice(0, 50)}.jpg`, p, "доработано ИИ");
     await q("update kz_content_items set image_id=$2, meta = (meta - 'imageError') || jsonb_build_object('imageOwn', true, 'imagePrompt', $3::text), updated_at=now() where id=$1", [itemId, id, ins]);

@@ -1,3 +1,6 @@
+import { MaterialImageFields } from "./MaterialImageFields";
+import { imageModels } from "@/lib/creator/models";
+import { SlideEditor } from "./SlideEditor";
 import Link from "next/link";
 import { AlertTriangle, ImageIcon, Layers, RefreshCw, Send, CalendarPlus, Sparkles, Trash2 } from "lucide-react";
 import { loadDrafts, type DraftItem } from "@/lib/drafts";
@@ -28,6 +31,7 @@ const SLIDE_KINDS = ["carousel", "infographic"], NO_IMAGE = ["reels", "email", "
 export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { orgId: string; ids: string[]; returnTo: string; err?: string; note?: string; free: boolean }) {
   const items = await loadDrafts(orgId, ids);
   if (!items.length) return null;
+  const models = items.some(it => IMAGE_KINDS.includes(it.kind)) ? await imageModels() : [];
   const fids = [...new Set(items.map((i) => i.factory_id))];
   const brands = await q<{ id: string; name: string; kit: unknown }>("select f.id,b.name,b.kit from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.id = any($2::uuid[])", [orgId, fids]);
   const [times, dates] = await Promise.all([
@@ -39,6 +43,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
   const priceOf = (kind: string) => (kind === "carousel" ? PRICES.carousel : kind === "seo" ? PRICES.seo : kind === "article" ? PRICES.article : kind === "reels" ? PRICES.reels : PRICES.post);
 
   const card = (it: DraftItem) => {
+    const colors = (cleanKit(brands.find(brand => brand.id === it.factory_id)?.kit).colors ?? []).map(color => color.hex);
     const imageOk = IMAGE_KINDS.includes(it.kind);
     const ready = it.status === "ready";
     const date = dates.find(([f]) => f === it.factory_id)?.[1] ?? "";
@@ -57,7 +62,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
             {SLIDE_KINDS.includes(it.kind) ? (
               it.kind === "carousel" && it.carousel && it.slides.length > 0 ? (
                 <div className="space-y-2">
-                  <CarouselPanel caption={it.body} colors={(cleanKit(brands.find((b) => b.id === it.factory_id)?.kit).colors ?? []).map((x) => x.hex)} itemId={it.id} factoryId={it.factory_id}
+                  <CarouselPanel caption={it.body} colors={colors} itemId={it.id} factoryId={it.factory_id}
                     meta={{ slides: it.carousel.slides as never, style: it.carousel.style as never, custom: it.carousel.custom, design: it.carousel.design, photo: it.carousel.photo }} assets={it.slides.map((id) => ({ id }))} editable free={free} ret={`${returnTo}${returnTo.includes("?") ? "&" : "?"}draft=${items.map((x) => x.id).join(",")}`} />
                   {it.carousel.photo ? <p className="rounded-2xl bg-surface p-3 text-xs text-ink2">Карусель с картинками из Студии. Чтобы сделать новую, откройте <Link href="/app/create?type=carousel" className="text-accent hover:underline">панель создания</Link>; текст слайда можно поправить визуальным редактором выше.</p> : (
                   <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-3 text-xs text-ink2">{hid(it.id)}
@@ -93,6 +98,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
                 {it.image_error && <p className="flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} />{it.image_error}</p>}
                 {it.image_id && (
                   <>
+                    <SlideEditor itemId={it.id} colors={colors} targets={[{key: "image", label: "Править картинку", assetId: it.image_id}]} />
                     <ImageSlot src={`/api/assets/${it.image_id}`} alt="Изображение к материалу" replaceAction={draftAttachImageAction} removeAction={draftRemoveImageAction} fields={hid(it.id)} />
                     <form action={draftReworkImageAction} className="flex flex-wrap items-center gap-2">
                       {hid(it.id)}
@@ -108,9 +114,9 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
                     <SubmitButton className="pill pill-sm">Загрузить</SubmitButton>
                   </form>
                 )}
-                <form action={draftImageGenAction} className="flex flex-wrap items-center gap-2">
+                <form action={draftImageGenAction} className="space-y-3">
                   {hid(it.id)}
-                  <input name="prompt" maxLength={500} placeholder="Описание картинки (необязательно)" className="input min-w-[12rem] flex-1 !bg-tile text-xs" />
+                  <MaterialImageFields models={models} />
                   <SubmitButton className="pill pill-sm"><ImageIcon size={13} />{it.image_id ? "Создать заново" : "Создать картинку ИИ"}{price(PRICES.image)}</SubmitButton>
                 </form>
               </div>

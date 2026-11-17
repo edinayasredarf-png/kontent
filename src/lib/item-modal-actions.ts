@@ -2,7 +2,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { one, q } from "./db";
-import { buildItem } from "./pipeline";
+import { materialImageOptions } from "./material-image-options";
+import { IMAGE_KINDS, attachOwnImage, removeItemImage, reworkItemImage } from "./item-images";
+import { buildImage, buildItem } from "./pipeline";
 import { cleanHtml } from "./seo";
 import { snapshot } from "./versions";
 import { calendarColor } from "./calendar";
@@ -68,10 +70,29 @@ export async function itemGenerateAction(f: FormData) {
   const it = await one<{ status: string; version: string; photo: unknown }>(
     "select status,updated_at::text version,meta->'carousel'->'photo' photo from kz_content_items where id=$1 and org_id=$2 and factory_id is not null", [id, c.org.id]);
   if (!it || !CALENDAR_EDITABLE.includes(it.status)) back(f, { ok: false, error: "Материал недоступен для генерации" });
+  if (it!.version !== s(f, "version")) back(f, { ok: false, error: "Материал изменился. Обновите страницу." });
   if (it!.photo) back(f, { ok: false, error: "Для этой карусели используйте редактор слайдов" });
   await snapshot(c.org.id, id, "До повторной генерации");
-  const changed = await q("update kz_content_items set status='approved',updated_at=now() where id=$1 and org_id=$2 and updated_at=$3::timestamptz and status=any($4::text[]) returning id", [id, c.org.id, it!.version, CALENDAR_EDITABLE]);
-  if (!changed.length) back(f, { ok: false, error: "Материал изменился. Обновите страницу" });
-  const result = await buildItem(c.org.id, id);
+  const result = await buildItem(c.org.id, id, it!.version).catch(() => ({ok: false as const, error: "Не удалось запустить генерацию. Обновите страницу и повторите."}));
   back(f, result.ok ? { ok: true, note: "Материал создан" } : result);
+}
+
+
+export async function itemImageAction(f: FormData) {
+  const c = await requireWriter();
+  const id = s(f, "id");
+  const it = await one<{ kind: string }>("select kind from kz_content_items where id=$1 and org_id=$2 and status='ready'", [id, c.org.id]);
+  if (!it || !IMAGE_KINDS.includes(it.kind)) back(f, { ok: false, error: "Изображение доступно у готового материала подходящего формата" });
+  let result;
+  try {
+    switch (s(f, "image_action")) {
+      case "remove": result = await removeItemImage(c.org.id, id); break;
+      case "attach": result = await attachOwnImage(c.org.id, id, f.get("image")); break;
+      case "rework": result = await reworkItemImage(c.org.id, id, s(f, "instruction")); break;
+      default: result = await buildImage(c.org.id, id, s(f, "prompt").slice(0, 500) || undefined, materialImageOptions(f));
+    }
+  } catch (error) {
+    result = { ok: false, error: (error as Error).message };
+  }
+  back(f, result);
 }

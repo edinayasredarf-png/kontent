@@ -131,7 +131,7 @@ export function UiEnhancer() {
       const p = document.createElement("p"); p.textContent = btn.dataset.confirm ?? "";
       const row = document.createElement("div"); row.className = "ui-confirm-row";
       const no = document.createElement("button"); no.type = "button"; no.className = "pill"; no.textContent = "Отмена";
-      const yes = document.createElement("button"); yes.type = "button"; yes.className = "ui-confirm-yes"; yes.textContent = ok;
+      const yes = document.createElement("button"); yes.type = "button"; yes.className = ok === "Удалить" ? "ui-confirm-yes" : "btn btn-accent"; yes.textContent = ok;
       row.append(no, yes); box.append(h, p, row); ask.append(back, box); document.body.appendChild(ask);
       no.focus();
       const off = () => { document.removeEventListener("keydown", key, true); closeAsk(); };
