@@ -5,6 +5,7 @@ import { q } from "@/lib/db";
 import { PageHead, Empty, Status, KIND, STATUS } from "@/components/ui";
 import { PostCard, RoundIcon } from "@/components/ui/PostCard";
 import { ItemModal } from "@/components/ItemModal";
+import { FactoryContentTabs } from "./FactoryTabs";
 import { FilterBar } from "@/components/FilterBar";
 import { parseRange, uuidOrEmpty, type Preset } from "@/lib/range";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
@@ -54,13 +55,13 @@ export async function ContentPublications({ sp, scope }: { sp: { n?: string; ite
       {note && !scopedItem && <p role="status" className="mb-4 text-sm text-good">{note}</p>}
       {scopedItem && <ItemModal orgId={c.org.id} id={itemId} returnTo={href(n ? { n: String(lim) } : {})} err={err} note={note} canWrite={canWrite(c.org.role)} />}
       {!scope && <PageHead title="Публикации" sub="Готовые материалы, очередь и опубликованное." />}
-      <FilterBar path={path} keep={scope ? { tab: "content" } : {}} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
+      <FilterBar compact={!!scope} prefix={scope && <FactoryContentTabs factoryId={scope.id} section="published" />} path={path} keep={scope ? { tab: "content" } : {}} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
         ...(!scope ? [{ name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) }] : []),
         { name: "channel", label: "Канал", all: "Все каналы", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
         { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
         ...(!scope ? [{ name: "status", label: "Статус", all: "Все статусы", value: status, options: STATUSES.map((k) => ({ value: k, label: STATUS[k].label })) }] : []),
       ]} />
-      {rows.length === 0 ? <Empty icon={<Send />} title={filtered ? "По этим фильтрам ничего нет" : "Публикаций пока нет"} text={filtered ? "Измените период или сбросьте фильтры." : scope ? "Здесь появятся материалы, опубликованные из этого завода." : "Материалы появятся здесь, когда завод напишет первый текст."} /> : (
+      {rows.length === 0 ? (scope && !filtered ? <p className="sr-only" role="status">Опубликованных материалов пока нет</p> : <Empty icon={<Send />} title={filtered ? "По этим фильтрам ничего нет" : "Публикаций пока нет"} text={filtered ? "Измените период или сбросьте фильтры." : scope ? "Здесь появятся материалы, опубликованные из этого завода." : "Материалы появятся здесь, когда завод напишет первый текст."} />) : (
         <div className="w-full max-w-[600px] space-y-3">
           {rows.map((r) => (
             <Link key={r.id} href={href({ item: r.id, ...(n ? { n: String(lim) } : {}) })} scroll={false} className="block transition hover:opacity-90">

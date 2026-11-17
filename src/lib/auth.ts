@@ -13,6 +13,8 @@ import { LEGAL_VERSION } from "./legal";
 import { cleanupAttempts, loginBlocked, loginFailed, loginSucceeded, registerBlocked, registerNoted } from "./throttle";
 
 const COOKIE = "lt_session";
+const GUEST_COOKIE = "lt_guest_session";
+const SESSION_AGE = 90 * 24 * 60 * 60;
 // настоящий хеш случайного пароля: на нём «тратим» то же время bcrypt, когда пользователя с таким email нет
 let dummy: Promise<string> | null = null;
 const dummyHash = () => (dummy ??= bcrypt.hash(randomBytes(16).toString("hex"), 11));
@@ -33,19 +35,29 @@ export interface Ctx {
 }
 
 /** Cookie сессии. Отдельно от setSession — route handler ставит её прямо на ответ-редирект. */
-export async function sessionCookie(s: Session) {
+export async function sessionCookie(s: Session, guestExpiresAt?: string | null) {
   // версия сессии пользователя: после смены пароля старые cookie перестают действовать
   const ver = (await one<{ v: number }>("select session_ver v from kz_users where id=$1", [s.uid]).catch((e) => { if (isSchemaError(e)) return null; throw e; }))?.v ?? 0;
-  const value = await new SignJWT({ uid: s.uid, org: s.org, v: ver }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("90d").sign(key());
-  return { name: COOKIE, value, httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 90 };
+  const guest = guestExpiresAt !== undefined;
+  const now = Math.floor(Date.now() / 1000);
+  const maxAge = guestExpiresAt
+    ? Math.max(0, Math.min(SESSION_AGE, Math.floor(Date.parse(guestExpiresAt) / 1000) - now))
+    : SESSION_AGE;
+  const value = await new SignJWT({ uid: s.uid, org: s.org, v: ver }).setProtectedHeader({ alg: "HS256" }).setExpirationTime(now + maxAge).sign(key());
+  return { name: guest ? GUEST_COOKIE : COOKIE, value, httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge };
 }
 
 export async function setSession(s: Session) { (await cookies()).set(await sessionCookie(s)); }
 
-export async function readSession(): Promise<Session | null> {
-  const t = (await cookies()).get(COOKIE)?.value;
-  if (!t) return null;
-  try { return (await jwtVerify(t, key())).payload as unknown as Session; } catch { return null; }
+export async function readSession(includeGuest = true): Promise<Session | null> {
+  const store = await cookies();
+  for (const name of includeGuest ? [COOKIE, GUEST_COOKIE] : [COOKIE]) {
+    const token = store.get(name)?.value;
+    if (!token) continue;
+    try { return (await jwtVerify(token, key(), { algorithms: ["HS256"] })).payload as unknown as Session; }
+    catch { /* Истёкшая cookie не образует сессию. */ }
+  }
+  return null;
 }
 
 export async function register(email: string, password: string, name: string, orgName: string, refCode?: string, ip = "", consent = false) {
@@ -108,11 +120,15 @@ export async function login(email: string, password: string, ip = "") {
   return {};
 }
 
-export async function logout() { (await cookies()).delete(COOKIE); }
+export async function logout() {
+  const store = await cookies();
+  store.delete(COOKIE);
+  store.delete(GUEST_COOKIE);
+}
 
 export async function switchOrg(orgId: string) {
   const s = await readSession();
-  if (!s) return;
+  if (!s || !(await validSession(s))) return;
   if (await one("select 1 from kz_memberships where org_id=$1 and user_id=$2", [orgId, s.uid])) await setSession({ uid: s.uid, org: orgId });
 }
 

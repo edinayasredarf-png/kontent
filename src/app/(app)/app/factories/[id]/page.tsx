@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pause, Play, Trash2, AlertTriangle, Plus, FileText } from "lucide-react";
+import { Pause, Play, Trash2, AlertTriangle, FileText } from "lucide-react";
 import { FactoryTabMemory } from "@/components/FactoryTabMemory";
-import { FactoryTabs } from "@/components/FactoryTabs";
+import { FactoryContentTabs, FactoryTabs } from "@/components/FactoryTabs";
 import { DraftHost } from "@/components/DraftHost";
 import { ContentStudio } from "@/components/ContentStudio";
 import { ContentCalendar } from "@/components/ContentCalendar";
@@ -28,7 +28,6 @@ import { cleanSettings } from "@/lib/postsettings";
 import { Status, KIND } from "@/components/ui";
 import { FactoryRename } from "@/components/FactoryRename";
 import { FactoryImagesToggle } from "@/components/FactoryImagesToggle";
-import { OrgTabs } from "@/components/shell/OrgTabs";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export const maxDuration = 300;
@@ -70,14 +69,15 @@ export default async function FactoryPage({ params, searchParams }: { params: Pr
   return (
     <>
       <FactoryTabMemory tab={tab} />
-      <OrgTabs action={canWrite(c.org.role) ? <Link href="/app/factories/new" className="btn-rect">Создать завод<Plus size={16} /></Link> : null} />
-      <div className="mb-8 flex max-w-[749px] flex-wrap items-center gap-3">
+      <FactoryTabs factoryId={id} brandId={f.brand_id} tab={tab} canCreate={canWrite(c.org.role)} />
+      {(tab === "plan" || isDrafts) && <div className="mb-5"><FactoryContentTabs factoryId={id} section={isDrafts ? "drafts" : "plan"} /></div>}
+      {tab === "settings" && <div className="mb-8 mt-6 flex max-w-[749px] flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0"><FactoryRename id={id} name={f.name} /></div>
-        <Link className="pill !bg-tile !text-ink" href={`/app/brands/${f.brand_id}/knowledge`}>База знаний · {f.brand}</Link>
-        <form action={toggleFactory}>{hid}<SubmitButton className="pill !bg-tile !text-ink">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
-        <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»? Будут удалены его план, материалы и настройки. Это действие нельзя отменить.`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
-      </div>
-      <div className="mb-6"><FactoryTabs factoryId={id} tab={tab} drafts={isDrafts} canCreate={canWrite(c.org.role)} /></div>
+        {canWrite(c.org.role) && <>
+          <form action={toggleFactory}>{hid}<SubmitButton className="pill !bg-tile !text-ink">{f.status === "active" ? <><Pause size={15} />Пауза</> : <><Play size={15} />Запустить</>}</SubmitButton></form>
+          <form action={deleteFactory}>{hid}<SubmitButton data-confirm={`Удалить завод «${f.name}»?`} className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad hover:opacity-80" title="Удалить завод" aria-label="Удалить завод"><Trash2 size={15} /></SubmitButton></form>
+        </>}
+      </div>}
       {(tab === "settings" || isDrafts) && note && !draftIds.length && <div className="mb-4 max-w-[680px] rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</div>}
       {(tab === "settings" || isDrafts) && err && !draftIds.length && <div className="mb-4 flex max-w-[680px] items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</div>}
 

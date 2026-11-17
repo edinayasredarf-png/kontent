@@ -174,7 +174,7 @@ export async function analytics(orgId: string, filter: AFilter | Period, include
       `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, P),
     q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, P),
     one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1${lsql}`, lp),
-    includeTrend ? q<AnalyticsDay>(`select to_char(p.published_at at time zone 'Europe/Moscow','YYYY-MM-DD') day,
+    includeTrend ? q<AnalyticsDay>(`select to_char(p.published_at at time zone 'Europe/Moscow','YYYY-MM-DD') as day,
       sum(s.views)::float8 views,sum(s.likes)::float8 likes,sum(s.comments)::float8 comments,sum(s.reposts)::float8 reposts
       ${base} and p.published_at is not null group by 1 order by 1`, P) : [],
 

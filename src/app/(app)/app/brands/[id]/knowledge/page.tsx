@@ -6,7 +6,7 @@ import { can } from "@/lib/roles";
 import { DeleteBrand } from "@/components/DeleteBrand";
 import { FactoryRename } from "@/components/FactoryRename";
 import { one, q } from "@/lib/db";
-import { OrgTabs } from "@/components/shell/OrgTabs";
+import { FactorySectionTabs } from "@/components/FactorySectionTabs";
 import { Field } from "@/components/Form";
 import { AutoTextarea } from "@/components/AutoTextarea";
 import { ModalButton } from "@/components/ui/ModalButton";
@@ -27,9 +27,9 @@ export const maxDuration = 300;
 
 interface DocView { id: string; kind: keyof typeof KB_KINDS; title: string; url: string | null; chars: number; use_style: boolean; analyzed: boolean; digest_error: string | null }
 
-export default async function Knowledge({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; note?: string }> }) {
+export default async function Knowledge({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; note?: string; factory?: string }> }) {
   const { id } = await params;
-  const { err, note } = await searchParams;
+  const { err, note, factory } = await searchParams;
   const c = await requireCtx();
   const b = await one<{ id: string; name: string; knowledge: string | null }>("select id,name,rules->>'knowledgeName' knowledge from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
   if (!b) notFound();
@@ -65,7 +65,7 @@ export default async function Knowledge({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <OrgTabs action={analyze} />
+      <FactorySectionTabs factory={factory} orgId={c.org.id} brandId={id} tab="knowledge" canCreate={write} action={analyze} />
       {err && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{err}</p>}
       {note && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
 

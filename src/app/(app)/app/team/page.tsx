@@ -6,14 +6,15 @@ import { PLANS, fmtLimit } from "@/lib/plans";
 import { canManageTeam, listTeam, ROLE_HINT, ROLE_LABEL } from "@/lib/team";
 import { Form, Field } from "@/components/Form";
 import { createGuestLinkAction, inviteAction, removeMemberAction, revokeGuestLinkAction, revokeInviteAction, setRoleAction } from "@/lib/account-actions";
-import { OrgTabs } from "@/components/shell/OrgTabs";
+import { FactorySectionTabs } from "@/components/FactorySectionTabs";
 import { Avatar } from "@/components/Avatar";
 import { q } from "@/lib/db";
 import { ModalButton } from "@/components/ui/ModalButton";
 import { InviteUser } from "@/components/InviteUser";
 
 import { SubmitButton } from "@/components/SubmitButton";
-export default async function Team() {
+export default async function Team({ searchParams }: { searchParams: Promise<{ factory?: string }> }) {
+  const { factory } = await searchParams;
   const c = await pageCtx("write");
   const [{ members, invites }, guests] = await Promise.all([listTeam(c.org.id), listGuestLinks(c.org.id)]);
   const avs = new Map((await q<{ user_id: string; v: string }>("select user_id, extract(epoch from updated_at)::bigint::text v from kz_user_avatars where user_id = any($1::uuid[])", [members.map((m) => m.user_id)]).catch(() => [])).map((r) => [r.user_id, Number(r.v)]));
@@ -23,7 +24,7 @@ export default async function Team() {
   const inviteBtn = <InviteUser manage={manage} roles={roles.map((r) => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }))} />;
   return (
     <>
-      <OrgTabs action={inviteBtn} />
+      <FactorySectionTabs factory={factory} orgId={c.org.id} tab="team" canCreate action={inviteBtn} />
       <div className="w-full max-w-[742px]">
         <h1 className="mb-2.5 text-2xl font-medium leading-6 text-ink">Пользователи</h1>
         <p className="mb-2 text-sm text-ink2">{`Участников: ${members.length}${invites.length ? ` + приглашений: ${invites.length}` : ""} из ${fmtLimit(lim)}`}</p>

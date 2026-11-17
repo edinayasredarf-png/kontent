@@ -14,7 +14,7 @@ import { FontPicker } from "@/components/FontPicker";
 import { AssetUploader } from "@/components/AssetUploader";
 import { LogoPlacement } from "@/components/LogoPlacement";
 import { deleteAssetAction, redescribeAssetAction, renameBrandAction, saveBrand } from "@/lib/actions";
-import { OrgTabs } from "@/components/shell/OrgTabs";
+import { FactorySectionTabs } from "@/components/FactorySectionTabs";
 import { ShareCard } from "@/components/ShareCard";
 import { listLinks } from "@/lib/share";
 
@@ -22,8 +22,9 @@ import { SubmitButton } from "@/components/SubmitButton";
 const TONES: Record<string, string> = { professional: "Профессиональный", friendly: "Дружелюбный", humor: "Юмористический", serious: "Серьёзный", inspiring: "Вдохновляющий" };
 const ASPECT: Record<string, string> = { square: "Квадрат 1:1", portrait: "Вертикальный 2:3", landscape: "Горизонтальный 3:2" };
 
-export default async function BrandPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BrandPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ factory?: string }> }) {
   const { id } = await params;
+  const { factory } = await searchParams;
   const c = await requireCtx();
   const b = await one<{ id: string; name: string; description: string; audience: string; tone: string; rules: { forbidden?: string[]; competitors?: string[] }; kit: unknown }>(
     "select id,name,description,audience,tone,rules,kit from kz_brands where id=$1 and org_id=$2", [id, c.org.id]);
@@ -36,7 +37,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
   
   return (
     <>
-      <OrgTabs action={canEdit ? <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link> : null} />
+      <FactorySectionTabs factory={factory} orgId={c.org.id} brandId={id} tab="brand" canCreate={canEdit} action={canEdit ? <Link href="/app/brands/new" className="btn-rect">Добавить бренд<Plus size={16} /></Link> : null} />
       <div className="flex flex-wrap items-center gap-3">
         <FactoryRename key={b.name} id={id} name={b.name} rename={renameBrandAction} label="Название бренда" canEdit={canEdit} />
         {can(c.org.role, "manage") && <DeleteBrand id={id} name={b.name} />}

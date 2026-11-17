@@ -17,12 +17,14 @@ const ERRORS: Record<string, string> = {
 
 export const metadata = { title: "Вход" };
 
-export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string; next?: string; reset?: string }> }) {
-  const { error, next, reset } = await searchParams;
+export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string; next?: string; reset?: string; guest?: string }> }) {
+  const { error, next, reset, guest } = await searchParams;
   const nx = safeNext(next);
   return (
     <AuthShell>
       <h1 className="mb-6 text-2xl font-semibold">Вход</h1>
+      {guest === "active" && <p className="mb-4 rounded-xl bg-tile px-3 py-2 text-sm text-ink2">Вы уже вошли в аккаунт. Чтобы посмотреть другой кабинет по гостевой ссылке, откройте её в приватном окне. <Link className="text-accent-ink underline" href="/app">Вернуться в кабинет</Link></p>}
+      {guest === "expired" && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">Гостевая ссылка больше не действует.</p>}
       {reset === "1" && <p className="mb-4 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">Пароль изменён. Войдите с новым паролем.</p>}
       {error && ERRORS[error] && <p className="mb-4 rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{ERRORS[error]}</p>}
       <Form action={loginAction} submit="Войти" wide>

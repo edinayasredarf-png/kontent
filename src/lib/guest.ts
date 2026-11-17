@@ -36,11 +36,11 @@ export async function revokeGuestLink(orgId: string, id: string): Promise<void> 
 }
 
 /** По ссылке из письма: служебный пользователь и организация, если ссылка действует. */
-export async function guestByToken(token: string): Promise<{ userId: string; orgId: string } | null> {
+export async function guestByToken(token: string): Promise<{ userId: string; orgId: string; expiresAt: string | null } | null> {
   if (!/^[A-Za-z0-9_-]{30,80}$/.test(token)) return null;
-  const r = await one<{ user_id: string; org_id: string }>(
-    "select user_id,org_id from kz_guest_links where token_hash=$1 and (expires_at is null or expires_at > now())", [hash(token)]).catch(() => null);
+  const r = await one<{ user_id: string; org_id: string; expires_at: string | null }> (
+    "select user_id,org_id,expires_at::text expires_at from kz_guest_links where token_hash=$1 and (expires_at is null or expires_at > now())", [hash(token)]).catch(() => null);
   if (!r) return null;
   await q("update kz_guest_links set last_used_at=now() where token_hash=$1", [hash(token)]).catch(() => {});
-  return { userId: r.user_id, orgId: r.org_id };
+  return { userId: r.user_id, orgId: r.org_id, expiresAt: r.expires_at };
 }
