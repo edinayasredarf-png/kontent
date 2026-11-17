@@ -152,7 +152,9 @@ function cond(f: AFilter) {
   return { sql, params, bd };
 }
 
-export async function analytics(orgId: string, filter: AFilter | Period) {
+export interface AnalyticsDay { day: string; views: number; likes: number; comments: number; reposts: number }
+
+export async function analytics(orgId: string, filter: AFilter | Period, includeTrend = false) {
   const f = asFilter(filter), w = cond(f);
   const base = `from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
                 where p.org_id=$1 and p.status='published'${w.sql}`;
@@ -164,7 +166,7 @@ export async function analytics(orgId: string, filter: AFilter | Period) {
   if (f.channel) { lp.push(f.channel); lsql += ` and l.channel_id = $${lp.length}::uuid`; }
   if (f.brand) { lp.push(f.brand); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.brand_id=$${lp.length}::uuid)`; }
   if (f.kind) { lp.push(f.kind); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.kind=$${lp.length})`; }
-  const [tot, byChannel, byKind, top, byHour, clicksRow] = await Promise.all([
+  const [tot, byChannel, byKind, top, byHour, clicksRow, trend] = await Promise.all([
     one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes),0) likes,coalesce(sum(s.comments),0) comments,coalesce(sum(s.reposts),0) reposts ${base}`, P),
     q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select c.kind,c.title,count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by c.kind,c.title order by views desc`, P),
     q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select i.kind,count(*) posts,coalesce(sum(s.views),0) views,round(coalesce(avg(s.views),0)) avg,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by i.kind order by avg desc`, P),
@@ -172,8 +174,12 @@ export async function analytics(orgId: string, filter: AFilter | Period) {
       `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, P),
     q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, P),
     one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1${lsql}`, lp),
+    includeTrend ? q<AnalyticsDay>(`select to_char(p.published_at at time zone 'Europe/Moscow','YYYY-MM-DD') day,
+      sum(s.views)::float8 views,sum(s.likes)::float8 likes,sum(s.comments)::float8 comments,sum(s.reposts)::float8 reposts
+      ${base} and p.published_at is not null group by 1 order by 1`, P) : [],
+
   ]);
-  return { tot: tot!, byChannel, byKind, top, byHour, clicks: Number(clicksRow?.n ?? 0) };
+  return { tot: tot!, byChannel, byKind, top, byHour, trend, clicks: Number(clicksRow?.n ?? 0) };
 }
 
 export async function recommendations(orgId: string, days: AFilter | Period): Promise<{ text?: string; error?: string }> {

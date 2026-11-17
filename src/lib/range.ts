@@ -1,5 +1,5 @@
 /** Период и фильтры для «Аналитики» и «Публикаций». Даты — календарные дни по Москве (в России нет перехода на летнее время, смещение всегда +03:00). */
-export type Preset = "today" | "yesterday" | "tomorrow" | "7" | "30" | "all" | "custom";
+export type Preset = "today" | "yesterday" | "tomorrow" | "7" | "30" | "month" | "all" | "custom";
 export interface Range { r: Preset; from: string; to: string }
 
 const DAY = 86_400_000;
@@ -19,6 +19,7 @@ export function parseRange(sp: { r?: string; d?: string; from?: string; to?: str
     case "yesterday": return { r, from: shift(t, -1), to: shift(t, -1) };
     case "tomorrow": return { r, from: shift(t, 1), to: shift(t, 1) };
     case "7": return { r, from: shift(t, -6), to: t };
+    case "month": return { r, from: `${t.slice(0, 7)}-01`, to: t };
     case "30": return { r, from: shift(t, -29), to: t };
     case "custom": {
       let from = valid(sp.from) ? sp.from! : "", to = valid(sp.to) ? sp.to! : "";

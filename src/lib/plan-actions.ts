@@ -82,7 +82,10 @@ export async function moveItemDateAction(id: string, date: string): Promise<{ ok
   const timed = await one<{ time: string | null }>(`select to_char((i.meta->>'publishAt')::timestamptz at time zone coalesce(f.schedule->>'tz','Europe/Moscow'),'HH24:MI') time
     from kz_content_items i left join kz_factories f on f.id=i.factory_id where i.id=$1 and i.org_id=$2 and i.status='ready'`, [id, c.org.id]);
   const r = timed?.time ? await rescheduleItem(c.org.id, id, date, timed.time) : await moveItem(c.org.id, String(id), String(date));
-  if (r.ok) revalidatePath("/app/calendar");
+  if (r.ok) {
+    revalidatePath("/app/calendar");
+    revalidatePath("/app/factories/[id]", "page");
+  }
   return r.ok ? { ok: true } : { ok: false, error: r.error ?? "Не удалось перенести" };
 }
 

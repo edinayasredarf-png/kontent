@@ -3,58 +3,56 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { requireCtx } from "@/lib/auth";
 import { analytics, membersReport } from "@/lib/engage";
 import { q } from "@/lib/db";
-import { FilterBar } from "@/components/FilterBar";
-import { ExternalPosts } from "@/components/ExternalPosts";
+import { AnalyticsOverview } from "@/components/AnalyticsOverview";
+import { AddExternalPost, ExternalPosts } from "@/components/ExternalPosts";
 import { bounds } from "@/lib/range";
 import { canWrite } from "@/lib/auth";
-import { parseRange, rangeLabel, uuidOrEmpty, type Preset } from "@/lib/range";
+import { parseRange, uuidOrEmpty, type Preset } from "@/lib/range";
 import { recommendAction, refreshStatsAction } from "@/lib/engage-actions";
 import { PRICES, tokens as rub } from "@/lib/wallet";
 import { SUPPORTED_CHANNELS } from "@/lib/publishing";
 import { AiPanel } from "@/components/AiPanel";
-import { Empty, KIND, PageHead } from "@/components/ui";
-import { BarChart3 } from "lucide-react";
+import { KIND } from "@/components/ui";
 
 import { HourChart, MembersChart, ShareDonut } from "@/components/AnalyticsCharts";
 import { SubmitButton } from "@/components/SubmitButton";
-const PRESETS: [Preset, string][] = [["today", "Сегодня"], ["yesterday", "Вчера"], ["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
+const PRESETS: [Preset, string][] = [["month", "Текущий месяц"], ["today", "Сегодня"], ["yesterday", "Вчера"], ["7", "7 дней"], ["30", "30 дней"], ["all", "Всё время"]];
 
 export default async function Analytics({ searchParams }: { searchParams: Promise<{ r?: string; d?: string; from?: string; to?: string; brand?: string; channel?: string; kind?: string }> }) {
   const sp = await searchParams;
   const c = await requireCtx();
   await requirePageFeature(c.org.id, "analytics");
-  const rg = parseRange(sp, [...PRESETS.map(([k]) => k), "custom"], "30");
-  const kind = sp.kind && sp.kind in KIND ? sp.kind : "";
+  const rg = parseRange(sp, [...PRESETS.map(([k]) => k), "custom"], "month");
+  const kind = sp.kind && Object.hasOwn(KIND, sp.kind) ? sp.kind : "";
   const [brands, channels] = await Promise.all([
     q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by created_at", [c.org.id]),
     q<{ id: string; title: string; kind: string }>("select id,title,kind from kz_channels where org_id=$1 order by created_at", [c.org.id]),
   ]);
   const brand = brands.some((x) => x.id === uuidOrEmpty(sp.brand)) ? sp.brand! : "", channel = channels.some((x) => x.id === uuidOrEmpty(sp.channel)) ? sp.channel! : "";
   const filter = { from: rg.from || undefined, to: rg.to || undefined, brand: brand || undefined, channel: channel || undefined, kind: kind || undefined };
-  const [a, members] = await Promise.all([analytics(c.org.id, filter), membersReport(c.org.id)]);
-  const posts = Number(a.tot.posts), views = Number(a.tot.views), eng = Number(a.tot.likes) + Number(a.tot.comments) + Number(a.tot.reposts);
-  const er = views ? ((eng / views) * 100).toFixed(1) : "0";
-    const bound = recommendAction.bind(null, filter);
-  const filtered = !!(brand || channel || kind);
+  const [a, members] = await Promise.all([analytics(c.org.id, filter, true), membersReport(c.org.id)]);
+  const posts = Number(a.tot.posts);
+  const totals = { views: Number(a.tot.views), likes: Number(a.tot.likes), comments: Number(a.tot.comments), reposts: Number(a.tot.reposts) };
+  const bound = recommendAction.bind(null, filter);
+  const write = canWrite(c.org.role);
+  const periodBounds = bounds(rg);
   return (
     <>
-      <PageHead title="Аналитика" sub="Просмотры и реакции опубликованных постов. Данные обновляются сами." action={
-        <form action={refreshStatsAction}><SubmitButton className="btn btn-ghost"><RefreshCw size={15} />Обновить</SubmitButton></form>} />
-      <FilterBar path="/app/analytics" presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
-        { name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) },
-        { name: "channel", label: "Канал", all: "Все каналы", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
-        { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Аналитика</h1>
+        {write && <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <form action={refreshStatsAction}><SubmitButton className="btn btn-ghost !rounded-xl"><RefreshCw size={15} />Обновить</SubmitButton></form>
+          <AddExternalPost brands={brands} />
+        </div>}
+      </div>
+      <AnalyticsOverview range={rg} presets={PRESETS} totals={totals} days={a.trend} filters={[
+        { name: "channel", label: "Канал или социальная сеть", all: "Выбрать соц. сеть", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
+        { name: "kind", label: "Формат контента", all: "Выбрать контент", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
+        ...(brands.length > 1 ? [{ name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) }] : []),
       ]} />
-      <p className="-mt-2 mb-5 text-xs text-ink3">Период: {rangeLabel(rg)}</p>
-      <ExternalPosts orgId={c.org.id} write={canWrite(c.org.role)} from={bounds(rg).from} to={bounds(rg).to} brand={brand} brands={brands} />
-      {posts === 0 ? (
-        <Empty icon={<BarChart3 />} title={filtered || rg.r !== "all" ? "За выбранный период данных нет" : "Пока нет данных"} text={filtered || rg.r !== "all" ? "Попробуйте другой период или уберите фильтры." : "Статистика появится после публикаций: VK отдаёт просмотры и реакции, Telegram — просмотры (до часа после поста)."} />
-      ) : (<>
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[["Постов", posts.toLocaleString("ru-RU")], ["Просмотров", views.toLocaleString("ru-RU")], ["Реакций", eng.toLocaleString("ru-RU")], ["Вовлечённость", `${er}%`], ...(a.clicks > 0 ? [["Переходов на сайт", a.clicks.toLocaleString("ru-RU")]] : [])].map(([l, v]) => (
-            <div key={l} className="rounded-2xl bg-tile p-5"><div className="mb-1 text-sm text-ink2">{l}</div><div className="text-2xl font-semibold">{v}</div></div>
-          ))}
-        </div>
+      <ExternalPosts orgId={c.org.id} from={periodBounds.from} to={periodBounds.to} brand={brand} />
+      {posts > 0 && <>
+        <p className="mb-4 text-sm text-ink2">Публикаций: {posts.toLocaleString("ru-RU")}{a.clicks > 0 && ` · Переходов на сайт: ${a.clicks.toLocaleString("ru-RU")}`}</p>
         {members.length > 0 && (
           <section className="card mb-6 p-5">
             <b className="mb-3 block text-sm">Подписчики</b>
@@ -75,7 +73,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
             <p className="mt-3 text-xs text-ink3">Число подписчиков записывается раз в сутки. График появится через пару дней после подключения канала.</p>
           </section>
         )}
-        <AiPanel title="Рекомендации ИИ" hint={`Разбор того, что работает, и что делать на следующей неделе · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Получить рекомендации" action={bound} />
+        {write && <AiPanel title="Рекомендации ИИ" hint={`Разбор того, что работает, и что делать на следующей неделе · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Получить рекомендации" action={bound} />}
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
           <section className="card p-5">
             <b className="mb-3 block text-sm">По форматам</b>
@@ -107,7 +105,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
             </div>
           ))}
         </section>
-      </>)}
+      </>}
     </>
   );
 }

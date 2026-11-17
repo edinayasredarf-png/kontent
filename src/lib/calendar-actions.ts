@@ -17,6 +17,12 @@ function finish(form: FormData, result: { ok: boolean; error?: string }) {
     if (v) params.set(key, v);
   }
   if (!result.ok) params.set("err", result.error ?? "Не удалось сохранить изменения");
+  const factory = value(form, "factory");
+  if (value(form, "return_to_factory") === "yes" && /^[0-9a-f-]{36}$/i.test(factory)) {
+    params.set("tab", "plan");
+    params.delete("factory");
+    redirect(`/app/factories/${factory}?${params}`);
+  }
   redirect(`/app/calendar?${params}`);
 }
 

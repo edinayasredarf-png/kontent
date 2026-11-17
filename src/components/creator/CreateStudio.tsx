@@ -30,8 +30,8 @@ const WORDS: Record<string, string[]> = {
 };
 const fallbackWords = ["Читаю задачу…", "Пишу материал в голосе бренда…", "Вычитываю текст…", "Почти готово…"];
 
-export function CreateStudio({ factories, startFactory, startKind, models, textModels, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited, unlimitedModels = [], textDefaultModels = {} }: {
-  factories: FactoryOpt[]; startFactory: string; startKind: string; models: ImgModel[]; textModels: string[]; presets: PresetRow[]; examples: ExampleRef[]; recent: RecentWork[];
+export function CreateStudio({ factories, scoped = false, startFactory, startKind, models, textModels, presets: initPresets, examples, recent, kindPrices, balanceKop, unlimited, unlimitedModels = [], textDefaultModels = {} }: {
+  scoped?: boolean; factories: FactoryOpt[]; startFactory: string; startKind: string; models: ImgModel[]; textModels: string[]; presets: PresetRow[]; examples: ExampleRef[]; recent: RecentWork[];
   kindPrices: Record<string, number>; balanceKop: number; unlimited: boolean; unlimitedModels?: string[]; textDefaultModels?: Record<string, string>;
 }) {
   const router = useRouter();
@@ -164,7 +164,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
     setBusy("");
     if (!r.ok) return setErr(r.error);
     setSaved({ id: r.id, factoryId: r.factoryId }); router.refresh();
-    if (go) router.push(`/app/factories/${r.factoryId}?tab=create&draft=${r.id}`);
+    if (go) router.push(openLink(r.id, r.factoryId));
   }
 
   async function recompose(i: number, text?: { title: string; body: string }) {
@@ -212,17 +212,17 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* буфер недоступен */ } };
 
   const picked = refs.map((r) => r.id);
-  const openLink = (id: string, f: string) => `/app/factories/${f}?tab=create&draft=${id}`;
+  const openLink = (id: string, f: string) => `/app/factories/${f}?tab=content&section=drafts&draft=${id}`;
 
   return (
-    <div className="creator-studio grid min-w-0 grid-cols-1 gap-y-5 px-4 py-5 md:px-6 lg:min-h-[calc(100dvh-86px)] lg:grid-cols-[minmax(0,1fr)_255px] lg:grid-rows-[auto_1fr_auto] lg:gap-x-5 lg:py-0 lg:pl-0 lg:pr-2.5">
+    <div className={`${scoped ? "factory-studio lg:!min-h-[min(72dvh,760px)] lg:!grid-cols-[minmax(0,1fr)_220px] xl:!grid-cols-[minmax(0,1fr)_255px]" : "creator-studio"} grid min-w-0 grid-cols-1 gap-y-5 px-4 py-5 md:px-6 lg:min-h-[calc(100dvh-86px)] lg:grid-cols-[minmax(0,1fr)_255px] lg:grid-rows-[auto_1fr_auto] lg:gap-x-5 lg:py-0 lg:pl-0 lg:pr-2.5`}>
       {/* шапка */}
       <div className="flex min-w-0 flex-wrap items-center gap-3 lg:col-start-1 lg:row-start-1 lg:pl-[clamp(24px,4.3vw,76px)] lg:pt-[clamp(32px,5.35vh,65px)]">
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Wand2 size={20} className="text-accent" />Создание материала</h1>
         <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto">
-          <select className="input !w-auto max-w-full !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
+          {scoped ? <span className="chip">{fac?.brand}</span> : <select className="input !w-auto max-w-full !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
             {factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}
-          </select>
+          </select>}
 
         </div>
       </div>
@@ -314,7 +314,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
             {made.imageError && <p role="status" className="text-sm text-warn">Картинка: {made.imageError}</p>}
             <div className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-2xl bg-tile p-4 text-sm leading-6">{made.body.replace(/<[^>]+>/g, made.kind === "seo" || made.kind === "email" || made.kind === "guide" ? " " : "") || "Материал создан: откройте его, чтобы посмотреть."}</div>
             <div className="flex flex-wrap gap-2">
-              <Link href={`/app/create?item=${made.id}`} className="btn btn-accent"><ImageIcon size={15} />Редактировать материал</Link>
+              <Link href={scoped ? `/app/factories/${fid}?tab=create&item=${made.id}` : `/app/create?item=${made.id}`} className="btn btn-accent"><ImageIcon size={15} />Редактировать материал</Link>
               <button type="button" className="btn btn-ghost" onClick={() => void copy(made.body.replace(/<[^>]+>/g, " "))}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Скопировано" : "Копировать текст"}</button>
             </div>
           </div>
@@ -410,7 +410,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
             <Pop chevron={false} trigger={<Clock size={14} />} wide label="Недавние материалы" className="!size-7 !justify-center !rounded-md !p-0">
               {(close) => <><p className="px-3 pb-1 pt-1 text-sm font-semibold">Недавние материалы</p>
                 {recent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет.</p> : recent.map((w) => (
-                  <Link key={w.id} href={openLink(w.id.slice(2), w.factoryId ?? fid)} onClick={close} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-tile">
+                  <Link key={w.id} href={scoped ? `/app/factories/${fid}?tab=create&item=${w.id.slice(2)}` : `/app/create?item=${w.id.slice(2)}`} onClick={close} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-tile">
                     {w.thumb ? <img src={w.thumb} alt="" className="size-9 shrink-0 rounded-lg object-cover" /> : <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-tile2 text-[10px] text-ink3">{typeOf(w.kind).short.slice(0, 4)}</span>}
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm">{w.title}</span><span className="block text-[11px] text-ink3">{typeOf(w.kind).short} · {new Date(w.at).toLocaleDateString("ru-RU")}</span></span>
                   </Link>))}</>}

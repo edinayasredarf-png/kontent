@@ -80,7 +80,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
         </div>
 
         {canWrite && <div className="flex flex-wrap gap-2">
-          {!returnTo.startsWith("/app/create") && <Link className="btn btn-ghost" href={`/app/create?item=${it.id}`}>Открыть в создании контента</Link>}
+          {!returnTo.startsWith("/app/create") && !returnTo.includes("tab=create") && <Link className="btn btn-ghost" href={returnTo.startsWith("/app/factories/") && it.factory_id ? `/app/factories/${it.factory_id}?tab=create&item=${it.id}` : `/app/create?item=${it.id}`}>Открыть в создании контента</Link>}
           {editable && it.factory_id && !it.carousel?.photo && <form action={itemGenerateAction}>{hid}<input type="hidden" name="version" value={it.version} />
             <SubmitButton className="btn btn-accent" data-confirm-ok={it.body ? "Создать заново" : "Создать"} data-confirm={(it.body ? "Создать материал заново? Текущий текст будет заменён." : "Создать контент по этой идее?") + imageCost}>
               {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind, it.brief))}

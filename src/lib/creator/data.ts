@@ -5,8 +5,8 @@ import type { CreateOpts } from "./consts";
 /** Пресет карусели хранит настройки студии, пресет остальных материалов — тон, манеру, аудиторию и референс (`opts`, `refText`). */
 export interface PresetRow { id: string; name: string; kind: string; settings: StudioSettings & { opts?: CreateOpts; refText?: string }; sample: string | null; brand_id: string | null }
 
-export const listPresets = (orgId: string) =>
-  q<PresetRow>("select id,name,kind,settings,sample_asset_id::text sample,brand_id from kz_creator_presets where org_id=$1 order by created_at desc limit 40", [orgId]).catch(() => [] as PresetRow[]);
+export const listPresets = (orgId: string, brandId?: string) =>
+  q<PresetRow>("select id,name,kind,settings,sample_asset_id::text sample,brand_id from kz_creator_presets where org_id=$1 and ($2::uuid is null or brand_id=$2) order by created_at desc limit 40", [orgId, brandId ?? null]).catch(() => [] as PresetRow[]);
 
 /** Есть ли у бренда загруженный логотип: от этого зависит вопрос про логотип перед созданием. */
 export async function brandLogoState(orgId: string, brandIds: string[]) {
@@ -19,11 +19,11 @@ import type { RefItem } from "./consts";
 
 /** Недавние материалы организации: их можно приложить как референс («подгрузить ранее созданное») и открыть из истории. */
 export interface RecentWork extends RefItem { kind: string; factoryId: string | null; at: string }
-export async function recentWorks(orgId: string): Promise<RecentWork[]> {
+export async function recentWorks(orgId: string, factoryId?: string): Promise<RecentWork[]> {
   const rows = await q<{ id: string; kind: string; topic: string; body: string; meta: { carousel?: { slides?: { title: string; body: string }[]; photo?: { style?: string } } } | null; factory_id: string | null; at: string; thumb: string | null }>(
     `select i.id,i.kind,i.topic,i.body,i.meta,i.factory_id,i.created_at::text at,
             (select a.id::text from kz_assets a where a.item_id=i.id and a.position=0 and a.kind='generated' limit 1) thumb
-       from kz_content_items i where i.org_id=$1 and i.status in ('ready','published','approved','scheduled') and i.body<>'' order by i.created_at desc limit 14`, [orgId]).catch(() => []);
+       from kz_content_items i where i.org_id=$1 and ($2::uuid is null or i.factory_id=$2) and i.status in ('ready','published','approved','scheduled') and i.body<>'' order by i.created_at desc limit 14`, [orgId, factoryId ?? null]).catch(() => []);
   return rows.map((r) => {
     const c = r.meta?.carousel;
     const slides = (c?.slides ?? []).map((s) => `${s.title}. ${s.body}`).join(" / ");
