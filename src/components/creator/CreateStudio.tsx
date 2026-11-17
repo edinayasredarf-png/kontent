@@ -2,8 +2,8 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, Bookmark, Check, Clock, Copy, Download, ImageIcon, Layers, Loader2, Paperclip, Plus, RefreshCw, Save, Send, Sparkles, Trash2, Type, Wallet, Wand2, X } from "lucide-react";
-import { QUALITY, NO_OPTS, TYPES, typeOf, slidePrice, type Brief, type CreateOpts, type ImgModel, type RefItem } from "@/lib/creator/consts";
+import { ArrowLeft, ArrowUp, Bookmark, Check, Clock, Copy, Download, ImageIcon, Layers, Loader2, Paperclip, Plus, RefreshCw, Save, Send, Sparkles, Trash2, Type, Wand2, X } from "lucide-react";
+import { FORMATS, QUALITY, NO_OPTS, TYPES, typeOf, slidePrice, type Brief, type CreateOpts, type ImgModel, type RefItem } from "@/lib/creator/consts";
 import { POST_TYPES } from "@/lib/postsettings";
 import type { MadeItem, StudioSettings } from "@/lib/creator/actions";
 import type { PresetRow, RecentWork } from "@/lib/creator/data";
@@ -215,26 +215,26 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
   const openLink = (id: string, f: string) => `/app/factories/${f}?tab=create&draft=${id}`;
 
   return (
-    <div className="creator-studio mx-auto grid min-h-[calc(100dvh-164px)] w-full max-w-[1440px] grid-cols-1 gap-x-3 gap-y-5 rounded-[24px] bg-surface px-0 py-0 lg:grid-cols-[minmax(0,1fr)_255px] xl:px-8">
+    <div className="creator-studio grid min-w-0 grid-cols-1 gap-y-5 px-4 py-5 md:px-6 lg:min-h-[calc(100dvh-86px)] lg:grid-cols-[minmax(0,1fr)_255px] lg:grid-rows-[auto_1fr_auto] lg:gap-x-5 lg:py-0 lg:pl-0 lg:pr-2.5">
       {/* шапка */}
-      <div className="flex min-w-0 flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-3 lg:col-start-1 lg:row-start-1 lg:pl-[clamp(24px,4.3vw,76px)] lg:pt-[clamp(32px,5.35vh,65px)]">
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Wand2 size={20} className="text-accent" />Создание материала</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select className="input !w-auto !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
+        <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto">
+          <select className="input !w-auto max-w-full !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
             {factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}
           </select>
-          <span className="inline-flex items-center gap-1.5 rounded-xl bg-tile px-2.5 py-1.5 text-xs"><Wallet size={13} className="text-ink3" />{unlimited ? "Безлимит" : rub(balanceKop)}</span>
+
         </div>
       </div>
 
       {/* холст */}
-      <div className="min-w-0 self-stretch">
+      <div className="min-w-0 self-stretch lg:col-start-1 lg:row-start-2 lg:px-5 2xl:pl-24">
         {phase === "compose" && (
-          <div className="grid min-h-[180px] place-items-center px-2 py-10 text-center lg:min-h-[min(28dvh,300px)] lg:pb-6">
-            <div className="max-w-xl text-balance">
+          <div className="flex min-h-[160px] justify-center px-2 py-8 text-center lg:pt-[clamp(44px,10vh,124px)] lg:pb-0">
+            <div className="max-w-[570px] text-balance">
 
               <p className="font-medium">{isCar ? "Опишите карусель: ИИ разобьёт тему на слайды и нарисует отдельную картинку к каждому" : `Опишите, какой материал нужен: ИИ напишет ${t.noun} в голосе вашего бренда`}</p>
-              <p className="mt-1 text-sm text-ink2">Выберите тип ниже, при желании укажите стиль, аудиторию и референс. Перед запуском вы увидите описание материала и цену. Можно вставить ссылку на новость: факты возьмём оттуда.</p>
+              <p className="mt-1 text-sm leading-5 text-ink2">Выберите тип ниже, при желании укажите стиль, аудиторию и референс. Перед запуском вы увидите описание материала и цену. Можно вставить ссылку на новость: факты возьмём оттуда.</p>
 
             </div>
           </div>
@@ -319,12 +319,11 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
             </div>
           </div>
         )}
+        {err && <p className="mx-auto mt-3 max-w-[770px] rounded-xl bg-bad-soft px-4 py-2.5 text-sm text-bad" role="alert">{err}</p>}
       </div>
 
-      {err && <p className="lg:col-start-1 rounded-xl bg-bad-soft px-4 py-2.5 text-sm text-bad" role="alert">{err}</p>}
-
       {/* нижняя панель */}
-      <div className="min-w-0 self-end space-y-3 lg:col-start-1 lg:row-start-3">
+      <div className="mx-auto w-full min-w-0 max-w-[770px] self-end space-y-4 lg:col-start-1 lg:row-start-3 lg:w-[calc(100%_-_2.5rem)] 2xl:translate-x-[38px] lg:pb-[clamp(28px,6.55vh,80px)]">
         {hasResult && (
           <div className="flex flex-wrap items-center justify-center gap-2">
             {isCar ? (saved
@@ -346,8 +345,8 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
           </div>)}
 
         {/* тип материала + цена */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Тип материала" className="flex max-w-full items-center gap-1 rounded-lg bg-tile p-1">
+        <div className="flex min-w-0 justify-center">
+          <div role="tablist" aria-label="Тип материала" className="flex max-w-full items-center gap-1 rounded-[14px] bg-tile p-1">
             <div className="flex min-w-0 gap-1 overflow-x-auto">{ORDERED_TYPES.map((x) => (
               <button key={x.kind} type="button" role="tab" aria-selected={x.kind === kind} disabled={working} onClick={() => pickKind(x.kind)} title={x.what}
                 className={`shrink-0 whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${x.kind === kind ? "bg-accent font-medium text-white" : "text-ink2 hover:bg-tile2"}`}>{x.short}</button>))}
@@ -359,7 +358,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
         </div>
 
         {/* ввод */}
-        <div className="overflow-visible rounded-lg border border-accent bg-surface p-2 focus-within:ring-2 focus-within:ring-accent/10">
+        <div className="rounded-[20px] border border-accent bg-surface focus-within:ring-2 focus-within:ring-accent/10">
           {(refs.length > 0 || uploading) && (
             <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
               {refs.map((r) => (
@@ -372,12 +371,12 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
               {uploading && <span className="inline-flex items-center gap-2 rounded-xl bg-tile px-3 py-2 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Смотрю на картинку…</span>}
               <span className="text-[11px] text-ink3">референсы: стиль и подача будут как у них, тема ваша</span>
             </div>)}
-          <textarea className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-ink3" rows={phase === "compose" ? 3 : 2} maxLength={isCar ? 2000 : 20000} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={working}
+          <textarea className="block w-full resize-none bg-transparent px-5 pt-4 text-xs outline-none placeholder:text-ink3" rows={2} maxLength={isCar ? 2000 : 20000} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={working}
             placeholder={isCar ? "Опишите тему или вставьте ссылку на новость. Например: «5 ошибок при выборе подрядчика»" : `О чём ${t.noun}? Тема, идея, ссылка или готовый текст`}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void makeBrief(); }} aria-label="Запрос" />
-          <div className="px-2 pb-1 text-right text-[10px] tabular-nums text-ink3">{prompt.length} / {isCar ? 2000 : 20000}</div>
-          <div className="flex items-center gap-2 rounded-b-md bg-tile px-1.5 py-1">
-            <Pop chevron={false} label="Приложить референс" trigger={uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} className="!size-9 !justify-center !rounded-full !p-0">
+          <div className="px-4 pb-1 text-right text-[10px] tabular-nums text-ink3">{prompt.length} / {isCar ? 2000 : 20000}</div>
+          <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-b-[19px] bg-tile px-3 py-2">
+            <Pop chevron={false} label="Приложить референс" trigger={uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={15} />} className="!size-7 !justify-center !rounded-md !p-0">
               {(close) => <>
                 <p className="px-3 pb-1 pt-1 text-sm font-semibold">Приложить референс</p>
                 <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-tile" onClick={() => { close(); setGallery(true); }}><Layers size={15} className="text-accent" />Из примеров</button>
@@ -391,16 +390,13 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
               </>}
             </Pop>
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
-            <span className="ml-auto" />
-            {short && <span className="hidden text-xs text-bad sm:inline">Не хватает {rub(total - balanceKop)} · <Link href="/app/billing" className="underline">пополнить</Link></span>}
-            <button type="button" className="btn btn-accent !h-8 !justify-center !rounded-md !px-2.5 !py-0" disabled={working || noModel || prompt.trim().length < 3} onClick={() => void makeBrief()} aria-label="Составить описание материала" title="Составить описание (Ctrl+Enter)">
-              {phase === "briefing" ? <Loader2 size={16} className="animate-spin" /> : <><span className="text-[11px]">{operationFree ? "Безлимит модели" : rub(total)}</span><ArrowUp size={16} /></>}
-            </button>
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setGallery(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-tile px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-tile2"><Layers size={13} />примеры</button>
-            <Pop trigger={<><Bookmark size={13} />Пресеты{presets.length ? ` · ${presets.length}` : ""}</>} wide label="Пресеты">
+            {isCar && <>
+              <select aria-label="Пропорции слайда" disabled={working || phase !== "compose"} value={S.format} onChange={e => set({ format: e.target.value as StudioSettings["format"] })} className="h-7 rounded-md bg-surface px-1 text-xs">{Object.entries(FORMATS).map(([key, format]) => <option key={key} value={key}>{format.label.split(" ")[0]}</option>)}</select>
+              <select aria-label="Качество слайда" disabled={working || phase !== "compose"} value={S.quality} onChange={e => set({ quality: e.target.value as StudioSettings["quality"] })} className="h-7 rounded-md bg-surface px-1 text-xs">{Object.entries(QUALITY).map(([key, quality]) => <option key={key} value={key}>{quality.label}</option>)}</select>
+              <select aria-label="Количество слайдов" disabled={working || phase !== "compose"} value={S.n} onChange={e => set({ n: Number(e.target.value) })} className="h-7 rounded-md bg-surface px-1 text-xs">{Array.from({ length: 8 }, (_, i) => i + 3).map(n => <option key={n} value={n}>{n} сл.</option>)}</select>
+            </>}
+            <button type="button" onClick={() => setGallery(true)} className="grid size-7 place-items-center rounded-md bg-surface text-ink hover:bg-accent-soft" aria-label="Примеры материалов" title="Примеры материалов"><Sparkles size={14} /></button>
+            <Pop chevron={false} trigger={<Bookmark size={14} />} wide label="Пресеты" className="!size-7 !justify-center !rounded-md !p-0">
               {(close) => presets.length === 0 ? <p className="p-3 text-xs text-ink3">Пресетов пока нет. Создайте материал и нажмите «Сохранить как пресет»: стиль, тон, аудитория и (для каруселей) модель с качеством запомнятся.</p> : presets.map((p) => (
                 <div key={p.id} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-tile">
                   {p.sample ? <img src={img(p.sample)} alt="" className="size-10 shrink-0 rounded-lg object-cover" /> : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-tile2 text-[10px] text-ink3">{typeOf(p.kind).short.slice(0, 4)}</span>}
@@ -411,7 +407,7 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
                   <button type="button" aria-label="Удалить пресет" className="rounded-lg p-1.5 text-ink3 hover:text-bad" onClick={() => { void deletePresetAction(p.id); setPresets((a) => a.filter((x) => x.id !== p.id)); }}><Trash2 size={14} /></button>
                 </div>))}
             </Pop>
-            <Pop chevron={false} trigger={<Clock size={14} />} wide label="Недавние материалы" className="!px-2">
+            <Pop chevron={false} trigger={<Clock size={14} />} wide label="Недавние материалы" className="!size-7 !justify-center !rounded-md !p-0">
               {(close) => <><p className="px-3 pb-1 pt-1 text-sm font-semibold">Недавние материалы</p>
                 {recent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет.</p> : recent.map((w) => (
                   <Link key={w.id} href={openLink(w.id.slice(2), w.factoryId ?? fid)} onClick={close} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-tile">
@@ -419,12 +415,17 @@ export function CreateStudio({ factories, startFactory, startKind, models, textM
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm">{w.title}</span><span className="block text-[11px] text-ink3">{typeOf(w.kind).short} · {new Date(w.at).toLocaleDateString("ru-RU")}</span></span>
                   </Link>))}</>}
             </Pop>
+            <span className="ml-auto" />
+            {short && <span className="hidden text-xs text-bad sm:inline">Не хватает {rub(total - balanceKop)} · <Link href="/app/billing" className="underline">пополнить</Link></span>}
+            <button type="button" className="btn btn-accent !h-8 !justify-center !rounded-md !px-2.5 !py-0" disabled={working || noModel || prompt.trim().length < 3} onClick={() => void makeBrief()} aria-label="Составить описание материала" title="Составить описание (Ctrl+Enter)">
+              {phase === "briefing" ? <Loader2 size={16} className="animate-spin" /> : <><span className="text-[11px]">{operationFree ? "Безлимит модели" : rub(total)}</span><ArrowUp size={16} /></>}
+            </button>
           </div>
-          {noModel && <p className="mt-2 px-1 text-xs text-bad">Модель изображений не настроена. Администратору: «Настройки ИИ».</p>}
         </div>
+          {noModel && <p className="px-1 text-xs text-bad">Модель изображений не настроена. Администратору: «Настройки ИИ».</p>}
       </div>
 
-      <CreatorSettings unlimitedModels={unlimitedModels} kind={kind} models={models} textModels={textModels} settings={S} opts={opts} audience={fac?.audience ?? ""} hasLogo={hasLogo} disabled={working || phase !== "compose"} set={set} setOpts={setOpts}/>
+      <CreatorSettings unlimitedModels={unlimitedModels} kind={kind} models={models} textModels={textModels} defaultTextModel={textDefaultModels[kind]} settings={S} opts={opts} audience={fac?.audience ?? ""} hasLogo={hasLogo} disabled={working || phase !== "compose"} set={set} setOpts={setOpts}/>
 
       {gallery && <ExamplesModal examples={examples} kind={kind} picked={picked} onToggle={toggleRef} onClose={() => setGallery(false)} />}
 

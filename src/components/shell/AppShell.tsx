@@ -146,9 +146,9 @@ export function AppShell(p: ShellProps) {
           </div>
         </header>
         <div className="flex-1 px-2 pb-2 md:pl-3 md:pr-5 md:pb-3.5">
-          <div className="min-h-[calc(100vh-92px)] rounded-[20px] bg-surface px-5 py-6 md:px-12 md:py-9">
+          <div className="min-h-[calc(100vh-92px)] rounded-[20px] bg-surface px-5 py-6 md:px-12 md:py-9 has-[.creator-studio]:!p-0">
             {viewer && <div className="mb-5"><div className="mx-auto flex max-w-[1280px] items-center gap-2 rounded-2xl bg-accent-soft px-4 py-2.5 text-sm text-ink"><Eye size={16} className="shrink-0 text-accent" /><span>{p.guest ? "Гостевой доступ: можно смотреть, изменять нельзя." : "Режим просмотра: ваша роль «Наблюдатель», изменять данные нельзя."}</span></div></div>}
-            <main>{title && <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{title}</h1>}<div className="mx-auto max-w-[1280px]">{p.children}</div></main>
+            <main>{title && <h1 className="mb-2 text-4xl font-semibold leading-8 text-ink max-md:text-[28px]">{title}</h1>}<div className="mx-auto max-w-[1280px] has-[>.creator-studio]:max-w-none">{p.children}</div></main>
           </div>
         </div>
       </div>
