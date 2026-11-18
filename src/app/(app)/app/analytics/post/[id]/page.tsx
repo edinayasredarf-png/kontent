@@ -1,3 +1,4 @@
+import { ExternalPostMedia } from "@/components/ExternalPostMedia";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
@@ -17,8 +18,8 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const c = await requireCtx();
-  const p = await one<{ id: string; kind: XKind; url: string; author: string; body: string; posted_at: string | null; created_at: string; last_error: string | null; last_fetched_at: string | null; brand: string | null }>(
-    "select p.id,p.kind,p.url,p.author,p.body,p.posted_at,p.created_at,p.last_error,p.last_fetched_at,b.name brand from kz_external_posts p left join kz_brands b on b.id=p.brand_id where p.id=$1 and p.org_id=$2", [id, c.org.id]);
+  const p = await one<{ id: string; kind: XKind; url: string; author: string; body: string; posted_at: string | null; created_at: string; last_error: string | null; last_fetched_at: string | null; brand: string | null; image_count: number; media_checked_at: string | null }>(
+    "select cardinality(p.images) image_count,p.media_checked_at,p.id,p.kind,p.url,p.author,p.body,p.posted_at,p.created_at,p.last_error,p.last_fetched_at,b.name brand from kz_external_posts p left join kz_brands b on b.id=p.brand_id where p.id=$1 and p.org_id=$2", [id, c.org.id]);
   if (!p) notFound();
   const hist = await externalHistory(c.org.id, id);
   const last = hist[hist.length - 1], first = hist[0];
@@ -62,7 +63,7 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
         </section>
         {p.kind === "telegram" && <p className="text-xs text-ink3">Telegram публично отдаёт только просмотры (и реакции, если они видны на странице поста). Охват, пересылки и комментарии доступны лишь владельцу канала в самом Telegram.</p>}
         {p.kind === "max" && <p className="text-xs text-ink3">MAX отдаёт ботам просмотры. Другие показатели доступны в самом приложении.</p>}
-        <section className="card p-5"><b className="mb-2 block text-sm">Текст поста</b>{p.body ? <PostText title="" text={p.body} /> : <p className="text-sm text-ink2">Без текста (картинка, видео или документ).</p>}</section>
+        <section className="card p-5"><b className="mb-2 block text-sm">Материал</b><ExternalPostMedia id={id} count={p.image_count} unchecked={!p.media_checked_at} />{p.body ? <PostText title="" text={p.body} /> : <p className="text-sm text-ink2">Без текста (картинка, видео или документ).</p>}</section>
       </div>
     </>
   );

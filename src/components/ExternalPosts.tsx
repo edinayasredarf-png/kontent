@@ -1,3 +1,4 @@
+import { ExternalPostMedia } from "./ExternalPostMedia";
 import Link from "next/link";
 import { Globe, Plus, Send, Users } from "lucide-react";
 import { listExternal, XKIND_NAME, type XKind, type XRow } from "@/lib/external-posts";
@@ -27,6 +28,7 @@ export async function ExternalPosts({ orgId, from, to, brand }: { orgId: string;
               <span className="ml-auto shrink-0">{(r.posted_at ?? r.created_at) ? new Date(r.posted_at ?? r.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : ""}</span>
             </div>
             <p className="mt-1.5 line-clamp-2 text-sm">{r.body || "Без текста (картинка, видео или документ)"}</p>
+            <ExternalPostMedia id={r.id} count={r.image_count} unchecked={!r.media_checked_at} compact />
             {r.last_error && <p className="mt-1.5 rounded-lg bg-bad-soft px-2 py-1 text-xs text-bad">{r.last_error}</p>}
             <dl className="mt-2 grid grid-cols-5 gap-1.5 text-center">
               {[["Просмотры", fmt(r.views)], ["Лайки", r.kind === "max" ? "—" : fmt(r.likes)], ["Комм.", r.kind === "vk" ? fmt(r.comments) : "—"], ["Репосты", r.kind === "vk" ? fmt(r.reposts) : "—"], ["Вовлечённость", erOf(r)]].map(([l, v]) => (

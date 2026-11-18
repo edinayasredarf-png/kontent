@@ -64,28 +64,9 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
     const srv = await call<{ upload_url: string }>(token, "photos.getWallUploadServer", { group_id: gid });
     const up = await sendFile<{ server: number; photo: string; hash: string }>(srv.upload_url, "photo", img);
     if (!up?.photo || !up.hash) throw new PublishError("VK не принял файл");
-    const saved = await call<{ id: number; owner_id: number }[]>(token, "photos.saveWallPhoto", { group_id: gid, server: String(up.server), photo: up.photo, hash: up.hash });
+    const saved = await call<{ id: number; owner_id: number; access_key?: string }[]>(token, "photos.saveWallPhoto", { group_id: gid, server: String(up.server), photo: up.photo, hash: up.hash });
     if (!saved[0]) throw new PublishError("VK не сохранил фото");
-    return `photo${saved[0].owner_id}_${saved[0].id}`;
-  } },
-  { name: "файл", multi: false, run: async (token, gid, img) => {
-    const srv = await call<{ upload_url: string }>(token, "docs.getWallUploadServer", { group_id: gid });
-    const up = await sendFile<{ file?: string }>(srv.upload_url, "file", img);
-    if (!up?.file) throw new PublishError(`VK не принял файл (ответ: ${JSON.stringify(up).slice(0, 120)})`);
-    const saved = await call<{ type?: string; doc?: { id: number; owner_id: number; access_key?: string }; graffiti?: unknown } | { id: number; owner_id: number }[]>(token, "docs.save", { file: up.file, title: "image.jpg" });
-    const d = Array.isArray(saved) ? saved[0] : (saved as { doc?: { id: number; owner_id: number; access_key?: string } }).doc;
-    if (!d) throw new PublishError("VK не сохранил файл");
-    return `doc${d.owner_id}_${d.id}${"access_key" in d && d.access_key ? `_${d.access_key}` : ""}`;
-  } },
-  // ключ сообщества: фото через «сообщения» VK принимает, но к посту на стене не показывает, поэтому сначала файл и карточка-ссылка; ссылка на страницу с картинкой — VK покажет её карточкой с крупным изображением (нужна публичная ссылка, APP_URL)
-  { name: "ссылка с картинкой", multi: true, single: true, run: async (_t, _g, _i, imageUrl) => {
-    if (!imageUrl) throw new PublishError("не задан APP_URL, публичной ссылки на картинку нет");
-    // VK надолго запоминает разбор адреса (в том числе неудачный), поэтому каждый раз даём новый адрес: лишний параметр подпись не меняет
-    const url = cardUrl(imageUrl);
-    // API сам страницу не читает: без разбора ссылки VK отвечает «No photo given». Просим его разобрать карточку заранее, как при вставке ссылки в пост
-    await fetch(`https://vk.com/share.php?url=${encodeURIComponent(url)}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; vkShare; +http://vk.com/dev/Share)" }, signal: AbortSignal.timeout(8000) }).catch(() => null);
-    await new Promise((r) => setTimeout(r, 1500));
-    return url;
+    return `photo${saved[0].owner_id}_${saved[0].id}${saved[0].access_key ? `_${saved[0].access_key}` : ""}`;
   } },
   { name: "сообщения сообщества", multi: true, run: async (token, gid, img) => {
     const srv = await call<{ upload_url: string }>(token, "photos.getMessagesUploadServer", {});
@@ -98,21 +79,13 @@ const UPLOADERS: { name: string; multi: boolean; single?: boolean; run: (token: 
   } },
 ];
 
-/** Адрес страницы-карточки для картинки; каждый раз новый, чтобы VK не отдавал запомненный неудачный разбор. */
-const cardUrl = (imageUrl: string) => `${imageUrl.replace(/\/api\/pub\/([0-9a-f-]+)\?/i, "/api/pub/$1/card?")}&v=${Date.now().toString(36)}`;
-
-/** Подсказка для ошибки «No photo given»: ссылка на карточку, которую можно вставить в пост VK и посмотреть, читает ли он картинку. */
-function vkNoPhotoTip(errs: string[], imageUrl?: string): string {
-  return errs.some((e) => /No photo given/.test(e)) && imageUrl ? ` Проверка: вставьте ссылку ${cardUrl(imageUrl)} в новый пост VK — должна появиться картинка.` : "";
-}
-
-/** Понятная причина, почему VK не принял фото: по каждому способу загрузки. */
-function vkPhotoHint(errs: string[]): string {
-  const all = errs.join(" | ");
-  const tail = `Подробности: ${all}`;
-  if (/код 5\)/.test(all)) return `ключ доступа недействителен или отозван. ${tail}`;
-  if (/код (15|27|200|7)\)/.test(all)) return `Для фото на стене добавьте ключ пользователя-администратора с правами photos и wall в разделе «Каналы» → «Ключ для фото и аналитики». Ключ сообщества не поддерживает photos.getWallUploadServer. ${tail}`;
-  return tail;
+/** Translate VK key errors without confusing app, group and user credentials. */
+export function vkPhotoAccessError(error: unknown): string {
+  const message = (error as Error).message || "VK не подтвердил доступ";
+  if (/код 27\)/.test(message)) return "В это поле введён ключ сообщества. Для фотографий нужен ключ пользователя — администратора сообщества, полученный с разрешениями photos и wall. Кнопка «Подключить VK» запрашивает доступ через аккаунт VK. Сервисный и защищённый ключи приложения сюда не подходят.";
+  if (/код (15|7|200|1051)\)/.test(message)) return "VK не разрешает этому ключу загружать фото на стену. Проверьте права photos и wall, права администратора сообщества и разрешения приложения VK.";
+  if (/код 5\)/.test(message)) return "VK отклонил ключ — он истёк или отозван. Подключите VK заново или сохраните действующий ключ пользователя.";
+  return message;
 }
 
 export const vk: Provider = {
@@ -122,7 +95,10 @@ export const vk: Provider = {
     const g = await call<{ groups?: { name: string }[] } | { name: string }[]>(token, "groups.getById", { group_id: id });
     const name = Array.isArray(g) ? g[0]?.name : g.groups?.[0]?.name;
     if (!name) throw new PublishError("Сообщество не найдено — проверьте id");
-    if (c.photoToken) await call(c.photoToken, "photos.getWallUploadServer", { group_id: id });
+    if (c.photoToken) {
+      try { await call(c.photoToken, "photos.getWallUploadServer", { group_id: id }); }
+      catch (error) { throw new PublishError(vkPhotoAccessError(error)); }
+    }
     return name;
   },
   async publish(input, c) {
@@ -131,18 +107,23 @@ export const vk: Provider = {
     // VK принимает только JPG, PNG и GIF; WebP и прочее он отбрасывает (пустой ответ загрузки), поэтому отправляем всё JPEG-ом
     const pics: Img[] = await Promise.all(raw.map(async (p) => /jpe?g/.test(p.mime) ? p : { data: await sharp(p.data).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" }));
     const message = toPlain(input.text).slice(0, 15000);
-    const post = async (attachment?: string) => call<{ post_id: number }>(token, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(attachment ? { attachments: attachment } : {}) });
+    const post = async (attachment?: string, postToken = token) => call<{ post_id: number }>(postToken, "wall.post", { owner_id: `-${id}`, from_group: "1", message, ...(attachment ? { attachments: attachment } : {}) });
     const done = (r: { post_id: number }, warning?: string) => ({ externalId: String(r.post_id), url: `https://vk.com/wall-${id}_${r.post_id}`, warning });
     const errs: string[] = [];
+    let wallUploaded = false;
     // пробуем способы по очереди; пост не публикуется, пока не подготовлено вложение, а ошибка вложения не теряет текст
     for (const up of UPLOADERS) {
       if (!pics.length) break;
       if (!up.multi && pics.length > 1 || up.single && pics.length > 1) continue;
       try {
         const ids: string[] = [];
+        // User-owned uploads may be invisible to a group token. Keep upload,
+        // publishing, verification and cleanup in the same authorization context.
+        const postToken = up.name === "стена" ? c.photoToken || token : token;
         // «single»: способ прикрепляет одну ссылку на всё (для карусели — на первый слайд)
-        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(c.photoToken || token, id, pic, input.imageUrl));
-        const r = await post(ids.join(",")).catch(e => {
+        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(postToken, id, pic, input.imageUrl));
+        if (up.name === "стена") wallUploaded = true;
+        const r = await post(ids.join(","), postToken).catch(e => {
           if ((e as PublishError).retryable) throw new UncertainPostError("VK не подтвердил результат отправки. Проверьте стену сообщества перед повторной публикацией, чтобы избежать дубликата.");
           throw e;
         });
@@ -150,20 +131,20 @@ export const vk: Provider = {
         let checkErr = "";
         type Wall = { attachments?: unknown[] };
         let got: { items?: Wall[] } | Wall[] | null = null;
-        for (const readToken of [...new Set([c.photoToken, process.env.VK_SERVICE_TOKEN?.trim(), token].filter((t): t is string => !!t))]) {
+        for (const readToken of [...new Set([postToken, c.photoToken, process.env.VK_SERVICE_TOKEN?.trim(), token].filter((t): t is string => !!t))]) {
           try { got = await call<{ items?: Wall[] } | Wall[]>(readToken, "wall.getById", { posts: `-${id}_${r.post_id}` }); checkErr = ""; break; }
           catch (e) { checkErr = (e as Error).message; }
         }
         const list = Array.isArray(got) ? got : got?.items;
         if (checkErr || !list?.[0]) {
           // убедиться, что картинка в посте, нельзя: такой пост не оставляем (картинка — часть публикации)
-          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
-          throw new PublishError(`Пост не опубликован: VK не позволил проверить, что картинка прикрепилась (способ: ${up.name}). ${errs.length ? `Что не сработало: ${errs.join(" | ")}. ` : ""}${vkNoPhotoTip(errs, input.imageUrl)}`);
+          await call(postToken, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
+          throw new PublishError(`Пост не опубликован: VK не позволил проверить, что картинка прикрепилась (способ: ${up.name}). ${errs.length ? `Что не сработало: ${errs.join(" | ")}. ` : ""}`);
         }
         const attachments = list[0].attachments as { type?: string; photo?: { id?: number; owner_id?: number }; link?: { photo?: unknown } }[] | undefined;
         const photos = attachments?.filter(a => a.type === "photo" && a.photo && ids.some(ref => (ref === `photo${a.photo!.owner_id}_${a.photo!.id}` || ref.startsWith(`photo${a.photo!.owner_id}_${a.photo!.id}_`)))) ?? [];
         if (photos.length < pics.length && !(up.single && pics.length === 1 && attachments?.some(a => a.type === "link" && a.link?.photo))) {
-          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
+          await call(postToken, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
         }
         return done(r);
@@ -173,7 +154,10 @@ export const vk: Provider = {
       }
     }
     // картинка есть, а прикрепить её не удалось ни одним способом: пост без картинки не публикуем
-    if (pics.length) throw new PublishError(`Пост не опубликован: ${pics.length > 1 ? "слайды не загрузились" : "картинка не загрузилась"} в VK. ${vkPhotoHint(errs)}.${vkNoPhotoTip(errs, input.imageUrl)}`);
+    if (pics.length) {
+      const reason = wallUploaded ? "Фото загрузилось, но VK не подтвердил его в опубликованной записи. Проверьте права пользователя на публикацию в выбранном сообществе." : vkPhotoAccessError(new Error(errs[0] || "VK не принял изображение"));
+      throw new PublishError(`Пост не опубликован. ${reason} Подробности: ${errs.join(" | ")}`);
+    }
     return done(await post());
   },
 };

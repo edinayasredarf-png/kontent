@@ -1,3 +1,5 @@
+import { vkPostImages, type VkMediaPost } from "./external-media";
+import { parseTelegram } from "./monitor/parse";
 import { vkChannelCredentials } from "./vk-channel-token";
 import { parse as parseHtml } from "node-html-parser";
 import { one, q } from "./db";
@@ -13,7 +15,7 @@ export const MAX_EXTERNAL = 100;
 export const XKIND_NAME: Record<XKind, string> = { telegram: "Telegram", vk: "VK", max: "MAX" };
 
 export interface Metrics { views: number; likes: number; comments: number; reposts: number; extra: Record<string, number> }
-export interface Fetched { author: string; body: string; at: Date | null; metrics: Metrics; channelId: string | null }
+export interface Fetched { images?: string[]; author: string; body: string; at: Date | null; metrics: Metrics; channelId: string | null }
 export type Parsed = { kind: "telegram"; ref: string; user: string; id: string } | { kind: "vk"; ref: string; owner: string; id: string } | { kind: "max"; ref: string; url: string };
 
 /** Разбор ссылки на пост. Закрытые каналы (t.me/c/…) и ссылки не на пост отклоняются с понятной причиной. */
@@ -58,11 +60,11 @@ async function fetchTelegram(p: Extract<Parsed, { kind: "telegram" }>): Promise<
   const r = await safeFetchText(`${TG_BASE()}/${p.user}/${p.id}?embed=1&mode=tme`).catch((e: Error) => { throw new Error(`Telegram недоступен: ${e.message}`); });
   const x = parseTgEmbed(r.text);
   if (x.views === null && !x.body) throw new Error("Пост не найден: он удалён или канал закрыт. Читать можно только публичные каналы");
-  return { author: x.author || `@${p.user}`, body: x.body, at: x.at, channelId: null, metrics: { views: x.views ?? 0, likes: x.reactions, comments: 0, reposts: 0, extra: {} } };
+  return { images: parseTelegram(r.text, p.user).flatMap(post => post.media ?? []).filter(m => m.type === "image" && m.url).map(m => m.url!).slice(0, 10), author: x.author || `@${p.user}`, body: x.body, at: x.at, channelId: null, metrics: { views: x.views ?? 0, likes: x.reactions, comments: 0, reposts: 0, extra: {} } };
 }
 
 /* ───────── VK ───────── */
-interface VkWall { id: number; owner_id: number; date: number; text?: string; copy_history?: { text?: string }[]; views?: { count: number }; likes?: { count: number }; comments?: { count: number }; reposts?: { count: number } }
+interface VkWall extends VkMediaPost { id: number; owner_id: number; date: number; text?: string; copy_history?: (VkMediaPost & { text?: string })[]; views?: { count: number }; likes?: { count: number }; comments?: { count: number }; reposts?: { count: number } }
 async function fetchVk(orgId: string, p: Extract<Parsed, { kind: "vk" }>): Promise<Fetched> {
   // если сообщество подключено у нас, читаем его ключом (он отдаёт и охват); иначе общим сервисным ключом
   const chans = await q<{ id: string; credentials: unknown }>("select id,credentials from kz_channels where org_id=$1 and kind='vk' and status='active'", [orgId]);
@@ -93,7 +95,7 @@ async function fetchVk(orgId: string, p: Extract<Parsed, { kind: "vk" }>): Promi
   }
   return {
     author: names[0] ?? "", body: (it.text?.trim() ? it.text : it.copy_history?.[0]?.text ?? "").replace(/\[(?:club|public|id)\d+\|([^\]]+)\]/g, "$1").trim(),
-    at: new Date(it.date * 1000), channelId: own?.id ?? null,
+    images: vkPostImages(it), at: new Date(it.date * 1000), channelId: own?.id ?? null,
     metrics: { views: it.views?.count ?? 0, likes: it.likes?.count ?? 0, comments: it.comments?.count ?? 0, reposts: it.reposts?.count ?? 0, extra },
   };
 }
@@ -108,7 +110,7 @@ async function fetchMax(orgId: string, p: Extract<Parsed, { kind: "max" }>): Pro
     const c = open(ch.credentials) as Record<string, string>;
     const posts = await listPosts(maxToken(c), (c.target ?? "").trim(), { count: 100 }).catch(() => []);
     const hit = posts.find((x) => (x.url ?? "").toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "") === want || (last.length > 6 && x.mid.toLowerCase().includes(last)));
-    if (hit) return { author: "", body: hit.text, at: hit.at, channelId: ch.id, metrics: { views: hit.views ?? 0, likes: 0, comments: 0, reposts: 0, extra: {} } };
+    if (hit) return { images: hit.media.filter(m => m.type === "image" && m.url).map(m => m.url!).slice(0, 10), author: "", body: hit.text, at: hit.at, channelId: ch.id, metrics: { views: hit.views ?? 0, likes: 0, comments: 0, reposts: 0, extra: {} } };
   }
   throw new Error("Пост не найден среди последних 100 сообщений подключённых каналов MAX. Проверьте ссылку и что бот администратор того канала, где опубликован пост");
 }
@@ -131,8 +133,8 @@ export async function addExternalPost(orgId: string, brandId: string | null, lin
   try { f = await fetchExternal(orgId, p); } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 400) }; }
   const url = link.trim().startsWith("http") ? link.trim() : `https://${link.trim()}`;
   const row = await one<{ id: string }>(
-    `insert into kz_external_posts(org_id,brand_id,kind,url,ext_ref,channel_id,author,body,posted_at,last_fetched_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9,now()) returning id`,
-    [orgId, brandId, p.kind, url.slice(0, 500), p.ref, f.channelId, f.author.slice(0, 120), f.body.slice(0, 8000), f.at?.toISOString() ?? null]);
+    `insert into kz_external_posts(org_id,brand_id,kind,url,ext_ref,channel_id,author,body,posted_at,last_fetched_at,images,media_checked_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),$10,now()) returning id`,
+    [orgId, brandId, p.kind, url.slice(0, 500), p.ref, f.channelId, f.author.slice(0, 120), f.body.slice(0, 8000), f.at?.toISOString() ?? null, f.images ?? []]);
   await snap(row!.id, f.metrics);
   return { ok: true, id: row!.id };
 }
@@ -144,7 +146,7 @@ export async function refreshExternal(id: string): Promise<{ ok: true } | { ok: 
   try {
     const f = await fetchExternal(r.org_id, parsePostLink(r.url));
     await snap(r.id, f.metrics);
-    await q("update kz_external_posts set last_fetched_at=now(), last_error=null, body=case when $2<>'' then $2 else body end, posted_at=coalesce($3::timestamptz,posted_at), channel_id=coalesce($4::uuid,channel_id) where id=$1", [r.id, f.body.slice(0, 8000), f.at?.toISOString() ?? null, f.channelId]);
+    await q("update kz_external_posts set last_fetched_at=now(), last_error=null, body=case when $2<>'' then $2 else body end, posted_at=coalesce($3::timestamptz,posted_at), channel_id=coalesce($4::uuid,channel_id),images=$5,media_checked_at=now() where id=$1", [r.id, f.body.slice(0, 8000), f.at?.toISOString() ?? null, f.channelId, f.images ?? []]);
     return { ok: true };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 400);
@@ -167,6 +169,7 @@ export async function collectExternal(limit = 12): Promise<{ updated: number; er
 }
 
 export interface XRow {
+  image_count: number; media_checked_at: string | null;
   id: string; kind: XKind; url: string; author: string; body: string; posted_at: string | null; created_at: string; last_error: string | null; last_fetched_at: string | null; brand_id: string | null;
   views: number; likes: number; comments: number; reposts: number; extra: Record<string, number>; d24: number | null; first_views: number | null;
 }
@@ -179,7 +182,7 @@ export async function listExternal(orgId: string, f: { from?: string | null; to?
   if (f.to) where += ` and coalesce(p.posted_at,p.created_at) < ${add(f.to)}::timestamptz`;
   if (f.brand) where += ` and p.brand_id = ${add(f.brand)}::uuid`;
   return q<XRow>(
-    `select p.id,p.kind,p.url,p.author,p.body,p.posted_at,p.created_at,p.last_error,p.last_fetched_at,p.brand_id,
+    `select cardinality(p.images) image_count,p.media_checked_at,p.id,p.kind,p.url,p.author,p.body,p.posted_at,p.created_at,p.last_error,p.last_fetched_at,p.brand_id,
             coalesce(s.views,0) views,coalesce(s.likes,0) likes,coalesce(s.comments,0) comments,coalesce(s.reposts,0) reposts,coalesce(s.extra,'{}'::jsonb) extra,
             (s.views - (select x.views from kz_external_stats x where x.post_id=p.id and x.fetched_at <= now() - interval '24 hours' order by x.fetched_at desc limit 1)) d24,
             (select x.views from kz_external_stats x where x.post_id=p.id order by x.fetched_at limit 1) first_views
@@ -190,4 +193,17 @@ export async function listExternal(orgId: string, f: { from?: string | null; to?
 export async function externalHistory(orgId: string, id: string) {
   return q<{ at: string; views: number; likes: number; comments: number; reposts: number }>(
     `select x.fetched_at at,x.views,x.likes,x.comments,x.reposts from kz_external_stats x join kz_external_posts p on p.id=x.post_id where p.id=$1 and p.org_id=$2 order by x.fetched_at`, [id, orgId]);
+}
+
+/** Hydrate older imported posts on demand, without creating a statistics snapshot. */
+export async function externalImages(orgId: string, id: string): Promise<string[]> {
+  const row = await one<{ images: string[]; url: string; media_checked_at: string | null }>("select images,url,media_checked_at from kz_external_posts where id=$1 and org_id=$2", [id, orgId]);
+  if (!row) return [];
+  if (row.media_checked_at) return row.images;
+  try {
+    const fetched = await fetchExternal(orgId, parsePostLink(row.url));
+    const images = fetched.images ?? [];
+    await q("update kz_external_posts set images=$3,media_checked_at=now() where id=$1 and org_id=$2", [id, orgId, images]);
+    return images;
+  } catch { return row.images; }
 }

@@ -16,8 +16,8 @@ export default async function Channels() {
   const c = await pageCtx("write");
   const manage = can(c.org.role, "manage");
   const brands = await q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]);
-  const rows = await q<{ id: string; kind: string; title: string; brand: string; signature: string }>(
-    "select ch.id,ch.kind,ch.title,ch.signature,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
+  const rows = await q<{ id: string; kind: string; title: string; brand: string; signature: string; brand_id: string }>(
+    "select ch.id,ch.kind,ch.title,ch.signature,ch.brand_id,b.name brand from kz_channels ch join kz_brands b on b.id=ch.brand_id where ch.org_id=$1 order by ch.created_at", [c.org.id]);
   return (
     <>
       <PageHead title="Каналы" sub={manage ? "Куда публикуем. Канал принадлежит бренду." : "Куда публикуем. Подключают и удаляют каналы владелец и администратор."}  action={manage ? <ModalButton className="btn-rect" label="Добавить канал" title="Добавить канал">
@@ -30,7 +30,7 @@ export default async function Channels() {
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="chip">{KINDS[r.kind] ?? r.kind}</span><span className="flex-1 text-sm">{r.title}</span><span className="text-xs text-ink3">{r.brand}</span>
-                  <ChannelCheck id={r.id} kind={r.kind} manage={manage} />
+                  <ChannelCheck id={r.id} kind={r.kind} manage={manage} brandId={r.brand_id} />
                   {manage && <form action={deleteChannel}><input type="hidden" name="id" value={r.id} /><SubmitButton data-confirm="Удалить канал? Публикации в него остановятся." className="text-ink3 hover:text-bad"><Trash2 size={15} /></SubmitButton></form>}
                 </div>
                 {!["wordpress", "webhook"].includes(r.kind) && (

@@ -1,3 +1,4 @@
+import { vkChannelCallbackHandler } from "@/lib/channel-callback";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { sessionCookie } from "@/lib/auth";
@@ -10,6 +11,7 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
+  if (provider === "vk" && req.nextUrl.searchParams.get("state")?.startsWith("channel_")) return vkChannelCallbackHandler(req);
   const fail = (e: string) => { const r = NextResponse.redirect(new URL(`/login?error=${e}`, req.url)); r.cookies.delete({ name: "lt_oauth_state", path: "/api/oauth" }); return r; };
   if (!PROVIDERS.includes(provider as Provider) || !configured(provider as Provider)) return fail("provider");
   const p = provider as Provider;

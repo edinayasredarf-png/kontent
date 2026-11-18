@@ -63,7 +63,7 @@ test("channel connections bind provider permissions to the correct user, organiz
     });
     await t.test("VK callback is one-use, account-bound, encrypted and selects only returned communities", async () => {
       const start = await startConnection(org, user, brand, "vk", factory), url = new URL(start.url), state = url.searchParams.get("state")!;
-      assert.equal(url.searchParams.get("redirect_uri"), "https://juicer.test/api/channels/vk/callback");
+      assert.equal(url.searchParams.get("redirect_uri"), "https://juicer.test/api/oauth/vk/callback");
       assert.equal(url.searchParams.get("code_challenge_method"), "S256");
       await assert.rejects(finishVkConnection(otherOrg, user, state, "code", "device"));
       await assert.rejects(finishVkConnection(org, otherUser, state, "code", "device"));
@@ -88,7 +88,8 @@ test("channel connections bind provider permissions to the correct user, organiz
       assert.equal(tokenCalls, 2);
     });
     await t.test("reconnection renews the existing channel instead of duplicating it", async () => {
-      const start = await startConnection(org, user, brand, "vk");
+      const channelId = (await db.query<{id:string}>("select id from kz_channels where org_id=$1 and kind='vk'", [org])).rows[0].id;
+      const start = await startConnection(org, user, brand, "vk", undefined, channelId);
       await finishVkConnection(org, user, new URL(start.url).searchParams.get("state")!, "code", "device");
       await connectSelected(org, user, start.id, "123");
       const count = (await db.query<{ n: number }>("select count(*)::int n from kz_channels where org_id=$1 and kind='vk'", [org])).rows[0].n;

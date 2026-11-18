@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
 import { CheckCircle2, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { startChannelConnection } from "@/lib/channel-connect-actions";
 import { checkSavedChannelAction, saveVkPhotoTokenAction } from "@/lib/actions";
 
 /** Повторная проверка подключённого канала: токен жив, бот на месте. */
-export function ChannelCheck({ id, kind, manage }: { id: string; kind?: string; manage?: boolean }) {
+export function ChannelCheck({ id, kind, manage, brandId }: { id: string; kind?: string; manage?: boolean; brandId?: string }) {
   const [st, setSt] = useState<{ busy: boolean; ok?: boolean; text?: string }>({ busy: false });
   async function run() {
     setSt({ busy: true });
@@ -14,7 +15,12 @@ export function ChannelCheck({ id, kind, manage }: { id: string; kind?: string; 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={run} disabled={st.busy} className="btn btn-ghost !px-2.5 !py-1 text-xs">{st.busy ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />}Проверить</button>
-      {kind === "vk" && manage && <details className="w-full text-xs"><summary className="cursor-pointer text-ink2">Ключ для фото и аналитики</summary><form className="mt-3 space-y-2" action={async f => {
+      {kind === "vk" && manage && brandId && <button type="button" disabled={st.busy} className="btn btn-accent text-xs" onClick={async () => {
+        setSt({busy:true});
+        try { const result = await startChannelConnection("vk", brandId, undefined, id); if (result.ok) window.location.assign(result.url); else setSt({busy:false,ok:false,text:result.error}); }
+        catch { setSt({busy:false,ok:false,text:"Не удалось подключиться к VK"}); }
+      }}>Подключить доступ через VK</button>}
+      {kind === "vk" && manage && <details className="w-full text-xs"><summary className="cursor-pointer text-ink2">Дополнительно — ввести ключ вручную</summary><form className="mt-3 space-y-2" action={async f => {
         setSt({ busy: true });
         try { const result = await saveVkPhotoTokenAction(id, String(f.get("photoToken") ?? "")); setSt({ busy: false, ok: result.ok, text: result.ok ? "Ключ сохранён" : result.error }); }
         catch { setSt({ busy: false, ok: false, text: "Не удалось сохранить ключ" }); }

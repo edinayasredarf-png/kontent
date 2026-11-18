@@ -8,10 +8,10 @@ const error = (e: unknown) => {
   const message = (e as Error).message;
   return { ok: false as const, error: /код (27|1051)/.test(message) ? "VK пока не разрешил приложению работу со стеной и фотографиями. Администратору JuicerAI нужно запросить эти доступы в кабинете VK." : message.slice(0, 300) };
 };
-export async function startChannelConnection(provider: ConnectionProvider, brandId: string, factoryId?: string) {
+export async function startChannelConnection(provider: ConnectionProvider, brandId: string, factoryId?: string, channelId?: string) {
   const c = await requireManager();
   if (!["vk", "telegram"].includes(provider)) return { ok: false as const, error: "Неизвестная площадка" };
-  try { return { ok: true as const, ...await startConnection(c.org.id, c.user.id, brandId, provider, factoryId) }; } catch (e) { return error(e); }
+  try { return { ok: true as const, ...await startConnection(c.org.id, c.user.id, brandId, provider, factoryId, channelId) }; } catch (e) { return error(e); }
 }
 export async function pollChannelConnection(id: string) {
   const c = await requireManager();
