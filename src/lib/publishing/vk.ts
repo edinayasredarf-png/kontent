@@ -31,6 +31,8 @@ const need = (c: Record<string, string>) => {
   return { token: c.token, id };
 };
 
+class UncertainPostError extends PublishError {}
+
 type Img = { data: Buffer; mime: string };
 
 /** Отправка файла на адрес загрузки VK (multipart). */
@@ -109,9 +111,7 @@ function vkPhotoHint(errs: string[]): string {
   const all = errs.join(" | ");
   const tail = `Подробности: ${all}`;
   if (/код 5\)/.test(all)) return `ключ доступа недействителен или отозван. ${tail}`;
-  if (/файл: [^|]*код 15/.test(all) && /сообщения сообщества: [^|]*не принял/.test(all)) return `ВК отказал и в фото, и в файле. В сообществе: Управление → Сообщения → включить; Управление → Разделы → «Файлы» (документы) → включить; в ключе отметьте «Фотографии», «Файлы» и «Сообщения». Если не помогает — ключ не подходит для загрузки, и нужен ключ пользователя-администратора. ${tail}`;
-  if (/сообщения сообщества: [^|]*(код 15|код 27|код 200|код 7|Access denied|permission)/i.test(all)) return `у ключа сообщества не хватает прав для фото: отметьте «Фотографии» (и «Файлы») при создании ключа, а в сообществе включите сообщения (Управление → Сообщения). ${tail}`;
-  if (/сообщения сообщества: [^|]*(код 9|901|messages)/i.test(all)) return `включите сообщения сообщества: Управление → Сообщения → «Включены». ${tail}`;
+  if (/код (15|27|200|7)\)/.test(all)) return `Для фото на стене добавьте ключ пользователя-администратора с правами photos и wall в разделе «Каналы» → «Ключ для фото и аналитики». Ключ сообщества не поддерживает photos.getWallUploadServer. ${tail}`;
   return tail;
 }
 
@@ -122,6 +122,7 @@ export const vk: Provider = {
     const g = await call<{ groups?: { name: string }[] } | { name: string }[]>(token, "groups.getById", { group_id: id });
     const name = Array.isArray(g) ? g[0]?.name : g.groups?.[0]?.name;
     if (!name) throw new PublishError("Сообщество не найдено — проверьте id");
+    if (c.photoToken) await call(c.photoToken, "photos.getWallUploadServer", { group_id: id });
     return name;
   },
   async publish(input, c) {
@@ -136,33 +137,38 @@ export const vk: Provider = {
     // пробуем способы по очереди; пост не публикуется, пока не подготовлено вложение, а ошибка вложения не теряет текст
     for (const up of UPLOADERS) {
       if (!pics.length) break;
-      if (!up.multi && pics.length > 1) continue;
+      if (!up.multi && pics.length > 1 || up.single && pics.length > 1) continue;
       try {
         const ids: string[] = [];
         // «single»: способ прикрепляет одну ссылку на всё (для карусели — на первый слайд)
-        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(token, id, pic, input.imageUrl));
-        const r = await post(ids.join(","));
-        if (up.single && pics.length > 1) {
-          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
-          throw new PublishError(`Пост не опубликован: ключ сообщества позволяет прикрепить к посту VK только одну картинку, а в материале слайдов: ${pics.length}. Все слайды целиком доступны с ключом пользователя-администратора.`);
-        }
-        if (up.single) return done(r);
+        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(c.photoToken || token, id, pic, input.imageUrl));
+        const r = await post(ids.join(",")).catch(e => {
+          if ((e as PublishError).retryable) throw new UncertainPostError("VK не подтвердил результат отправки. Проверьте стену сообщества перед повторной публикацией, чтобы избежать дубликата.");
+          throw e;
+        });
         // VK может принять вложение и молча его отбросить: проверяем готовый пост, и если картинки нет — удаляем и пробуем другой способ
         let checkErr = "";
-        const got = await call<{ items?: { attachments?: unknown[] }[] } | { attachments?: unknown[] }[]>(token, "wall.getById", { posts: `-${id}_${r.post_id}` }).catch((e: Error) => { checkErr = e.message; return null; });
+        type Wall = { attachments?: unknown[] };
+        let got: { items?: Wall[] } | Wall[] | null = null;
+        for (const readToken of [...new Set([c.photoToken, process.env.VK_SERVICE_TOKEN?.trim(), token].filter((t): t is string => !!t))]) {
+          try { got = await call<{ items?: Wall[] } | Wall[]>(readToken, "wall.getById", { posts: `-${id}_${r.post_id}` }); checkErr = ""; break; }
+          catch (e) { checkErr = (e as Error).message; }
+        }
         const list = Array.isArray(got) ? got : got?.items;
         if (checkErr || !list?.[0]) {
           // убедиться, что картинка в посте, нельзя: такой пост не оставляем (картинка — часть публикации)
-          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
+          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
           throw new PublishError(`Пост не опубликован: VK не позволил проверить, что картинка прикрепилась (способ: ${up.name}). ${errs.length ? `Что не сработало: ${errs.join(" | ")}. ` : ""}${vkNoPhotoTip(errs, input.imageUrl)}`);
         }
-        if (!(list[0].attachments?.length)) {
-          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => null);
+        const attachments = list[0].attachments as { type?: string; photo?: { id?: number; owner_id?: number }; link?: { photo?: unknown } }[] | undefined;
+        const photos = attachments?.filter(a => a.type === "photo" && a.photo && ids.some(ref => (ref === `photo${a.photo!.owner_id}_${a.photo!.id}` || ref.startsWith(`photo${a.photo!.owner_id}_${a.photo!.id}_`)))) ?? [];
+        if (photos.length < pics.length && !(up.single && pics.length === 1 && attachments?.some(a => a.type === "link" && a.link?.photo))) {
+          await call(token, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
           throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
         }
         return done(r);
       } catch (e) {
-        if ((e as PublishError).retryable) throw e;
+        if (e instanceof UncertainPostError || (e as PublishError).retryable) throw e;
         errs.push(`${up.name}: ${(e as Error).message}`);
       }
     }

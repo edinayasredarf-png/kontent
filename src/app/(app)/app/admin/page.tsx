@@ -9,6 +9,8 @@ import { rub } from "@/lib/wallet";
 import { AdminNav } from "@/components/AdminNav";
 import { PageHead } from "@/components/ui";
 import { botState } from "@/lib/max-bot";
+import { TelegramSubscribe } from "@/components/TelegramSubscribe";
+import { channelConnectConfigured } from "@/lib/channel-connections";
 import { MaxSubscribe } from "@/components/MaxSubscribe";
 
 export default async function AdminHome() {
@@ -24,6 +26,7 @@ export default async function AdminHome() {
     ...(["vk", "yandex"] as const).map((p) => { const pr = oauthProblem(p); return { ok: !pr, text: pr ? `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"}: ${pr}` : `Вход через ${p === "vk" ? "VK ID" : "Яндекс ID"} настроен` }; }),
     { ok: !!process.env.APP_URL?.trim(), text: process.env.APP_URL?.trim() ? `APP_URL задан: ${process.env.APP_URL.trim()}` : "APP_URL не задан (рекомендуется https://kontent.xn--80aakbcct4b2aj7m.xn--p1ai): тогда вход через VK и Яндекс всегда идёт на основной адрес" },
     { ok: bot.ok, text: bot.text },
+    { ok: channelConnectConfigured("telegram"), text: channelConnectConfigured("telegram") ? "Общий бот Telegram настроен. Подключите его вебхук кнопкой ниже." : "Общий бот Telegram требует TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME и TELEGRAM_WEBHOOK_SECRET" },
     { ok: !!process.env.CRON_SECRET?.trim(), text: process.env.CRON_SECRET?.trim() ? "CRON_SECRET задан" : "CRON_SECRET не задан — воркер закрыт" },
   ];
   const tiles = [["Пользователей", n("users"), `за 7 дней: +${n("users_7d")}`], ["Организаций", n("orgs"), n("suspended") ? `приостановлено: ${n("suspended")}` : "все активны"], ["Материалов за 7 дней", n("items_7d"), `опубликовано: ${n("pubs_7d")}`], ["Расход за 7 дней", rub(n("spent_7d")), `остатки клиентов: ${rub(n("balances"))}`]];
@@ -41,6 +44,7 @@ export default async function AdminHome() {
           return c.href ? <Link key={c.text} href={c.href} className="flex items-start gap-2 hover:underline">{inner}</Link> : <div key={c.text} className="flex items-start gap-2">{inner}</div>;
         })}</div>
         <MaxSubscribe />
+        <TelegramSubscribe />
         {n("failed_7d") > 0 && <p className="mt-3 text-sm text-bad">Ошибок публикации за 7 дней: {n("failed_7d")}</p>}
         {o.tick && <details className="mt-3 text-xs text-ink2"><summary className="cursor-pointer">Отчёт последнего прохода воркера</summary><pre className="mt-2 overflow-x-auto rounded-xl bg-tile p-3">{JSON.stringify(o.tick.value, null, 2)}</pre></details>}
       </section>

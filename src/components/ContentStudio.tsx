@@ -19,15 +19,16 @@ export async function ContentStudio({ sp, scope }: { sp: { type?: string; factor
   const c = await pageCtx("write");
   await requirePageFeature(c.org.id, "create");
   const item = sp.item || sp.draft;
-  const path = scope ? `/app/factories/${scope.id}?tab=create` : "/app/create";
+  let path = scope ? `/app/factories/${scope.id}?tab=create` : "/app/create";
   if (item && /^[0-9a-f-]{36}$/.test(item)) {
-    const [existing] = await q<{ draft: boolean; topic: string }>("select coalesce((meta->>'draft')::boolean,false) draft,topic from kz_content_items where org_id=$1 and id=$2 and ($3::uuid is null or factory_id=$3)", [c.org.id, item, scope?.id ?? null]);
+    const [existing] = await q<{ draft: boolean; topic: string; factory_id: string | null }>("select factory_id,coalesce((meta->>'draft')::boolean,false) draft,topic from kz_content_items where org_id=$1 and id=$2 and ($3::uuid is null or factory_id=$3)", [c.org.id, item, scope?.id ?? null]);
     if (!existing) return <p role="alert">Материал не найден или недоступен.</p>;
+    if (!scope && existing.factory_id) path = `/app/create?factory=${existing.factory_id}`;
     return <>
     <h1 className="mb-6 text-xl font-medium">Доработка материала</h1>
     <p className="text-sm text-ink2">Редактируется исходный материал: изменения сохраняются в календаре, чате и контент-плане.</p>
     <Link href={path} className="btn btn-ghost mt-4">Создать новый материал</Link>
-    {existing.draft ? <DraftHost orgId={c.org.id} ids={[item]} returnTo={path} err={sp.err} note={sp.note} free={c.org.unlimited} /> : <ItemModal orgId={c.org.id} id={item} returnTo={path} err={sp.err} note={sp.note} canWrite />}
+    {existing.draft ? <DraftHost embedded orgId={c.org.id} ids={[item]} returnTo={path} err={sp.err} note={sp.note} free={c.org.unlimited} /> : <ItemModal orgId={c.org.id} id={item} returnTo={path} err={sp.err} note={sp.note} canWrite />}
   </>;
   }
   await ensurePrices();
@@ -46,6 +47,10 @@ export async function ContentStudio({ sp, scope }: { sp: { type?: string; factor
     </div>);
   const prices = Object.fromEntries(KINDS.map((k) => [k, k === "carousel" ? PRICES.carousel_slide : priceOf(k)]));
   const start = sp.type && (KINDS as readonly string[]).includes(sp.type) ? sp.type : "post";
-  return <CreateStudio key={scope?.id} scoped={!!scope} factories={fs.map((f) => ({ id: f.id, name: f.name, brandId: f.brand_id, brand: f.brand, audience: f.audience, hasLogo: !!logos[f.brand_id] }))}
-    startFactory={fs.some((f) => f.id === sp.factory) ? sp.factory! : fs[0].id} startKind={start} textModels={writingModels} models={models} presets={presets} examples={exampleRefs(examples)} recent={recent} kindPrices={prices} balanceKop={c.org.balance_kop} unlimited={c.org.unlimited} unlimitedModels={activePlan.unlimitedModels} textDefaultModels={defaults} />;
+  return <>
+    {sp.err && <p role="alert" className="mb-4 text-sm text-bad">{sp.err}</p>}
+    {sp.note && <p role="status" className="mb-4 text-sm text-good">{sp.note}</p>}
+    <CreateStudio key={scope?.id} scoped={!!scope} factories={fs.map((f) => ({ id: f.id, name: f.name, brandId: f.brand_id, brand: f.brand, audience: f.audience, hasLogo: !!logos[f.brand_id] }))}
+    startFactory={fs.some((f) => f.id === sp.factory) ? sp.factory! : fs[0].id} startKind={start} textModels={writingModels} models={models} presets={presets} examples={exampleRefs(examples)} recent={recent} kindPrices={prices} balanceKop={c.org.balance_kop} unlimited={c.org.unlimited} unlimitedModels={activePlan.unlimitedModels} textDefaultModels={defaults} />
+  </>;
 }

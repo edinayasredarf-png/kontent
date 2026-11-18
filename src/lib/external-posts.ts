@@ -1,3 +1,4 @@
+import { vkChannelCredentials } from "./vk-channel-token";
 import { parse as parseHtml } from "node-html-parser";
 import { one, q } from "./db";
 import { open } from "./crypto";
@@ -66,11 +67,17 @@ async function fetchVk(orgId: string, p: Extract<Parsed, { kind: "vk" }>): Promi
   // если сообщество подключено у нас, читаем его ключом (он отдаёт и охват); иначе общим сервисным ключом
   const chans = await q<{ id: string; credentials: unknown }>("select id,credentials from kz_channels where org_id=$1 and kind='vk' and status='active'", [orgId]);
   const own = chans.find((c) => { try { return String(open(c.credentials).target ?? "").replace(/^-/, "") === p.owner.replace(/^-/, ""); } catch { return false; } });
-  const token = (own ? open(own.credentials).token : "") || process.env.VK_SERVICE_TOKEN?.trim() || "";
-  if (!token) throw new Error("Для чтения VK на сервере не задан сервисный ключ (VK_SERVICE_TOKEN)");
-  let res: { items?: VkWall[]; groups?: { id: number; name: string }[]; profiles?: { id: number; first_name: string; last_name: string }[] } | VkWall[];
-  try { res = await vkCall(token, "wall.getById", { posts: `${p.owner}_${p.id}`, extended: "1" }); }
-  catch (e) { const m = (e as Error).message; const c = Number(m.match(/код (\d+)/)?.[1]); throw new Error(c ? vkServiceError(c, m) : m); }
+  const credentials = own ? await vkChannelCredentials(orgId, own.id, own.credentials).catch(error => { if (process.env.VK_SERVICE_TOKEN?.trim()) return open(own.credentials); throw error; }) : {};
+  const tokens = [...new Set([credentials.photoToken, process.env.VK_SERVICE_TOKEN?.trim(), credentials.token].filter((t): t is string => !!t))];
+  if (!tokens.length) throw new Error("Для чтения VK нужен ключ пользователя в настройках канала или сервисный ключ приложения VK_SERVICE_TOKEN");
+  let token = tokens[0];
+  let res: { items?: VkWall[]; groups?: { id: number; name: string }[]; profiles?: { id: number; first_name: string; last_name: string }[] } | VkWall[] | undefined;
+  let lastError = "";
+  for (const candidate of tokens) {
+    try { res = await vkCall(candidate, "wall.getById", { posts: `${p.owner}_${p.id}`, extended: "1" }); token = candidate; break; }
+    catch (e) { lastError = (e as Error).message; }
+  }
+  if (!res) throw new Error(/код (27|28)/.test(lastError) ? "VK не разрешает читать посты этим ключом сообщества. Добавьте ключ пользователя для фото и аналитики в настройках подключённого канала. Для чужих сообществ нужен сервисный ключ приложения VK_SERVICE_TOKEN." : vkServiceError(Number(lastError.match(/код (\d+)/)?.[1]), lastError));
   const items = Array.isArray(res) ? res : res.items ?? [];
   const it = items.find((i) => String(i.id) === p.id) ?? items[0];
   if (!it) throw new Error("Пост не найден: он удалён или сообщество закрыто");

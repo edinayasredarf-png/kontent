@@ -1,3 +1,4 @@
+import { vkChannelCredentials } from "./vk-channel-token";
 import { IMAGE_KINDS } from "./item-images";
 import { imageModels } from "./creator/models";
 import { planCarousel, slidePrompt } from "./creator/plan";
@@ -284,13 +285,14 @@ async function buildItemInternal(orgId: string, itemId: string, version?: string
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации материала", item.id);
     const error = (e as Error).message;
-    await q("update kz_content_items set status=$3,cost_kop=case when $3='ready' then cost_kop else 0 end,meta=meta || jsonb_build_object('generationError',$2::text),updated_at=now() where id=$1", [item.id, error.slice(0, 400), item.previous_status === 'ready' ? 'ready' : 'failed']);
+    await q("update kz_content_items set status=$3,cost_kop=case when $3='ready' then cost_kop else 0 end,meta=(meta-'generationPending') || jsonb_build_object('generationError',$2::text),updated_at=now() where id=$1", [item.id, error.slice(0, 400), item.previous_status === 'ready' ? 'ready' : 'failed']);
     return { ok: false, error };
   }
   if ((item.meta?.creator || item.meta?.fromNews || fac.brief?.images !== false) && !item.meta?.imageOwn && IMAGE_KINDS.includes(item.kind)) {
     const image = await buildImage(orgId, item.id).catch(error => ({ ok: false as const, error: (error as Error).message }));
     if (!image.ok) await q("update kz_content_items set meta=meta || jsonb_build_object('imageError',$2::text) where id=$1", [item.id, image.error.slice(0, 400)]);
   }
+  await q("update kz_content_items set meta=meta-'generationPending' where id=$1 and org_id=$2", [item.id, orgId]);
   return { ok: true };
 }
 
@@ -439,13 +441,14 @@ export async function processQueue(limit = 10, onlyItem?: string): Promise<{ sen
     const slideAssets = item?.kind === "carousel" ? await carouselAssets(j.item_id) : [];
     const slides = item?.kind === "carousel" ? (await Promise.all(slideAssets.map((a) => loadAsset(j.org_id, a.id)))).filter((a): a is NonNullable<typeof a> => !!a).map((a) => ({ data: a.data, mime: a.mime })) : [];
     try {
+      if (item?.image_id && item.kind !== "carousel" && !img || infoAsset && !img || item?.kind === "carousel" && (!slides.length || slides.length !== slideAssets.length)) throw new PublishError("Изображения материала недоступны. Восстановите или создайте их заново перед публикацией.");
       const prov = ch && providerFor(ch.kind);
       if (!ch || !prov) throw new PublishError("Канал удалён или не поддерживается");
       // ссылки на сайт из настроек завода получают UTM-метки или короткий адрес со счётчиком; SEO-статьи не трогаем
       const fx = item && item.kind !== "seo" ? await one<{ brief: unknown; name: string }>("select f.brief,b.name from kz_content_items i left join kz_factories f on f.id=i.factory_id and f.org_id=i.org_id and f.brand_id=i.brand_id join kz_brands b on b.id=i.brand_id and b.org_id=i.org_id where i.id=$1", [j.item_id]) : null;
       const st = cleanSettings(fx?.brief);
       const outText = await prepareLinks(withSignature(pollText(textForChannel(item?.body ?? "", item?.meta?.variants, ch.kind), item?.meta?.poll, ch.kind), item?.kind ?? "post", ch.signature), { orgId: j.org_id, itemId: j.item_id, channelId: j.channel_id, channelKind: ch.kind, ownLink: st.link, mode: st.linkMode, brandName: fx?.name ?? "" });
-      const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, open(ch.credentials));
+      const r = await prov.publish({ text: outText, poll: hasOptions(item?.meta?.poll) && ch.kind === "telegram" ? item?.meta?.poll : undefined, image: img ? { data: img.data, mime: img.mime } : undefined, imageUrl: slides.length ? (slideAssets[0] ? pubImageUrl(slideAssets[0].id) : undefined) : img ? pubImageUrl(infoAsset?.id ?? item!.image_id!) : undefined, images: slides.length ? slides : undefined, article: item?.kind === "seo" && item.meta?.seo ? { ...item.meta.seo, keywords: item.meta.seo.keywords ?? [], html: publicizeImages(item.body) } : undefined }, ch.kind === "vk" ? await vkChannelCredentials(j.org_id, j.channel_id, ch.credentials) : open(ch.credentials));
       await q("update kz_publications set status='published', external_url=$2, error=$3, published_at=now(), updated_at=now() where id=$1", [j.id, r.url, r.warning ?? null]);
       out.sent++;
       void notify(j.org_id, { kind: "published", title: `Опубликовано: ${(item?.topic ?? "материал").slice(0, 90)}`, body: ch.kind === "vk" ? "ВКонтакте" : ch.kind === "telegram" ? "Telegram" : ch.kind === "max" ? "MAX" : ch.kind, href: r.url || (await itemLink(j.item_id)), dedupe: `pub:${j.id}` });

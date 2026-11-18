@@ -17,9 +17,10 @@ export function RssArticle({ item, kind, write }: { item: ArticleData; kind: str
   return <>
     <NewsMedia media={r.media ?? []} title={r.title} />
     <PostText title={r.title} text={text} />
+    {loaded && r.url && <a href={r.url} target="_blank" rel="noreferrer noopener" className="mt-2 inline-block text-xs text-ink2 hover:text-accent-ink">Источник статьи ↗</a>}
     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink3">
       {loading ? <span role="status" className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" />Загружаем статью…</span> : <span>{loaded ? (r.full_text!.length < 150 && r.media?.some((m) => m.type === "file") ? "Документ во вложении" : `Статья загружена · ${r.full_text!.length.toLocaleString("ru-RU")} знаков`) : "Показан анонс из RSS. Полный материал — на сайте источника."}</span>}
-      {!loading && write && r.full_status !== "unsupported" && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">{loaded ? "Обновить статью" : "Повторить загрузку"}</SubmitButton></form>}
+      {!loading && write && (r.full_status !== "unsupported" || kind === "news") && <form action={enrichItemAction}><input type="hidden" name="id" value={r.id} /><SubmitButton className="btn btn-ghost !px-2.5 !py-1 text-xs">{loaded ? "Обновить статью" : "Повторить загрузку"}</SubmitButton></form>}
     </div>
   </>;
 }

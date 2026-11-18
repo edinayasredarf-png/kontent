@@ -47,7 +47,7 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
       )}
       {(!compact || modal === "filters" || modal === "search") && (selects.length > 0 || search) && (
         <div className={inline ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-center justify-center gap-2"}>
-          {search && (!compact || modal === "search") && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={() => { if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
+          {search && (!compact || modal === "search") && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={e => { if (e.relatedTarget instanceof Element && e.relatedTarget.closest("button,a,input,select")) return; if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
           {(!compact || modal === "filters") && selects.map((x) => (
             <select key={x.name} value={s.sel[x.name] ?? ""} onChange={(e) => go({ ...s, sel: { ...s.sel, [x.name]: e.target.value } })} aria-label={x.label} className={sel}>
               <option value="">{x.all}</option>{x.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { priceOf } from "@/lib/pipeline";
-import { AlertTriangle, CalendarClock, ExternalLink, Send } from "lucide-react";
+import { AlertTriangle, CalendarClock, ExternalLink, Send, Trash2 } from "lucide-react";
 import { q } from "@/lib/db";
 import { KIND, Status } from "@/components/ui";
 import { AutoModal } from "@/components/AutoModal";
@@ -12,7 +12,7 @@ import { IMAGE_KINDS } from "@/lib/item-images";
 import { ImagePicker } from "./ImagePicker";
 import { SlideEditor } from "./SlideEditor";
 import { CarouselPanel } from "./CarouselPanel";
-import { itemImageAction, itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
+import { itemDeleteAction, itemImageAction, itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
 
 import { CALENDAR_COLORS, calendarColor, moscowToday } from "@/lib/calendar";
 import { DraftBodyEditor } from "./DraftBodyEditor";
@@ -86,6 +86,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
               {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind, it.brief))}
             </SubmitButton>
           </form>}
+          {editable && <form action={itemDeleteAction}>{hid}<SubmitButton className="btn btn-ghost text-bad" data-confirm="Удалить материал из контент-плана?" data-confirm-ok="Удалить"><Trash2 size={16} />Удалить</SubmitButton></form>}
         </div>}
 
         <div className="grid gap-3 rounded-2xl bg-tile p-4 text-sm sm:grid-cols-2">

@@ -933,5 +933,25 @@ create index if not exists kz_payment_orders_org_idx on kz_payment_orders(org_id
 alter table kz_competitors add column if not exists avatar text;
 alter table kz_competitor_posts add column if not exists images text[] not null default '{}';
 
+-- 038_channel_connections.sql
+-- Short lived, account-bound connections. Provider credentials and PKCE are encrypted.
+create table if not exists kz_channel_connections (
+ id uuid primary key default gen_random_uuid(),
+ org_id uuid not null references kz_orgs(id) on delete cascade,
+ user_id uuid not null references kz_users(id) on delete cascade,
+ brand_id uuid not null references kz_brands(id) on delete cascade,
+ factory_id uuid references kz_factories(id) on delete cascade,
+ provider text not null check(provider in ('vk','telegram')),
+ external_user_id bigint,
+ request_id integer,
+ state_hash text not null unique,
+ status text not null default 'pending' check(status in ('pending','exchanging','ready','used','failed')),
+ payload jsonb not null default '{}',
+ error text,
+ expires_at timestamptz not null default now() + interval '15 minutes',
+ created_at timestamptz not null default now()
+);
+create index if not exists channel_connections_owner on kz_channel_connections(org_id,user_id);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql'),('038_channel_connections.sql') on conflict do nothing;

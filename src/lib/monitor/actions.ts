@@ -1,4 +1,7 @@
 "use server";
+import { after } from "next/server";
+import { buildItem } from "../pipeline";
+import { withUsage } from "../billing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCtx, requireWriter } from "../auth";
@@ -128,13 +131,26 @@ export async function createFromNewsAction(f: FormData) {
   const ret = /^\/app\/monitor(\?[^#\s]*)?$/.test(ret0) && !ret0.includes("draft=") ? ret0 : "/app/monitor";
   const to = (o: Record<string, string>) => { const u = new URL(ret, "http://x"); for (const [k, v] of Object.entries(o)) u.searchParams.set(k, v); return `${u.pathname}${u.search}`; };
   // «создать сразу» — черновик в окне поверх ленты; «в план» — идеи сразу в плане завода
-  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), now, { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image"), draft: now });
+  const r = await createFromNews(c.org.id, s(f, "id"), factory, f.getAll("kinds").map(String), now, { angle: s(f, "angle"), postType: s(f, "postType"), date: s(f, "date"), image: f.get("image"), draft: now, defer: now });
   back();
   if (!r.ok) redirect(to({ err: r.error }));
   if (now) {
+    after(async () => {
+      const queue = [...r.ids];
+      const worker = async () => {
+        while (queue.length) {
+          const id = queue.shift()!;
+          try {
+            const result = await withUsage({ orgId: c.org.id, userId: c.user.id }, () => buildItem(c.org.id, id));
+            if (!result.ok) await q("update kz_content_items set status='failed',meta=(meta-'generationPending') || jsonb_build_object('generationError',$3::text),updated_at=now() where id=$1 and org_id=$2 and status='approved'", [id, c.org.id, result.error.slice(0, 400)]);
+          }
+          catch { await q("update kz_content_items set status='failed',meta=(meta-'generationPending') || jsonb_build_object('generationError','Не удалось завершить создание. Повторите генерацию.') where id=$1 and org_id=$2 and status='approved'", [id, c.org.id]); }
+        }
+      };
+      await Promise.all([worker(), worker()]);
+    });
     const o: Record<string, string> = { draft: r.ids.join(",") };
     if (r.error) o.err = r.error;
-    else if (r.ids.length > 3) o.note = "Первые три материала созданы, остальные пишутся в фоне: они появятся в черновиках завода через несколько минут.";
     redirect(to(o));
   }
   redirect(`/app/factories/${factory}?view=list&open=${r.ids[0]}${r.error ? `&err=${encodeURIComponent(r.error)}` : ""}`);

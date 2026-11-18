@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
-import { ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Trash2 } from "lucide-react";
 import { KIND, STATUS } from "./ui";
+import { itemDeleteAction } from "@/lib/item-modal-actions";
 import { moveItemDateAction } from "@/lib/plan-actions";
 import { calendarColor, calendarHref, calendarRange, MONTHS, monthCells, PERIODS, periodTitle, WEEKDAYS, type CalendarPeriod } from "@/lib/calendar";
 
@@ -77,7 +78,7 @@ export function CalendarGrid({ month, date = `${month}-01`, period = "month", it
     {err && <p role="alert" className="mb-2.5 rounded-2xl bg-bad-soft px-4 py-2 text-xs text-bad">{err}</p>}
     {view === "list" ? <div className="space-y-2">
       {inPeriod.length === 0 && <p className="rounded-2xl bg-surface px-5 py-10 text-center text-sm text-ink2">В этом периоде материалов нет. Измените фильтры или добавьте идею.</p>}
-      {[...inPeriod].sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`)).map((it) => <div key={it.id} className="grid grid-cols-[6.5rem_1fr] items-center gap-3 rounded-xl bg-surface p-2"><time className="pl-2 text-xs tabular-nums text-ink2">{shortDay(it.date)}</time>{event(it)}</div>)}
+      {[...inPeriod].sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`)).map((it) => <div key={it.id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-surface p-2"><time className="pl-2 text-xs tabular-nums text-ink2">{shortDay(it.date)}</time>{event(it)}{it.movable && <form action={itemDeleteAction}><input type="hidden" name="id" value={it.id} /><input type="hidden" name="ret" value={baseHref ?? "/app/calendar"} /><button type="submit" aria-label="Удалить материал" title="Удалить материал" className="grid size-9 place-items-center rounded-full text-bad hover:bg-bad-soft" data-confirm="Удалить материал из контент-плана?" data-confirm-ok="Удалить"><Trash2 size={17} /></button></form>}</div>)}
     </div> : period === "year" ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {MONTHS.map((name, i) => { const mon = `${date.slice(0, 4)}-${String(i + 1).padStart(2, "0")}`; const count = items.filter((x) => x.date.startsWith(mon)).length;
         return <section key={mon} className="rounded-2xl bg-surface p-3"><Link href={href("month", `${mon}-01`)} scroll={false} className="mb-3 flex items-center justify-between rounded-lg px-1 py-1 text-sm font-semibold hover:bg-tile"><span>{name}</span><span className="text-xs font-normal text-ink3">{count} мат.</span></Link>

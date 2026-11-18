@@ -109,18 +109,23 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
     if (prompt.trim().length < (isCar ? 8 : 3)) return setErr(isCar ? "Опишите тему хотя бы одним предложением" : "Опишите тему хотя бы парой слов");
     if (!guard()) return;
     resetFlow(); setPhase("briefing");
-    if (isCar) {
-      const r = await planCarouselAction(fid, prompt, { ...S, style: refs.length ? refVisual : S.style, structure: refs.length ? refs.map((x) => x.text).filter(Boolean).join("; ") : S.structure }, opts);
-      if (!r.ok) { setErr(r.error); return setPhase("compose"); }
-      setPlan({ slides: r.plan.slides, caption: r.plan.caption, style: r.plan.style });
-      setBrief(r.plan.brief); setAngle(r.plan.brief.angle);
-      setSl(r.plan.slides.map(() => ({ status: "wait" })));
-    } else {
-      const r = await briefAction(fid, kind, prompt, opts, refText);
-      if (!r.ok) { setErr(r.error); return setPhase("compose"); }
-      setBrief(r.brief); setAngle(r.brief.angle);
+    try {
+      if (isCar) {
+        const r = await planCarouselAction(fid, prompt, { ...S, style: refs.length ? refVisual : S.style, structure: refs.length ? refs.map((x) => x.text).filter(Boolean).join("; ") : S.structure }, opts);
+        if (!r.ok) { setErr(r.error); return setPhase("compose"); }
+        setPlan({ slides: r.plan.slides, caption: r.plan.caption, style: r.plan.style });
+        setBrief(r.plan.brief); setAngle(r.plan.brief.angle);
+        setSl(r.plan.slides.map(() => ({ status: "wait" })));
+      } else {
+        const r = await briefAction(fid, kind, prompt, opts, refText);
+        if (!r.ok) { setErr(r.error); return setPhase("compose"); }
+        setBrief(r.brief); setAngle(r.brief.angle);
+      }
+      setPhase("brief");
+    } catch {
+      setErr("Не удалось получить ответ сервера. Повторите создание.");
+      setPhase("compose");
     }
-    setPhase("brief");
   }
 
   /* ───── шаг 2а: слайды карусели ───── */
@@ -151,10 +156,16 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   /* ───── шаг 2б: текстовый материал ───── */
   async function makeText() {
     setErr(""); setPhase("making"); setBusy("text"); setTextStart(Date.now());
-    const r = await createMaterialAction({ factoryId: fid, kind, prompt, angle, opts, refText });
-    setBusy("");
-    if (!r.ok) { setErr(r.error); return setPhase("brief"); }
-    setMade(r); router.refresh();
+    try {
+      const r = await createMaterialAction({ factoryId: fid, kind, prompt, angle, opts, refText });
+      if (!r.ok) { setErr(r.error); return setPhase("brief"); }
+      setMade(r); router.refresh();
+    } catch {
+      setErr("Связь с сервером прервалась. Проверьте черновики завода перед повторным созданием.");
+      setPhase("brief");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function saveWork(go = false) {
@@ -212,7 +223,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* буфер недоступен */ } };
 
   const picked = refs.map((r) => r.id);
-  const openLink = (id: string, f: string) => `/app/factories/${f}?tab=content&section=drafts&draft=${id}`;
+  const openLink = (id: string, f: string) => scoped ? `/app/factories/${f}?tab=create&item=${id}` : `/app/create?factory=${f}&item=${id}`;
 
   return (
     <div className={`${scoped ? "factory-studio lg:!min-h-[min(72dvh,760px)] lg:!grid-cols-[minmax(0,1fr)_220px] xl:!grid-cols-[minmax(0,1fr)_255px]" : "creator-studio"} grid min-w-0 grid-cols-1 gap-y-5 px-4 py-5 md:px-6 lg:min-h-[calc(100dvh-86px)] lg:grid-cols-[minmax(0,1fr)_255px] lg:grid-rows-[auto_1fr_auto] lg:gap-x-5 lg:py-0 lg:pl-0 lg:pr-2.5`}>
@@ -314,7 +325,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
             {made.imageError && <p role="status" className="text-sm text-warn">Картинка: {made.imageError}</p>}
             <div className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-2xl bg-tile p-4 text-sm leading-6">{made.body.replace(/<[^>]+>/g, made.kind === "seo" || made.kind === "email" || made.kind === "guide" ? " " : "") || "Материал создан: откройте его, чтобы посмотреть."}</div>
             <div className="flex flex-wrap gap-2">
-              <Link href={scoped ? `/app/factories/${fid}?tab=create&item=${made.id}` : `/app/create?item=${made.id}`} className="btn btn-accent"><ImageIcon size={15} />Редактировать материал</Link>
+              <Link href={openLink(made.id, made.factoryId)} className="btn btn-accent"><ImageIcon size={15} />Редактировать материал</Link>
               <button type="button" className="btn btn-ghost" onClick={() => void copy(made.body.replace(/<[^>]+>/g, " "))}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Скопировано" : "Копировать текст"}</button>
             </div>
           </div>

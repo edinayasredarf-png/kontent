@@ -1,6 +1,5 @@
 "use client";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { loadArticlesAction } from "@/lib/monitor/actions";
 import type { ArticleData } from "@/lib/monitor/article-state";
 
 const Articles = createContext<{ data: Record<string, ArticleData>; done: Set<string> }>({ data: {}, done: new Set() });
@@ -18,9 +17,14 @@ export function AutoArticles({ ids, children }: { ids: string[]; children: React
       for (let i = 0; i < queue.length && active; i += 3) {
         const batch = queue.slice(i, i + 3), batchKey = batch.join(",");
         let pending = requests.current.get(batchKey);
-        if (!pending) { pending = loadArticlesAction(batch); requests.current.set(batchKey, pending); }
+        if (!pending) { pending = fetch("/api/news/articles", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: batch }),
+        }).then(async response => {
+          if (!response.ok) throw new Error("Не удалось загрузить статью");
+          return (await response.json()).items as ArticleData[];
+        }); requests.current.set(batchKey, pending); }
         let rows: ArticleData[] = [];
-        try { rows = await pending; } catch { /* The excerpt remains available with an explicit retry. */ }
+        try { rows = await pending; } catch { requests.current.delete(batchKey); /* Можно повторить загрузку в карточке. */ }
         if (!active) return;
         setState((prev) => ({ data: { ...prev.data, ...Object.fromEntries(rows.map((r) => [r.id, r])) }, done: new Set([...prev.done, ...batch]) }));
       }

@@ -18,7 +18,7 @@ async function imageReachable(url: string): Promise<boolean> {
 
 const API = () => (process.env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
 
-async function call<T>(token: string, method: string, body: Record<string, unknown> | FormData): Promise<T> {
+export async function telegramCall<T>(token: string, method: string, body: Record<string, unknown> | FormData): Promise<T> {
   let res: Response;
   try {
     const form = body instanceof FormData;
@@ -34,17 +34,18 @@ async function call<T>(token: string, method: string, body: Record<string, unkno
 }
 
 const need = (c: Record<string, string>) => {
-  if (!c.token || !c.target) throw new PublishError("Для Telegram нужны токен бота и чат (@канал или id)");
-  return { token: c.token, target: c.target.trim() };
+  const token = c.shared === "1" ? process.env.TELEGRAM_BOT_TOKEN?.trim() : c.token;
+  if (!token || !c.target) throw new PublishError("Для Telegram нужны токен бота и чат (@канал или id)");
+  return { token, target: c.target.trim() };
 };
 
 export const telegram: Provider = {
   kind: "telegram",
   async verify(c) {
     const { token, target } = need(c);
-    const me = await call<{ id: number; username: string }>(token, "getMe", {});
-    const chat = await call<{ title?: string; username?: string }>(token, "getChat", { chat_id: target });
-    const member = await call<{ status: string; can_post_messages?: boolean }>(token, "getChatMember", { chat_id: target, user_id: me.id });
+    const me = await telegramCall<{ id: number; username: string }>(token, "getMe", {});
+    const chat = await telegramCall<{ title?: string; username?: string }>(token, "getChat", { chat_id: target });
+    const member = await telegramCall<{ status: string; can_post_messages?: boolean }>(token, "getChatMember", { chat_id: target, user_id: me.id });
     if (member.status !== "administrator" && member.status !== "creator") throw new PublishError("Бот не администратор канала — добавьте его с правом публикации");
     if (member.status === "administrator" && member.can_post_messages === false) throw new PublishError("У бота нет права публиковать сообщения");
     return `${chat.title ?? chat.username ?? target} (бот @${me.username})`;
@@ -57,9 +58,9 @@ export const telegram: Provider = {
     let rest = plain;
     if (input.poll) {
       // подводка — обычным сообщением, затем встроенный опрос (анонимный, один ответ)
-      if (plain) first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain.slice(0, 4000) })).message_id;
+      if (plain) first = (await telegramCall<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain.slice(0, 4000) })).message_id;
       const opts = input.poll.options.map((t) => ({ text: t.slice(0, 100) })).slice(0, 10);
-      const p = await call<{ message_id: number }>(token, "sendPoll", { chat_id: target, question: input.poll.question.slice(0, 300), options: opts, is_anonymous: true, ...(input.poll.multi ? { allows_multiple_answers: true } : {}) });
+      const p = await telegramCall<{ message_id: number }>(token, "sendPoll", { chat_id: target, question: input.poll.question.slice(0, 300), options: opts, is_anonymous: true, ...(input.poll.multi ? { allows_multiple_answers: true } : {}) });
       first ??= p.message_id;
       const handle0 = target.startsWith("@") ? target.slice(1) : null;
       return { externalId: String(first), url: handle0 ? `https://t.me/${handle0}/${first}` : null };
@@ -72,7 +73,7 @@ export const telegram: Provider = {
       f.set("chat_id", target);
       f.set("media", JSON.stringify(imgs.map((_, i) => ({ type: "photo", media: `attach://p${i}`, ...(i === 0 && fits && plain ? { caption: plain } : {}) }))));
       imgs.forEach((im, i) => f.set(`p${i}`, new Blob([new Uint8Array(im.data)], { type: im.mime }), `slide-${i + 1}.jpg`));
-      try { first = (await call<{ message_id: number }[]>(token, "sendMediaGroup", f))[0]?.message_id ?? null; if (fits) rest = ""; }
+      try { first = (await telegramCall<{ message_id: number }[]>(token, "sendMediaGroup", f))[0]?.message_id ?? null; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e;
         throw new PublishError(`Пост не опубликован: слайды не отправились (${(e as Error).message})`);
@@ -89,7 +90,7 @@ export const telegram: Provider = {
       }
       if (linkOk) {
         try {
-          first = (await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain, link_preview_options: { url: input.imageUrl, show_above_text: true, prefer_large_media: true } })).message_id;
+          first = (await telegramCall<{ message_id: number }>(token, "sendMessage", { chat_id: target, text: plain, link_preview_options: { url: input.imageUrl, show_above_text: true, prefer_large_media: true } })).message_id;
           rest = "";
         } catch (e) { if ((e as PublishError).retryable) throw e; }
       }
@@ -97,7 +98,7 @@ export const telegram: Provider = {
       f.set("chat_id", target);
       if (fits) f.set("caption", plain);
       f.set("photo", new Blob([new Uint8Array(one.data)], { type: one.mime }), "image.jpg");
-      try { if (first == null) first = (await call<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
+      try { if (first == null) first = (await telegramCall<{ message_id: number }>(token, "sendPhoto", f)).message_id; if (fits) rest = ""; }
       catch (e) {
         if ((e as PublishError).retryable) throw e; // временный сбой — повторит воркер, дубль не получится: фото не ушло
         throw new PublishError(`Пост не опубликован: картинка не отправилась (${(e as Error).message})`);
@@ -106,7 +107,7 @@ export const telegram: Provider = {
     // Лимит Telegram — 4096 знаков на сообщение; длинные статьи уходят несколькими сообщениями подряд.
     const parts = rest ? chunk(rest, 4000) : [];
     for (const text of parts) {
-      const m = await call<{ message_id: number }>(token, "sendMessage", { chat_id: target, text, link_preview_options: { is_disabled: false } });
+      const m = await telegramCall<{ message_id: number }>(token, "sendMessage", { chat_id: target, text, link_preview_options: { is_disabled: false } });
       first ??= m.message_id;
     }
     if (first == null) throw new PublishError("Telegram: пустой текст");

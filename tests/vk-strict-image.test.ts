@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import sharp from "sharp";
 
 /** Пост с картинкой в VK не публикуется без неё: ни когда загрузка отказала, ни когда нельзя проверить, что картинка прикрепилась. */
-let srv: http.Server, base = "", calls: string[] = [], png: Buffer, mode: "fail" | "unverified" | "verified" = "fail";
+let srv: http.Server, base = "", calls: string[] = [], png: Buffer, mode: "fail" | "unverified" | "verified" | "cleanup-failed" | "wrong-photo" = "fail";
 
 before(async () => {
   png = await sharp({ create: { width: 200, height: 200, channels: 3, background: "#cc0000" } }).png().toBuffer();
@@ -21,8 +21,8 @@ before(async () => {
     if (m === "photos.getMessagesUploadServer") return mode === "fail" ? err(15, "no rights") : json({ response: { upload_url: `${base}/upload` } });
     if (m === "photos.saveMessagesPhoto") return json({ response: [{ id: 5, owner_id: -1, access_key: "k" }] });
     if (m === "wall.post") return json({ response: { post_id: 77 } });
-    if (m === "wall.getById") return mode === "verified" ? json({ response: [{ attachments: [{}] }] }) : err(15, "no access");
-    if (m === "wall.delete") return json({ response: 1 });
+    if (m === "wall.getById") return (mode === "verified" || mode === "wrong-photo") ? json({ response: [{ attachments: [{ type: "photo", photo: { id: mode === "wrong-photo" ? 50 : 5, owner_id: -1 } }] }] }) : err(15, "no access");
+    if (m === "wall.delete") return mode === "cleanup-failed" ? err(15, "denied") : json({ response: 1 });
     return err(100, "unknown");
   });
   await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
@@ -52,6 +52,18 @@ describe("VK: картинка обязательна, если она есть 
     const { vk } = await import("../src/lib/publishing/vk");
     await assert.rejects(vk.publish({ text: "С картинкой", image: img() }, creds), /Пост не опубликован: VK не позволил проверить/);
     assert.ok(calls.includes("wall.post") && calls.includes("wall.delete"), "пост создан и тут же удалён");
+  });
+  it("чужое изображение во вложениях не считается отправленным фото", async () => {
+    calls = []; mode = "wrong-photo";
+    const { vk } = await import("../src/lib/publishing/vk");
+    await assert.rejects(vk.publish({ text: "С картинкой", image: img() }, creds), /в пост оно не попало/);
+    assert.ok(calls.includes("wall.delete"));
+  });
+  it("при отказе удаления показывает адрес поста и не отправляет его повторно", async () => {
+    calls = []; mode = "cleanup-failed";
+    const { vk } = await import("../src/lib/publishing/vk");
+    await assert.rejects(vk.publish({ text: "С картинкой", image: img() }, creds), /https:\/\/vk.com\/wall-1_77/);
+    assert.equal(calls.filter(m => m === "wall.post").length, 1);
   });
   it("картинка проверена в посте — публикуется", async () => {
     calls = []; mode = "verified";

@@ -1,4 +1,5 @@
 "use server";
+import { vkChannelCredentials } from "./vk-channel-token";
 import { orgPlan } from "./plan-catalog";
 import { clientIpFromHeaders } from "./proxy-trust";
 import { revalidatePath } from "next/cache";
@@ -270,6 +271,7 @@ export async function saveBody(f: FormData) {
 function channelCred(f: FormData): { kind: string; cred: Record<string, string> } {
   const kind = s(f, "kind");
   const cred: Record<string, string> = { token: s(f, "token"), target: s(f, "target") };
+  if (kind === "vk" && s(f, "photoToken")) cred.photoToken = s(f, "photoToken");
   if (kind === "wordpress") {
     cred.token = `${s(f, "wp_user")}:${s(f, "token").replace(/\s+/g, " ")}`;
     cred.status = s(f, "wp_status") === "publish" ? "publish" : "draft";
@@ -295,7 +297,7 @@ export async function checkSavedChannelAction(id: string): Promise<{ ok: true; n
   if (!r) return { ok: false, error: "Канал не найден" };
   const prov = providerFor(r.kind);
   if (!prov) return { ok: false, error: "Тип канала не поддерживается" };
-  try { return { ok: true, name: await prov.verify(open(r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+  try { return { ok: true, name: await prov.verify(r.kind === "vk" ? await vkChannelCredentials(c.org.id, String(id), r.credentials) : open(r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
 }
 
 export async function saveChannel(_: unknown, f: FormData) {
@@ -416,4 +418,16 @@ export async function renameBrandAction(f: FormData) {
   if (!name || !/^[0-9a-f-]{36}$/i.test(id)) return;
   await q("update kz_brands set name=$3 where id=$1 and org_id=$2", [id, c.org.id, name]);
   revalidatePath("/app", "layout");
+}
+
+export async function saveVkPhotoTokenAction(id: string, photoToken: string): Promise<{ ok: boolean; error?: string }> {
+  const c = await manager();
+  const row = await one<{ credentials: unknown }>("select credentials from kz_channels where id=$1 and org_id=$2 and kind='vk'", [id, c.org.id]);
+  if (!row) return { ok: false, error: "Канал не найден" };
+  const credentials = { ...open(row.credentials), photoToken: photoToken.trim() };
+  if (!credentials.photoToken || credentials.photoToken.length > 4096) return { ok: false, error: "Укажите ключ пользователя VK" };
+  try { await providerFor("vk")!.verify(credentials); } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+  await q("update kz_channels set credentials=$3 where id=$1 and org_id=$2 and kind='vk'", [id, c.org.id, JSON.stringify(seal(credentials))]);
+  revalidatePath("/app", "layout");
+  return { ok: true };
 }

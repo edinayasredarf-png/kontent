@@ -1,3 +1,4 @@
+import { isGoogleNews, resolveGoogleNews } from "./google-news";
 import { attachUploadToItems } from "../item-images";
 import { angleTask } from "./angles";
 import { POST_TYPES } from "../postsettings";
@@ -23,7 +24,17 @@ export const bestText = (r: { title: string; body: string; full_text: string | n
 };
 
 /** Extract only article content; reader-mode failures never fall back to a whole-page text dump. */
-export async function enrichItem(orgId: string, itemId: string, force = false): Promise<{ ok: boolean; status: string; note?: string }> {
+const reading = new Map<string, Promise<{ ok: boolean; status: string; note?: string }>>();
+export async function enrichItem(orgId: string, itemId: string, force = false) {
+  const key = `${orgId}:${itemId}`;
+  const active = reading.get(key);
+  if (active) return active;
+  const task = readArticle(orgId, itemId, force);
+  reading.set(key, task);
+  try { return await task; } finally { reading.delete(key); }
+}
+
+async function readArticle(orgId: string, itemId: string, force: boolean): Promise<{ ok: boolean; status: string; note?: string }> {
   const it = await one<FeedRow>(
     `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.media,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) return { ok: false, status: "failed", note: "Новость не найдена" };
@@ -34,9 +45,10 @@ export async function enrichItem(orgId: string, itemId: string, force = false): 
     return { ok: false, status, note };
   };
   if (!/^https?:\/\//i.test(it.url)) return fail("unsupported", "У новости нет ссылки");
-  if (/(^|\.)news\.google\.com$/i.test(new URL(it.url).hostname)) return fail("unsupported", "Google Новости не отдаёт текст статьи: откройте оригинал или добавьте его RSS-ленту.");
   try {
-    const page = await safeFetchText(it.url, { maxBytes: 3_000_000 });
+    const original = await resolveGoogleNews(it.url);
+    const page = await safeFetchText(original, { maxBytes: 3_000_000 });
+    if (isGoogleNews(it.url)) await q("update kz_feed_items set url=$3 where id=$1 and org_id=$2", [itemId, orgId, page.url]);
     const article = await extractArticle(page.text, page.url);
     if (!article) return fail("short", "На странице не найден текст статьи. Показан анонс из RSS; полный материал можно открыть на сайте источника.");
     const images = article.media.filter((m) => m.type === "image");
@@ -50,7 +62,7 @@ export async function enrichItem(orgId: string, itemId: string, force = false): 
 export async function enrichRecent(orgId: string, sourceId: string, limit = 5): Promise<number> {
   const rows = await q<{ id: string }>(
     `select i.id from kz_feed_items i join kz_sources s on s.id=i.source_id
-      where i.org_id=$1 and i.source_id=$2 and s.kind in ('site','news') and i.full_status<>$4 and i.full_status not like $5 and i.full_status<>'unsupported' and i.url like 'http%'
+      where i.org_id=$1 and i.source_id=$2 and s.kind in ('site','news') and i.full_status<>$4 and i.full_status not like $5 and (i.full_status<>'unsupported' or s.kind='news') and i.url like 'http%'
       order by i.published_at desc limit $3`, [orgId, sourceId, limit, ARTICLE_STATUS, `${ARTICLE_STATUS}:%`]);
   let count = 0;
   for (let i = 0; i < rows.length; i += 3) {
@@ -68,7 +80,7 @@ export async function enrichVisibleItems(orgId: string, requested: string[]): Pr
     `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.media,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id
       where i.org_id=$1 and i.id=any($2::uuid[]) and s.kind in ('site','news')`, [orgId, ids]);
   await Promise.all(rows.filter((r) => articleNeedsLoading(r.kind, r.full_status, r.full_text)).map((r) => enrichItem(orgId, r.id).catch(() => ({ ok: false }))));
-  return q<ArticleData>("select id,title,body,full_text,full_status,media from kz_feed_items where org_id=$1 and id=any($2::uuid[])", [orgId, rows.map((r) => r.id)]);
+  return q<ArticleData>("select id,url,title,body,full_text,full_status,media from kz_feed_items where org_id=$1 and id=any($2::uuid[])", [orgId, rows.map((r) => r.id)]);
 }
 
 /* ───────── контекст бренда для подсказок ───────── */
@@ -143,28 +155,31 @@ export const MAKE_KINDS = KINDS.filter((k) => !["reels"].includes(k)) as readonl
 
 /**
  * Создать материалы из новости: выбранные типы (пост, карусель, SEO-статья…) по полному тексту. «Сразу» — материалы пишутся без карточек-идей
- * (первые три в этом запросе, остальные уйдут в очередь воркера), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
+ * (в интерфейсе генерация запускается после открытия черновика), «в план» — только идеи. Источник хранится в материале: факты берутся оттуда.
  */
-export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; note?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
+export async function createFromNews(orgId: string, itemId: string, factoryId: string, kinds: string[], now: boolean, opts: { angle?: string; note?: string; postType?: string; date?: string; image?: FormDataEntryValue | null; draft?: boolean; defer?: boolean } = {}): Promise<{ ok: true; ids: string[]; error?: string } | { ok: false; error: string }> {
   const ks = [...new Set(kinds.filter((k) => MAKE_KINDS.includes(k)))].slice(0, 6);
   if (!ks.length) return { ok: false, error: "Выберите хотя бы один тип материала" };
-  const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; status: string; source: string }>(
-    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.status,s.title source from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
+  const it = await one<{ id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; status: string; source: string; kind: string }>(
+    `select i.id,i.title,i.body,i.url,i.full_text,i.full_status,i.status,s.title source,s.kind from kz_feed_items i join kz_sources s on s.id=i.source_id where i.id=$1 and i.org_id=$2`, [itemId, orgId]);
   if (!it) return { ok: false, error: "Новость не найдена" };
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [factoryId, orgId]);
   if (!fac) return { ok: false, error: "Выберите завод" };
   if (it.full_status !== ARTICLE_STATUS) await enrichItem(orgId, itemId);
-  const full = await one<{ full_text: string | null; full_status: string }>("select full_text,full_status from kz_feed_items where id=$1 and org_id=$2", [itemId, orgId]);
+  const full = await one<{ url: string; title: string; full_text: string | null; full_status: string }>("select url,title,full_text,full_status from kz_feed_items where id=$1 and org_id=$2", [itemId, orgId]);
+  if (it.kind === "news" && (full?.full_status !== ARTICLE_STATUS || !full.full_text)) {
+    return { ok: false, error: "Не удалось загрузить текст статьи издателя. Нажмите «Повторить загрузку» в карточке или добавьте текст статьи через создание контента." };
+  }
   const text = bestText({ ...it, full_text: full?.full_text ?? null, full_status: full?.full_status ?? "" });
-  const source = { title: it.title, url: it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + (opts.note ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${opts.note}\n\n` : "") + text.slice(0, 8000) };
+  const source = { title: full?.title || it.title, url: full?.url || it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + (opts.note ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${opts.note}\n\n` : "") + text.slice(0, 8000) };
   // дата не выбрана — ближайшие свободные дни по расписанию завода
   const picked = opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;
-  const dates = picked ? ks.map(() => picked) : await allocateDates(factoryId, ks.length);
+  const dates = opts.draft ? [] : picked ? ks.map(() => picked) : await allocateDates(factoryId, ks.length);
   const ids = await tx(async (run) => {
     const out: string[] = [];
     for (let i = 0; i < ks.length; i++) {
       const [c] = await run<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,'',$6,$7,$8) returning id",
-        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), opts.draft ? (i < 3 ? null : new Date().toISOString().slice(0, 10)) : dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true, ...(opts.draft ? { draft: true } : {}), ...(opts.postType && opts.postType in POST_TYPES ? { postType: opts.postType } : {}) })]);
+        [orgId, factoryId, fac.brand_id, ks[i], it.title.slice(0, 300), opts.draft ? (opts.defer || i >= 3 ? new Date().toISOString().slice(0, 10) : null) : dates[i], now ? "approved" : "idea", JSON.stringify({ source, fromNews: true, ...(opts.defer ? { generationPending: true } : {}), ...(opts.draft ? { draft: true } : {}), ...(opts.postType && opts.postType in POST_TYPES ? { postType: opts.postType } : {}) })]);
       out.push(c.id);
     }
     await run("update kz_feed_items set status='used', content_item_id=$2 where id=$1", [itemId, out[0]]);
@@ -173,7 +188,7 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
   let error: string | undefined;
   const imgErr = await attachUploadToItems(orgId, fac.brand_id, opts.image ?? null, ks.map((k, i) => ({ id: ids[i], kind: k })));
   if (imgErr) error = `Изображение не прикреплено: ${imgErr}`;
-  if (now) {
+  if (now && !opts.defer) {
     const t0 = Date.now();
     for (const id of ids.slice(0, 3)) {
       if (Date.now() - t0 > 170_000) break;

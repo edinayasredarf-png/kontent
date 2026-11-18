@@ -11,12 +11,10 @@ export function FactoryRename({ id, name, rename = renameFactoryAction, label = 
   const [edit, setEdit] = useState(false), [val, setVal] = useState(name), [shown, setShown] = useState(name), ro = useReadOnly();
   const cancelled = useRef(false);
   async function save() {
-    setEdit(false);
     const v = val.trim();
-    if (cancelled.current || !v || v === shown) { setVal(shown); cancelled.current = false; return; }
-    setShown(v);
+    if (cancelled.current || !v || v === shown) { setVal(shown); cancelled.current = false; setEdit(false); return; }
     const f = new FormData(); f.set("id", id); f.set("name", v);
-    await rename(f);
+    try { await rename(f); setShown(v); } finally { setEdit(false); }
   }
   return (
     <div className="flex min-w-0 items-center gap-2.5">

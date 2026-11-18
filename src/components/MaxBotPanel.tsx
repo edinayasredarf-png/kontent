@@ -21,11 +21,14 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
 
   const brandId = () => (root.current?.closest("form")?.querySelector('select[name="brand_id"]') as HTMLSelectElement | null)?.value ?? "";
   const start = async () => {
+    const tab = botLink ? window.open("about:blank", "_blank") : null;
+    if (tab) tab.opener = null;
     setBusy("key"); setMsg(null);
     const r = await maxStartLinkAction(brandId()).catch(() => null);
     setBusy("");
-    if (!r?.ok) { setMsg({ ok: false, text: r ? r.error : "Не удалось получить ключ" }); return; }
+    if (!r?.ok) { tab?.close(); setMsg({ ok: false, text: r ? r.error : "Не удалось начать подключение" }); return; }
     setCode(r.code); setState("pending"); setChats([]);
+    if (tab) tab.location.href = `${botLink}?start=${encodeURIComponent(r.code)}`;
   };
   const poll = useCallback(async () => {
     if (!code) return;
@@ -54,21 +57,24 @@ export function MaxBotPanel({ botLink, botName, factoryId }: { botLink: string; 
     <div ref={root} className="space-y-3">
       <ol className="list-decimal space-y-1.5 rounded-xl bg-tile p-3 pl-8 text-xs text-ink2">
         <li>Откройте нашего бота{botLink ? <> <a href={botLink} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-accent-ink underline">{botName ? `@${botName}` : "в MAX"}<ExternalLink size={11} /></a></> : ""} и добавьте его <b>администратором</b> в ваш канал: «Настройки канала» → «Администраторы» → «Добавить». Дайте право «Писать сообщения», иначе бот не сможет публиковать.</li>
-        <li>Нажмите «Получить ключ» ниже: ключ одноразовый и действует 30 минут.</li>
-        <li>Отправьте этот ключ боту <b>в личные сообщения</b> в MAX. Так сервис узнаёт, что канал подключаете именно вы.</li>
+        <li>Нажмите «Подключить MAX» и запустите бота в открывшемся окне. Ссылка действует 30 минут.</li>
+        <li>После перехода по ссылке бот подтвердит привязку. Если переход не сработал, отправьте код боту в личные сообщения.</li>
         <li>Вернитесь сюда: появится список ваших каналов, где вы администратор. Выберите нужный и нажмите «Подключить». Токены и свой бот не нужны.</li>
       </ol>
       {state === "idle" || state === "expired" ? (
-        <button type="button" onClick={start} disabled={busy === "key"} className="btn btn-accent !py-2">{busy === "key" && <Loader2 size={15} className="animate-spin" />}Получить ключ</button>
+        <button type="button" onClick={start} disabled={busy === "key"} className="btn btn-accent !py-2">{busy === "key" && <Loader2 size={15} className="animate-spin" />}Подключить MAX</button>
       ) : null}
       {state === "expired" && <p className="text-xs text-warn">Ключ истёк или уже использован. Получите новый.</p>}
       {(state === "pending" || state === "linked") && (
         <div className="space-y-2 rounded-xl bg-surface p-3">
-          <div className="flex flex-wrap items-center gap-3">
+          {botLink && <a href={`${botLink}?start=${encodeURIComponent(code)}`} target="_blank" rel="noopener noreferrer" className="btn btn-accent"><ExternalLink size={15} />Продолжить в MAX</a>}
+          <p className="text-xs text-ink2">Откройте бота по кнопке и нажмите «Начать». Привязка произойдёт автоматически. Код ниже можно отправить вручную.</p>
+          <details className="rounded-xl bg-tile p-3"><summary className="cursor-pointer text-xs text-ink2">Подключить с помощью кода</summary><div className="mt-3 flex flex-wrap items-center gap-3">
             <code className="rounded-lg bg-tile px-3 py-1.5 text-lg font-semibold tracking-widest">{code}</code>
             <button type="button" onClick={copy} className="btn btn-ghost !px-2.5 !py-1 text-xs"><Copy size={13} />{copied ? "Скопировано" : "Копировать"}</button>
             <span className="text-xs text-ink3">Действует 30 минут</span>
           </div>
+          </details>
           {state === "pending" && <p className="flex items-center gap-2 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Ждём, пока бот получит ключ…</p>}
           {state === "pending" && slow && <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Бот пока ничего не получил. Проверьте, что ключ отправлен именно в личные сообщения боту (а не в канал). Если так и есть, сообщите администратору сервиса: возможно, не подключён вебхук бота.</p>}
           {state === "linked" && (

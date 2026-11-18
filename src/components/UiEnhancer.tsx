@@ -138,7 +138,15 @@ export function UiEnhancer() {
       const key = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); off(); btn.focus({ preventScroll: true }); } };
       document.addEventListener("keydown", key, true);
       back.addEventListener("click", off); no.addEventListener("click", off);
-      yes.addEventListener("click", () => { off(); bypass = btn; btn.click(); });
+      yes.addEventListener("click", () => {
+        off();
+        // Complete the confirmation click before replaying the original control.
+        queueMicrotask(() => {
+          if (!btn.isConnected || btn.disabled) return;
+          bypass = btn;
+          btn.click();
+        });
+      });
     };
     document.addEventListener("click", onConfirm, true);
     document.addEventListener("mousedown", onDown, true); document.addEventListener("click", onClick, true); document.addEventListener("keydown", onKey, true);

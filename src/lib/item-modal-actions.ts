@@ -9,6 +9,7 @@ import { cleanHtml } from "./seo";
 import { snapshot } from "./versions";
 import { calendarColor } from "./calendar";
 import { CALENDAR_EDITABLE, validateCalendarEdit } from "./calendar-edit";
+import { deleteIdea } from "./plan";
 import { requireWriter } from "./auth";
 import { publishItemNow, publishReport, rescheduleItem } from "./drafts";
 
@@ -95,4 +96,15 @@ export async function itemImageAction(f: FormData) {
     result = { ok: false, error: (error as Error).message };
   }
   back(f, result);
+}
+
+export async function itemDeleteAction(f: FormData) {
+  const c = await requireWriter();
+  const result = await deleteIdea(c.org.id, s(f, "id"));
+  if (!result.ok) back(f, result);
+  revalidatePath("/app", "layout");
+  const raw = s(f, "ret");
+  const url = new URL(/^\/app\/[A-Za-z0-9/_-]*(\?[A-Za-z0-9=&_%.,-]*)?$/.test(raw) ? raw : "/app/calendar", "https://local.invalid");
+  for (const key of ["item", "err", "note"]) url.searchParams.delete(key);
+  redirect(url.pathname + url.search);
 }

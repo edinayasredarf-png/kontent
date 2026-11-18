@@ -6,12 +6,14 @@ import { X } from "lucide-react";
 /** Окно справа во всю высоту экрана: лёгкое затемнение, закрытие по Esc и клику вне окна, блокировка прокрутки страницы, фокус внутри окна. */
 export function Modal({ title, onClose, children, wide, footer, closing }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; footer?: React.ReactNode; closing?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     const prev = document.body.style.overflow; document.body.style.overflow = "hidden";
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") close.current(); };
     document.addEventListener("keydown", key); box.current?.focus();
     return () => { document.body.style.overflow = prev; document.removeEventListener("keydown", key); };
-  }, [onClose]);
+  }, []);
   if (typeof document === "undefined") return null;
   return createPortal(
     <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label={title}>

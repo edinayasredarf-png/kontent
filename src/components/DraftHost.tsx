@@ -1,3 +1,4 @@
+import { DraftProgress } from "./DraftProgress";
 import { MaterialImageFields } from "./MaterialImageFields";
 import { imageModels } from "@/lib/creator/models";
 import { SlideEditor } from "./SlideEditor";
@@ -28,7 +29,7 @@ const SLIDE_KINDS = ["carousel", "infographic"], NO_IMAGE = ["reels", "email", "
  * и только потом отправить в контент-план (с датой и временем) или опубликовать сразу.
  * returnTo — страница, на которой открыто окно; к ней возвращаются после каждого действия.
  */
-export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { orgId: string; ids: string[]; returnTo: string; err?: string; note?: string; free: boolean }) {
+export async function DraftHost({ orgId, ids, returnTo, err, note, free, embedded = false }:  { orgId: string; ids: string[]; returnTo: string; err?: string; note?: string; free: boolean; embedded?: boolean }) {
   const items = await loadDrafts(orgId, ids);
   if (!items.length) return null;
   const models = items.some(it => IMAGE_KINDS.includes(it.kind)) ? await imageModels() : [];
@@ -51,10 +52,10 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
     return (
       <article key={it.id} className="space-y-3 rounded-3xl bg-tile p-3">
         <div className="flex flex-wrap items-center gap-2"><span className="chip !bg-surface">{KIND[it.kind] ?? it.kind}</span><b className="min-w-0 flex-1 text-sm">{it.topic}</b></div>
-        {!returnTo.startsWith("/app/create") && <Link href={`/app/create?item=${it.id}`} className="link-btn text-sm">Доработать в создании контента</Link>}
+        {!embedded && !returnTo.startsWith("/app/create") && <Link href={`/app/create?item=${it.id}`} className="link-btn text-sm">Доработать в создании контента</Link>}
         {!ready && it.status !== "failed" && <p className="rounded-2xl bg-surface p-3 text-sm text-ink2">Материал ещё создаётся. <Link href={`${returnTo}${returnTo.includes("?") ? "&" : "?"}draft=${items.map((x) => x.id).join(",")}`} className="font-semibold text-accent-ink">Обновить</Link></p>}
         {it.status === "failed" && (
-          <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-bad-soft p-3 text-sm text-bad">{hid(it.id)}<AlertTriangle size={15} />Не удалось создать материал.
+          <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-bad-soft p-3 text-sm text-bad">{hid(it.id)}<AlertTriangle size={15} />{it.generation_error || "Не удалось создать материал."}
             <SubmitButton className="pill pill-sm !text-ink"><RefreshCw size={13} />Создать заново{price(priceOf(it.kind))}</SubmitButton></form>
         )}
         {ready && (
@@ -160,14 +161,15 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free }: { org
     );
   };
 
-  return (
-    <AutoModal title={items.length > 1 ? `Созданные материалы (${items.length})` : "Созданный материал"} closeHref={returnTo}>
+  const content = (
       <div className="space-y-4">
+        <DraftProgress active={items.some(it => ["approved", "generating"].includes(it.status) || it.generation_pending)} />
         {err && <p className="flex items-center gap-2 rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{err}</p>}
         {note && <p className="rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">{note}</p>}
         <p className="flex items-center gap-2 text-xs text-ink3"><Layers size={13} />Материал пока в черновиках: в плане и публикациях его нет. Посмотрите, при необходимости поправьте, затем отправьте в план или опубликуйте.</p>
         {items.map(card)}
       </div>
-    </AutoModal>
   );
+  if (embedded) return <section aria-label="Редактирование и публикация" className="mt-6 w-full max-w-[850px]">{content}</section>;
+  return <AutoModal title={items.length > 1 ? `Созданные материалы (${items.length})` : "Созданный материал"} closeHref={returnTo}>{content}</AutoModal>;
 }

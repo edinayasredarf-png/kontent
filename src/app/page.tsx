@@ -148,7 +148,7 @@ export default async function Landing() {
           <div className="w-32 sm:w-40"><Logo href="/" light h={40} /></div>
           <div className="flex items-center gap-2">
             <Link href="/login" className="hidden h-12 items-center rounded-full px-5 text-base font-semibold hover:bg-[#f5f5f5] sm:inline-flex">Войти</Link>
-            <Link href="/register" className="inline-flex h-12 items-center rounded-full bg-[#f5f5f5] px-7 text-base font-semibold hover:bg-[#ececec]">Бесплатно</Link>
+            <Link href="/register" className="inline-flex h-12 items-center rounded-full bg-[#f5f5f5] px-7 text-base font-semibold hover:bg-[#ececec]">Регистрация</Link>
           </div>
         </div>
       </header>

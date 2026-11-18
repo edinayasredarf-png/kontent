@@ -74,7 +74,7 @@ export async function connectChat(orgId: string, userId: string, codeIn: string,
 
 /* ───────── события от MAX (вебхук) ───────── */
 interface Upd {
-  update_type?: string; chat_id?: number; is_channel?: boolean; title?: string; user?: { user_id?: number };
+  payload?: string | null; update_type?: string; chat_id?: number; is_channel?: boolean; title?: string; user?: { user_id?: number };
   message?: { sender?: { user_id?: number; is_bot?: boolean }; recipient?: { chat_id?: number; chat_type?: string; user_id?: number }; body?: { text?: string | null } };
 }
 
@@ -107,7 +107,12 @@ export async function handleUpdate(u: Upd): Promise<void> {
     // бот уже был в канале до подписки на вебхук: смена его прав (например, включить и выключить «Писать сообщения») возвращает канал в список
     await rememberChat(u.chat_id, true, null);
   } else if (t === "bot_started") {
-    const id = u.user?.user_id; if (id != null) await say(id, HELP(process.env.NEXT_PUBLIC_SITE_NAME ?? ""));
+    const id = u.user?.user_id;
+    if (id != null) {
+      const code = normCode(u.payload ?? "");
+      const r = code.length === 8 ? await q("update kz_max_links set status='linked',max_user_id=$2 where code=$1 and status='pending' and expires_at>now() returning id", [code, id]) : [];
+      await say(id, r.length ? "Привязка подтверждена. Добавьте бота администратором в канал и вернитесь в JuicerAI для выбора канала." : HELP(process.env.NEXT_PUBLIC_SITE_NAME ?? ""));
+    }
   } else if (t === "message_created") {
     const m = u.message, from = m?.sender?.user_id;
     const ct = m?.recipient?.chat_type;
@@ -118,7 +123,7 @@ export async function handleUpdate(u: Upd): Promise<void> {
     if (!m || from == null || m.sender?.is_bot || ct === "chat" || ct === "channel") return;
     const code = normCode(m.body?.text ?? "");
     if (code.length !== 8) { await say(from, HELP("")); return; }
-    const r = await q<{ id: string }>("update kz_max_links set status='linked', max_user_id=$2 where code=$1 and status in ('pending','linked') and expires_at > now() returning id", [code, from]);
+    const r = await q<{ id: string }>("update kz_max_links set status='linked', max_user_id=$2 where code=$1 and status='pending' and expires_at > now() returning id", [code, from]);
     await say(from, r.length ? "Ключ принят. Вернитесь на сайт и выберите канал из списка." : "Ключ не найден или истёк. Получите новый ключ на сайте и отправьте его сюда.");
   }
 }
