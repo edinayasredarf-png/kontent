@@ -142,10 +142,19 @@ export const vk: Provider = {
           throw new PublishError(`Пост не опубликован: VK не позволил проверить, что картинка прикрепилась (способ: ${up.name}). ${errs.length ? `Что не сработало: ${errs.join(" | ")}. ` : ""}`);
         }
         const attachments = list[0].attachments as { type?: string; photo?: { id?: number; owner_id?: number }; link?: { photo?: unknown } }[] | undefined;
-        const photos = attachments?.filter(a => a.type === "photo" && a.photo && ids.some(ref => (ref === `photo${a.photo!.owner_id}_${a.photo!.id}` || ref.startsWith(`photo${a.photo!.owner_id}_${a.photo!.id}_`)))) ?? [];
-        if (photos.length < pics.length && !(up.single && pics.length === 1 && attachments?.some(a => a.type === "link" && a.link?.photo))) {
+        // VK can copy a user-owned wall upload into the community's wall album.
+        // That changes both owner_id and id; the new photo is still the attachment
+        // submitted to this newly created post, not a missing image.
+        const canCopyToCommunity = up.name === "стена" && ids.every(ref => /^photo[1-9]\d*_/.test(ref));
+        const photos = new Set((attachments ?? []).filter(a => {
+          if (a.type !== "photo" || !a.photo || !Number.isInteger(a.photo.id) || a.photo.id! <= 0) return false;
+          const ref = `photo${a.photo.owner_id}_${a.photo.id}`;
+          return ids.some(uploaded => uploaded === ref || uploaded.startsWith(`${ref}_`))
+            || canCopyToCommunity && a.photo.owner_id === -Number(id);
+        }).map(a => `${a.photo!.owner_id}_${a.photo!.id}`));
+        if (photos.size < pics.length && !(up.single && pics.length === 1 && attachments?.some(a => a.type === "link" && a.link?.photo))) {
           await call(postToken, "wall.delete", { owner_id: `-${id}`, post_id: String(r.post_id) }).catch(() => { throw new UncertainPostError(`VK создал пост https://vk.com/wall-${id}_${r.post_id}, но не позволил проверить вложения и удалить его. Проверьте пост в VK перед повторной публикацией.`); });
-          throw new PublishError(`VK принял вложение ${ids.join(",")}, но в пост оно не попало`);
+          throw new PublishError(`VK не подтвердил все фотографии в посте: ожидалось ${pics.length}, найдено ${photos.size}`);
         }
         return done(r);
       } catch (e) {

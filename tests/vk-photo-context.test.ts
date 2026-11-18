@@ -4,6 +4,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { vk } from "../src/lib/publishing/vk";
 let server: http.Server, base: string;
+let copied = false;
 const seen: { method: string; params: URLSearchParams }[] = [];
 before(async () => {
   server = http.createServer(async (req, res) => {
@@ -28,7 +29,7 @@ before(async () => {
     }
     if (method === "wall.getById") {
       assert.equal(params.get("access_token"), "user-key");
-      return send({ items: [{ attachments: [{ type: "photo", photo: { id: 123, owner_id: 750414152 } }] }] });
+      return send({ items: [{ attachments: [{ type: "photo", photo: copied ? { id: 456239999, owner_id: -42 } : { id: 123, owner_id: 750414152 } }] }] });
     }
     res.statusCode = 400; res.end("{}");
   });
@@ -45,4 +46,12 @@ it("uses the photo owner token for posting and checking, retaining access_key", 
 });
 it("explains that a group token was entered into the user token field", async () => {
   await assert.rejects(vk.verify({ token: "group-key", photoToken: "group-key", target: "42" }), /В это поле введён ключ сообщества/);
+});
+
+it("accepts VK copying the uploaded user photo to a different community photo ID", async () => {
+  copied = true;
+  const before = seen.length;
+  const result = await vk.publish({ text: "Post", image: { data: Buffer.from("jpeg"), mime: "image/jpeg" } }, { token: "group-key", photoToken: "user-key", target: "42" });
+  assert.equal(result.url, "https://vk.com/wall-42_321");
+  assert.equal(seen.slice(before).some(call => call.method === "wall.delete"), false);
 });

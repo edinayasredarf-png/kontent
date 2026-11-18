@@ -56,7 +56,7 @@ describe("VK: картинка обязательна, если она есть 
   it("чужое изображение во вложениях не считается отправленным фото", async () => {
     calls = []; mode = "wrong-photo";
     const { vk } = await import("../src/lib/publishing/vk");
-    await assert.rejects(vk.publish({ text: "С картинкой", image: img() }, creds), /в пост оно не попало/);
+    await assert.rejects(vk.publish({ text: "С картинкой", image: img() }, creds), /VK не подтвердил все фотографии/);
     assert.ok(calls.includes("wall.delete"));
   });
   it("при отказе удаления показывает адрес поста и не отправляет его повторно", async () => {
