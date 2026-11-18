@@ -44,7 +44,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
     start(() => { router.replace(`/app/monitor${filterQuery(filter, { fresh: since })}`, { scroll: false }); router.refresh(); });
   }, [filter, router, since]);
   const close = useCallback(() => setModal(null), []);
-  // фильтр применяется сразу при любом изменении (поиск по тексту — через 0,4 с после последней буквы): окно остаётся открытым, лента за ним обновляется
+  // Фильтр раскрывается над лентой и применяется при изменении, поиск — через 0,4 с.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submit = (form: HTMLFormElement) => {
     const u = new URLSearchParams();
@@ -65,28 +65,13 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
-          <button type="button" className={PILL} onClick={() => setModal("filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
+          <button type="button" className={PILL} aria-expanded={modal === "filter"} aria-controls="feed-filter-panel" onClick={() => setModal(current => current === "filter" ? null : "filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
           <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
           <button type="button" className={PILL} onClick={() => setModal("settings")}><Settings2 size={16} />Настройки</button>
         </div>
       </div>
-      {note && <p className="mb-4 text-xs text-ink2">{note}</p>}
-      {fresh > 0 && (
-        <div className="sticky top-40 z-20 mb-4 flex justify-center">
-          <button type="button" onClick={show} disabled={loading} aria-busy={loading} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90 disabled:cursor-wait disabled:opacity-90">{loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}{loading ? "Загружаем новые посты…" : `Загружено ${fresh} ${plural(fresh)} · показать`}</button>
-        </div>
-      )}
-      {applying && loading && (
-        <div role="status" className="sticky top-40 z-20 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
-      )}
-      <div key={qs} className={applying && loading ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>{children}</div>
-
       {modal === "filter" && (
-        <Modal title="Фильтр ленты" onClose={close} footer={
-          <div className="flex items-center justify-between gap-3">
-            <Link href="/app/monitor" onClick={close} className="text-sm font-semibold text-ink2 hover:text-ink">Сбросить всё</Link>
-            <button type="button" onClick={close} className="btn !h-11 !px-8">Готово</button>
-          </div>}>
+        <section id="feed-filter-panel" aria-label="Фильтр ленты" className="mb-5 rounded-2xl bg-tile p-4">
           <form id="feed-filter" action="/app/monitor" onSubmit={apply} onChange={(e) => later(e.currentTarget, (e.target as unknown as HTMLInputElement).name === "q" ? 400 : 120)} className="space-y-6">
             <div>
               <p className="label">Поиск по тексту</p>
@@ -112,8 +97,23 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
               <label className="flex items-center gap-2.5 text-sm"><input type="checkbox" name="fit" value="1" defaultChecked={filter.fit} className="size-4" />Только подходящие мне (оценка 6 и выше)</label>
             </div>
           </form>
-        </Modal>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <Link href="/app/monitor" onClick={close} className="text-sm font-semibold text-ink2 hover:text-ink">Сбросить всё</Link>
+            <button type="button" onClick={close} className="btn btn-ghost">Свернуть</button>
+          </div>
+        </section>
       )}
+      {note && <p className="mb-4 text-xs text-ink2">{note}</p>}
+      {fresh > 0 && (
+        <div className="sticky top-40 z-20 mb-4 flex justify-center">
+          <button type="button" onClick={show} disabled={loading} aria-busy={loading} className="inline-flex h-10 animate-[modal-in_.25s_ease-out] items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-float transition hover:opacity-90 disabled:cursor-wait disabled:opacity-90">{loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}{loading ? "Загружаем новые посты…" : `Загружено ${fresh} ${plural(fresh)} · показать`}</button>
+        </div>
+      )}
+      {applying && loading && (
+        <div role="status" className="sticky top-40 z-20 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
+      )}
+      <div key={qs} className={applying && loading ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>{children}</div>
+
       {modal === "settings" && <Modal title="Источники и ключевые слова" onClose={close} wide>{settings}</Modal>}
       {modal === "analysis" && <Modal title="Анализ ленты" onClose={close}>{analysis}</Modal>}
     </>

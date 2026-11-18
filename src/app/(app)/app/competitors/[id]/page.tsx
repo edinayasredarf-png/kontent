@@ -88,7 +88,7 @@ export default async function Competitor({ params, searchParams }: { params: Pro
         </section>
 
         <section className="max-w-[680px]">
-          <FilterBar compact prefix={<h2 className="mr-2 text-sm font-semibold">Посты и новости</h2>} path={`/app/competitors/${id}`} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to}
+          <FilterBar compact inline prefix={<h2 className="mr-2 text-sm font-semibold">Посты и новости</h2>} path={`/app/competitors/${id}`} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to}
             search={{ name: "q", value: text, placeholder: "Поиск по тексту" }}
             selects={[
               { name: "platform", label: "Площадка", all: "Все площадки", value: platform, options: platforms.map((p) => ({ value: p.id, label: `${KIND_NAME[p.kind]}: ${p.title}` })) },

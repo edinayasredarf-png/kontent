@@ -77,7 +77,7 @@ export async function fetchCompetitor(kind: CKind, ref: string): Promise<CFetch>
     const r = await resolveSource("site", ref);
     const items = (await fetchItems("site", r.ref, r.config)).slice(0, 40);
     if (!items.length) throw new Error("На сайте не нашли материалов: нужна страница со списком новостей или статей либо лента RSS");
-    return { title: r.title, avatar: (await fetchSourceMeta("site", ref).catch(() => null))?.avatar, members: null, posts: items.map((i) => ({ ext: i.url, url: i.url, body: (i.body && i.body.length > i.title.length ? i.body : i.title).slice(0, 4000), views: 0, likes: 0, at: i.publishedAt, images: (i.media ?? []).filter(m => m.type === "image" && m.url).map(m => m.url!).slice(0, 6) })) };
+    return { title: r.title, avatar: (await fetchSourceMeta("site", ref, true).catch(() => null))?.avatar, members: null, posts: items.map((i) => ({ ext: i.url, url: i.url, body: (i.body && i.body.length > i.title.length ? i.body : i.title).slice(0, 4000), views: 0, likes: 0, at: i.publishedAt, images: (i.media ?? []).filter(m => m.type === "image" && m.url).map(m => m.url!).slice(0, 6) })) };
   }
   const token = process.env.VK_SERVICE_TOKEN?.trim();
   if (!token) throw new Error("Для анализа VK на сервере не задан ключ VK_SERVICE_TOKEN (сервисный ключ приложения VK)");

@@ -10,7 +10,7 @@ const ICON = { telegram: Send, vk: Users, site: Globe };
 export function CompetitorAvatar({ avatar, kind }: { avatar?: string | null; kind: CKind }) {
   const [failed, setFailed] = useState("");
   const Icon = ICON[kind] ?? Users;
-  if (avatar && avatar !== failed && /^data:image\/(?:png|webp|jpeg);base64,/i.test(avatar)) {
+  if (avatar && avatar !== failed && /^data:image\/(?:png|webp|jpeg|x-icon);base64,/i.test(avatar)) {
     return <img src={avatar} alt="" width={36} height={36} className="size-9 shrink-0 rounded-full object-cover" onError={() => setFailed(avatar)} />;
   }
   return <RoundIcon><Icon size={16} /></RoundIcon>;

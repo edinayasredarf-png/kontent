@@ -88,10 +88,10 @@ export function parseTelegramInfo(html: string): { title: string; photo: string 
 }
 
 /** Иконка сайта со страницы: apple-touch-icon, png/svg-иконка. Формат .ico не читаем. */
-export function pageIcon(html: string, baseUrl: string): string {
+export function pageIcon(html: string, baseUrl: string, allowIco = false): string {
   const root = parseHtml(html);
   const cands = root.querySelectorAll("link[rel]").map((l) => ({ rel: (l.getAttribute("rel") ?? "").toLowerCase(), href: l.getAttribute("href") ?? "", type: (l.getAttribute("type") ?? "").toLowerCase() }))
-    .filter((l) => l.href && /icon/.test(l.rel) && !/\.ico(\?|$)/i.test(l.href) && !l.type.includes("icon"));
+    .filter((l) => l.href && /icon/.test(l.rel) && (allowIco || (!/\.ico(\?|$)/i.test(l.href) && !l.type.includes("icon"))));
   const pick = cands.find((l) => l.rel.includes("apple-touch")) ?? cands[0];
   if (!pick) return "";
   try { return new URL(pick.href, baseUrl).toString(); } catch { return ""; }
@@ -113,9 +113,23 @@ export function discoverFeeds(html: string, baseUrl: string): string[] {
 export function scrapeLinks(html: string, baseUrl: string): Item[] {
   const base = new URL(baseUrl);
   const seen = new Set<string>(); const out: Item[] = [];
+  const imagesByLink = new Map<string, Media[]>();
   const root = parseHtml(html);
   root.querySelectorAll("nav, header, footer, aside, script, style").forEach((n) => n.remove());
-  for (const a of root.querySelectorAll("a[href]")) {
+  const links = root.querySelectorAll("a[href]");
+  for (const a of links) {
+    const url = articleUrl(a.getAttribute("href") ?? "", baseUrl);
+    if (!url) continue;
+    const key = new URL(url); key.hash = "";
+    const images = imagesByLink.get(key.href) ?? [];
+    for (const image of a.querySelectorAll("img")) {
+      const raw = image.getAttribute("data-src") || image.getAttribute("data-original") || image.getAttribute("src");
+      const src = raw && articleUrl(raw, baseUrl);
+      if (src && !images.some(item => item.url === src)) images.push({ type: "image", url: src });
+    }
+    if (images.length) imagesByLink.set(key.href, images.slice(0, 6));
+  }
+  for (const a of links) {
     const text = a.text.replace(/\s+/g, " ").trim();
     if (text.length < 35 || text.split(" ").length < 5) continue; // меню и кнопки короткие, заголовки новостей — нет
     let u: URL;
@@ -125,7 +139,7 @@ export function scrapeLinks(html: string, baseUrl: string): Item[] {
     const key = u.toString();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ extId: sha(key), url: key, title: clip(text, 300), body: "", publishedAt: new Date() });
+    out.push({ extId: sha(key), url: key, title: clip(text, 300), body: "", publishedAt: new Date(), media: imagesByLink.get(key) ?? [] });
     if (out.length >= 40) break;
   }
   return out;

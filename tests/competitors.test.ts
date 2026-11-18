@@ -36,6 +36,15 @@ describe("адрес сайта и ошибки VK", () => {
     assert.throws(() => normalizeRef("site", "localhost"));
     assert.throws(() => normalizeRef("site", "https://user:pw@a.ru"));
   });
+  it("прикрепляет фото к новости, когда фото и заголовок находятся в отдельных ссылках", async () => {
+    const { scrapeLinks } = await import("../src/lib/monitor/parse");
+    const [item] = scrapeLinks(`
+      <div><a href="/news/42/"><img src="/_thumbs/photo.jpg"></a></div>
+      <h3><a href="/news/42/#details">Поздравляем с профессиональным праздником всех проектировщиков</a></h3>
+    `, "https://example.org/news");
+    assert.equal(item.url, "https://example.org/news/42/");
+    assert.deepEqual(item.media, [{ type: "image", url: "https://example.org/_thumbs/photo.jpg" }]);
+  });
   it("Telegram сохраняет аватар, просмотры и публикации только с фотографией", async () => {
     const { parseTelegramChannel } = await import("../src/lib/competitors");
     const channel = parseTelegramChannel(`
