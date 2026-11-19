@@ -1,3 +1,4 @@
+import { ExternalPostsCarousel } from "./ExternalPostsCarousel";
 import { ExternalPostMedia } from "./ExternalPostMedia";
 import Link from "next/link";
 import { Globe, Plus, Send, Users } from "lucide-react";
@@ -11,17 +12,11 @@ const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("ru-RU")
 export const erOf = (r: Pick<XRow, "views" | "likes" | "comments" | "reposts">) => (r.views ? `${(((r.likes + r.comments + r.reposts) / r.views) * 100).toFixed(1)}%` : "—");
 
 /** Материалы, опубликованные не через сервис: добавляются по ссылке (VK, MAX, Telegram), для них копится своя статистика. */
-export async function ExternalPosts({ orgId, from, to, brand }: { orgId: string; from: string | null; to: string | null; brand: string }) {
-  const rows = await listExternal(orgId, { from, to, brand });
-  if (!rows.length) return null;
-  return (
-    <section className="card mb-6 p-5">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div className="mr-auto"><b className="text-sm">Материалы по ссылке</b><p className="text-xs text-ink2">Посты, опубликованные вами вне сервиса: добавьте ссылку из VK, MAX или Telegram, и сервис будет собирать по ним статистику.</p></div>
-      </div>
-      <div className="space-y-2">
-        {rows.map((r) => { const I = ICON[r.kind]; return (
-          <Link key={r.id} href={`/app/analytics/post/${r.id}`} className="block rounded-2xl bg-tile p-3 transition hover:opacity-90">
+export async function ExternalPosts({ orgId, from, to, brand, channel = "", format = "", full = false }: { orgId: string; from: string | null; to: string | null; brand: string; channel?: string; format?: string; full?: boolean }) {
+  const rows = await listExternal(orgId, { from, to, brand, channel, format });
+  if (!rows.length) return full ? <p className="rounded-2xl bg-tile p-5 text-sm text-ink2">За выбранный период материалов нет.</p> : null;
+  const cards = <>{rows.map((r) => { const I = ICON[r.kind]; return (
+          <Link key={r.id} href={`/app/analytics/post/${r.id}`} className="block min-w-0 rounded-2xl bg-tile p-4 transition hover:opacity-90">
             <div className="flex items-center gap-2 text-xs text-ink2">
               <span className="chip inline-flex items-center gap-1 !bg-surface"><I size={12} />{XKIND_NAME[r.kind]}</span>
               {r.author && <span className="truncate">{r.author}</span>}
@@ -30,16 +25,18 @@ export async function ExternalPosts({ orgId, from, to, brand }: { orgId: string;
             <p className="mt-1.5 line-clamp-2 text-sm">{r.body || "Без текста (картинка, видео или документ)"}</p>
             <ExternalPostMedia id={r.id} count={r.image_count} unchecked={!r.media_checked_at} compact />
             {r.last_error && <p className="mt-1.5 rounded-lg bg-bad-soft px-2 py-1 text-xs text-bad">{r.last_error}</p>}
-            <dl className="mt-2 grid grid-cols-5 gap-1.5 text-center">
+            <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
               {[["Просмотры", fmt(r.views)], ["Лайки", r.kind === "max" ? "—" : fmt(r.likes)], ["Комм.", r.kind === "vk" ? fmt(r.comments) : "—"], ["Репосты", r.kind === "vk" ? fmt(r.reposts) : "—"], ["Вовлечённость", erOf(r)]].map(([l, v]) => (
-                <div key={l} className="rounded-xl bg-surface px-1 py-1.5"><dd className="text-sm font-semibold">{v}</dd><dt className="text-[10px] leading-tight text-ink2">{l}</dt></div>))}
+                <div key={l} className="rounded-xl bg-surface px-1 py-1.5"><dd className="text-sm font-semibold">{v}</dd><dt className="break-words text-[10px] leading-tight text-ink2">{l}</dt></div>))}
             </dl>
             {r.d24 != null && r.d24 > 0 && <p className="mt-1.5 text-xs text-good">+{fmt(r.d24)} просмотров за сутки</p>}
           </Link>); })}
-      </div>
-      <p className="mt-3 text-xs text-ink3">Показатели обновляются автоматически: в первые 3 дня каждый час, потом реже. Новые посты не попадают в общие цифры выше, они считаются отдельно.</p>
-    </section>
-  );
+  </>;
+  if (full) return <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{cards}</div>;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ from, to, brand, channel, format })) if (value) params.set(key, value);
+  return <ExternalPostsCarousel href={`/app/analytics/materials?${params}`}>{cards}</ExternalPostsCarousel>;
+
 }
 
 export function AddExternalPost({ brands }: { brands: { id: string; name: string }[] }) {

@@ -1,3 +1,4 @@
+import { ExternalPostHistoryChart } from "@/components/ExternalPostHistoryChart";
 import { ExternalPostMedia } from "@/components/ExternalPostMedia";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -30,7 +31,6 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
   const posted = p.posted_at ? new Date(p.posted_at) : null;
   const hours = posted ? Math.max(1, (Date.now() - posted.getTime()) / 3_600_000) : null;
   const series = hist.slice(-40);
-  const maxV = Math.max(1, ...series.map((h) => h.views));
   const vk = p.kind === "vk";
   const cards: [string, string][] = [["Просмотры", fmt(views)], ["Лайки и реакции", p.kind === "max" ? "—" : fmt(likes)], ...(vk ? [["Комментарии", fmt(comments)], ["Репосты", fmt(reposts)]] as [string, string][] : []), ["Вовлечённость", er == null ? "—" : `${er.toFixed(1)}%`], ["Просмотров в час (в среднем)", hours && views ? fmt(Math.round((views / hours) * 10) / 10) : "—"]];
   return (
@@ -44,7 +44,7 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
           <form action={deleteExternalAction}><input type="hidden" name="id" value={id} /><SubmitButton data-confirm="Убрать пост из аналитики вместе с накопленной статистикой?" className="grid size-10 place-items-center rounded-full bg-bad-soft text-bad transition hover:opacity-80" title="Убрать" aria-label="Убрать"><Trash2 size={15} /></SubmitButton></form>
         </>}
       </div>
-      <div className="w-full max-w-[680px] space-y-5">
+      <div className="w-full max-w-[1100px] space-y-5">
         {p.last_error && <p className="rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad">Последнее обновление не удалось: {p.last_error}. Показаны прежние данные.</p>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{cards.map(([l, v]) => <div key={l} className="rounded-2xl bg-tile p-4"><div className="mb-1 text-xs text-ink2">{l}</div><div className="text-2xl font-semibold">{v}</div></div>)}</div>
         {Object.keys(extra).length > 0 && (
@@ -53,8 +53,8 @@ export default async function ExternalPost({ params }: { params: Promise<{ id: s
         )}
         <section className="card p-5">
           <b className="mb-1 block text-sm">Рост просмотров</b>
-          <p className="mb-3 text-xs text-ink2">{series.length > 1 ? `С ${when(first.at)}: +${fmt(views - first.views)} просмотров. Снимки показателей делаются автоматически.` : "Пока один снимок: график появится после следующего обновления (в первые 3 дня — раз в час)."}</p>
-          {series.length > 1 && <div className="flex h-32 items-end gap-0.5">{series.map((h) => <div key={h.at} title={`${when(h.at)} — ${fmt(h.views)} просм.`} className="flex-1 rounded-t bg-accent/75" style={{ height: `${Math.max(4, (h.views / maxV) * 100)}%` }} />)}</div>}
+          <p className="mb-3 text-xs text-ink2">{series.length > 1 ? `С ${when(first.at)}: +${fmt(views - first.views)} просмотров. Снимки показателей делаются автоматически.` : "Пока один снимок: следующий снимок появится после обновления (в первые 3 дня — раз в час)."}</p>
+          <ExternalPostHistoryChart series={series} />
           {hist.length > 0 && (
             <details className="mt-3 text-xs"><summary className="cursor-pointer text-ink2">Таблица снимков ({hist.length})</summary>
               <table className="mt-2 w-full text-sm"><thead><tr className="text-left text-xs text-ink3"><th className="pb-1 font-normal">Время (МСК)</th><th className="pb-1 text-right font-normal">Просм.</th><th className="pb-1 text-right font-normal">Лайки</th>{vk && <><th className="pb-1 text-right font-normal">Комм.</th><th className="pb-1 text-right font-normal">Репосты</th></>}</tr></thead>

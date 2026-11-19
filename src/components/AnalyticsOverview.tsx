@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Line } from "react-chartjs-2";
-import type { ChartOptions } from "chart.js";
+import { analyticsLineOptions } from "./analytics-line";
 import type { AnalyticsDay } from "@/lib/engage";
 import type { Range } from "@/lib/range";
 import type { FilterSelect } from "./FilterBar";
@@ -90,15 +90,7 @@ export function AnalyticsOverview({ range, presets, totals, days, filters }: {
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     start(() => router.replace(`/app/analytics?${params}`, { scroll: false }));
   }
-  const options: ChartOptions<"line"> = {
-    responsive: true, maintainAspectRatio: false, animation: false,
-    interaction: { mode: "nearest", intersect: false },
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: item => `${label}: ${format(Number(item.parsed.y), metric)}` } } },
-    scales: {
-      x: { grid: { color: theme?.line, drawTicks: false }, border: { display: false, dash: [3, 3] }, ticks: { color: theme?.ink2, maxTicksLimit: 9, autoSkipPadding: 12, maxRotation: 0, padding: 9, font: { size: 11 } } },
-      y: { beginAtZero: true, suggestedMax: 1, grid: { color: theme?.line, drawTicks: false }, border: { display: false, dash: [3, 3] }, ticks: { color: theme?.ink2, display: series.some(p => valueOf(p, metric) > 0), maxTicksLimit: 5, callback: v => format(Number(v), metric) } },
-    },
-  };
+  const options = analyticsLineOptions(theme, label, n => format(n, metric));
   const control = "input !rounded-lg !border-line !bg-surface !py-1.5 !text-xs font-semibold";
   return (
     <section aria-label="Сводная аналитика" aria-busy={pending} className="mb-6 overflow-hidden rounded-[20px] border border-line bg-surface">

@@ -156,8 +156,20 @@ export interface AnalyticsDay { day: string; views: number; likes: number; comme
 
 export async function analytics(orgId: string, filter: AFilter | Period, includeTrend = false) {
   const f = asFilter(filter), w = cond(f);
-  const base = `from kz_publications p join kz_post_stats s on s.publication_id=p.id join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
-                where p.org_id=$1 and p.status='published'${w.sql}`;
+  // One latest snapshot per post, including materials imported by link.
+  // A material already published here is counted only once.
+  const records = `select p.org_id,p.published_at,p.channel_id,i.id item_id,i.brand_id,i.kind,i.topic,c.kind channel_kind,c.title,p.external_url,
+      coalesce(s.views,0) views,coalesce(s.likes,0) likes,coalesce(s.comments,0) comments,coalesce(s.reposts,0) reposts
+    from kz_publications p join kz_content_items i on i.id=p.item_id join kz_channels c on c.id=p.channel_id
+    left join kz_post_stats s on s.publication_id=p.id where p.org_id=$1 and p.status='published'
+    union all
+    select e.org_id,coalesce(e.posted_at,e.created_at),e.channel_id,null::uuid,e.brand_id,'post',left(e.body,160),e.kind,
+      coalesce(nullif(e.author,''),c.title,e.kind),e.url,coalesce(s.views,0),coalesce(s.likes,0),coalesce(s.comments,0),coalesce(s.reposts,0)
+    from kz_external_posts e left join kz_channels c on c.id=e.channel_id
+    left join lateral (select * from kz_external_stats x where x.post_id=e.id order by fetched_at desc limit 1) s on true
+    where e.org_id=$1 and not exists(select 1 from kz_publications p where p.org_id=e.org_id and p.status='published' and p.external_url=e.url)`;
+  const where = w.sql.replaceAll("p.published_at", "a.published_at").replaceAll("i.brand_id", "a.brand_id").replaceAll("p.channel_id", "a.channel_id").replaceAll("i.kind", "a.kind");
+  const base = `from (${records}) a where a.org_id=$1${where}`;
   const P = [orgId, ...w.params];
   // переходы по ссылкам: тот же период и те же фильтры через материал и канал
   const lp: unknown[] = [orgId]; let lsql = "";
@@ -167,16 +179,16 @@ export async function analytics(orgId: string, filter: AFilter | Period, include
   if (f.brand) { lp.push(f.brand); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.brand_id=$${lp.length}::uuid)`; }
   if (f.kind) { lp.push(f.kind); lsql += ` and exists(select 1 from kz_content_items x where x.id=l.item_id and x.kind=$${lp.length})`; }
   const [tot, byChannel, byKind, top, byHour, clicksRow, trend] = await Promise.all([
-    one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes),0) likes,coalesce(sum(s.comments),0) comments,coalesce(sum(s.reposts),0) reposts ${base}`, P),
-    q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select c.kind,c.title,count(*) posts,coalesce(sum(s.views),0) views,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by c.kind,c.title order by views desc`, P),
-    q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select i.kind,count(*) posts,coalesce(sum(s.views),0) views,round(coalesce(avg(s.views),0)) avg,coalesce(sum(s.likes+s.comments+s.reposts),0) eng ${base} group by i.kind order by avg desc`, P),
+    one<{ posts: string; views: string; likes: string; comments: string; reposts: string }>(`select count(*) posts,coalesce(sum(a.views),0) views,coalesce(sum(a.likes),0) likes,coalesce(sum(a.comments),0) comments,coalesce(sum(a.reposts),0) reposts ${base}`, P),
+    q<{ kind: string; title: string; posts: string; views: string; eng: string }>(`select a.channel_kind kind,a.title,count(*) posts,coalesce(sum(a.views),0) views,coalesce(sum(a.likes+a.comments+a.reposts),0) eng ${base} group by a.channel_kind,a.title order by views desc`, P),
+    q<{ kind: string; posts: string; views: string; avg: string; eng: string }>(`select a.kind,count(*) posts,coalesce(sum(a.views),0) views,round(coalesce(avg(a.views),0)) avg,coalesce(sum(a.likes+a.comments+a.reposts),0) eng ${base} group by a.kind order by avg desc`, P),
     q<{ topic: string; kind: string; channel: string; url: string | null; published_at: string; views: number; likes: number; comments: number; reposts: number; clicks: string }>(
-      `select i.topic,i.kind,c.title channel,p.external_url url,p.published_at,s.views,s.likes,s.comments,s.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=i.id and l.channel_id=c.id) as clicks ${base} order by s.views desc, (s.likes+s.comments+s.reposts) desc limit 10`, P),
-    q<{ hour: number; posts: string; avg: string }>(`select extract(hour from p.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(s.views)) avg ${base} group by 1 order by 1`, P),
+      `select a.topic,a.kind,a.title channel,a.external_url url,a.published_at,a.views,a.likes,a.comments,a.reposts,(select coalesce(sum(l.clicks),0) from kz_links l where l.item_id=a.item_id and l.channel_id=a.channel_id) as clicks ${base} order by a.views desc, (a.likes+a.comments+a.reposts) desc limit 10`, P),
+    q<{ hour: number; posts: string; avg: string }>(`select extract(hour from a.published_at at time zone 'Europe/Moscow')::int as hour,count(*) posts,round(avg(a.views)) avg ${base} group by 1 order by 1`, P),
     one<{ n: string }>(`select coalesce(sum(l.clicks),0) n from kz_links l where l.org_id=$1${lsql}`, lp),
-    includeTrend ? q<AnalyticsDay>(`select to_char(p.published_at at time zone 'Europe/Moscow','YYYY-MM-DD') as day,
-      sum(s.views)::float8 views,sum(s.likes)::float8 likes,sum(s.comments)::float8 comments,sum(s.reposts)::float8 reposts
-      ${base} and p.published_at is not null group by 1 order by 1`, P) : [],
+    includeTrend ? q<AnalyticsDay>(`select to_char(a.published_at at time zone 'Europe/Moscow','YYYY-MM-DD') as day,
+      sum(a.views)::float8 views,sum(a.likes)::float8 likes,sum(a.comments)::float8 comments,sum(a.reposts)::float8 reposts
+      ${base} and a.published_at is not null group by 1 order by 1`, P) : [],
 
   ]);
   return { tot: tot!, byChannel, byKind, top, byHour, trend, clicks: Number(clicksRow?.n ?? 0) };

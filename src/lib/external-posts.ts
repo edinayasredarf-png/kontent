@@ -175,11 +175,13 @@ export interface XRow {
 }
 
 /** Список материалов по ссылке с последними показателями и приростом просмотров за сутки. */
-export async function listExternal(orgId: string, f: { from?: string | null; to?: string | null; brand?: string }): Promise<XRow[]> {
+export async function listExternal(orgId: string, f: { from?: string | null; to?: string | null; brand?: string; channel?: string; format?: string }): Promise<XRow[]> {
+  if (f.format && f.format !== "post") return [];
   const args: unknown[] = [orgId]; let where = "";
   const add = (v: unknown) => { args.push(v); return `$${args.length}`; };
   if (f.from) where += ` and coalesce(p.posted_at,p.created_at) >= ${add(f.from)}::timestamptz`;
   if (f.to) where += ` and coalesce(p.posted_at,p.created_at) < ${add(f.to)}::timestamptz`;
+  if (f.channel) where += ` and p.channel_id = ${add(f.channel)}::uuid`;
   if (f.brand) where += ` and p.brand_id = ${add(f.brand)}::uuid`;
   return q<XRow>(
     `select cardinality(p.images) image_count,p.media_checked_at,p.id,p.kind,p.url,p.author,p.body,p.posted_at,p.created_at,p.last_error,p.last_fetched_at,p.brand_id,

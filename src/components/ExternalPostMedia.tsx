@@ -9,10 +9,10 @@ export function ExternalPostMedia({ id, count, unchecked, compact = false }: { i
     return () => controller.abort();
   },[id,count,unchecked]);
   const [failed, setFailed] = useState<number[]>([]);
-  const indexes = Array.from({length: Math.min(10, total)}, (_,i) => i).filter(i => !failed.includes(i));
+  const indexes = Array.from({length: Math.min(compact ? 1 : 10, total)}, (_,i) => i).filter(i => !failed.includes(i));
   if (!indexes.length) return null;
   return <div className={`mt-3 grid gap-2 ${indexes.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>{indexes.map(index =>
     // eslint-disable-next-line @next/next/no-img-element
-    <img key={index} src={`/api/external-media/${id}?index=${index}`} loading="lazy" alt={`Изображение поста ${index + 1}`} onError={() => setFailed(previous => [...previous,index])} className={`w-full rounded-xl bg-surface object-contain ${compact ? "max-h-48" : "max-h-[560px]"}`} />
+    <img key={index} src={`/api/external-media/${id}?index=${index}`} loading="lazy" alt={`Изображение поста ${index + 1}`} onError={() => setFailed(previous => [...previous,index])} className={`w-full rounded-xl bg-surface object-contain ${compact ? "aspect-[4/3] max-h-60 !object-cover" : "max-h-[560px]"}`} />
   )}</div>;
 }

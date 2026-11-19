@@ -5,6 +5,7 @@ import { suggestReply } from "./comments";
 import { requireCtx, requireWriter } from "./auth";
 import { q } from "./db";
 import { collectComments, collectStats, recommendations, replyToComment, type AFilter } from "./engage";
+import { refreshExternal } from "./external-posts";
 import { uuidOrEmpty } from "./range";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -15,6 +16,8 @@ export async function refreshStatsAction() {
   await q("update kz_post_stats set fetched_at = now() - interval '2 days' where org_id=$1", [c.org.id]);
   await collectStats(60);
   await collectComments(15);
+  const external = await q<{ id: string }>("select id from kz_external_posts where org_id=$1 order by last_fetched_at nulls first limit 12", [c.org.id]);
+  for (let i=0; i<external.length; i+=3) await Promise.all(external.slice(i,i+3).map(p => refreshExternal(p.id)));
   revalidatePath("/app", "layout");
 }
 

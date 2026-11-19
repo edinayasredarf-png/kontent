@@ -50,7 +50,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
         { name: "kind", label: "Формат контента", all: "Выбрать контент", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },
         ...(brands.length > 1 ? [{ name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) }] : []),
       ]} />
-      <ExternalPosts orgId={c.org.id} from={periodBounds.from} to={periodBounds.to} brand={brand} />
+      <ExternalPosts orgId={c.org.id} from={periodBounds.from} to={periodBounds.to} brand={brand} channel={channel} format={kind} />
       {posts > 0 && <>
         <p className="mb-4 text-sm text-ink2">Публикаций: {posts.toLocaleString("ru-RU")}{a.clicks > 0 && ` · Переходов на сайт: ${a.clicks.toLocaleString("ru-RU")}`}</p>
         {members.length > 0 && (
