@@ -6,7 +6,7 @@ import { toPlain } from "./format";
 const V = "5.199";
 interface Vk<T> { response?: T; error?: { error_code: number; error_msg: string } }
 
-export async function call<T>(token: string, method: string, params: Record<string, string>): Promise<T> {
+export async function call<T>(token: string, method: string, params: Record<string, string>, attempt = 0): Promise<T> {
   let res: Response;
   try {
     // токен — в теле POST, а не в URL: URL попадает в логи
@@ -18,7 +18,13 @@ export async function call<T>(token: string, method: string, params: Record<stri
   const j = (await res.json().catch(() => ({}))) as Vk<T>;
   if (j.error) {
     const c = j.error.error_code;
-    // 6 — частота запросов, 9 — флуд-контроль, 10 — внутренняя ошибка VK
+    // Code 6 explicitly rejects the call before execution. Retry that request,
+    // not the entire carousel (which would lose already uploaded slides).
+    if (c === 6 && attempt < 3) {
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      return call<T>(token, method, params, attempt + 1);
+    }
+    // 9 — флуд-контроль, 10 — внутренняя ошибка VK
     throw new PublishError(`VK ${method}: ${j.error.error_msg} (код ${c})`, c === 6 || c === 9 || c === 10);
   }
   if (j.response === undefined) throw new PublishError(`VK ${method}: пустой ответ`, res.status >= 500);
@@ -37,15 +43,17 @@ type Img = { data: Buffer; mime: string };
 
 /** Отправка файла на адрес загрузки VK (multipart). */
 async function sendFile<T>(url: string, field: string, img: Img): Promise<T> {
-  const f = new FormData();
   const ext = /png/.test(img.mime) ? "png" : /gif/.test(img.mime) ? "gif" : "jpg";
-  f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), `image.${ext}`);
   // сервер загрузки VK иногда отвечает не JSON-ом, а страницей ошибки (например, 405 от шлюза): один повтор обычно проходит
   for (let attempt = 0; ; attempt++) {
     try {
+      const f = new FormData();
+      f.set(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), `image.${ext}`);
       const res = await fetch(url, { method: "POST", body: f, signal: AbortSignal.timeout(45_000) });
       const raw = await res.text();
-      try { return JSON.parse(raw) as T; } catch { throw new PublishError(`ответ загрузки (${res.status}): ${raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}`); }
+      const temporary = res.status >= 500 || [405,408,429].includes(res.status);
+      if (!res.ok) throw new PublishError(`Сервер загрузки VK ответил HTTP ${res.status}${temporary ? ". Временный сбой загрузки, повторим отправку." : ""}`, temporary);
+      try { return JSON.parse(raw) as T; } catch { throw new PublishError("Сервер загрузки VK вернул неверный ответ. Повторим отправку.", true); }
     } catch (e) {
       if (attempt === 0) { await new Promise((r) => setTimeout(r, 1200)); continue; }
       if (e instanceof PublishError) throw e;
@@ -103,7 +111,8 @@ export const vk: Provider = {
   },
   async publish(input, c) {
     const { token, id } = need(c);
-    const raw = input.images?.length ? input.images.slice(0, 10) : input.image ? [input.image] : [];
+    if (input.images && input.images.length > 10) throw new PublishError("VK принимает не более 10 фотографий в одной публикации.");
+    const raw = input.images?.length ? input.images : input.image ? [input.image] : [];
     // VK принимает только JPG, PNG и GIF; WebP и прочее он отбрасывает (пустой ответ загрузки), поэтому отправляем всё JPEG-ом
     const pics: Img[] = await Promise.all(raw.map(async (p) => /jpe?g/.test(p.mime) ? p : { data: await sharp(p.data).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" }));
     const message = toPlain(input.text).slice(0, 15000);
@@ -121,7 +130,16 @@ export const vk: Provider = {
         // publishing, verification and cleanup in the same authorization context.
         const postToken = up.name === "стена" ? c.photoToken || token : token;
         // «single»: способ прикрепляет одну ссылку на всё (для карусели — на первый слайд)
-        for (const pic of up.single ? pics.slice(0, 1) : pics) ids.push(await up.run(postToken, id, pic, input.imageUrl));
+        for (const pic of up.single ? pics.slice(0, 1) : pics) {
+          for (let retry = 0; ; retry++) {
+            try { ids.push(await up.run(postToken, id, pic, input.imageUrl)); break; }
+            catch (error) {
+              if (!(error instanceof PublishError) || !error.retryable || retry >= 1) throw error;
+              // Obtain a fresh signed upload URL; keep slides already uploaded.
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
         if (up.name === "стена") wallUploaded = true;
         const r = await post(ids.join(","), postToken).catch(e => {
           if ((e as PublishError).retryable) throw new UncertainPostError("VK не подтвердил результат отправки. Проверьте стену сообщества перед повторной публикацией, чтобы избежать дубликата.");

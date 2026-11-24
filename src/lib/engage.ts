@@ -1,4 +1,5 @@
 import { one, q } from "./db";
+import { vkChannelCredentials } from "./vk-channel-token";
 import { open } from "./crypto";
 import { call as vkCall } from "./publishing/vk";
 import { chat } from "./ai";
@@ -33,14 +34,15 @@ const TG_BASE = () => (process.env.TG_WEB_BASE?.trim() || "https://t.me").replac
 interface VkPost { id: number; owner_id: number; views?: { count: number }; likes?: { count: number }; comments?: { count: number }; reposts?: { count: number } }
 
 /** Обновляет показатели опубликованных постов. Свежие — чаще (раз в час), старые — реже. Ошибка одного канала не мешает остальным. */
-export async function collectStats(limit = 60): Promise<{ updated: number; errors: string[] }> {
+export async function collectStats(limit = 60, orgId?: string, publicationId?: string): Promise<{ updated: number; errors: string[] }> {
   const rows = await q<{ id: string; org_id: string; url: string; kind: string; ch: string; credentials: unknown }>(
     `select p.id,p.org_id,p.external_url url,c.kind,c.id ch,c.credentials
        from kz_publications p join kz_channels c on c.id=p.channel_id left join kz_post_stats s on s.publication_id=p.id
-      where p.status='published' and p.external_url is not null and p.published_at > now() - interval '30 days'
-        and (s.fetched_at is null or s.fetched_at < now() - (case when p.published_at > now() - interval '3 days' then interval '1 hour'
+      where p.status='published' and p.external_url is not null and ($3::uuid is not null or p.published_at > now() - interval '30 days')
+        and ($2::uuid is null or p.org_id=$2::uuid) and ($3::uuid is null or p.id=$3::uuid)
+        and ($3::uuid is not null or s.fetched_at is null or s.fetched_at < now() - (case when p.published_at > now() - interval '3 days' then interval '1 hour'
                                                                    when p.published_at > now() - interval '14 days' then interval '6 hours' else interval '24 hours' end))
-      order by s.fetched_at nulls first limit $1`, [limit]);
+      order by s.fetched_at nulls first limit $1`, [limit, orgId ?? null, publicationId ?? null]);
   const out = { updated: 0, errors: [] as string[] };
   const save = async (r: { id: string; org_id: string }, v: { views: number; likes: number; comments: number; reposts: number }) => {
     await q(`insert into kz_post_stats(publication_id,org_id,views,likes,comments,reposts,fetched_at) values($1,$2,$3,$4,$5,$6,now())
@@ -54,10 +56,19 @@ export async function collectStats(limit = 60): Promise<{ updated: number; error
   for (const r of rows.filter((x) => x.kind === "vk")) byCh.set(r.ch, [...(byCh.get(r.ch) ?? []), r]);
   for (const list of byCh.values()) {
     try {
-      const token = open(list[0].credentials).token;
-      if (!token) continue;
+      const cred = await vkChannelCredentials(list[0].org_id,list[0].ch,list[0].credentials).catch(error => {
+        if (process.env.VK_SERVICE_TOKEN?.trim()) return open(list[0].credentials);
+        throw error;
+      });
+      const tokens = [...new Set([cred.photoToken,process.env.VK_SERVICE_TOKEN?.trim(),cred.token].filter((t): t is string => !!t))];
+      if (!tokens.length) throw new Error("Для статистики нужен действующий доступ VK в настройках канала");
       const ids = list.map((r) => ({ r, p: parseVkUrl(r.url) })).filter((x) => x.p);
-      const res = await vkCall<{ items?: VkPost[] } | VkPost[]>(token, "wall.getById", { posts: ids.map((x) => `${x.p!.owner}_${x.p!.id}`).join(",") });
+      let res: { items?: VkPost[] } | VkPost[] | undefined, error: unknown;
+      for (const token of tokens) {
+        try { res = await vkCall(token,"wall.getById",{posts:ids.map(x=>`${x.p!.owner}_${x.p!.id}`).join(",")}); break; }
+        catch(e) { error=e; }
+      }
+      if (!res) throw error ?? new Error("VK не вернул статистику");
       const items = Array.isArray(res) ? res : res.items ?? [];
       for (const x of ids) {
         const it = items.find((i) => String(i.owner_id) === x.p!.owner && String(i.id) === x.p!.id);

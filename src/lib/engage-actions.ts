@@ -14,7 +14,7 @@ export async function refreshStatsAction() {
   const c = await requireWriter();
   // принудительно «устаревшими» делаем только свои публикации, остальных организаций не трогаем
   await q("update kz_post_stats set fetched_at = now() - interval '2 days' where org_id=$1", [c.org.id]);
-  await collectStats(60);
+  await collectStats(60,c.org.id);
   await collectComments(15);
   const external = await q<{ id: string }>("select id from kz_external_posts where org_id=$1 order by last_fetched_at nulls first limit 12", [c.org.id]);
   for (let i=0; i<external.length; i+=3) await Promise.all(external.slice(i,i+3).map(p => refreshExternal(p.id)));
@@ -58,4 +58,13 @@ export async function replyCommentAction(_: unknown, f: FormData) {
   if (!r.ok) return { error: r.error };
   revalidatePath("/app/inbox");
   return { ok: "Ответ отправлен" };
+}
+
+/** Targeted native-publication refresh cannot consume another tenant's queue. */
+export async function refreshPublicationStatsAction(f: FormData) {
+  const c=await requireWriter(), id=uuidOrEmpty(s(f,"id"));
+  if (!id) return;
+  const result=await collectStats(1,c.org.id,id);
+  revalidatePath("/app/analytics","layout");
+  redirect(`/app/analytics/publications/${id}${result.errors.length?`?err=${encodeURIComponent(result.errors.join("; "))}`:""}`);
 }

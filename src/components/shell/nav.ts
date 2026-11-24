@@ -1,4 +1,4 @@
-import { Sparkles, Factory, Radar, CalendarDays, Rss, Crosshair, BarChart3, Wand2, Settings, type LucideIcon } from "lucide-react";
+import { Sparkles, Factory, Radar, CalendarDays, Rss, Crosshair, BarChart3, Wand2, Settings, TrendingUp, type LucideIcon } from "lucide-react";
 
 export interface NavChild { href: string; label: string }
 export interface NavItem {
@@ -16,6 +16,7 @@ export const NAV: NavItem[] = [
   { href: "/app/monitor", label: "Новости", icon: Radar },
   { href: "/app/flows", label: "Автолента", icon: Rss },
   { href: "/app/competitors", label: "Конкуренты", icon: Crosshair },
+  { href: "/app/trends", label: "Тренды", icon: TrendingUp },
   { href: "/app/analytics", label: "Аналитика", icon: BarChart3 },
   { href: "/app/settings", label: "Настройки", icon: Settings },
 ];

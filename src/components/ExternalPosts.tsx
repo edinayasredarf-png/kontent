@@ -1,4 +1,7 @@
 import { ExternalPostsCarousel } from "./ExternalPostsCarousel";
+import { publishedAnalytics, isPublished } from "@/lib/published-analytics";
+import { parsePostLink } from "@/lib/external-posts";
+import { PublishedPostMedia } from "./PublishedPostMedia";
 import { ExternalPostMedia } from "./ExternalPostMedia";
 import Link from "next/link";
 import { Globe, Plus, Send, Users } from "lucide-react";
@@ -11,22 +14,26 @@ const ICON: Record<XKind, typeof Send> = { telegram: Send, vk: Users, max: Globe
 const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("ru-RU"));
 export const erOf = (r: Pick<XRow, "views" | "likes" | "comments" | "reposts">) => (r.views ? `${(((r.likes + r.comments + r.reposts) / r.views) * 100).toFixed(1)}%` : "—");
 
-/** Материалы, опубликованные не через сервис: добавляются по ссылке (VK, MAX, Telegram), для них копится своя статистика. */
+/** Unified portfolio: native publications plus posts added by link, without duplicate cards. */
 export async function ExternalPosts({ orgId, from, to, brand, channel = "", format = "", full = false }: { orgId: string; from: string | null; to: string | null; brand: string; channel?: string; format?: string; full?: boolean }) {
-  const rows = await listExternal(orgId, { from, to, brand, channel, format });
+  const [external, native] = await Promise.all([listExternal(orgId, { from, to, brand, channel, format }), publishedAnalytics(orgId, { from, to, brand, channel, format })]);
+  const key = (row: {kind:string;url:string}) => { try { const parsed=parsePostLink(row.url); return `${parsed.kind}:${parsed.ref}`; } catch { return `${row.kind}:${row.url}`; } };
+  const nativeKeys=new Set(native.map(key));
+  const rows = [...native,...external.filter(row=>!nativeKeys.has(key(row)))].sort((a,b)=>new Date(b.posted_at??b.created_at).getTime()-new Date(a.posted_at??a.created_at).getTime()).slice(0,200);
   if (!rows.length) return full ? <p className="rounded-2xl bg-tile p-5 text-sm text-ink2">За выбранный период материалов нет.</p> : null;
-  const cards = <>{rows.map((r) => { const I = ICON[r.kind]; return (
-          <Link key={r.id} href={`/app/analytics/post/${r.id}`} className="block min-w-0 rounded-2xl bg-tile p-4 transition hover:opacity-90">
+  const cards = <>{rows.map((r) => { const I = ICON[r.kind]; const measured=!isPublished(r)||!!r.last_fetched_at; const display=(n:number)=>measured?fmt(n):"—"; return (
+          <Link key={r.id} href={isPublished(r)?`/app/analytics/publications/${r.id}`:`/app/analytics/post/${r.id}`} className="block min-w-0 rounded-2xl bg-tile p-4 transition hover:opacity-90">
             <div className="flex items-center gap-2 text-xs text-ink2">
               <span className="chip inline-flex items-center gap-1 !bg-surface"><I size={12} />{XKIND_NAME[r.kind]}</span>
               {r.author && <span className="truncate">{r.author}</span>}
               <span className="ml-auto shrink-0">{(r.posted_at ?? r.created_at) ? new Date(r.posted_at ?? r.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : ""}</span>
             </div>
             <p className="mt-1.5 line-clamp-2 text-sm">{r.body || "Без текста (картинка, видео или документ)"}</p>
-            <ExternalPostMedia id={r.id} count={r.image_count} unchecked={!r.media_checked_at} compact />
+            {isPublished(r)?<PublishedPostMedia assets={r.assets} compact/>:<ExternalPostMedia id={r.id} count={r.image_count} unchecked={!r.media_checked_at} compact />}
+            {isPublished(r) && !r.last_fetched_at && <p className="mt-2 text-xs text-ink3">Опубликовано через JuicerAI · Статистика ещё собирается</p>}
             {r.last_error && <p className="mt-1.5 rounded-lg bg-bad-soft px-2 py-1 text-xs text-bad">{r.last_error}</p>}
             <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
-              {[["Просмотры", fmt(r.views)], ["Лайки", r.kind === "max" ? "—" : fmt(r.likes)], ["Комм.", r.kind === "vk" ? fmt(r.comments) : "—"], ["Репосты", r.kind === "vk" ? fmt(r.reposts) : "—"], ["Вовлечённость", erOf(r)]].map(([l, v]) => (
+              {[["Просмотры", display(r.views)], ["Лайки", r.kind === "max" ? "—" : display(r.likes)], ["Комм.", r.kind === "vk" ? display(r.comments) : "—"], ["Репосты", r.kind === "vk" ? display(r.reposts) : "—"], ["Вовлечённость", erOf(r)]].map(([l, v]) => (
                 <div key={l} className="rounded-xl bg-surface px-1 py-1.5"><dd className="text-sm font-semibold">{v}</dd><dt className="break-words text-[10px] leading-tight text-ink2">{l}</dt></div>))}
             </dl>
             {r.d24 != null && r.d24 > 0 && <p className="mt-1.5 text-xs text-good">+{fmt(r.d24)} просмотров за сутки</p>}

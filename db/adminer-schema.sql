@@ -957,5 +957,34 @@ create index if not exists channel_connections_owner on kz_channel_connections(o
 alter table kz_external_posts add column if not exists images text[] not null default '{}';
 alter table kz_external_posts add column if not exists media_checked_at timestamptz;
 
+-- 040_trends.sql
+create table if not exists kz_trend_runs (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  factory_id uuid not null references kz_factories(id) on delete cascade,
+  query text not null,
+  days int not null check (days in (7,30)),
+  result jsonb not null,
+  context_hash text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists trend_runs_scope on kz_trend_runs(org_id,factory_id,created_at desc);
+create table if not exists kz_trend_materials (
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  run_id uuid not null references kz_trend_runs(id) on delete cascade,
+  idea_id text not null,
+  item_id uuid not null references kz_content_items(id) on delete cascade,
+  primary key (org_id,run_id,idea_id)
+);
+
+create table if not exists kz_trend_topics (
+  org_id uuid not null references kz_orgs(id) on delete cascade,
+  factory_id uuid not null references kz_factories(id) on delete cascade,
+  context_hash text not null,
+  topics jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (org_id,factory_id)
+);
+
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql'),('038_channel_connections.sql'),('039_external_post_images.sql') on conflict do nothing;
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql'),('038_channel_connections.sql'),('039_external_post_images.sql'),('040_trends.sql') on conflict do nothing;
