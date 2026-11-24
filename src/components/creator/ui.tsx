@@ -1,4 +1,5 @@
 "use client";
+import { containsFloatingTarget } from "@/lib/floating-layer";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -10,7 +11,7 @@ export function Pop({ trigger, children, wide, chevron = true, className = "", l
   const [open, setOpen] = useState(false), ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => { if (!containsFloatingTarget(ref.current, e.target as Node)) setOpen(false); };
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", h); document.addEventListener("keydown", k);
     return () => { document.removeEventListener("mousedown", h); document.removeEventListener("keydown", k); };

@@ -1,4 +1,5 @@
 "use client";
+import { containsFloatingTarget } from "@/lib/floating-layer";
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -18,7 +19,7 @@ export function Popover({ anchor, title, onClose, children, id }: { anchor: RefO
       const height = Math.min(p.scrollHeight, maxHeight);
       setPos({ top: down ? a.bottom + gap : Math.max(edge, a.top - gap - height), left: Math.max(edge, Math.min(a.left, innerWidth - p.offsetWidth - edge)), maxHeight, visible: true });
     };
-    const outside = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node) && !anchor.current?.contains(e.target as Node)) close.current(); };
+    const outside = (e: PointerEvent) => { if (!containsFloatingTarget(box.current, e.target as Node) && !containsFloatingTarget(anchor.current, e.target as Node)) close.current(); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close.current(); anchor.current?.focus(); } };
     update();
     const observer = new ResizeObserver(update); if (box.current) observer.observe(box.current);

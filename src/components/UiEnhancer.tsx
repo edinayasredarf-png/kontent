@@ -1,4 +1,5 @@
 "use client";
+import { registerFloatingLayer } from "@/lib/floating-layer";
 import { useEffect } from "react";
 
 /**
@@ -25,7 +26,8 @@ export function UiEnhancer() {
   useEffect(() => {
     let layer: HTMLDivElement | null = null, owner: HTMLElement | null = null, active = -1, cleanup: (() => void) | null = null;
 
-    const close = () => { cleanup?.(); cleanup = null; layer?.remove(); layer = null; owner = null; active = -1; };
+    let unregisterLayer: (() => void) | null = null;
+    const close = () => { unregisterLayer?.(); unregisterLayer = null; cleanup?.(); cleanup = null; layer?.remove(); layer = null; owner = null; active = -1; };
     const place = (el: HTMLElement, box: HTMLElement) => {
       const r = el.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
       box.style.minWidth = `${Math.max(r.width, box.dataset.cal ? 292 : 0)}px`;
@@ -37,7 +39,7 @@ export function UiEnhancer() {
       box.style.left = `${Math.max(8, Math.min(r.left, vw - box.offsetWidth - 8))}px`;
     };
     const mount = (el: HTMLElement, box: HTMLElement, onKey?: (e: KeyboardEvent) => void) => {
-      close(); owner = el; layer = document.createElement("div"); layer.className = "ui-layer"; layer.appendChild(box); document.body.appendChild(layer);
+      close(); owner = el; layer = document.createElement("div"); layer.className = "ui-layer"; layer.appendChild(box); unregisterLayer = registerFloatingLayer(layer, el); document.body.appendChild(layer);
       place(el, box);
       const down = (e: MouseEvent) => { const t = e.target as Node; if (!box.contains(t) && !el.contains(t)) close(); };
       const t0 = Date.now(); const scroll = (e: Event) => { if (Date.now() - t0 > 250 && !box.contains(e.target as Node)) close(); };
