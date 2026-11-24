@@ -87,8 +87,8 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
     <div className="relative mb-2 flex items-center justify-end gap-3 text-xs text-ink2">
       {!free && total > 0 && <span title="Сколько потрачено в этом диалоге">Диалог: {rubs(total)}</span>}
       <button type="button" onClick={() => setDlg((v) => !v)} className="flex items-center gap-1.5 hover:text-ink"><MessageSquare size={13} />Диалоги{threads.length ? ` (${threads.length})` : ""}</button>
-      <button type="button" onClick={async () => { const id = await newThreadAction(); setMsgs([]); router.push(id ? `/app?t=${id}` : "/app"); router.refresh(); }} className="flex items-center gap-1.5 hover:text-ink"><RotateCcw size={13} />Новый чат</button>
-      {threadId && msgs.length > 0 && <button type="button" aria-label="Удалить диалог" title="Удалить диалог" onClick={async () => { if (!confirm("Удалить этот диалог?")) return; await clearChatAction(threadId); setMsgs([]); router.push("/app"); router.refresh(); }} className="hover:text-bad"><Trash2 size={13} /></button>}
+      <button type="button" onClick={async () => { const id = await newThreadAction(); setMsgs([]); if (id) router.push(`/app?t=${id}`); else router.refresh(); }} className="flex items-center gap-1.5 hover:text-ink"><RotateCcw size={13} />Новый чат</button>
+      {threadId && msgs.length > 0 && <button type="button" aria-label="Удалить диалог" title="Удалить диалог" onClick={async () => { if (!confirm("Удалить этот диалог?")) return; await clearChatAction(threadId); setMsgs([]); router.push("/app"); }} className="hover:text-bad"><Trash2 size={13} /></button>}
       {dlg && (
         <div className="absolute right-0 top-7 z-30 w-80 rounded-2xl border border-line bg-surface p-2 shadow-float">
           <label className="mb-1 flex items-center gap-2 rounded-xl bg-tile px-3 py-1.5"><Search size={13} /><input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Поиск по диалогам" className="w-full bg-transparent text-sm outline-none" /></label>
@@ -124,7 +124,7 @@ export function Chat({ initial, name, free, autoAsk, price = "", threads: thread
     const sent = files;
     setErr(""); setText(""); setFiles([]); setBusy(true); pendingStore.inc();
     setMsgs((x) => [...x, { id: "tmp-" + Date.now(), role: "user", content: m, blocks: sent.length ? { files: sent } : {}, created_at: new Date().toISOString() }]);
-    try { const r = await sendChatAction(m, sent.map((f) => f.id), threadId); if (r.error) setErr(r.error); if (r.threadId && r.threadId !== threadId) router.replace(`/app?t=${r.threadId}`); router.refresh(); }
+    try { const r = await sendChatAction(m, sent.map((f) => f.id), threadId); if (r.error) setErr(r.error); if (r.threadId && r.threadId !== threadId) router.replace(`/app?t=${r.threadId}`); else router.refresh(); }
     catch { setErr("Нет связи с сервером. Попробуйте ещё раз."); } finally { setBusy(false); pendingStore.dec(); }
   }
   function mic() {

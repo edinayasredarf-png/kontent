@@ -1,3 +1,4 @@
+import {snapshotSource} from "../source-context";
 import { isGoogleNews, resolveGoogleNews } from "./google-news";
 import { attachUploadToItems } from "../item-images";
 import { angleTask } from "./angles";
@@ -14,7 +15,6 @@ import { buildItem } from "../pipeline";
 import { allocateDates } from "../plan";
 import { KINDS } from "../plan";
 
-const MAX_FULL = 20_000;
 export interface FeedRow { id: string; title: string; body: string; url: string; full_text: string | null; full_status: string; kind: string; media: Media[] }
 
 /** A cleaned article is authoritative even when shorter than an RSS excerpt. Legacy page dumps must not win by length. */
@@ -53,7 +53,7 @@ async function readArticle(orgId: string, itemId: string, force: boolean): Promi
     if (!article) return fail("short", "На странице не найден текст статьи. Показан анонс из RSS; полный материал можно открыть на сайте источника.");
     const images = article.media.filter((m) => m.type === "image");
     const media = [...(images.length ? images : (it.media ?? []).filter((m) => m.type === "image")), ...article.media.filter((m) => m.type === "file")];
-    await q("update kz_feed_items set full_text=$3,full_status=$4,media=$5,title=$6 where id=$1 and org_id=$2", [itemId, orgId, article.text.slice(0, MAX_FULL), ARTICLE_STATUS, JSON.stringify(media), article.title.slice(0, 300) || it.title]);
+    await q("update kz_feed_items set full_text=$3,full_status=$4,media=$5,title=$6 where id=$1 and org_id=$2", [itemId, orgId, article.text, ARTICLE_STATUS, JSON.stringify(media), article.title.slice(0, 300) || it.title]);
     return { ok: true, status: "ok", ...(article.text.length < 150 && article.media.some((m) => m.type === "file") ? { note: "Источник содержит прикреплённый документ. Ссылка добавлена в карточку." } : {}) };
   } catch (e) { return fail("failed", `Не удалось открыть статью: ${(e as Error).message.slice(0, 120)}`); }
 }
@@ -166,12 +166,12 @@ export async function createFromNews(orgId: string, itemId: string, factoryId: s
   const fac = await one<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2", [factoryId, orgId]);
   if (!fac) return { ok: false, error: "Выберите завод" };
   if (it.full_status !== ARTICLE_STATUS) await enrichItem(orgId, itemId);
-  const full = await one<{ url: string; title: string; full_text: string | null; full_status: string }>("select url,title,full_text,full_status from kz_feed_items where id=$1 and org_id=$2", [itemId, orgId]);
+  const full = await one<{ url: string; title: string; full_text: string | null; full_status: string; media: Media[] }>("select url,title,full_text,full_status,media from kz_feed_items where id=$1 and org_id=$2", [itemId, orgId]);
   if (it.kind === "news" && (full?.full_status !== ARTICLE_STATUS || !full.full_text)) {
     return { ok: false, error: "Не удалось загрузить текст статьи издателя. Нажмите «Повторить загрузку» в карточке или добавьте текст статьи через создание контента." };
   }
   const text = bestText({ ...it, full_text: full?.full_text ?? null, full_status: full?.full_status ?? "" });
-  const source = { title: full?.title || it.title, url: full?.url || it.url, name: it.source, body: (angleTask(opts.angle ?? "") ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${angleTask(opts.angle ?? "")}\n\n` : "") + (opts.note ? `ЗАДАНИЕ ПО ПОДАЧЕ: ${opts.note}\n\n` : "") + text.slice(0, 8000) };
+  const source = snapshotSource([{title:full?.title||it.title,url:full?.url||it.url,body:text,media:full?.media??[],status:"full"}], [angleTask(opts.angle??""),opts.note??""].filter(Boolean).join("\n"), {name:it.source,newsId:itemId});
   // дата не выбрана — ближайшие свободные дни по расписанию завода
   const picked = opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;
   const dates = opts.draft ? [] : picked ? ks.map(() => picked) : await allocateDates(factoryId, ks.length);

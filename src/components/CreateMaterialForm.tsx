@@ -21,6 +21,7 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
   createAction: Act; repurposeAction: Act; priceHint: string; sourcePrice: string; editPrice?: string;
 }) {
   const [type, setType] = useStored<string>(`create:${factoryId}:type`, defaultKind), [plan, setPlan] = useState(false);
+  const [newsId,setNewsId]=useStored<string>(`create:${factoryId}:news`, "");
   const topicRef = useRef<HTMLTextAreaElement>(null);
   const [topic, setTopicState] = useStored<string>(`create:${factoryId}:topic`, ""), [textmode, setTextmode] = useStored<"ai" | "asis">(`create:${factoryId}:mode`, "ai");
   // замена текста из кода (ИИ-правка, выбор новости): обновляем поле и его высоту
@@ -29,7 +30,8 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
   const [pollMode, setPollMode] = useState<"options" | "open">("options"), [pollCount, setPollCount] = useState(4);
   const source = type === SOURCE, multi = type === MULTI;
   return (
-    <form action={source ? repurposeAction : createAction} onSubmit={() => { clearDraft(`create:${factoryId}:topic`); clearDraft(`create:${factoryId}:type`); clearDraft(`create:${factoryId}:mode`); }} className="space-y-3">
+    <form action={source ? repurposeAction : createAction} onSubmit={() => { clearDraft(`create:${factoryId}:news`); clearDraft(`create:${factoryId}:topic`); clearDraft(`create:${factoryId}:type`); clearDraft(`create:${factoryId}:mode`); }} className="space-y-3">
+      <input type="hidden" name="news" value={newsId}/>
       <input type="hidden" name="factory" value={factoryId} />
       {!source && !multi && <input type="hidden" name="kinds" value={type} />}
       {source ? (
@@ -42,7 +44,8 @@ export function CreateMaterialForm({ factoryId, kinds, labels, defaultKind, crea
           <AutoTextarea ref={topicRef} name="topic" required minLength={3} maxLength={20000} rows={2} value={topic} onChange={(e) => setTopicState(e.target.value)}
             placeholder="Тема, идея или готовый текст целиком. Для SEO-статьи: поисковый запрос" className="input !min-h-[4.5rem] leading-6" />
           <div className="flex flex-wrap items-center gap-2">
-            <NewsPicker onPick={(n) => { setTopic(`${n.title}\n\n${n.body}`.trim()); setTextmode("ai"); }} />
+            {newsId&&<span className="chip">Новость прикреплена как источник <button type="button" onClick={()=>setNewsId("")} className="ml-2 text-bad" aria-label="Убрать исходную новость">×</button></span>}
+            <NewsPicker onPick={(n) => { setNewsId(n.id); setTopic(`${n.title}\n\n${n.body}`.trim()); setTextmode("ai"); }} />
             {topic.length > 0 && <span className="ml-auto text-xs text-ink3">Знаков: {topic.length}</span>}
           </div>
           {topic.trim().length >= 20 && <AiTextTools getText={() => topicRef.current?.value ?? topic} setText={setTopic} price={editPrice} />}

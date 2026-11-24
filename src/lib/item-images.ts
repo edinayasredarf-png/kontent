@@ -54,7 +54,7 @@ export async function removeItemImage(orgId: string, itemId: string): Promise<Re
   if (!it) return { ok: false, error: "Изображение уже удалено или материал недоступен" };
   await snapshot(orgId, itemId, "до удаления картинки");
   const changed = await one(
-    "update kz_content_items set image_id=null,meta=meta-'imageOwn'-'imageError'-'imageRawId'-'imageRawFor',updated_at=now() where id=$1 and org_id=$2 and image_id=$3 and status='ready' returning id", [itemId, orgId, it.image_id]);
+    "update kz_content_items set image_id=null,meta=(meta-'imageOwn'-'imageError'-'imageRawId'-'imageRawFor')||jsonb_build_object('sourceImageDisabled',true),updated_at=now() where id=$1 and org_id=$2 and image_id=$3 and status='ready' returning id", [itemId, orgId, it.image_id]);
   if (!changed) return { ok: false, error: "Изображение уже изменилось. Обновите страницу." };
   await dropAsset(orgId, it.image_id);
   if (it.raw) await q("delete from kz_assets where org_id=$1 and item_id=$2 and id=$3 and position=-2", [orgId, itemId, it.raw]);

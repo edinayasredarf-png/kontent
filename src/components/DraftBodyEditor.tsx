@@ -7,7 +7,7 @@ import { PostPreview } from "./PostPreview";
 import { useServerDraft } from "@/lib/draft-store";
 
 /** Текст черновика: поле, которое растёт под текст, ИИ-правка и предпросмотр по соцсетям (по актуальному тексту в поле). */
-export function DraftBodyEditor({ initial, images, kinds, oneMessageTg, name, price, kind, storeKey }: { storeKey?: string; initial: string; images: string[]; kinds: string[]; oneMessageTg: boolean; name: string; price: string; kind?: string }) {
+export function DraftBodyEditor({ initial, images, kinds, oneMessageTg, name, price, kind, storeKey, itemId }: { itemId?:string; storeKey?: string; initial: string; images: string[]; kinds: string[]; oneMessageTg: boolean; name: string; price: string; kind?: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState(initial);
   const [show, setShow] = useState(false);
@@ -26,7 +26,7 @@ export function DraftBodyEditor({ initial, images, kinds, oneMessageTg, name, pr
         <span>Знаков: {text.length}</span>
         <button type="button" onClick={() => setShow((v) => !v)} className="chip chip-toggle ml-auto cursor-pointer !px-3 !py-1 text-xs">{show ? <EyeOff size={13} className="mr-1" /> : <Eye size={13} className="mr-1" />}{show ? "Скрыть предпросмотр" : kind === "story" ? "Как это выглядит как сторис" : "Как это будет выглядеть"}</button>
       </div>
-      <AiTextTools getText={() => ref.current?.value ?? text} setText={apply} price={price} />
+      <AiTextTools itemId={itemId} getText={() => ref.current?.value ?? text} setText={apply} price={price} />
       {show && <PostPreview text={text} images={images} kinds={kinds} oneMessageTg={oneMessageTg} name={name} kind={kind} />}
     </div>
   );

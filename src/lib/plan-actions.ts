@@ -1,4 +1,7 @@
 "use server";
+import {snapshotSource,type MaterialSource} from "./source-context";
+import {enrichItem,bestText} from "./monitor/news";
+import type {Media} from "./monitor/parse";
 import { rescheduleItem } from "./drafts";
 import { validDay } from "./calendar";
 import { aiEditText, stripProofreadRequest } from "./text-tools";
@@ -109,12 +112,19 @@ export async function createMaterialsAction(f: FormData) {
   }
   const longText = full.length > 300;
   const topic = longText ? (full.split(/\n/)[0].trim().slice(0, 120) || full.slice(0, 120)) : full;
-  let source: { title: string; body: string; url: string } | null = longText && !asIs ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
+  let source: MaterialSource | null = longText && !asIs ? { title: topic, body: full, url: "" } : null;
   let topicOut = topic;
   if (!source && !asIs) {
     // в поле только ссылка: читаем страницу и пишем по ней; не прочитали — честная ошибка, а не выдумка
-    try { const sf = await sourceFrom(full); if (sf) { source = { title: sf.title, body: sf.text, url: sf.url }; topicOut = sf.title.slice(0, 120); } }
+    try { const sf = await sourceFrom(full); if (sf) { source = { title: sf.title, body: sf.text, url: sf.url, media:sf.media }; topicOut = sf.title.slice(0, 120); } }
     catch (e) { return go(fid, { ok: false, error: (e as Error).message }); }
+  }
+  if(s(f,"news")&&!asIs){
+    const newsId=s(f,"news");await enrichItem(c.org.id,newsId);
+    const news=await one<{title:string;url:string;body:string;full_text:string|null;full_status:string;media:Media[]}>("select title,url,body,full_text,full_status,media from kz_feed_items where id::text=$1 and org_id=$2",[newsId,c.org.id]);
+    if(!news)return go(fid,{ok:false,error:"Новость не найдена"});
+    source=snapshotSource([{title:news.title,url:news.url,body:bestText(news),media:news.media??[],status:news.full_text?"full":"excerpt"}],`Выбранная подача: ${hook}\nЗадание: ${full}`,{newsId});
+    topicOut=news.title.slice(0,120);
   }
   const kinds = [...new Set(f.getAll("kinds").map(String).filter((k) => (KINDS as readonly string[]).includes(k)))].slice(0, 6);
   if (full.length < 3) return go(fid, { ok: false, error: "Введите тему, идею или текст (минимум 3 символа)" });
@@ -141,7 +151,7 @@ export async function createMaterialsAction(f: FormData) {
     // «создать сразу» — это черновик: без даты, вне плана и публикации, пока человек не посмотрит и не решит; дату и время спрашиваем при отправке в план.
     // Материалам сверх трёх дата нужна воркеру (они пишутся в фоне), но черновик всё равно остаётся скрытым.
     const row = await one<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,status,meta) values($1,$2,$3,$4,$5,$6,$7::date,$8,$9::jsonb) returning id",
-      [c.org.id, fid, fac.brand_id, k, topic, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify({ manual: true, ...(now ? { draft: true } : {}), ...(source ? { source } : {}), ...(k === "poll" ? { pollOpts: { mode: s(f, "pollmode") === "open" ? "open" : "options", count: Math.min(6, Math.max(2, Number(s(f, "pollcount")) || 4)), multi: f.get("pollmulti") === "on" } } : {}) })]);
+      [c.org.id, fid, fac.brand_id, k, topicOut, hook, now ? (ki < 3 ? null : new Date().toISOString().slice(0, 10)) : (date ?? new Date().toISOString().slice(0, 10)), now ? "approved" : "idea", JSON.stringify({ manual: true, ...(now ? { draft: true } : {}), ...(source ? { source } : {}), ...(k === "poll" ? { pollOpts: { mode: s(f, "pollmode") === "open" ? "open" : "options", count: Math.min(6, Math.max(2, Number(s(f, "pollcount")) || 4)), multi: f.get("pollmulti") === "on" } } : {}) })]);
     ids.push(row!.id);
     kindOf.push({ id: row!.id, kind: k });
   }

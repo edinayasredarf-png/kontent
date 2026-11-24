@@ -1,4 +1,5 @@
 "use client";
+import type {MaterialSource} from "@/lib/source-context";
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,7 +18,7 @@ import { Pop, img, rub } from "./ui";
 export interface FactoryOpt { id: string; name: string; brandId: string; brand: string; audience: string; hasLogo: boolean }
 type SlideState = { status: "wait" | "run" | "ok" | "err"; finalId?: string; bgId?: string; error?: string; startedAt?: number };
 type Phase = "compose" | "briefing" | "brief" | "making";
-type Plan = { slides: PlanSlide[]; caption: string; style: string };
+type Plan = { source?:MaterialSource; slides: PlanSlide[]; caption: string; style: string };
 
 const POS: [string, string][] = [["tl", "Сверху слева"], ["tr", "Сверху справа"], ["bl", "Снизу слева"], ["br", "Снизу справа"], ["bc", "Снизу по центру"], ["tc", "Сверху по центру"]];
 const PRIMARY_TYPES = ["post", "seo", "carousel", "reels", "infographic"];
@@ -113,7 +114,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
       if (isCar) {
         const r = await planCarouselAction(fid, prompt, { ...S, style: refs.length ? refVisual : S.style, structure: refs.length ? refs.map((x) => x.text).filter(Boolean).join("; ") : S.structure }, opts);
         if (!r.ok) { setErr(r.error); return setPhase("compose"); }
-        setPlan({ slides: r.plan.slides, caption: r.plan.caption, style: r.plan.style });
+        setPlan({ slides: r.plan.slides, caption: r.plan.caption, style: r.plan.style,source:r.plan.source });
         setBrief(r.plan.brief); setAngle(r.plan.brief.angle);
         setSl(r.plan.slides.map(() => ({ status: "wait" })));
       } else {
@@ -171,11 +172,17 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   async function saveWork(go = false) {
     if (!plan) return;
     setBusy("save"); setErr("");
-    const r = await saveWorkAction({ factoryId: fid, topic: prompt.slice(0, 140), caption: plan.caption, slides: plan.slides, finalIds: sl.map((x) => x.finalId!), bgIds: sl.map((x) => x.bgId!), style: plan.style, settings: S });
-    setBusy("");
-    if (!r.ok) return setErr(r.error);
-    setSaved({ id: r.id, factoryId: r.factoryId }); router.refresh();
-    if (go) router.push(openLink(r.id, r.factoryId));
+    try {
+      const r = await saveWorkAction({ factoryId: fid, topic: prompt.slice(0, 140), caption: plan.caption, slides: plan.slides, finalIds: sl.map((x) => x.finalId!), bgIds: sl.map((x) => x.bgId!), style: plan.style, settings: S, source: plan.source });
+      if (!r.ok) return setErr(r.error);
+      setSaved({ id: r.id, factoryId: r.factoryId });
+      if (go) router.push(openLink(r.id, r.factoryId));
+      else router.refresh();
+    } catch {
+      setErr("Не удалось получить ответ сервера. Проверьте сохранённые материалы перед повторной попыткой.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function recompose(i: number, text?: { title: string; body: string }) {

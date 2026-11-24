@@ -1,3 +1,4 @@
+import {MaterialSourceContext} from "./MaterialSourceContext";
 import { DraftProgress } from "./DraftProgress";
 import { MaterialImageFields } from "./MaterialImageFields";
 import { imageModels } from "@/lib/creator/models";
@@ -53,6 +54,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free, embedde
       <article key={it.id} className="space-y-3 rounded-3xl bg-tile p-3">
         <div className="flex flex-wrap items-center gap-2"><span className="chip !bg-surface">{KIND[it.kind] ?? it.kind}</span><b className="min-w-0 flex-1 text-sm">{it.topic}</b></div>
         {!embedded && !returnTo.startsWith("/app/create") && <Link href={`/app/create?item=${it.id}`} className="link-btn text-sm">Доработать в создании контента</Link>}
+        <MaterialSourceContext orgId={orgId} itemId={it.id}/>
         {!ready && it.status !== "failed" && <p className="rounded-2xl bg-surface p-3 text-sm text-ink2">Материал ещё создаётся. <Link href={`${returnTo}${returnTo.includes("?") ? "&" : "?"}draft=${items.map((x) => x.id).join(",")}`} className="font-semibold text-accent-ink">Обновить</Link></p>}
         {it.status === "failed" && (
           <form action={regenDraftAction} className="flex flex-wrap items-center gap-2 rounded-2xl bg-bad-soft p-3 text-sm text-bad">{hid(it.id)}<AlertTriangle size={15} />{it.generation_error || "Не удалось создать материал."}
@@ -84,7 +86,7 @@ export async function DraftHost({ orgId, ids, returnTo, err, note, free, embedde
                   ? <PollEditor lead={it.body} poll={it.poll} kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} />
                   : ["seo", "email", "guide"].includes(it.kind)
                   ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={free} lead={it.lead} brandName={brands.find((b) => b.id === it.factory_id)?.name ?? ""} editPrice={free ? "" : rub(PRICES.edit)} imgOpts={it.imgOpts} />
-                  : <DraftBodyEditor storeKey={it.id} initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
+                  : <DraftBodyEditor itemId={it.id} storeKey={it.id} initial={it.body} images={it.slides.length ? it.slides.map((sid) => `/api/assets/${sid}`) : it.image_id ? [`/api/assets/${it.image_id}`] : []}
                       kinds={it.channels.filter((c) => c.on).map((c) => c.kind)} oneMessageTg={!!process.env.APP_URL?.trim()} name={brands.find((b) => b.id === it.factory_id)?.name ?? "Ваш канал"} price={free ? "" : rub(PRICES.edit)} kind={it.kind} />}
                 <div className="flex flex-wrap items-center gap-2">
                   <SubmitButton className="pill pill-sm">Сохранить текст</SubmitButton>

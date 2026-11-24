@@ -1,5 +1,5 @@
 import type { Item } from "./monitor/parse";
-export interface TrendSource { id: number; title: string; summary: string; url: string; date: string }
+export interface TrendSource { text?:string; media?:import("./monitor/parse").Media[]; id: number; title: string; summary: string; url: string; date: string }
 export interface TrendIdea { id: string; title: string; hook: string; fit: string; angle: string; kind: "post" | "carousel"; sources: number[] }
 export interface TrendReport { ideas: TrendIdea[]; sources: TrendSource[]; summary: string }
 export interface TrendRun { id: string; factory_id: string; query: string; days: number; result: TrendReport; created_at: string }

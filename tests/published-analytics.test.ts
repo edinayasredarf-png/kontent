@@ -9,7 +9,7 @@ import { publishedAnalytics } from "../src/lib/published-analytics";
 test("native published materials enter analytics without an external import or metrics, preserve slide order and respect filters/tenant",async()=>{
  const db=await PGlite.create(), state=globalThis as typeof globalThis & {_pool?:unknown}, previous=state._pool, oldFetch=globalThis.fetch;
  try{
-  await db.exec(await readFile(new URL('../db/adminer-schema.sql',import.meta.url),'utf8'));state._pool={query:db.query.bind(db)};
+  await db.exec(await readFile(new URL('../db/adminer-schema.sql',import.meta.url),'utf8'));state._pool={query:db.query.bind(db),connect:async()=>({query:db.query.bind(db),release(){}})};
   const {rows:[org]}=await db.query<{id:string}>("insert into kz_orgs(name) values('Analytics') returning id");
   const {rows:[other]}=await db.query<{id:string}>("insert into kz_orgs(name) values('Other') returning id");
   const {rows:[brand]}=await db.query<{id:string}>("insert into kz_brands(org_id,name) values($1,'Brand') returning id",[org.id]);

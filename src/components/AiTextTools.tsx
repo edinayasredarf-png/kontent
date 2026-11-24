@@ -9,7 +9,7 @@ const OPS: [string, string][] = [["shorten", "Сократить"], ["expand", "
  * Панель ИИ-правки текста: быстрые команды и своя инструкция. Работает с любым полем через getText/setText.
  * Результат сразу попадает в поле, предыдущий вариант хранится: кнопка «Вернуть» возвращает его.
  */
-export function AiTextTools({ getText, setText, price }: { getText: () => string; setText: (t: string) => void; price: string }) {
+export function AiTextTools({ getText, setText, price, itemId }: { getText: () => string; setText: (t: string) => void; price: string; itemId?:string }) {
   const [busy, setBusy] = useState("");
   const [custom, setCustom] = useState("");
   const [prev, setPrev] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function AiTextTools({ getText, setText, price }: { getText: () => string
   const run = async (op: string, instruction?: string) => {
     const before = getText();
     setBusy(op); setMsg(null);
-    const r = await aiEditTextAction(before, op, instruction).catch(() => null);
+    const r = await aiEditTextAction(before, op, instruction,itemId).catch(() => null);
     setBusy("");
     if (r?.ok) { setPrev(before); setText(r.text); if (op === "custom") setCustom(""); setMsg({ ok: true, text: "Готово. Можно вернуть прежний вариант." }); }
     else setMsg({ ok: false, text: r && !r.ok ? r.error : "Не удалось выполнить" });

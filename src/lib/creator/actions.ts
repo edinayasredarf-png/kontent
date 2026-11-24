@@ -1,4 +1,5 @@
 "use server";
+import {cleanMaterialSource,type MaterialSource} from "../source-context";
 import { revalidatePath } from "next/cache";
 import { requireWriter } from "../auth";
 import { one, q } from "../db";
@@ -129,7 +130,7 @@ export async function dropStudioAssetsAction(ids: string[]) {
   if (list.length) await q("delete from kz_assets where org_id=$1 and kind='studio' and item_id is null and id = any($2::uuid[])", [c.org.id, list]);
 }
 
-export interface WorkInput { factoryId: string; topic: string; caption: string; slides: { title: string; body: string; visual: string }[]; finalIds: string[]; bgIds: string[]; style: string; settings: Partial<StudioSettings> }
+export interface WorkInput { source?:MaterialSource; factoryId: string; topic: string; caption: string; slides: { title: string; body: string; visual: string }[]; finalIds: string[]; bgIds: string[]; style: string; settings: Partial<StudioSettings> }
 
 /**
  * Шаг 3: готовая карусель становится материалом завода (черновик). Дальше работают обычные «В публикации», календарь и экспорт.
@@ -144,7 +145,8 @@ export async function saveWorkAction(w: WorkInput): Promise<{ ok: true; id: stri
   if (!ok(w.finalIds) || !ok(w.bgIds) || w.finalIds.length < 2 || w.finalIds.length !== w.bgIds.length || w.finalIds.length > 10) return { ok: false, error: "Нужно минимум два готовых слайда" };
   const slides = w.slides.slice(0, w.finalIds.length).map((s) => ({ title: String(s.title).slice(0, 90), body: String(s.body).slice(0, 320), visual: String(s.visual).slice(0, 600) }));
   const topic = String(w.topic || slides[0]?.title).replace(/\s+/g, " ").trim().slice(0, 140);
-  const meta = { draft: true, carousel: { slides: slides.map(({ title, body }) => ({ title, body })), style: "photo", custom: [], design: {}, photo: { visuals: slides.map((s) => s.visual), style: String(w.style).slice(0, 600), settings: st } } };
+  const source=cleanMaterialSource(w.source);
+  const meta = { ...(source?{source}:{}), draft: true, carousel: { slides: slides.map(({ title, body }) => ({ title, body })), style: "photo", custom: [], design: {}, photo: { visuals: slides.map((s) => s.visual), style: String(w.style).slice(0, 600), settings: st } } };
   const it = await one<{ id: string }>(
     `insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,body,meta,status,cost_kop) values($1,$2,$3,'carousel',$4,$5,$6,$7::jsonb,'ready',0) returning id`,
     [c.org.id, fac.id, fac.brand_id, topic, slides[0]?.body ?? "", String(w.caption ?? "").slice(0, 4000), JSON.stringify(meta)]);
@@ -222,10 +224,10 @@ export async function createMaterialAction(i: { factoryId: string; kind: string;
   try { selectedModel = await validateTextModel(o.textModel); } catch (e) { return { ok: false, error: slideErr(e) }; }
   const longText = full.length > 300;
   const topic = (longText ? full.split(/\n/)[0].trim() : full).slice(0, 120) || full.slice(0, 120);
-  let source: { title: string; body: string; url: string } | null = longText ? { title: topic, body: full.slice(0, 12000), url: "" } : null;
+  let source: MaterialSource | null = longText ? { title: topic, body: full, url: "" } : null;
   let topicFinal = topic;
   if (!source) {
-    try { const s = await sourceFrom(full); if (s) { source = { title: s.title, body: s.text, url: s.url }; topicFinal = s.title.slice(0, 120); } }
+    try { const s = await sourceFrom(full); if (s) { source = { title: s.title, body: s.text, url: s.url, media:s.media }; topicFinal = s.title.slice(0, 120); } }
     catch (e) { return { ok: false, error: slideErr(e) }; }
   }
   const meta = { ...(o.requirements ? {requirements:o.requirements} : {}), ...(selectedModel ? {textModel:selectedModel} : {}), manual: true, draft: true, creator: true, ...(o.postType ? { postType: o.postType } : {}), ...(o.voice ? { voice: o.voice } : {}), ...(o.audience ? { audience: o.audience } : {}), ...(ref ? { refText: ref } : {}), ...(source ? { source } : {}) };

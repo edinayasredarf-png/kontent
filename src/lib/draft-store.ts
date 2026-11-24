@@ -33,7 +33,7 @@ export function useStored<T extends string | number | boolean>(key: string, init
   const ready = useRef(false);
   useEffect(() => {
     const r = read(key);
-    if (r && typeof r.v === typeof initial) setVal(r.v as T);
+    setVal(r && typeof r.v === typeof initial ? r.v as T : initial);
     ready.current = true;
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = useCallback((v: T) => { setVal(v); if (!ready.current) return; if (v === initial || v === "") clearDraft(key); else write(key, v); }, [key, initial]);

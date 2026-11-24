@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { telegramPostPath } from "./telegram-widget";
 import { parse as parseHtml } from "node-html-parser";
 
-export interface Media { type: "image" | "video" | "audio" | "file"; url?: string; token?: string; name?: string }
+export interface Media { assetId?: string; type: "image" | "video" | "audio" | "file"; url?: string; token?: string; name?: string }
 export interface Item { extId: string; url: string; title: string; body: string; publishedAt: Date; media?: Media[] }
 
 export const sha = (s: string) => createHash("sha1").update(s.trim()).digest("hex");

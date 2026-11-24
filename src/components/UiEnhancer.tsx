@@ -141,11 +141,18 @@ export function UiEnhancer() {
       yes.addEventListener("click", () => {
         off();
         // Complete the confirmation click before replaying the original control.
-        queueMicrotask(() => {
+        // A new task is required: the confirmation click is still being
+        // cancelled in this event dispatch. Submit with the actual submitter,
+        // preserving formAction/name/value instead of replaying a cancelled click.
+        setTimeout(() => {
           if (!btn.isConnected || btn.disabled) return;
-          bypass = btn;
-          btn.click();
-        });
+          if (btn instanceof HTMLButtonElement && btn.type === "submit" && btn.form) {
+            btn.form.requestSubmit(btn);
+          } else {
+            bypass = btn;
+            btn.click();
+          }
+        }, 0);
       });
     };
     document.addEventListener("click", onConfirm, true);

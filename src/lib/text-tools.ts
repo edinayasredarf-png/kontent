@@ -124,14 +124,14 @@ export async function runEdit(chat: ChatFn, text: string, op: EditOp, instructio
 }
 
 /** ИИ-правка текста (сократить, расширить, исправить ошибки…). Деньги списываются заранее и возвращаются при любом сбое. */
-export async function aiEditText(orgId: string, text: string, op: EditOp, instruction = ""): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+export async function aiEditText(orgId: string, text: string, op: EditOp, instruction = "", context = ""): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   const t = text.trim();
   if (t.length < 3) return { ok: false, error: "Сначала напишите или вставьте текст" };
   if (op === "custom" && instruction.trim().length < 3) return { ok: false, error: "Напишите, что поправить" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен" };
   try { await charge(orgId, PRICES.edit, "Правка текста ИИ", undefined, await effectiveModel("post")); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
-  const r = await runEdit((system, user, o) => chat("post", system, user, o), t, op, instruction).catch((e: Error) => ({ ok: false as const, error: e.message.slice(0, 220) }));
+  const r = await runEdit((system, user, o) => chat("post", system, context?`${context}\nТекущая правка должна сохранить связь с исходником.\n${user}`:user, o), t, op, instruction).catch((e: Error) => ({ ok: false as const, error: e.message.slice(0, 220) }));
   if (!r.ok) { await refund(orgId, PRICES.edit, "ошибка правки текста"); return { ok: false, error: `${r.error.replace(/[.\s]+$/, "")}. Деньги возвращены` }; }
   return r;
 }

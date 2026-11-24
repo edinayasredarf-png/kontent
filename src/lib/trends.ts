@@ -1,3 +1,5 @@
+import {readSourceDocument} from "./material-source";
+import {snapshotSource} from "./source-context";
 import { randomUUID, createHash } from "node:crypto";
 import { one, q, tx, withLock } from "./db";
 import { aiReady, brandBlock, chat, extractObject } from "./ai";
@@ -39,6 +41,14 @@ export async function findTrends(orgId: string, factoryId: string, query: string
 
 export async function trendToMaterial(orgId: string, runId: string, ideaId: string): Promise<string> {
   await requireFeature(orgId,"create");
+  const prior=await one<{item_id:string}>("select item_id from kz_trend_materials where org_id=$1 and run_id::text=$2 and idea_id=$3",[orgId,runId,ideaId]);
+  if(prior)return prior.item_id;
+  const sourceRun=await one<TrendRun>("select id,factory_id,query,days,result,created_at::text from kz_trend_runs where id::text=$1 and org_id=$2",[runId,orgId]);
+  const selectedIdea=sourceRun?.result.ideas.find(x=>x.id===ideaId);
+  if(!sourceRun||!selectedIdea)throw new Error("Идея не найдена.");
+  const selectedSources=sourceRun.result.sources.filter(x=>selectedIdea.sources.includes(x.id));
+  const documents=await Promise.all(selectedSources.map(source=>source.text?Promise.resolve({title:source.title,url:source.url,body:source.text,media:source.media??[],date:source.date,status:"full" as const}):readSourceDocument({...source,body:source.summary})));
+  const sourceSnapshot=snapshotSource(documents,`Тема: ${selectedIdea.title}\nХук: ${selectedIdea.hook}\nПодача: ${selectedIdea.angle}\nСвязь с компанией: ${selectedIdea.fit}\nОбзор ниши: ${sourceRun.result.summary}\nПоиск: ${sourceRun.query}, за ${sourceRun.days} дней`,{name:"Тренды",trendRun:runId});
   return tx(async run => {
     const [r] = await run<TrendRun>("select id,factory_id,result from kz_trend_runs where id::text=$1 and org_id=$2 for update",[runId,orgId]);
     const idea = r?.result.ideas.find(x => x.id === ideaId);
@@ -48,7 +58,10 @@ export async function trendToMaterial(orgId: string, runId: string, ideaId: stri
     const [fac] = await run<{ brand_id: string }>("select brand_id from kz_factories where id=$1 and org_id=$2",[r.factory_id,orgId]);
     if (!fac) throw new Error("Завод удалён.");
     const sources = r.result.sources.filter(x => idea.sources.includes(x.id));
-    const meta = { fromTrends: true, trendRun: runId, source: { title: idea.title, url: sources[0].url, name: "Тренды", body: `Редакторская идея (не факт источника): ${idea.angle}\nПодходит бренду: ${idea.fit}\nRSS-заголовки и анонсы. Не выдумывай недостающие факты; сверяй утверждения с оригиналами:\n${sources.map(s=>`${s.title}\n${s.summary}\n${s.url}`).join("\n\n")}` } };
+    const captured=new Map(selectedSources.map((s,i)=>[s.id,documents[i]]));
+    r.result.sources=r.result.sources.map(s=>{const doc=captured.get(s.id);return doc?.status==='full'?{...s,url:doc.url,text:doc.body,media:doc.media}:s;});
+    await run("update kz_trend_runs set result=$3::jsonb where id=$1 and org_id=$2",[runId,orgId,JSON.stringify(r.result)]);
+    const meta = { fromTrends:true,trendRun:runId,source:sourceSnapshot };
     const [item] = await run<{ id: string }>("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,meta,status) values($1,$2,$3,$4,$5,$6,$7::jsonb,'idea') returning id",[orgId,r.factory_id,fac.brand_id,idea.kind,idea.title,idea.hook,JSON.stringify(meta)]);
     await run("insert into kz_trend_materials(org_id,run_id,idea_id,item_id) values($1,$2,$3,$4)",[orgId,runId,ideaId,item.id]);
     return item.id;

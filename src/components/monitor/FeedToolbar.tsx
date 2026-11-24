@@ -41,7 +41,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
   };
   const show = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-    start(() => { router.replace(`/app/monitor${filterQuery(filter, { fresh: since })}`, { scroll: false }); router.refresh(); });
+    start(() => { router.replace(`/app/monitor${filterQuery(filter, { fresh: since })}`, { scroll: false }); });
   }, [filter, router, since]);
   const close = useCallback(() => setModal(null), []);
   // Фильтр раскрывается над лентой и применяется при изменении, поиск — через 0,4 с.

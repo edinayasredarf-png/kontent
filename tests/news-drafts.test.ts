@@ -30,7 +30,7 @@ test("news creation persists queued drafts and the full source before starting A
       assert.equal(row.meta.draft, true);
       assert.equal(row.meta.generationPending, true);
       assert.equal(row.recoverable, true);
-      assert.equal(row.meta.source.body, "Full article with verified facts");
+      assert.match(row.meta.source.body, /Full article with verified facts/);
       assert.equal(row.meta.source.url, "https://publisher.example/article");
     }
     assert.equal(Number((await db.query<{n:string}>("select count(*) n from kz_wallet_tx")).rows[0].n), 0);

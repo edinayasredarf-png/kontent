@@ -30,6 +30,7 @@ test("trend materials retain evidence and tenant brand, repeated clicks reuse th
   const {rows:[brand]}=await db.query<{id:string}>("insert into kz_brands(org_id,name) values($1,'Brand') returning id",[org.id]);
   const {rows:[fac]}=await db.query<{id:string}>("insert into kz_factories(org_id,brand_id,name) values($1,$2,'Factory') returning id",[org.id,brand.id]);
   const report=cleanTrendReport({ideas:[{title:"Topic",hook:"Hook",fit:"Audience",angle:"Explain",sources:[1],kind:"post"}]},freshTrendSources([item("Evidence")],7,now));
+  report.sources[0].text="RSS excerpt plus full verified article, final fact";
   const {rows:[run]}=await db.query<{id:string}>("insert into kz_trend_runs(org_id,factory_id,query,days,result) values($1,$2,'Niche',7,$3) returning id",[org.id,fac.id,JSON.stringify(report)]);
   await assert.rejects(trendToMaterial(other.id,run.id,"1"),/не найдена/);
   const id=await trendToMaterial(org.id,run.id,"1");

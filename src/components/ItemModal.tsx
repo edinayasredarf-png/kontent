@@ -1,3 +1,4 @@
+import {MaterialSourceContext} from "./MaterialSourceContext";
 import Link from "next/link";
 import { priceOf } from "@/lib/pipeline";
 import { AlertTriangle, CalendarClock, ExternalLink, Send, Trash2 } from "lucide-react";
@@ -82,7 +83,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
         {canWrite && <div className="flex flex-wrap gap-2">
           {!returnTo.startsWith("/app/create") && !returnTo.includes("tab=create") && <Link className="btn btn-ghost" href={returnTo.startsWith("/app/factories/") && it.factory_id ? `/app/factories/${it.factory_id}?tab=create&item=${it.id}` : `/app/create?item=${it.id}`}>Открыть в создании контента</Link>}
           {editable && it.factory_id && !it.carousel?.photo && <form action={itemGenerateAction}>{hid}<input type="hidden" name="version" value={it.version} />
-            <SubmitButton className="btn btn-accent" data-confirm-ok={it.body ? "Создать заново" : "Создать"} data-confirm={(it.body ? "Создать материал заново? Текущий текст будет заменён." : "Создать контент по этой идее?") + imageCost}>
+            <SubmitButton className="btn btn-accent" data-confirm-ok={it.body ? "Создать заново" : "Создать"} data-confirm={it.body ? "Создать материал заново? Текущий текст будет заменён." + imageCost : undefined}>
               {it.body ? "Создать заново" : "Создать по идее"} · {rub(priceOf(it.kind, it.brief))}
             </SubmitButton>
           </form>}
@@ -94,6 +95,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           <div><span className="text-xs text-ink3">Каналы публикации</span><p className="font-medium">{it.chans?.length ? it.chans.join(", ") : "не выбраны"}</p></div>
         </div>
 
+        <MaterialSourceContext orgId={orgId} itemId={it.id} canEdit={canWrite}/>
         {it.hook && <p className="text-sm text-ink2"><b>Хук:</b> {it.hook}</p>}
         {it.slides?.length && !(canWrite && it.factory_id && it.carousel?.photo) ? (
           <div className="flex gap-2 overflow-x-auto">{it.slides.slice(0, 10).map((sid) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={sid} src={`/api/assets/${sid}`} alt="" className="h-44 w-auto shrink-0 rounded-xl border border-line" />)}</div>
@@ -151,7 +153,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           <label className="block space-y-2"><span className="text-sm text-ink2">Хук</span><input className="input !bg-surface" name="hook" defaultValue={it.hook} maxLength={300} /></label>
           {colorFields}
           <div className="space-y-2"><h4 className="text-sm font-medium">Текст материала</h4>
-          {["seo", "email", "guide"].includes(it.kind) ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={false} editPrice={rub(PRICES.edit)} /> : <DraftBodyEditor initial={it.body} images={it.image_id ? [`/api/assets/${it.image_id}`] : []} kinds={[]} oneMessageTg={false} name={it.brand} price={rub(PRICES.edit)} kind={it.kind} storeKey={`calendar:${it.id}`} />}
+          {["seo", "email", "guide"].includes(it.kind) ? <ArticleEditor itemId={it.id} kind={it.kind} initial={it.body} seo={it.seo} title={it.topic} imagePrice={rub(PRICES.image)} imagePriceKop={PRICES.image} free={false} editPrice={rub(PRICES.edit)} /> : <DraftBodyEditor itemId={it.id} initial={it.body} images={it.image_id ? [`/api/assets/${it.image_id}`] : []} kinds={[]} oneMessageTg={false} name={it.brand} price={rub(PRICES.edit)} kind={it.kind} storeKey={`calendar:${it.id}`} />}
           </div>
           <SubmitButton className="btn btn-accent">Сохранить изменения</SubmitButton>
           <p className="text-xs text-ink3">Сохранение не запускает публикацию. Материал обновится во всех разделах.</p>
@@ -161,7 +163,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
         <div className="flex flex-wrap items-center gap-2">
           {canPublish && (
             <form action={itemPublishAction}>{hid}
-              <SubmitButton data-confirm="Опубликовать материал сейчас во все выбранные каналы завода?" data-confirm-ok="Опубликовать" className="pill"><Send size={15} />{it.status === "failed" ? "Повторить публикацию" : "Опубликовать сейчас"}</SubmitButton></form>
+              <SubmitButton className="pill"><Send size={15} />{it.status === "failed" ? "Повторить публикацию" : "Опубликовать сейчас"}</SubmitButton></form>
           )}
         </div>
 
