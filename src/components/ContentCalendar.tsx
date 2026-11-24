@@ -1,3 +1,4 @@
+import {PlanBases} from "./PlanBases";
 import { canWrite, requireCtx } from "@/lib/auth";
 import { q } from "@/lib/db";
 import { KINDS } from "@/lib/plan";
@@ -65,7 +66,7 @@ export async function ContentCalendar({ sp, scope }: { sp: Record<string, string
             <ModalButton label="Продлить план" title="Продлить план" icon={<Sparkles size={16} />} className="btn btn-accent !rounded-lg" stamp={Date.now()}>
               {factories.length ? <form action={extendCalendarPlan} className="space-y-4">
                 {returnFields}{factorySelect}
-                <p className="text-sm text-ink2">Новые темы дополнят план выбранного завода без повторов существующих тем.</p>
+                <PlanBases/><p className="text-sm text-ink2">Новые темы дополнят план выбранного завода без повторов существующих тем.</p>
                 <label className="block space-y-2"><span className="text-sm text-ink2">Период и стоимость</span><select name="days" defaultValue="7" className="input">{[7, 14, 30].map((d) => <option key={d} value={d}>{d} дней · {c.org.unlimited ? "бесплатно для админа" : rub(d * PRICES.plan_day)}</option>)}</select></label>
                 <SubmitButton className="btn btn-accent"><Sparkles size={16} />Продлить план</SubmitButton>
               </form> : <p className="text-sm text-ink2">Для продления плана <Link className="text-accent underline" href="/app/factories/new">создайте завод</Link>.</p>}

@@ -1,4 +1,5 @@
 "use server";
+import {planBases} from "../plan-bases";
 import { requireCtx, requireWriter } from "../auth";
 import { one, q } from "../db";
 import { createFromNews, MAKE_KINDS } from "../monitor/news";
@@ -84,10 +85,11 @@ export async function cardSaveFactoryAction(id: string, p: FactoryPatch): Promis
   return r.ok ? { ok: true, note: r.note, card: await one1(c.org.id, { t: "factory", id }) } : fail(r.error ?? "Не получилось");
 }
 
-export async function cardExtendPlanAction(factoryId: string, days: number): Promise<R> {
+export async function cardExtendPlanAction(factoryId: string, days: number, bases?:string[]): Promise<R> {
   const c = await requireWriter();
   const d = [7, 14, 30].includes(Number(days)) ? Number(days) : 7;
-  const r = await buildPlan(c.org.id, factoryId, d);
+  let selected;try{selected=planBases(bases);}catch(e){return fail((e as Error).message);}
+  const r = await buildPlan(c.org.id, factoryId, d,selected);
   return r.ok ? { ok: true, note: `План продлён на ${d} дн.`, card: await one1(c.org.id, { t: "plan", id: factoryId }) } : fail(r.error);
 }
 

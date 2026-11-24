@@ -1,4 +1,5 @@
 "use client";
+import {PLAN_BASES,type PlanBase} from "@/lib/plan-bases";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BarChart3, CalendarPlus, Check, ChevronDown, Copy, Download, History, ExternalLink, Eye, EyeOff, Heart, Loader2, PenLine, RefreshCw, Send, Trash2 } from "lucide-react";
@@ -282,6 +283,7 @@ const ST: Record<string, string> = { idea: "идея", approved: "одобрен
 function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c: Card) => void }) {
   const { busy, msg, run } = useRun();
   const [ask, setAsk] = useState(false);
+  const [bases,setBases]=useState<PlanBase[]>(["topic","news","trends"]);
   return (
     <div className={box}>
       <div className="flex items-center gap-2"><b className="min-w-0 flex-1 truncate text-sm">Контент-план: {c.name}</b><Link href={`/app/factories/${c.id}?tab=plan`} className="link-btn">Открыть план</Link></div>
@@ -289,9 +291,10 @@ function PlanCard({ c, replace }: { c: Extract<Card, { t: "plan" }>; replace: (c
       <ul className="mt-2 space-y-1">{c.items.map((i) => <li key={i.id} className="flex items-center gap-2 text-xs"><span className="w-14 shrink-0 text-ink3">{i.date ? new Date(i.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—"}</span><span className="chip !px-2 !py-0 text-[10px]">{ST[i.status] ?? i.status}</span><span className="min-w-0 flex-1 truncate">{i.topic}</span></li>)}{!c.items.length && <li className="text-xs text-ink2">В плане пока ничего нет.</li>}</ul>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {!ask ? <button type="button" onClick={() => setAsk(true)} className="btn btn-ghost !py-1.5 text-sm"><CalendarPlus size={14} />Продлить план</button>
-          : <span className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-1.5 text-xs text-warn">Платно. Продлить на:{[7, 14, 30].map((d) => <button key={d} type="button" disabled={!!busy} onClick={() => { setAsk(false); run("e", () => cardExtendPlanAction(c.id, d), (r) => { if (r.card?.t === "plan") replace(r.card); }); }} className="link-btn">{d} дн.</button>)}<button type="button" onClick={() => setAsk(false)} className="link-btn link-btn-quiet">Отмена</button></span>}
+          : <span className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-1.5 text-xs text-warn">Платно. Продлить на:{[7, 14, 30].map((d) => <button key={d} type="button" disabled={!!busy||!bases.length} onClick={() => { setAsk(false); run("e", () => cardExtendPlanAction(c.id, d,bases), (r) => { if (r.card?.t === "plan") replace(r.card); }); }} className="link-btn">{d} дн.</button>)}<button type="button" onClick={() => setAsk(false)} className="link-btn link-btn-quiet">Отмена</button></span>}
         {busy === "e" && <span className="flex items-center gap-1.5 text-xs text-ink2"><Loader2 size={13} className="animate-spin" />Составляю план…</span>}
       </div>
+      {ask && <fieldset className="mt-3 space-y-2"><legend className="label">Основа плана</legend>{Object.entries(PLAN_BASES).map(([key,label])=><label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bases.includes(key as PlanBase)} onChange={e=>setBases(v=>e.target.checked?[...v,key as PlanBase]:v.filter(x=>x!==key))}/>{label}</label>)}</fieldset>}
       <Msg m={msg} />
     </div>
   );

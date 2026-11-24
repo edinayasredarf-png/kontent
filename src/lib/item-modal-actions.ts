@@ -1,4 +1,5 @@
 "use server";
+import {changeIdeaKind} from "./idea-kind";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { one, q } from "./db";
@@ -107,4 +108,10 @@ export async function itemDeleteAction(f: FormData) {
   const url = new URL(/^\/app\/[A-Za-z0-9/_-]*(\?[A-Za-z0-9=&_%.,-]*)?$/.test(raw) ? raw : "/app/calendar", "https://local.invalid");
   for (const key of ["item", "err", "note"]) url.searchParams.delete(key);
   redirect(url.pathname + url.search);
+}
+
+export async function itemKindAction(f:FormData) {
+ const c=await requireWriter();
+ const result=await changeIdeaKind(c.org.id,s(f,"id"),s(f,"kind"),s(f,"version"));
+ back(f,result.ok?{ok:true,note:"Тип материала изменён"}:result);
 }

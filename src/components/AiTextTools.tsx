@@ -20,7 +20,8 @@ export function AiTextTools({ getText, setText, price, itemId }: { getText: () =
     setBusy(op); setMsg(null);
     const r = await aiEditTextAction(before, op, instruction,itemId).catch(() => null);
     setBusy("");
-    if (r?.ok) { setPrev(before); setText(r.text); if (op === "custom") setCustom(""); setMsg({ ok: true, text: "Готово. Можно вернуть прежний вариант." }); }
+    if (r?.ok && r.text.trim()===before.trim()) { setMsg({ok:true,text:"Правка не потребовалась: текст уже соответствует команде."}); }
+    else if (r?.ok) { setPrev(before); setText(r.text); if (op === "custom") setCustom(""); setMsg({ ok: true, text: "Текст изменён. Сохраните материал, чтобы сохранить результат." }); }
     else setMsg({ ok: false, text: r && !r.ok ? r.error : "Не удалось выполнить" });
   };
   return (
@@ -33,7 +34,7 @@ export function AiTextTools({ getText, setText, price, itemId }: { getText: () =
         {prev !== null && <button type="button" onClick={() => { setText(prev); setPrev(null); setMsg(null); }} className="chip cursor-pointer !px-2.5 !py-1 text-xs"><Undo2 size={12} className="mr-1" />Вернуть</button>}
       </div>
       <div className="flex gap-2">
-        <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (custom.trim().length >= 3) void run("custom", custom); } }} maxLength={400}
+        <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (!busy && custom.trim().length >= 3) void run("custom", custom); } }} maxLength={400}
           placeholder="Своя команда: например «сделай короче для Telegram» или «добавь призыв записаться»" className="input !bg-surface !py-1.5 text-xs" />
         <button type="button" disabled={!!busy || custom.trim().length < 3} onClick={() => run("custom", custom)} className="btn btn-ghost !py-1.5 text-xs">{busy === "custom" && <Loader2 size={13} className="animate-spin" />}Выполнить</button>
       </div>

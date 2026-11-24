@@ -12,11 +12,11 @@ export function DraftBodyEditor({ initial, images, kinds, oneMessageTg, name, pr
   const [text, setText] = useState(initial);
   const [show, setShow] = useState(false);
   const draft = useServerDraft(`body:${storeKey ?? "x"}`, initial);
-  // AutoTextarea подгоняет высоту сам по событию input; при программной замене текста вызываем его вручную
-  const apply = (t: string) => { setText(t); if (storeKey) draft.remember(t); const el = ref.current; if (el) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); } };
+  // Управляемое значение обновляет поле, предпросмотр и отправляемый текст вместе; AutoTextarea подгоняет высоту по value.
+  const apply = (t: string) => { setText(t); if (storeKey) draft.remember(t); };
   return (
     <div className="space-y-2">
-      <AutoTextarea ref={ref} name="body" defaultValue={initial} rows={6} onChange={(e) => { setText(e.target.value); if (storeKey) draft.remember(e.target.value); }} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+      <AutoTextarea ref={ref} name="body" value={text} rows={6} onChange={(e) => { setText(e.target.value); if (storeKey) draft.remember(e.target.value); }} className="input !rounded-2xl !bg-surface text-sm leading-6" />
       {storeKey && draft.restored != null && (
         <p className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">Найден несохранённый текст из прошлого раза.
           <button type="button" onClick={() => { apply(draft.restored!); draft.hide(); }} className="link-btn">Вернуть мою правку</button>

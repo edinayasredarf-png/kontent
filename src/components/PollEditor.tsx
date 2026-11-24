@@ -14,7 +14,7 @@ export function PollEditor({ lead, poll, kinds, name, price }: { lead: string; p
   const [mode, setMode] = useState<"options" | "open">(poll?.mode === "open" ? "open" : "options");
   const [multi, setMulti] = useState(!!poll?.multi);
   const [opts, setOpts] = useState<string[]>(poll?.options?.length ? poll.options : ["", ""]);
-  const apply = (t: string) => { setText(t); const el = ref.current; if (el) { el.value = t; el.dispatchEvent(new Event("input", { bubbles: true })); } };
+  const apply = (t: string) => { setText(t); };
   const set = (i: number, v: string) => setOpts((a) => a.map((x, n) => (n === i ? v : x)));
   const move = (i: number, d: -1 | 1) => setOpts((a) => { const j = i + d; if (j < 0 || j >= a.length) return a; const b = [...a]; [b[i], b[j]] = [b[j], b[i]]; return b; });
   const live: PollMeta = { question: question || "Вопрос опроса", options: opts.map((o) => o.trim()).filter(Boolean), mode, multi: mode === "options" && multi };
@@ -23,7 +23,7 @@ export function PollEditor({ lead, poll, kinds, name, price }: { lead: string; p
     <div className="space-y-3">
       <div>
         <label className="label">Вводный текст (необязательно)</label>
-        <AutoTextarea ref={ref} name="body" defaultValue={lead} rows={3} onChange={(e) => setText(e.target.value)} className="input !rounded-2xl !bg-surface text-sm leading-6" />
+        <AutoTextarea ref={ref} name="body" value={text} rows={3} onChange={(e) => setText(e.target.value)} className="input !rounded-2xl !bg-surface text-sm leading-6" />
         <div className="mt-2"><AiTextTools getText={() => ref.current?.value ?? text} setText={apply} price={price} /></div>
       </div>
       <div>

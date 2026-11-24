@@ -71,13 +71,15 @@ export function splitForEdit(t: string, html: boolean): string[] {
 }
 
 /** Правка одного куска с проверкой результата: нужную длину, сохранность слов и HTML-тегов. Один повтор строже, потом ошибка. */
-async function editChunk(chat: ChatFn, t: string, op: EditOp, cmd: string, html: boolean, ins: string): Promise<string> {
+const comparableText=(x:string)=>x.replace(/<[^>]*>/g," ").toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu)?.join(" ")??"";
+async function editChunk(chat: ChatFn, t: string, op: EditOp, cmd: string, html: boolean, ins: string, allowUnchanged=false): Promise<string> {
   const system = (op === "fix" ? PROOF_SYSTEM : SYSTEM) + (html ? " Текст содержит HTML-разметку: сохрани все теги, атрибуты, ссылки и картинки (<img>) без изменений и в тех же местах, правь только текст внутри тегов. Не добавляй обёрток вроде <html> или <body>." : "");
   const ask = async (extra: string) => cleanModelText(await chat(system, `Команда: ${cmd}${extra}\n\nТекст:\n<<<\n${t}\n>>>`, { maxTokens: Math.min(4000, Math.max(600, Math.round(t.length * (op === "expand" ? 1.3 : 1.0)))), temperature: op === "fix" ? 0.1 : 0.4, timeoutMs: 45_000 }));
   const len = (x: string) => x.replace(/<[^>]+>/g, "").trim().length;
   const bad = (out: string): string => {
     if (!out) return "пустой ответ";
     const a = len(t), b = len(out);
+    if(!allowUnchanged && op!=="fix" && comparableText(out)===comparableText(t))return "команда не выполнена: изменилось только оформление, а не текст";
     if (html) {
       const x = tagCounts(t), y = tagCounts(out);
       if (x.img !== y.img || x.a !== y.a) return "потеряны ссылки или картинки";
@@ -118,8 +120,10 @@ export async function runEdit(chat: ChatFn, text: string, op: EditOp, instructio
     // «Цепляющее начало» меняет только начало: остальное остаётся как было; прочие команды применяются к каждому куску
     if (op === "hook") return { ok: true, text: (await editChunk(chat, chunks[0], op, cmd, html, ins)) + chunks.slice(1).join("") };
     const done: string[] = [];
-    for (let i = 0; i < chunks.length; i += 3) done.push(...await Promise.all(chunks.slice(i, i + 3).map((c) => editChunk(chat, c, op, cmd, html, ins))));
-    return { ok: true, text: done.join(html ? "\n" : "\n\n") };
+    for (let i = 0; i < chunks.length; i += 3) done.push(...await Promise.all(chunks.slice(i, i + 3).map((c) => editChunk(chat, c, op, cmd, html, ins, true))));
+    const text=done.join(html ? "\n" : "\n\n");
+    if(op!=="fix" && comparableText(text)===comparableText(t))return {ok:false,error:"Модель не изменила текст по команде"};
+    return { ok: true, text };
   } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 220) }; }
 }
 

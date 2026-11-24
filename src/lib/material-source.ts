@@ -14,13 +14,24 @@ export async function readSourceDocument(input:{title:string;url:string;body?:st
   const article=await extractArticle(page.text,page.url);
   if(!article)throw new Error("Текст статьи недоступен");
   return {title:article.title||input.title,url:page.url,body:article.text,media:[...article.media,...(input.media??[])].filter((m,i,a)=>a.findIndex(x=>x.url===m.url)===i),status:"full",date:input.date};
- }catch{return {title:input.title,url:input.url,body:input.body??"",media:input.media??[],status:"excerpt",date:input.date,note:"Полный текст не удалось загрузить. Добавьте его в контекст материала."};}
+ }catch{return {title:input.title,url:input.url,body:input.body??"",media:input.media??[],status:"excerpt",date:input.date,note:"Пока сохранён анонс. При создании мы автоматически повторим загрузку полной статьи."};}
 }
 /** Upgrade old news/trend ideas once. Saving the source does not overwrite edited topic, hook, or body. */
 export async function ensureMaterialSource(orgId:string,itemId:string):Promise<MaterialSource|undefined> {
  const row=await one<{meta:{source?:MaterialSource;fromNews?:boolean;fromTrends?:boolean;trendRun?:string}}>("select meta from kz_content_items where id=$1 and org_id=$2",[itemId,orgId]);
  const source=row?.meta.source;
- if(!source||source.snapshotVersion)return source;
+ if(!source)return source;
+ if(source.snapshotVersion){
+  if(!source.documents?.some(d=>d.status!=="full"))return source;
+  const docs=await Promise.all(source.documents.map(async d=>{
+   if(d.status==="full")return d;
+   const cached=await one<{full_text:string;media:SourceDocument['media'];url:string}>("select full_text,media,url from kz_feed_items where org_id=$1 and (id::text=$2 or url=$3) and full_status=$4 and full_text is not null order by fetched_at desc limit 1",[orgId,source.newsId??"",d.url,ARTICLE_STATUS]);
+   return cached?{...d,url:cached.url,body:cached.full_text,media:cached.media??d.media,status:"full" as const}:readSourceDocument(d);
+  }));
+  const updated=snapshotSource(docs,source.instructions,{name:source.name,newsId:source.newsId,trendRun:source.trendRun});
+  await q("update kz_content_items set meta=jsonb_set(meta,'{source}',$3::jsonb) where id=$1 and org_id=$2 and meta->'source'=$4::jsonb",[itemId,orgId,JSON.stringify(updated),JSON.stringify(source)]);
+  return updated;
+ }
  if(!row?.meta.fromNews&&!row?.meta.fromTrends)return source;
  let docs:SourceDocument[]=[];
  if(row.meta.fromTrends&&row.meta.trendRun){

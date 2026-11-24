@@ -1,4 +1,5 @@
 "use server";
+import {planBases} from "./plan-bases";
 import { vkChannelCredentials } from "./vk-channel-token";
 import { orgPlan } from "./plan-catalog";
 import { clientIpFromHeaders } from "./proxy-trust";
@@ -190,7 +191,8 @@ export async function deleteFactory(f: FormData) {
 export async function generatePlanAction(f: FormData) {
   const c = await writer();
   const id = s(f, "id");
-  const r = await buildPlan(c.org.id, id, Math.min(30, Math.max(1, Number(s(f, "days")) || 7)));
+  let bases;try{bases=planBases(f.get("bases_present")?f.getAll("bases"):undefined);}catch(e){redirect(`/app/factories/${id}?err=${encodeURIComponent((e as Error).message)}`);}
+  const r = await buildPlan(c.org.id, id, Math.min(30, Math.max(1, Number(s(f, "days")) || 7)),bases);
   revalidatePath(`/app/factories/${id}`);
   redirect(`/app/factories/${id}${r.ok ? "" : `?err=${encodeURIComponent(r.error)}`}`);
 }

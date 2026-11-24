@@ -13,7 +13,7 @@ import { IMAGE_KINDS } from "@/lib/item-images";
 import { ImagePicker } from "./ImagePicker";
 import { SlideEditor } from "./SlideEditor";
 import { CarouselPanel } from "./CarouselPanel";
-import { itemDeleteAction, itemImageAction, itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
+import { itemKindAction, itemDeleteAction, itemImageAction, itemGenerateAction, itemColorAction, itemEditAction, itemPublishAction, itemRescheduleAction } from "@/lib/item-modal-actions";
 
 import { CALENDAR_COLORS, calendarColor, moscowToday } from "@/lib/calendar";
 import { DraftBodyEditor } from "./DraftBodyEditor";
@@ -146,6 +146,7 @@ export async function ItemModal({ orgId, id, returnTo, err, note, canWrite }: { 
           </div>
         )}
 
+        {canWrite && it.status === "idea" && <form action={itemKindAction} className="my-5 flex flex-wrap items-end gap-3 rounded-2xl bg-tile p-4">{hid}<input type="hidden" name="version" value={it.version}/><label className="min-w-48 flex-1 space-y-2"><span className="label">Тип материала</span><select name="kind" defaultValue={it.kind} className="input">{Object.entries(KIND).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><SubmitButton className="btn btn-ghost">Сменить тип</SubmitButton><p className="w-full text-xs text-ink3">Тема, хук, дата и исходные материалы сохранятся.</p></form>}
         {canWrite && editable ? <form key={`${it.id}:${it.version}`} action={itemEditAction} className="space-y-4 rounded-2xl bg-tile p-4">
           {hid}<input type="hidden" name="version" value={it.version} />
           <h4 className="font-semibold">Редактирование материала</h4>

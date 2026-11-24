@@ -1,3 +1,5 @@
+import {planBases,type PlanBase} from "./plan-bases";
+import {loadPlanEvidence,evidenceSource} from "./plan-evidence";
 import {ensureMaterialSource,attachSourceImage} from "./material-source";
 import {sourcePrompt} from "./source-context";
 import { vkPublishingCredentials } from "./vk-channel-token";
@@ -68,25 +70,32 @@ export const priceOf = (kind: string, brief?: unknown) =>
 export type Result = { ok: true } | { ok: false; error: string };
 
 /** План: списание → генерация → при ошибке возврат. */
-export async function buildPlan(orgId: string, factoryId: string, days: number): Promise<Result> {
+export async function buildPlan(orgId: string, factoryId: string, days: number, requestedBases?:PlanBase[]): Promise<Result> {
+  if(!Number.isInteger(days)||days<1||days>30)return {ok:false,error:"Выберите период от 1 до 30 дней"};
   const fac = await loadFactory(orgId, factoryId);
   if (!fac) return { ok: false, error: "Завод не найден" };
   if (!aiReady()) return { ok: false, error: "AI Gateway не настроен (SELFHOSTED_LLM_URL)" };
+  let bases:PlanBase[], evidence:Awaited<ReturnType<typeof loadPlanEvidence>>;
+  try { bases=planBases(requestedBases); evidence=await loadPlanEvidence(orgId,factoryId,fac.brand_id,bases); }
+  catch(e){return {ok:false,error:`Не удалось подготовить источники: ${(e as Error).message}`};}
+  if(!bases.includes("topic")&&!evidence.length)return {ok:false,error:"Нет доступных новостей или трендов для этого завода. Обновите мониторинг, создайте подборку трендов или включите тематику компании. Токены не списаны."};
   const cost = PRICES.plan_day * days;
   try { await charge(orgId, cost, `Контент-план на ${days} дн.`, factoryId, await effectiveModel("plan")); }
   catch (e) { if (e instanceof InsufficientFunds) return { ok: false, error: "Недостаточно токенов" }; throw e; }
   try {
     const used = (await q<{ topic: string }>("select topic from kz_content_items where factory_id=$1 order by created_at desc limit 80", [factoryId])).map((x) => x.topic);
     const offset = Number((await one<{ n: string }>("select count(*) n from kz_content_items where factory_id=$1", [factoryId]))!.n);
-    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, await settingsFor(orgId, fac), offset);
+    const ideas = await genPlan(brandOf(fac), fac.product, fac.niche, fac.formats, days, used, await settingsFor(orgId, fac), offset, {entries:evidence,topical:bases.includes("topic")});
     // продолжаем с дня после последнего запланированного и только в дни публикации завода
     const dates = await allocateDates(factoryId, ideas.length);
     await tx(async (run) => {
       for (let i = 0; i < ideas.length; i++) {
+        const source=evidenceSource(ideas[i].sourceIds??[],evidence);
         await run("insert into kz_content_items(org_id,factory_id,brand_id,kind,topic,hook,planned_for,meta) values($1,$2,$3,$4,$5,$6,$7,$8)",
-          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, dates[i], JSON.stringify({ ...(ideas[i].type ? { postType: ideas[i].type } : {}), ...(ideas[i].rubric ? { rubric: ideas[i].rubric } : {}) })]);
+          [orgId, factoryId, fac.brand_id, ideas[i].kind, ideas[i].topic, ideas[i].hook, dates[i], JSON.stringify({ planBases:bases, ...(source?{source}:{}), ...(ideas[i].type ? { postType: ideas[i].type } : {}), ...(ideas[i].rubric ? { rubric: ideas[i].rubric } : {}) })]);
       }
     });
+    if(ideas.length<days)await refund(orgId,(days-ideas.length)*PRICES.plan_day,"Неиспользованные дни контент-плана",factoryId);
     return { ok: true };
   } catch (e) {
     await refund(orgId, cost, "ошибка генерации плана", factoryId);
@@ -183,7 +192,7 @@ export async function buildItem(orgId: string, itemId: string, version?: string)
   return row?.model ? withCreatorTextModel(row.model, () => buildItemInternal(orgId, itemId, version)) : buildItemInternal(orgId, itemId, version);
 }
 async function buildItemInternal(orgId: string, itemId: string, version?: string): Promise<Result> {
-  try { const source=await ensureMaterialSource(orgId,itemId); if(source?.documents?.length&&source.documents.every(d=>d.status!=="full"))return {ok:false,error:"Полные тексты источников не загрузились. Откройте «Контекст материала» и добавьте текст статьи перед генерацией. Токены не списаны."}; } catch { return {ok:false,error:"Не удалось восстановить исходный контекст. Повторите загрузку источника."}; }
+  try { const source=await ensureMaterialSource(orgId,itemId); if(source?.documents?.length&&source.documents.every(d=>d.status!=="full" && d.body.trim().length<120))return {ok:false,error:"Источник временно не отвечает и не предоставил достаточно текста. Мы повторили загрузку автоматически. Повторите создание позже; токены не списаны."}; } catch { return {ok:false,error:"Не удалось восстановить исходный контекст. Повторите загрузку источника."}; }
   const item = await one<{ id: string; previous_status: string; factory_id: string; brand_id: string; kind: string; topic: string; hook: string; meta: { creator?: boolean; imageOwn?: boolean; fromNews?: boolean; source?: { title: string; body: string; url: string }; postType?: string; rubric?: string; audience?: string; voice?: string; requirements?: string; refText?: string; pollOpts?: { mode?: string; count?: number; multi?: boolean } } }>(
     `with candidate as (
         select id,status from kz_content_items where id=$1 and org_id=$2 and factory_id is not null

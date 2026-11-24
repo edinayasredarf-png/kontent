@@ -1,5 +1,6 @@
 "use server";
 
+import {planBases} from "./plan-bases";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWriter } from "./auth";
@@ -36,6 +37,7 @@ export async function extendCalendarPlan(form: FormData) {
   const c = await requireWriter();
   const days = Number(value(form, "days"));
   if (![7, 14, 30].includes(days)) finish(form, { ok: false, error: "Выберите 7, 14 или 30 дней" });
-  const result = await buildPlan(c.org.id, value(form, "factory"), days);
+  let bases; try {bases=planBases(form.get("bases_present")?form.getAll("bases"):undefined);}catch(e){finish(form,{ok:false,error:(e as Error).message});}
+  const result = await buildPlan(c.org.id, value(form, "factory"), days,bases);
   finish(form, result);
 }
