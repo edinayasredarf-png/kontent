@@ -20,7 +20,6 @@ import { Empty } from "@/components/ui";
 import { SourceIcon } from "@/components/monitor/SourceIcon";
 import { FadeList } from "@/components/monitor/FadeList";
 import { ModalButton } from "@/components/ui/ModalButton";
-import { AskBox } from "@/components/monitor/AskBox";
 import { FeedToolbar } from "@/components/monitor/FeedToolbar";
 import { PostText } from "@/components/monitor/PostText";
 import { NewsCreate } from "@/components/monitor/NewsCreate";
@@ -127,7 +126,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           ) : <p className="mb-5 text-center text-xs text-ink3">Чтобы создавать материалы, заведите завод.</p>
         )}
         {list.length === 0 && (!inLiked || !!f.brand || !!f.q || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit) && <NoResults q={f.q} filtered={!!f.brand || f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
-        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,600px)_minmax(0,1fr)]">
+        <div className="w-full lg:max-w-[600px]">
         <div className="min-w-0">
         <AutoArticles key={list.map((r) => `${r.id}:${r.full_status}`).join(",")} ids={list.filter((r) => articleNeedsLoading(r.kind, r.full_status, r.full_text)).map((r) => r.id)}>
         <FadeList className="space-y-8" topEdge={170}>
@@ -178,7 +177,6 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
           </div>
         )}
         </div>
-        <AskBox />
         </div>
       </FeedToolbar>)}
       </div>
