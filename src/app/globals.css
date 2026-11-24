@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  scrollbar-gutter: stable;
   color-scheme: light;
   --bg: #f5f5f5; --surface: #ffffff; --tile: #f5f5f5; --tile2: #ebebeb; --ink: #172554; --ink2: #64748b; --ink3: #94a3b8;
   --line: #e7eaf0; --black: #172554; --on-black: #ffffff; --accent: #0070f0; --accent-ink: #0058bd; --accent-soft: #e8f2ff;

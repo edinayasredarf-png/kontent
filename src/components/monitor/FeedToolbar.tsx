@@ -14,14 +14,14 @@ const PILL = "inline-flex h-9 items-center gap-1.5 rounded-lg bg-tile px-3.5 tex
  * если появились новые посты, показывает строку «Загружено N новых постов»; по нажатию лента перезагружается и плавно прокручивается к самым свежим.
  * Раз в минуту новые посты проверяются и сами (без опроса источников).
  */
-export function FeedToolbar({ filter, since, sources, keywords, analysis, settings, tabs, write, children }: { tabs: React.ReactNode; write: boolean; filter: FeedFilter; since: string; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; settings: React.ReactNode; children: React.ReactNode }) {
+export function FeedToolbar({ filter, since, sources, brands, keywords, analysis, settings, tabs, write, children }: { tabs: React.ReactNode; write: boolean; filter: FeedFilter; since: string; brands: {id:string;name:string}[]; sources: { id: string; title: string }[]; keywords: string[]; analysis: React.ReactNode; settings: React.ReactNode; children: React.ReactNode }) {
   const router = useRouter();
   const [modal, setModal] = useState<"filter" | "analysis" | "settings" | null>(null);
   const [busy, setBusy] = useState(false), [fresh, setFresh] = useState(0), [note, setNote] = useState("");
   const [loading, start] = useTransition(), [applying, setApplying] = useState(false);
-  const params = { show: filter.show, d: String(filter.days), src: filter.src, kw: filter.kw, q: filter.q, m: filter.only ? "1" : "", fit: filter.fit ? "1" : "", sort: filter.sort };
+  const params = { brand: filter.brand, show: filter.show, d: String(filter.days), src: filter.src, kw: filter.kw, q: filter.q, m: filter.only ? "1" : "", fit: filter.fit ? "1" : "", sort: filter.sort };
   const qs = filterQuery(filter);
-  const active = (filter.src.length ? 1 : 0) + (filter.kw.length ? 1 : 0) + (filter.q ? 1 : 0) + (filter.only ? 1 : 0) + (filter.fit ? 1 : 0) + (filter.show !== "new" ? 1 : 0) + (filter.days !== 7 ? 1 : 0) + (filter.sort !== "date" ? 1 : 0);
+  const active = (filter.brand ? 1 : 0) + (filter.src.length ? 1 : 0) + (filter.kw.length ? 1 : 0) + (filter.q ? 1 : 0) + (filter.only ? 1 : 0) + (filter.fit ? 1 : 0) + (filter.show !== "new" ? 1 : 0) + (filter.days !== 7 ? 1 : 0) + (filter.sort !== "date" ? 1 : 0);
 
   useEffect(() => { setFresh(0); }, [since]);
   useEffect(() => { if (!loading) setApplying(false); }, [loading]);
@@ -46,6 +46,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
   const close = useCallback(() => setModal(null), []);
   // Фильтр раскрывается над лентой и применяется при изменении, поиск — через 0,4 с.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const submit = (form: HTMLFormElement) => {
     const u = new URLSearchParams();
     for (const [k, v] of new FormData(form).entries()) if (typeof v === "string" && v !== "") u.append(k, v);
@@ -64,6 +65,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
           {write && <button type="button" className="btn-rect mb-1 shrink-0" onClick={() => setModal("settings")} aria-label="Добавить источник"><span className="max-sm:hidden">Добавить источник</span><Plus size={16} /></button>}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <label className="flex h-9 min-w-0 items-center gap-2 rounded-lg bg-tile px-3 text-sm"><span className="text-ink2">Бренд</span><select aria-label="Бренд новостей" value={filter.brand} onChange={e=>{ const brand=e.target.value; start(()=>router.replace(`/app/monitor${filterQuery({...filter,brand,src:[]})}`,{scroll:false})); }} className="w-48 max-w-[45vw] bg-transparent font-semibold outline-none"><option value="">Все бренды</option>{brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
           <button type="button" className={PILL} onClick={() => setModal("analysis")}><Sparkles size={16} />Анализ ленты</button>
           <button type="button" className={PILL} aria-expanded={modal === "filter"} aria-controls="feed-filter-panel" onClick={() => setModal(current => current === "filter" ? null : "filter")}><SlidersHorizontal size={16} />Фильтр{active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold leading-5 text-white">{active}</span>}</button>
           <button type="button" className={PILL} onClick={refresh} disabled={busy} title="Проверить источники и подгрузить новые посты"><RefreshCw size={16} className={busy ? "animate-spin" : ""} />Обновить</button>
@@ -71,8 +73,9 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
         </div>
       </div>
       {modal === "filter" && (
-        <section id="feed-filter-panel" aria-label="Фильтр ленты" className="mb-5 rounded-2xl bg-tile p-4">
+        <Modal title="Фильтр новостей" onClose={close}><section id="feed-filter-panel" aria-label="Фильтр ленты">
           <form id="feed-filter" action="/app/monitor" onSubmit={apply} onChange={(e) => later(e.currentTarget, (e.target as unknown as HTMLInputElement).name === "q" ? 400 : 120)} className="space-y-6">
+            <label className="block"><span className="label">Бренд</span><select name="brand" defaultValue={filter.brand} className="input"><option value="">Все бренды</option>{brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><span className="mt-2 block text-xs text-ink3">Лента выбранного бренда содержит его источники. Привязка задаётся в «Настройках» → «Источники».</span></label>
             <div>
               <p className="label">Поиск по тексту</p>
               <label className="flex h-11 items-center gap-2 rounded-full bg-accent-soft px-4"><Search size={15} className="text-ink2" /><input name="q" defaultValue={filter.q} placeholder="Слово или фраза" className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
@@ -101,7 +104,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
             <Link href="/app/monitor" onClick={close} className="text-sm font-semibold text-ink2 hover:text-ink">Сбросить всё</Link>
             <button type="button" onClick={close} className="btn btn-ghost">Свернуть</button>
           </div>
-        </section>
+        </section></Modal>
       )}
       {note && <p className="mb-4 text-xs text-ink2">{note}</p>}
       {fresh > 0 && (
@@ -110,7 +113,7 @@ export function FeedToolbar({ filter, since, sources, keywords, analysis, settin
         </div>
       )}
       {applying && loading && (
-        <div role="status" className="sticky top-40 z-20 mb-4 flex justify-center"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
+        <div role="status" className="fixed bottom-6 left-1/2 z-[90] -translate-x-1/2"><span className="inline-flex h-10 items-center gap-2 rounded-full bg-surface px-5 text-sm font-semibold text-ink shadow-float outline outline-1 -outline-offset-1 outline-accent"><Loader2 size={16} className="animate-spin text-accent" />Применяем фильтр…</span></div>
       )}
       <div key={qs} className={applying && loading ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>{children}</div>
 

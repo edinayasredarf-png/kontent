@@ -55,7 +55,7 @@ export async function ContentPublications({ sp, scope }: { sp: { n?: string; ite
       {note && !scopedItem && <p role="status" className="mb-4 text-sm text-good">{note}</p>}
       {scopedItem && <ItemModal orgId={c.org.id} id={itemId} returnTo={href(n ? { n: String(lim) } : {})} err={err} note={note} canWrite={canWrite(c.org.role)} />}
       {!scope && <PageHead title="Публикации" sub="Готовые материалы, очередь и опубликованное." />}
-      <FilterBar compact={!!scope} prefix={scope && <FactoryContentTabs factoryId={scope.id} section="published" />} path={path} keep={scope ? { tab: "content" } : {}} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
+      <FilterBar compact prefix={scope && <FactoryContentTabs factoryId={scope.id} section="published" />} path={path} keep={scope ? { tab: "content" } : {}} presets={PRESETS} r={rg.r} from={rg.from} to={rg.to} selects={[
         ...(!scope ? [{ name: "brand", label: "Бренд", all: "Все бренды", value: brand, options: brands.map((x) => ({ value: x.id, label: x.name })) }] : []),
         { name: "channel", label: "Канал", all: "Все каналы", value: channel, options: channels.map((x) => ({ value: x.id, label: `${SUPPORTED_CHANNELS[x.kind] ?? x.kind}: ${x.title}` })) },
         { name: "kind", label: "Формат", all: "Все форматы", value: kind, options: Object.entries(KIND).map(([k, v]) => ({ value: k, label: v })) },

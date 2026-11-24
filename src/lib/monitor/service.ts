@@ -1,3 +1,4 @@
+import { validateSourceBrands } from "./source-brands";
 import { requireFeature, orgPlan } from "../plan-catalog";
 import { notify } from "../notify";
 import { one, q, tx } from "../db";
@@ -14,8 +15,10 @@ import { enrichRecent } from "./news";
 import { loadKeywords, storeItems } from "./store";
 export { loadKeywords } from "./store";
 
-export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean, kind: Kind, input: string): Promise<{ error?: string }> {
+export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean, kind: Kind, input: string, brands: string[] = []): Promise<{ error?: string }> {
   await requireFeature(orgId, "monitor");
+  let brandIds: string[];
+  try { brandIds = await validateSourceBrands(orgId, brands); } catch(e) { return {error:(e as Error).message}; }
   const lim = unlimited ? null : (await orgPlan(orgId)).sources;
   const n = Number((await one<{ n: string }>("select count(*) n from kz_sources where org_id=$1 and kind<>'manual'", [orgId]))!.n);
   if (lim !== null && n >= lim) return { error: `Тариф «${(await orgPlan(orgId)).name}»: максимум источников — ${lim}. Повысьте тариф.` };
@@ -24,7 +27,7 @@ export async function addSource(orgId: string, plan: PlanKey, unlimited: boolean
   if (kind === "max") { try { await fetchItems("max", r.ref, { ...r.config, orgId }); } catch (e) { return { error: (e as Error).message }; } } // сразу проверяем, что чтение разрешено
   const row = await one<{ id: string }>(
     `insert into kz_sources(org_id,kind,ref,title,config) values($1,$2,$3,$4,$5) on conflict(org_id,kind,ref) do nothing returning id`,
-    [orgId, kind, r.ref, r.title, JSON.stringify(r.config)]);
+    [orgId, kind, r.ref, r.title, JSON.stringify({...r.config,brandIds})]);
   if (!row) return { error: "Такой источник уже добавлен" };
   await pollSource(row.id);
   return {};

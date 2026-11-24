@@ -2,7 +2,7 @@
 import { AlertTriangle, Pause, Play, RefreshCw, Trash2, X } from "lucide-react";
 import { fmtLimit } from "@/lib/plans";
 import { Form, Field } from "@/components/Form";
-import { addKeywordsAction, addManualAction, deleteKeywordAction, deleteSourceAction, refreshSourceAction, toggleSourceAction } from "@/lib/monitor/actions";
+import { saveSourceBrandsAction, addKeywordsAction, addManualAction, deleteKeywordAction, deleteSourceAction, refreshSourceAction, toggleSourceAction } from "@/lib/monitor/actions";
 import { sourceView } from "@/lib/monitor/display";
 import { AddSourceForm } from "@/components/AddSourceForm";
 import { SuggestKeywords } from "@/components/SuggestKeywords";
@@ -14,7 +14,7 @@ import type { MonitorSettingsData } from "@/lib/monitor/settings";
 const IBTN = "grid size-9 place-items-center rounded-full bg-accent-soft text-ink2 transition hover:bg-tile2 hover:text-ink";
 
 /** Содержимое настроек мониторинга: источники, ключевые слова, ручное добавление. Используется и в модальном окне, и на отдельной странице. */
-export function SettingsContent({ data }: { data: MonitorSettingsData }) {
+export function SettingsContent({ data, brand = "" }: { data: MonitorSettingsData; brand?:string }) {
   const { sources, kws, maxCh, brands, limit: lim, vkOn, kindLabels, priceLabel } = data;
   const used = sources.filter((s) => s.kind !== "manual").length;
   const inc = kws.filter((k) => k.kind === "include"), exc = kws.filter((k) => k.kind === "exclude");
@@ -33,6 +33,7 @@ export function SettingsContent({ data }: { data: MonitorSettingsData }) {
               <p className="break-words text-xs text-ink2 sm:truncate">{sv.address} · постов: {s.items} · {s.last_fetched_at ? `обновлено ${new Date(s.last_fetched_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : s.kind === "manual" ? "добавлено вручную" : "ещё не обновлялся"}</p>
               {s.last_error && <p className="mt-1 flex items-start gap-1.5 text-xs text-bad"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{s.last_error}</p>}
             </div>
+            {brands.length > 0 && <details className="w-full text-sm"><summary className="cursor-pointer text-ink2">Бренды: {brands.filter(b=>Array.isArray(s.config?.brandIds)&&s.config.brandIds.includes(b.id)).map(b=>b.name).join(", ") || "без привязки"}</summary><Form action={saveSourceBrandsAction} submit="Сохранить бренды" className="mt-3 space-y-3"><input type="hidden" name="id" value={s.id}/><div className="flex flex-wrap gap-3">{brands.map(b=><label key={b.id} className="flex items-center gap-2"><input type="checkbox" name="brands" value={b.id} defaultChecked={Array.isArray(s.config?.brandIds)&&s.config.brandIds.includes(b.id)}/>{b.name}</label>)}</div><p className="text-xs text-ink3">Без привязки источник показывается только в общей ленте.</p></Form></details>}
             <div className="flex gap-1.5">
               {s.kind !== "manual" && (<>
                 <form action={refreshSourceAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className={IBTN} title="Обновить сейчас" aria-label="Обновить источник"><RefreshCw size={15} /></SubmitButton></form>
@@ -43,7 +44,7 @@ export function SettingsContent({ data }: { data: MonitorSettingsData }) {
           </li>);
       })}</ul>
     )}
-    <section className={box}><b className="mb-3 block text-sm">Добавить источник</b><AddSourceForm vkOn={vkOn} maxChannels={maxCh} /></section>
+    <section className={box}><b className="mb-3 block text-sm">Добавить источник</b><AddSourceForm vkOn={vkOn} maxChannels={maxCh} brands={brands} brand={brand} /></section>
   </>);
 
   const wordsNode = (<>

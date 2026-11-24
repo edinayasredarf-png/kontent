@@ -1,7 +1,8 @@
 "use client";
+import { Popover } from "./ui/Popover";
 import { Modal } from "./ui/Modal";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CalendarDays, ListFilter, Loader2, Search, X } from "lucide-react";
 
 export interface FilterSelect { name: string; label: string; all: string; value: string; options: { value: string; label: string }[] }
@@ -10,9 +11,10 @@ export interface FilterSelect { name: string; label: string; all: string; value:
  * Панель фильтров: быстрые периоды («Сегодня», «Вчера»…), выбор дат в календаре и выпадающие списки.
  * Всё применяется сразу, без кнопки; состояние живёт в адресе страницы (период — r, from, to; списки — по имени).
  */
-export function FilterBar({ path, presets, r, from, to, selects, keep = {}, search, compact = false, inline = true, prefix }: {
+export function FilterBar({ path, presets, r, from, to, selects, keep = {}, search, compact = true, inline = true, prefix }: {
   compact?: boolean; inline?: boolean; prefix?: React.ReactNode; path: string; presets: [string, string][]; r: string; from: string; to: string; selects: FilterSelect[]; keep?: Record<string, string>; search?: { name: string; value: string; placeholder: string };
 }) {
+  const anchor = useRef<HTMLButtonElement | null>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [s, setS] = useState({ r, from, to, sel: { ...Object.fromEntries(selects.map((x) => [x.name, x.value])), ...(search ? { [search.name]: search.value } : {}) } as Record<string, string> });
@@ -30,6 +32,7 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
   const filtered = Object.values(s.sel).some(Boolean);
   const chip = (on: boolean) => `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 transition ${on ? "bg-surface font-semibold shadow-sm" : "text-ink2 hover:text-ink"}`;
   const sel = "input !w-auto !py-2 text-sm";
+  const drawer = modal === "filters" && selects.length >= 4;
   const fields = (
     <div className={inline ? "w-full space-y-3 rounded-2xl bg-tile p-3" : "mb-5 w-full max-w-[680px] space-y-3"}>
       {(!compact || modal === "dates") && <div className={inline ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-center justify-center gap-2"}>
@@ -46,12 +49,12 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
         </div>
       )}
       {(!compact || modal === "filters" || modal === "search") && (selects.length > 0 || search) && (
-        <div className={inline ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-center justify-center gap-2"}>
+        <div className={drawer ? "space-y-4" : inline ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-center justify-center gap-2"}>
           {search && (!compact || modal === "search") && <input value={s.sel[search.name] ?? ""} onChange={(e) => setS({ ...s, sel: { ...s.sel, [search.name]: e.target.value } })} onKeyDown={(e) => { if (e.key === "Enter") go(s); }} onBlur={e => { if (e.relatedTarget instanceof Element && e.relatedTarget.closest("button,a,input,select")) return; if ((s.sel[search.name] ?? "") !== search.value) go(s); }} placeholder={search.placeholder} aria-label={search.placeholder} maxLength={80} className="input !w-56 !py-2 text-sm" />}
           {(!compact || modal === "filters") && selects.map((x) => (
-            <select key={x.name} value={s.sel[x.name] ?? ""} onChange={(e) => go({ ...s, sel: { ...s.sel, [x.name]: e.target.value } })} aria-label={x.label} className={sel}>
+            <label key={x.name} className={drawer ? "block space-y-2" : "contents"}>{drawer && <span className="text-sm text-ink2">{x.label}</span>}<select value={s.sel[x.name] ?? ""} onChange={(e) => go({ ...s, sel: { ...s.sel, [x.name]: e.target.value } })} aria-label={x.label} className={drawer ? "input" : sel}>
               <option value="">{x.all}</option>{x.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </select></label>
           ))}
           {filtered && <button type="button" onClick={() => go({ ...s, sel: Object.fromEntries([...selects.map((x) => x.name), ...(search ? [search.name] : [])].map((k) => [k, ""])) })} className="pill pill-sm"><X size={13} />Сбросить</button>}
         </div>
@@ -64,11 +67,11 @@ export function FilterBar({ path, presets, r, from, to, selects, keep = {}, sear
   return (
     <div className="mb-5 flex flex-wrap items-center gap-2">
       {prefix}
-      <button type="button" aria-label="Выбрать период" title="Выбрать период" aria-expanded={modal === "dates"} onClick={() => toggle("dates")} className={icon}><CalendarDays size={16} /></button>
-      <button type="button" aria-label="Фильтры" title="Фильтры" aria-expanded={modal === "filters"} onClick={() => toggle("filters")} className={`${icon} ${filtered ? "!bg-accent-soft !text-accent-ink" : ""}`}><ListFilter size={18} /></button>
-      {search && <button type="button" aria-label="Поиск" title="Поиск" aria-expanded={modal === "search"} onClick={() => toggle("search")} className={icon}><Search size={18} /></button>}
-      {pending && <Loader2 size={14} className="animate-spin text-accent" aria-label="Загрузка" />}
-      {modal && (inline ? <div className="basis-full">{fields}</div> : <Modal title={modal === "dates" ? "Период публикаций" : modal === "search" ? "Поиск по публикациям" : "Фильтры публикаций"} onClose={() => setModal(null)}>{fields}</Modal>)}
+      <button type="button" aria-label="Выбрать период" title="Выбрать период" aria-expanded={modal === "dates"} onClick={(e) => { anchor.current = e.currentTarget; toggle("dates"); }} className={icon}><CalendarDays size={16} /></button>
+      <button type="button" aria-label="Фильтры" title="Фильтры" aria-expanded={modal === "filters"} onClick={(e) => { anchor.current = e.currentTarget; toggle("filters"); }} className={`${icon} ${filtered ? "!bg-accent-soft !text-accent-ink" : ""}`}><ListFilter size={18} /></button>
+      {search && <button type="button" aria-label="Поиск" title="Поиск" aria-expanded={modal === "search"} onClick={(e) => { anchor.current = e.currentTarget; toggle("search"); }} className={icon}><Search size={18} /></button>}
+      <span className="grid size-4 place-items-center" role="status">{pending && <Loader2 size={14} className="animate-spin text-accent" aria-label="Загрузка" />}</span>
+      {modal && (drawer ? <Modal title="Фильтры публикаций" onClose={() => setModal(null)}>{fields}</Modal> : <Popover anchor={anchor} title={modal === "dates" ? "Период публикаций" : modal === "search" ? "Поиск по публикациям" : "Фильтры публикаций"} onClose={() => setModal(null)}>{fields}</Popover>)}
     </div>
   );
 

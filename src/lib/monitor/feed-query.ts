@@ -1,5 +1,5 @@
 /** Фильтр ленты новостей: общая логика для страницы, обновления и проверки новых постов. Значения приходят из адреса, поэтому всё проверяется. */
-export interface FeedFilter { /** один пост (ссылка из сводки трендов) */ id: string; show: string; days: number; src: string[]; kw: string[]; q: string; only: boolean; fit: boolean; sort: "date" | "match" }
+export interface FeedFilter { /** один пост (ссылка из сводки трендов) */ id: string; brand: string; show: string; days: number; src: string[]; kw: string[]; q: string; only: boolean; fit: boolean; sort: "date" | "match" }
 const UUID = /^[0-9a-f-]{36}$/i;
 const arr = (v: unknown): string[] => (Array.isArray(v) ? v : typeof v === "string" && v ? [v] : []).map(String);
 
@@ -10,6 +10,7 @@ export function parseFilter(sp: Record<string, string | string[] | undefined>): 
   const idv = one(sp.id);
   return {
     id: UUID.test(idv) ? idv : "",
+    brand: UUID.test(one(sp.brand)) ? one(sp.brand) : "",
     show: ["new", "saved", "used", "all"].includes(show) ? show : "new",
     days: [1, 3, 7, 30].includes(days) ? days : 7,
     src: arr(sp.src).filter((x) => UUID.test(x)).slice(0, 50), kw: arr(sp.kw).map((x) => x.slice(0, 80)).slice(0, 50),
@@ -24,6 +25,7 @@ export function feedWhere(orgId: string, f: FeedFilter, sinceFetched?: string): 
   const add = (cond: string, v: unknown) => { args.push(v); where.push(cond.replace("?", `$${args.length}`)); };
   // один пост из сводки трендов: любые статусы и период, остальные фильтры не применяются
   if (f.id) { where.splice(1, 2, "$2::text is not null"); add("i.id=?::uuid", f.id); return { sql: where.join(" and "), args }; }
+  if (f.brand) add("exists (select 1 from kz_sources bs join kz_brands bb on bb.org_id=bs.org_id where bs.id=i.source_id and bs.org_id=i.org_id and bb.id::text=? and bs.config->'brandIds' ? bb.id::text)", f.brand);
   if (f.show === "new") where.push("i.status='new'"); else if (f.show !== "all") add("i.status=?", f.show); else where.push("i.status<>'dismissed'");
   if (f.src.length) add("i.source_id = any(?::uuid[])", f.src);
   if (f.kw.length) add("i.matched && ?::text[]", f.kw);
@@ -44,6 +46,7 @@ export const feedOrder = (f: FeedFilter) => f.sort === "match" ? `${f.fit ? "i.f
 /** Параметры фильтра → строка адреса (для переходов и кнопок). */
 export function filterQuery(f: FeedFilter, extra: Record<string, string> = {}): string {
   const u = new URLSearchParams();
+  if (f.brand) u.set("brand", f.brand);
   if (f.show !== "new") u.set("show", f.show);
   if (f.days !== 7) u.set("d", String(f.days));
   for (const s of f.src) u.append("src", s); for (const k of f.kw) u.append("kw", k);

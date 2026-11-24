@@ -1,4 +1,5 @@
 "use server";
+import { setSourceBrands } from "./source-brands";
 import { after } from "next/server";
 import { buildItem } from "../pipeline";
 import { withUsage } from "../billing";
@@ -19,9 +20,15 @@ export async function addSourceAction(_: unknown, f: FormData) {
   const c = await requireWriter();
   const kind = s(f, "kind");
   if (!KINDS.includes(kind)) return { error: "Выберите тип источника" };
-  const r = await addSource(c.org.id, c.org.plan, c.org.unlimited, kind as Kind, s(f, "value"));
+  const r = await addSource(c.org.id, c.org.plan, c.org.unlimited, kind as Kind, s(f, "value"), f.getAll("brands").map(String));
   if (!r.error) back();
   return r;
+}
+
+export async function saveSourceBrandsAction(_: unknown, f: FormData) {
+ const c = await requireWriter();
+ try { await setSourceBrands(c.org.id, s(f,"id"), f.getAll("brands").map(String)); back(); return {ok:"Бренды источника сохранены"}; }
+ catch(e) { return {error:(e as Error).message}; }
 }
 
 export async function refreshSourceAction(f: FormData) {
@@ -195,7 +202,7 @@ export async function refreshFeedAction(params: Record<string, string | string[]
   const c = await requireCtx();
   const f = parseFilter(params);
   const src = await q<{ id: string }>(
-    `select id from kz_sources where org_id=$1 and status='active' and kind<>'manual' and ($2::uuid[] = '{}' or id = any($2::uuid[])) order by last_fetched_at nulls first limit 12`, [c.org.id, f.src]);
+    `select id from kz_sources where org_id=$1 and status='active' and kind<>'manual' and ($2::uuid[] = '{}' or id = any($2::uuid[])) and ($3::text='' or (config->'brandIds' ? $3 and exists(select 1 from kz_brands b where b.id::text=$3 and b.org_id=kz_sources.org_id))) order by last_fetched_at nulls first limit 12`, [c.org.id, f.src, f.brand]);
   let added = 0, failed = 0;
   for (let i = 0; i < src.length; i += 4) {
     const rs = await Promise.all(src.slice(i, i + 4).map((x) => pollSource(x.id)));

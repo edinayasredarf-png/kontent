@@ -4,10 +4,11 @@ import { Form, Field } from "./Form";
 import { addSourceAction } from "@/lib/monitor/actions";
 
 /** Добавление источника мониторинга. Для MAX выбирается уже подключённый канал (токен бота берётся оттуда). */
-export function AddSourceForm({ vkOn, maxChannels }: { vkOn: boolean; maxChannels: { id: string; title: string }[] }) {
+export function AddSourceForm({ vkOn, maxChannels, brands = [], brand = "" }: { brands?: {id:string;name:string}[]; brand?:string; vkOn: boolean; maxChannels: { id: string; title: string }[] }) {
   const [kind, setKind] = useState("site");
   return (
     <Form action={addSourceAction} submit="Проверить и добавить">
+      {brands.length > 0 && <Field label="Бренд"><select name="brands" defaultValue={brand} className="input"><option value="">Без привязки к бренду</option>{brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><p className="mt-1 text-xs text-ink3">Источник появится в ленте выбранного бренда. Несколько брендов можно указать в настройках источника.</p></Field>}
       <Field label="Тип">
         <select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="input">
           <option value="site">Сайт или RSS-лента</option><option value="telegram">Telegram-канал (публичный)</option>

@@ -53,15 +53,16 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
   const freshSince = Number.isNaN(Date.parse(one(sp.fresh))) ? 0 : Date.parse(one(sp.fresh));
   const { sql, args } = feedWhere(c.org.id, f);
 
+  const likedWhere = feedWhere(c.org.id, parseFilter({show:"saved",brand:f.brand}));
   const [rows, sources, kws, factories, brands, likedN] = await Promise.all([
     q<Row>(`select i.id,i.title,i.body,i.url,i.published_at,i.fetched_at,i.matched,i.score,i.status,s.title source,s.ref,s.kind,s.config,i.media,i.full_text,i.full_status,i.fit_score,i.fit_reason
               from kz_feed_items i join kz_sources s on s.id=i.source_id where ${sql}
              order by ${feedOrder(f)} limit ${PAGE + 1} offset ${(page - 1) * PAGE}`, args),
-    q<{ id: string; title: string; last_error: string | null }>("select id,title,last_error from kz_sources where org_id=$1 order by title", [c.org.id]),
+    q<{ id: string; title: string; last_error: string | null; config: {brandIds?:string[]} }>("select id,title,last_error,config from kz_sources where org_id=$1 order by title", [c.org.id]),
     q<{ word: string }>("select word from kz_keywords where org_id=$1 and kind='include' order by word", [c.org.id]),
-    q<{ id: string; name: string; brand: string }>("select f.id,f.name,b.name brand from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.status='active' order by f.name", [c.org.id]),
+    q<{ id: string; name: string; brand: string }>("select f.id,f.name,b.name brand from kz_factories f join kz_brands b on b.id=f.brand_id where f.org_id=$1 and f.status='active' and ($2::text='' or f.brand_id::text=$2) order by f.name", [c.org.id,f.brand]),
     q<{ id: string; name: string }>("select id,name from kz_brands where org_id=$1 order by name", [c.org.id]),
-    q<{ n: string }>("select count(*) n from kz_feed_items where org_id=$1 and not excluded and status='saved'", [c.org.id]),
+    q<{ n: string }>(`select count(*) n from kz_feed_items i where ${likedWhere.sql}`, likedWhere.args),
   ]);
   const liked = Number(likedN[0]?.n ?? 0), inLiked = f.show === "saved";
   const hasMore = rows.length > PAGE;
@@ -89,27 +90,28 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
       {one(sp.err) && !draftIds.length && <div className="mb-4 flex items-center gap-2 rounded-xl bg-bad-soft px-4 py-3 text-sm text-bad"><AlertTriangle size={16} />{one(sp.err)}</div>}
       {sourceErrors > 0 && <p className="mb-4 text-center text-xs text-warn">Источников с ошибкой: {sourceErrors}. Подробности в «Настройках».</p>}
 
+      {f.brand && <p className="mb-4 text-sm text-ink2">Новости бренда «{brands.find(b=>b.id===f.brand)?.name ?? "Бренд недоступен"}». Источники выбираются в настройках мониторинга.</p>}
       {f.id && <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm"><span>Показан один пост из сводки трендов</span><Link href="/app/monitor" className="link-btn">Показать всю ленту</Link></div>}
 
       {noSources ? (<>
-        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <ModalButton label="Добавить источник" title="Источники и ключевые слова" className="btn-rect mb-1" icon={null}><LazySettings stamp={Date.now()} /></ModalButton>}</div>
+        <div className="mb-8 flex min-h-12 items-center justify-between gap-3 border-b border-ink/10"><nav className="flex">{tabs}</nav>{write && <ModalButton label="Добавить источник" title="Источники и ключевые слова" className="btn-rect mb-1" icon={null}><LazySettings stamp={Date.now()} brand={f.brand} /></ModalButton>}</div>
         <div className="w-full max-w-[956px] rounded-xl bg-tile px-6 py-5">
           <p className="flex items-center gap-3 text-xl font-semibold"><Info size={22} className="shrink-0 text-ink2" />Источников пока нет</p>
           <p className="mt-2 pl-[34px] text-base text-ink2">Добавьте сайты, Telegram-каналы, сообщества VK или новости по запросу: лента заполнится сама.</p>
         </div>
-      </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} sources={sources.map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<LazySettings stamp={Date.now()} />} analysis={
+      </>) : (<FeedToolbar tabs={tabs} write={write} filter={f} since={since} brands={brands} sources={sources.filter(s=>!f.brand || s.config?.brandIds?.includes(f.brand)).map((x) => ({ id: x.id, title: x.title }))} keywords={kws.map((k) => k.word)} settings={<LazySettings stamp={Date.now()} brand={f.brand} />} analysis={
         <div className="space-y-4">
           <AiPanel title="Что в тренде" hint={`Главные темы недели и идеи для материалов · ${c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}`} button="Показать" action={digestAction} />
           {write && brands.length > 0 && (
             <div className="card p-4">
               <div className="mb-2"><b className="text-sm">Подборка новостей для вас</b><p className="mt-0.5 text-xs text-ink2">Нейросеть оценит свежие новости по профилю бренда и подскажет, как их использовать · {c.org.unlimited ? "бесплатно для админа" : rub(PRICES.digest)}</p></div>
               <Form action={scoreNewsAction} submit="Подобрать" className="flex flex-wrap items-center gap-2">
-                <select name="brand" className="input !w-auto">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+                <select name="brand" defaultValue={f.brand} className="input !w-auto">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
               </Form>
             </div>
           )}
         </div>}>
-        {inLiked && list.length === 0 && f.q === "" && f.src.length === 0 && f.kw.length === 0 && !f.only && !f.fit && <Empty icon={<Heart />} title="Пока ничего не понравилось" text="Нажмите сердечко на новости в ленте: она окажется здесь, и из неё можно будет сделать материалы." />}
+        {inLiked && list.length === 0 && !f.brand && f.q === "" && f.src.length === 0 && f.kw.length === 0 && !f.only && !f.fit && <Empty icon={<Heart />} title="Пока ничего не понравилось" text="Нажмите сердечко на новости в ленте: она окажется здесь, и из неё можно будет сделать материалы." />}
         {inLiked && list.length > 0 && write && (
           factories.length > 0 ? (
             <form id="liked-bulk" action={createFromLikedAction} className="mb-5 space-y-3 rounded-3xl bg-tile p-4">
@@ -124,7 +126,7 @@ export default async function Monitor({ searchParams }: { searchParams: Promise<
             </form>
           ) : <p className="mb-5 text-center text-xs text-ink3">Чтобы создавать материалы, заведите завод.</p>
         )}
-        {list.length === 0 && !inLiked && <NoResults q={f.q} filtered={f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
+        {list.length === 0 && (!inLiked || !!f.brand || !!f.q || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit) && <NoResults q={f.q} filtered={!!f.brand || f.q !== "" || f.src.length > 0 || f.kw.length > 0 || f.only || f.fit || f.show !== "new" || f.days !== 7} />}
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,600px)_minmax(0,1fr)]">
         <div className="min-w-0">
         <AutoArticles key={list.map((r) => `${r.id}:${r.full_status}`).join(",")} ids={list.filter((r) => articleNeedsLoading(r.kind, r.full_status, r.full_text)).map((r) => r.id)}>
