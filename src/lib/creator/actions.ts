@@ -115,7 +115,7 @@ export async function recomposeSlideAction(factoryId: string, bgId: string, inde
   if (!st) return { ok: false, error: "Модель недоступна" };
   const fac = await loadFactory(c.org.id, factoryId);
   const bg = await loadAsset(c.org.id, String(bgId));
-  if (!fac || !bg) return { ok: false, error: "Исходная картинка слайда не найдена" };
+  if (!fac || !bg || !await one("select 1 from kz_assets where id=$1 and org_id=$2 and brand_id=$3",[bgId,c.org.id,fac.brand_id])) return { ok: false, error: "Исходная картинка слайда не найдена у выбранного бренда" };
   try {
     const { kit, logo } = await brandAssets(c.org.id, fac.brand_id, fac.kit, st);
     const out = await composePhotoSlide({ bg: bg.data, title: String(slide.title).slice(0, 90), body: String(slide.body).slice(0, 320), index, total, brandName: fac.brand_name, format: st.format, width: QUALITY[st.quality].width, kit, logo, overlay: !textInImage });

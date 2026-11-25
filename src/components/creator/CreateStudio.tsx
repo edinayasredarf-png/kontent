@@ -1,4 +1,5 @@
 "use client";
+import {sameBrand,studioForFactory} from "@/lib/creator/scope";
 import type {MaterialSource} from "@/lib/source-context";
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
@@ -87,7 +88,13 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   const resetFlow = () => { setPhase("compose"); setPlan(null); setSl([]); setBrief(null); setMade(null); setSaved(null); setErr(""); setAngle(""); };
   const guard = () => !dirty() || window.confirm("Текущая карусель не сохранена и пропадёт. Продолжить?");
   const pickKind = (k: string) => { if (k === kind || working) return; if (!guard()) return; resetFlow(); setKind(k); setOpts(o => ({...o,requirements:""})); };
-  const pickFactory = (id: string) => { setFid(id); const f = factories.find((x) => x.id === id); set({ logo: !!f?.hasLogo && S.logo }); };
+  const pickFactory = (id: string) => {
+    if(id===fid||working||busy||uploading)return;
+    const f=factories.find(x=>x.id===id);if(!f||!guard())return;
+    resetFlow();setFid(id);setRefs([]);setOpts({...NO_OPTS});setS(studioForFactory(S,f.hasLogo));
+    setPresetName(null);setEdit(null);setGallery(false);
+    if(f.brandId!==fac?.brandId)setPrompt("");
+  };
 
   /* ───── референсы ───── */
   const addRef = (r: RefItem) => setRefs((a) => (a.some((x) => x.id === r.id) ? a : a.length >= 3 ? a : [...a, r]));
@@ -216,7 +223,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   }
 
   function applyPreset(p: PresetRow) {
-    if (working) return;
+    if (working || !sameBrand(p.brand_id,fac?.brandId)) return;
     if (p.kind !== kind) { if (!guard()) return; resetFlow(); setKind(p.kind); }
     if (p.kind === "carousel") { setS((x) => ({ ...x, ...p.settings, logo: hasLogo && p.settings.logo })); setRefs([]); }
     else {
@@ -229,6 +236,8 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
   const noModel = isCar && !model;
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* буфер недоступен */ } };
 
+  const brandPresets=presets.filter(p=>sameBrand(p.brand_id,fac?.brandId));
+  const brandRecent=recent.filter(w=>sameBrand(w.brandId,fac?.brandId));
   const picked = refs.map((r) => r.id);
   const openLink = (id: string, f: string) => scoped ? `/app/factories/${f}?tab=create&item=${id}` : `/app/create?factory=${f}&item=${id}`;
 
@@ -238,7 +247,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
       <div className="flex min-w-0 flex-wrap items-center gap-3 lg:col-start-1 lg:row-start-1 lg:pl-[clamp(24px,4.3vw,76px)] lg:pt-[clamp(32px,5.35vh,65px)]">
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Wand2 size={20} className="text-accent" />Создание материала</h1>
         <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto">
-          {scoped ? <span className="chip">{fac?.brand}</span> : <select className="input !w-auto max-w-full !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working} aria-label="Завод">
+          {scoped ? <span className="chip">{fac?.brand}</span> : <select className="input !w-auto max-w-full !py-1.5 text-xs" value={fid} onChange={(e) => pickFactory(e.target.value)} disabled={working || !!busy || uploading} aria-label="Завод">
             {factories.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.brand}</option>)}
           </select>}
 
@@ -400,7 +409,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
                 <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-tile" onClick={() => { close(); setGallery(true); }}><Layers size={15} className="text-accent" />Из примеров</button>
                 <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-tile" onClick={() => { close(); fileRef.current?.click(); }}><Paperclip size={15} className="text-accent" />Файл с компьютера</button>
                 <p className="px-3 pb-1 pt-2 text-xs font-medium text-ink3">Ранее созданное</p>
-                {recent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет: созданные материалы появятся здесь.</p> : recent.map((w) => (
+                {brandRecent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет: созданные материалы появятся здесь.</p> : brandRecent.map((w) => (
                   <button key={w.id} type="button" className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-tile" onClick={() => { addRef(w); close(); }}>
                     {w.thumb ? <img src={w.thumb} alt="" className="size-9 shrink-0 rounded-lg object-cover" /> : <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-tile2 text-[10px] text-ink3">{typeOf(w.kind).short.slice(0, 4)}</span>}
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm">{w.title}</span><span className="block text-[11px] text-ink3">{typeOf(w.kind).short}</span></span>
@@ -415,7 +424,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
             </>}
             <button type="button" onClick={() => setGallery(true)} className="grid size-7 place-items-center rounded-md bg-surface text-ink hover:bg-accent-soft" aria-label="Примеры материалов" title="Примеры материалов"><Sparkles size={14} /></button>
             <Pop chevron={false} trigger={<Bookmark size={14} />} wide label="Пресеты" className="!size-7 !justify-center !rounded-md !p-0">
-              {(close) => presets.length === 0 ? <p className="p-3 text-xs text-ink3">Пресетов пока нет. Создайте материал и нажмите «Сохранить как пресет»: стиль, тон, аудитория и (для каруселей) модель с качеством запомнятся.</p> : presets.map((p) => (
+              {(close) => brandPresets.length === 0 ? <p className="p-3 text-xs text-ink3">Пресетов пока нет. Создайте материал и нажмите «Сохранить как пресет»: стиль, тон, аудитория и (для каруселей) модель с качеством запомнятся.</p> : brandPresets.map((p) => (
                 <div key={p.id} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-tile">
                   {p.sample ? <img src={img(p.sample)} alt="" className="size-10 shrink-0 rounded-lg object-cover" /> : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-tile2 text-[10px] text-ink3">{typeOf(p.kind).short.slice(0, 4)}</span>}
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { applyPreset(p); close(); }}>
@@ -427,7 +436,7 @@ export function CreateStudio({ factories, scoped = false, startFactory, startKin
             </Pop>
             <Pop chevron={false} trigger={<Clock size={14} />} wide label="Недавние материалы" className="!size-7 !justify-center !rounded-md !p-0">
               {(close) => <><p className="px-3 pb-1 pt-1 text-sm font-semibold">Недавние материалы</p>
-                {recent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет.</p> : recent.map((w) => (
+                {brandRecent.length === 0 ? <p className="px-3 pb-2 text-xs text-ink3">Пока ничего нет.</p> : brandRecent.map((w) => (
                   <Link key={w.id} href={scoped ? `/app/factories/${fid}?tab=create&item=${w.id.slice(2)}` : `/app/create?item=${w.id.slice(2)}`} onClick={close} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-tile">
                     {w.thumb ? <img src={w.thumb} alt="" className="size-9 shrink-0 rounded-lg object-cover" /> : <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-tile2 text-[10px] text-ink3">{typeOf(w.kind).short.slice(0, 4)}</span>}
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm">{w.title}</span><span className="block text-[11px] text-ink3">{typeOf(w.kind).short} · {new Date(w.at).toLocaleDateString("ru-RU")}</span></span>

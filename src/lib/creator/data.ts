@@ -18,16 +18,16 @@ export async function brandLogoState(orgId: string, brandIds: string[]) {
 import type { RefItem } from "./consts";
 
 /** Недавние материалы организации: их можно приложить как референс («подгрузить ранее созданное») и открыть из истории. */
-export interface RecentWork extends RefItem { kind: string; factoryId: string | null; at: string }
+export interface RecentWork extends RefItem { kind: string; factoryId: string | null; brandId:string; at: string }
 export async function recentWorks(orgId: string, factoryId?: string): Promise<RecentWork[]> {
-  const rows = await q<{ id: string; kind: string; topic: string; body: string; meta: { carousel?: { slides?: { title: string; body: string }[]; photo?: { style?: string } } } | null; factory_id: string | null; at: string; thumb: string | null }>(
-    `select i.id,i.kind,i.topic,i.body,i.meta,i.factory_id,i.created_at::text at,
+  const rows = await q<{ id: string; kind: string; topic: string; body: string; meta: { carousel?: { slides?: { title: string; body: string }[]; photo?: { style?: string } } } | null; factory_id: string | null; brand_id:string; at: string; thumb: string | null }>(
+    `select i.id,i.kind,i.topic,i.body,i.meta,i.factory_id,i.brand_id,i.created_at::text at,
             (select a.id::text from kz_assets a where a.item_id=i.id and a.position=0 and a.kind='generated' limit 1) thumb
        from kz_content_items i where i.org_id=$1 and ($2::uuid is null or i.factory_id=$2) and i.status in ('ready','published','approved','scheduled') and i.body<>'' order by i.created_at desc limit 14`, [orgId, factoryId ?? null]).catch(() => []);
   return rows.map((r) => {
     const c = r.meta?.carousel;
     const slides = (c?.slides ?? []).map((s) => `${s.title}. ${s.body}`).join(" / ");
-    return { id: `w-${r.id}`, kind: r.kind, factoryId: r.factory_id, at: r.at, title: r.topic.slice(0, 70), thumb: r.thumb ? `/api/assets/${r.thumb}` : undefined, origin: "work" as const,
+    return { id: `w-${r.id}`, kind: r.kind, factoryId: r.factory_id, brandId:r.brand_id, at: r.at, title: r.topic.slice(0, 70), thumb: r.thumb ? `/api/assets/${r.thumb}` : undefined, origin: "work" as const,
       visual: c?.photo?.style ?? "", text: `Образец (${r.kind}): ${(slides || r.body).replace(/\s+/g, " ").slice(0, 800)}` };
   });
 }
