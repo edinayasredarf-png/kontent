@@ -1,4 +1,5 @@
 "use client";
+import { CHANNEL_LABELS } from "@/lib/publishing/catalog";
 import {PLAN_BASES,type PlanBase} from "@/lib/plan-bases";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/agent/card-actions";
 
 type Res = { ok: boolean; error?: string; note?: string; card?: Card | null; ids?: string[] };
-const CH_NAME: Record<string, string> = { vk: "VK", telegram: "Telegram", max: "MAX", wordpress: "WordPress", webhook: "Webhook" };
+const CH_NAME = CHANNEL_LABELS;
 const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("ru-RU"));
 const dt = (d: string) => new Date(d).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const box = "rounded-2xl border border-line bg-surface p-3.5";

@@ -1,3 +1,4 @@
+import { CHANNEL_LABELS } from "@/lib/publishing/catalog";
 import {MaterialSourceContext} from "./MaterialSourceContext";
 import { DraftProgress } from "./DraftProgress";
 import { MaterialImageFields } from "./MaterialImageFields";
@@ -22,7 +23,7 @@ import { ImagePicker } from "@/components/ImagePicker";
 import { ImageSlot } from "@/components/ImageSlot";
 import { SubmitButton } from "@/components/SubmitButton";
 
-const CH_NAME: Record<string, string> = { vk: "VK", telegram: "Telegram", max: "MAX", wordpress: "WordPress", webhook: "Webhook" };
+const CH_NAME = CHANNEL_LABELS;
 const SLIDE_KINDS = ["carousel", "infographic"], NO_IMAGE = ["reels", "email", "guide", "poll"];
 
 /**

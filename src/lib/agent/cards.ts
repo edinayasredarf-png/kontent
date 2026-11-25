@@ -1,3 +1,4 @@
+import { CHANNEL_FORM_KINDS } from "../publishing/catalog";
 import { ARTICLE_STATUS } from "../article-content";
 import { one, q } from "../db";
 import { loadDrafts, type DraftItem } from "../drafts";
@@ -48,7 +49,7 @@ export function cleanRefs(raw: unknown): CardRef[] {
     else if ((t === "factory" || t === "brand" || t === "plan") && UUID.test(String(o.id ?? ""))) out.push({ t, id: String(o.id) });
     else if (t === "analytics") out.push({ t, days: [1, 7, 30, 90].includes(Number(o.days)) ? Number(o.days) : 7 });
     else if (t === "sources" || t === "competitors" || t === "channels" || t === "setup") out.push({ t });
-    else if (t === "channel_form") out.push({ t, kind: ["telegram", "vk", "max", "max_bot", "wordpress", "webhook"].includes(String(o.kind)) ? String(o.kind) : "telegram" });
+    else if (t === "channel_form") out.push({ t, kind: CHANNEL_FORM_KINDS.includes(String(o.kind)) ? String(o.kind) : "telegram" });
   }
   return out.slice(0, 6);
 }

@@ -273,6 +273,7 @@ export async function saveBody(f: FormData) {
 function channelCred(f: FormData): { kind: string; cred: Record<string, string> } {
   const kind = s(f, "kind");
   const cred: Record<string, string> = { token: s(f, "token"), target: s(f, "target") };
+  if (s(f, "account")) cred.account = s(f, "account");
   if (kind === "vk" && s(f, "photoToken")) cred.photoToken = s(f, "photoToken");
   if (kind === "wordpress") {
     cred.token = `${s(f, "wp_user")}:${s(f, "token").replace(/\s+/g, " ")}`;

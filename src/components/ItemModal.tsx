@@ -1,3 +1,4 @@
+import { CHANNEL_LABELS } from "@/lib/publishing/catalog";
 import {MaterialSourceContext} from "./MaterialSourceContext";
 import Link from "next/link";
 import { priceOf } from "@/lib/pipeline";
@@ -25,7 +26,7 @@ import type { SlideLayout } from "@/lib/carousel/layouts";
 const NO_PUBLISH = ["reels", "email", "guide"], EDITABLE = ["idea", "approved", "ready", "failed", "rejected"];
 const plain = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 
-const CH: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max: "MAX", wordpress: "WordPress", webhook: "Webhook" };
+const CH = CHANNEL_LABELS;
 const PUB: Record<string, string> = { queued: "в очереди", sending: "отправляется", published: "опубликовано", failed: "ошибка" };
 
 /**

@@ -2,7 +2,7 @@ export interface Article { title: string; description: string; slug: string; key
 export interface Img { data: Buffer; mime: string }
 /** images — слайды карусели по порядку; image — одиночная картинка поста. */
 export interface Poll { question: string; options: string[]; multi?: boolean }
-export interface PublishInput { text: string; image?: Img; /** Публичная подписанная ссылка на ту же картинку (если задан APP_URL). */ imageUrl?: string; images?: Img[]; article?: Article; /** Опрос: Telegram публикует встроенным опросом, остальные площадки получают его уже в тексте. */ poll?: Poll }
+export interface PublishInput { text: string; publicationId?: string; imageUrls?: string[]; image?: Img; /** Публичная подписанная ссылка на ту же картинку (если задан APP_URL). */ imageUrl?: string; images?: Img[]; article?: Article; /** Опрос: Telegram публикует встроенным опросом, остальные площадки получают его уже в тексте. */ poll?: Poll }
 /** warning — публикация прошла, но есть замечание. Картинка к посту в замечания не входит: если её не удалось прикрепить, пост не публикуется (PublishError). */
 export interface PublishOutput { externalId: string; url: string | null; warning?: string }
 
@@ -12,7 +12,7 @@ export class PublishError extends Error {
 }
 
 export interface Provider {
-  kind: "telegram" | "vk" | "wordpress" | "webhook" | "max";
+  kind: "telegram" | "vk" | "wordpress" | "webhook" | "max" | import("./catalog").DirectKind | import("./catalog").ConnectorKind;
   /** Проверка при подключении: токен рабочий, бот/сообщество доступны. Возвращает человекочитаемое имя. */
   verify(cred: Record<string, string>): Promise<string>;
   publish(input: PublishInput, cred: Record<string, string>): Promise<PublishOutput>;

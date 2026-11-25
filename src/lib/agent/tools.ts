@@ -1,3 +1,4 @@
+import { CHANNEL_FORM_KINDS } from "../publishing/catalog";
 import { one, q } from "../db";
 import { pollSource } from "../monitor/service";
 import { createFromNews, MAKE_KINDS } from "../monitor/news";
@@ -36,7 +37,7 @@ export const TOOLS: { name: string; kind: "read" | "auto" | "act" | "confirm"; d
   { name: "edit_image", kind: "act", desc: "ИЗМЕНИТЬ ПРИСЛАННУЮ картинку по описанию («убери надпись», «смени фон», «добавь снег») (платно, сразу). Результат покажется в чате; с itemId сразу ставится в материал", args: '{"assetId":"uuid вложения","instruction":"что изменить","itemId":"uuid, если поставить в материал"}' },
   { name: "remember", kind: "act", desc: "ЗАПОМНИТЬ правило бренда навсегда (бесплатно): «не пиши про цены» (kind forbidden), «всегда добавляй ссылку», «пиши на ты» (kind note). op remove — забыть правило", args: '{"rule":"формулировка","kind":"forbidden|note","op":"add|remove","brandId":"uuid"}' },
   { name: "top_posts", kind: "read", desc: "Лучшие и худшие опубликованные посты за период с текстом, форматом, каналом и цифрами: чтобы объяснить, почему один пост сработал лучше, или сделать новый «как лучший»", args: '{"days":30}' },
-  { name: "connect_channel", kind: "act", desc: "ПОКАЗАТЬ в чате защищённую форму подключения канала (бесплатно). Токены и пароли вводятся ТОЛЬКО в этой форме, никогда в сообщении. kind: telegram, vk, max_bot (MAX через бота сервиса), max, wordpress, webhook", args: '{"kind":"telegram"}' },
+  { name: "connect_channel", kind: "act", desc: "ПОКАЗАТЬ в чате защищённую форму подключения канала (бесплатно). Токены и пароли вводятся ТОЛЬКО в этой форме, никогда в сообщении. kind: telegram, vk, max_bot (MAX через бота сервиса), max, wordpress, webhook, discord, telegraph, facebook, instagram, threads, pinterest. Внешние коннекторы (нужен собственный сценарий): dzen, tiktok, youtube, reddit, ok, rutube, x, tumblr, linkedin", args: '{"kind":"telegram"}' },
   { name: "progress", kind: "read", desc: "Что уже настроено у клиента: бренд, брендбук, завод, каналы, мониторинг, первый материал", args: "{}" },
   { name: "add_to_kb", kind: "act", desc: "ДОБАВИТЬ прикреплённый документ в базу знаний бренда (бесплатно, сразу). kind: article — их статьи и посты (учим стиль), company — о компании, продуктах, услугах, competitors, cases — кейсы и отзывы, faq — вопросы клиентов, other", args: '{"fileId":"uuid документа","kind":"company","brandId":"uuid","useStyle":false}' },
   { name: "add_links_to_kb", kind: "act", desc: "ДОБАВИТЬ в базу знаний бренда СТРАНИЦЫ ПО ССЫЛКАМ (до 5 за раз, бесплатно, сразу): примеры постов и статей клиента (kind article, по ним учится стиль), страницы о компании (company), кейсы (cases), вопросы клиентов (faq), конкуренты (competitors). Бренд должен уже существовать", args: '{"urls":["https://…"],"kind":"article","brandId":"uuid"}' },
@@ -216,7 +217,7 @@ export async function runAct(ctx: ToolCtx, name: string, a: Args): Promise<impor
   if (name === "connect_channel") {
     const { can } = await import("../roles");
     if (!can(ctx.role, "manage")) return { ok: false, text: "Каналы подключают владелец и администратор. Попросите их подключить канал" };
-    return { ok: true, text: "Показал форму подключения канала", refs: [{ t: "channel_form", kind: ["telegram", "vk", "max", "max_bot", "wordpress", "webhook"].includes(String(a.kind)) ? String(a.kind) : "telegram" }] };
+    return { ok: true, text: "Показал форму подключения канала", refs: [{ t: "channel_form", kind: CHANNEL_FORM_KINDS.includes(String(a.kind)) ? String(a.kind) : "telegram" }] };
   }
   const ob = await import("./onboarding");
   if (name === "add_to_kb") return ob.addToKb(ctx.orgId, a);

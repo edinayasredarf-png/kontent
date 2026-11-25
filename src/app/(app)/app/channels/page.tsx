@@ -25,7 +25,7 @@ export default async function Channels() {
           </ModalButton> : null} />
       <div className="w-full max-w-[600px]">
         <div>
-          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Подключите Telegram-канал или VK-сообщество кнопкой «Добавить канал»." /> : (
+          {rows.length === 0 ? <Empty icon={<Radio />} title="Каналов нет" text="Выберите площадку кнопкой «Добавить канал»: соцсети, мессенджеры, сайты или внешний коннектор." /> : (
             <div className="card">{rows.map((r) => (
               <div key={r.id} className="border-b border-line px-5 py-3 last:border-0">
                 <div className="flex flex-wrap items-center gap-3">

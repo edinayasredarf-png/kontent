@@ -2,13 +2,14 @@
 import { useEffect, useState } from "react";
 import { Form, Field } from "./Form";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { DIRECT_CHANNELS, CONNECTOR_CHANNELS, isDirectKind, isConnectorKind } from "@/lib/publishing/catalog";
 import { GUIDE } from "@/lib/guides";
 import { channelConnectionAvailability } from "@/lib/channel-connect-actions";
 import { ChannelConnectPanel } from "./ChannelConnectPanel";
 import { MaxBotPanel } from "./MaxBotPanel";
 import { checkChannelAction, discoverMaxAction, saveChannel } from "@/lib/actions";
 
-const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max_bot: "MAX", max: "MAX · свой бот", wordpress: "WordPress (SEO-статьи)", webhook: "Webhook (сайты и любые соцсети через n8n/Make)" };
+const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max_bot: "MAX", max: "MAX · свой бот", wordpress: "WordPress (SEO-статьи)", ...Object.fromEntries(Object.entries(DIRECT_CHANNELS).map(([k,v]) => [k,v.name])), ...Object.fromEntries(Object.entries(CONNECTOR_CHANNELS).map(([k,v]) => [k, `${v} · внешний коннектор`])), webhook: "Webhook (свой сценарий)" };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
 export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { initialKind?: string; brands: { id: string; name: string }[]; factoryId?: string; ret?: string; maxBot?: { link: string; name: string } }) {
@@ -36,6 +37,7 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
     try { const r = await checkChannelAction(new FormData(form)); setChk(r.ok ? { busy: false, ok: true, text: `Канал подключён корректно: ${r.name}` } : { busy: false, ok: false, text: r.error }); }
     catch { setChk({ busy: false, ok: false, text: "Не удалось выполнить проверку" }); }
   };
+  useEffect(() => { setChk({ busy: false }); }, [kind, brandId]);
   const g = GUIDE[kind];
   return (
     <Form action={saveChannel} submit={kind === "max_bot" || guided ? "" : "Проверить и подключить"}>
@@ -51,6 +53,19 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
       {hasConnectButton && <><ChannelConnectPanel key={`${kind}-${brandId}`} provider={kind as "vk" | "telegram"} brandId={brandId} factoryId={factoryId} /><button type="button" className="text-xs text-ink2 hover:text-ink" onClick={() => setManual(!manual)}>{manual ? "Скрыть ввод ключа вручную" : "Подключить своим ключом вручную"}</button></>}
       {kind === "max_bot" && maxBot && <MaxBotPanel botLink={maxBot.link} botName={maxBot.name} factoryId={factoryId} />}
       {kind !== "max_bot" && !guided && <Field label="Название (необязательно)"><input name="title" className="input" /></Field>}
+      {isDirectKind(kind) && <div key={kind} className="space-y-4">
+        <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{DIRECT_CHANNELS[kind].help}</p>
+        <Field label={DIRECT_CHANNELS[kind].target}><input name="target" required type={kind === "discord" ? "password" : "text"} autoComplete="off" className="input" /></Field>
+        {DIRECT_CHANNELS[kind].token && <Field label="Access token"><input name="token" type="password" required autoComplete="off" className="input" /></Field>}
+        <p className="text-xs text-ink3">Проверка читает данные аккаунта и не создаёт тестовых постов. Доступ к API не подтверждает все разрешения на публикацию. Автоматический вход для этой площадки пока не настроен: требуется действующий токен или webhook.</p>
+      </div>}
+      {isConnectorKind(kind) && <div key={kind} className="space-y-4">
+        <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{CONNECTOR_CHANNELS[kind]} подключается через ваш внешний сценарий n8n, Make или собственный сервер. Готового встроенного подключения к этой площадке нет. Сценарий должен авторизоваться на площадке, поддерживать нужный формат и подтверждать реальную публикацию. Для YouTube, TikTok и RUTUBE требуется сценарий создания и загрузки видео.</p>
+        <Field label="HTTPS-адрес коннектора"><input name="target" type="url" required className="input" placeholder="https://your-workflow.example/webhook/publish" /></Field>
+        <Field label="ID аккаунта назначения в коннекторе"><input name="account" required className="input" /></Field>
+        <Field label="Секрет подписи HMAC-SHA256"><input name="token" type="password" required autoComplete="off" className="input" /></Field>
+        <details className="rounded-xl bg-tile p-3 text-xs text-ink2"><summary className="cursor-pointer">Протокол коннектора</summary><p className="mt-2">Проверка: event=integration.verify. Ответ: ok=true, platform={kind}, account=ваш ID, capabilities=[text,image,carousel,article] (только реально поддерживаемые форматы). Отправка: event=publication.publish, publication_id, format, text, article, images (base64 по порядку). Ответ только после публикации: ok=true, platform, account, status=published, publication_id, id и HTTPS url поста. По publication_id сценарий обязан исключать дубли. Подпись X-Signature: sha256=HMAC(secret, X-Timestamp + «.» + тело JSON).</p></details>
+      </div>}
       {kind === "wordpress" && (<>
         <Field label="Адрес сайта"><input name="target" required className="input" placeholder="https://mysite.ru" /></Field>
         <Field label="Логин WordPress"><input name="wp_user" required autoComplete="off" className="input" /></Field>
