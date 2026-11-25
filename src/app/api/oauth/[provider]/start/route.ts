@@ -1,3 +1,4 @@
+import { SITE } from "@/lib/site";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { PROVIDERS, appOrigin, authorizeUrl, configured, newPkce, type Provider } from "@/lib/oauth";
@@ -6,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
-  const home = (e: string) => NextResponse.redirect(new URL(`/login?error=${e}`, req.url));
+  const home = (e: string) => NextResponse.redirect(new URL(`/login?error=${e}`, SITE));
   if (!PROVIDERS.includes(provider as Provider)) return home("provider");
   const p = provider as Provider;
   if (!configured(p)) return home("not_configured");

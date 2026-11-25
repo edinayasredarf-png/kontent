@@ -1,3 +1,4 @@
+import { SITE } from "@/lib/site";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveClick } from "@/lib/links";
 
@@ -7,6 +8,6 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const to = await resolveClick(code, req.headers.get("user-agent") ?? "");
-  if (!to) return NextResponse.redirect(new URL("/", req.url), 302);
+  if (!to) return NextResponse.redirect(new URL("/", SITE), 302);
   return new NextResponse(null, { status: 302, headers: { Location: to, "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer" } });
 }

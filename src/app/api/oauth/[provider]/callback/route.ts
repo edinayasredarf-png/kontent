@@ -1,3 +1,4 @@
+import { SITE } from "@/lib/site";
 import { vkChannelCallbackHandler } from "@/lib/channel-callback";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
@@ -12,7 +13,7 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
   if (provider === "vk" && req.nextUrl.searchParams.get("state")?.startsWith("channel_")) return vkChannelCallbackHandler(req);
-  const fail = (e: string) => { const r = NextResponse.redirect(new URL(`/login?error=${e}`, req.url)); r.cookies.delete({ name: "lt_oauth_state", path: "/api/oauth" }); return r; };
+  const fail = (e: string) => { const r = NextResponse.redirect(new URL(`/login?error=${e}`, SITE)); r.cookies.delete({ name: "lt_oauth_state", path: "/api/oauth" }); return r; };
   if (!PROVIDERS.includes(provider as Provider) || !configured(provider as Provider)) return fail("provider");
   const p = provider as Provider;
   const sp = req.nextUrl.searchParams;
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   try {
     const prof = await fetchProfile(req, p, code, { verifier, deviceId: sp.get("device_id") ?? "", state });
     const s = await resolveUser(p, prof, req.cookies.get("lt_ref")?.value);
-    const res = NextResponse.redirect(new URL("/app", req.url));
+    const res = NextResponse.redirect(new URL("/app", SITE));
     res.cookies.set(await sessionCookie(s));
     res.cookies.delete({ name: "lt_oauth_state", path: "/api/oauth" });
     return res;

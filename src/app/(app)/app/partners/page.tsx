@@ -1,22 +1,21 @@
+import { CopyText } from "@/components/CopyText";
 import { pageCtx } from "@/lib/auth";
 import { newRefCode } from "@/lib/auth";
 import { ensureRefCode, referralStats } from "@/lib/account";
-import { headers } from "next/headers";
+import { SITE } from "@/lib/site";
 import { PageHead } from "@/components/ui";
 
 export default async function Partners() {
   const c = await pageCtx("write");
   const code = await ensureRefCode(c.user.id, newRefCode);
   const st = await referralStats(c.user.id);
-  const h = await headers();
-  const host = process.env.APP_URL?.trim().replace(/\/+$/, "") || `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
-  const link = `${host}/r/${code}`;
+  const link = `${SITE}/r/${code}`;
   return (
     <div className="w-full max-w-3xl">
       <PageHead title="Партнёрская программа" sub="Приглашайте компании и получайте вознаграждение с их оплат." />
       <section className="card mb-6 p-6">
         <b className="mb-2 block text-sm">Ваша ссылка</b>
-        <input readOnly value={link} className="input font-mono text-xs" />
+        <div className="flex flex-wrap items-center gap-3"><input aria-label="Реферальная ссылка" readOnly value={link} className="input min-w-0 flex-1 font-mono text-xs" /><CopyText text={link} label="Копировать ссылку" /></div>
         <p className="mt-2 text-xs text-ink3">Человек, который зарегистрируется по ссылке в течение 30 дней после перехода, будет закреплён за вами.</p>
       </section>
       <div className="mb-6 grid grid-cols-3 gap-3">
