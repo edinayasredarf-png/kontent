@@ -8,14 +8,15 @@ import { media } from "./http";
 async function send(kind: ConnectorKind, c: Record<string, string>, payload: Record<string, unknown>, final = false, request: typeof safeRequest = safeRequest) {
   let u: URL; try { u = new URL(c.target); } catch { throw new PublishError("Укажите HTTPS-адрес внешнего коннектора."); }
   if (u.protocol !== "https:" || u.username || u.password || !c.token || !c.account) throw new PublishError("Нужны HTTPS-адрес коннектора, секрет подписи и ID аккаунта назначения.");
-  const body = JSON.stringify({ version: 1, platform: kind, account: c.account, ...payload }), timestamp = String(Math.floor(Date.now() / 1000));
+  const platform = kind === "ok_connector" ? "ok" : kind;
+  const body = JSON.stringify({ version: 1, platform, account: c.account, ...payload }), timestamp = String(Math.floor(Date.now() / 1000));
   const signature = createHmac("sha256", c.token).update(`${timestamp}.${body}`).digest("hex");
   let r: { status: number; text: string };
   try { r = await request(u.href, { method: "POST", headers: { "Content-Type": "application/json", "X-Timestamp": timestamp, "X-Signature": `sha256=${signature}` }, body, timeoutMs: 30000 }); }
   catch { throw new PublishError("Коннектор не подтвердил ответ. Проверьте его журнал перед повторной отправкой.", !final); }
   if (r.status !== 200) throw new PublishError(`Коннектор: HTTP ${r.status}. Публикация не подтверждена.`, r.status === 429);
   let j: Record<string, unknown>; try { j = JSON.parse(r.text); } catch { throw new PublishError("Коннектор должен вернуть JSON с подтверждением площадки и аккаунта."); }
-  if (!j || typeof j !== "object" || j.ok !== true || j.platform !== kind || j.account !== c.account) throw new PublishError("Коннектор не подтвердил выбранную площадку и аккаунт. Проверьте его настройку.");
+  if (!j || typeof j !== "object" || j.ok !== true || j.platform !== platform || j.account !== c.account) throw new PublishError("Коннектор не подтвердил выбранную площадку и аккаунт. Проверьте его настройку.");
   return j;
 }
 export function connector(kind: ConnectorKind, request: typeof safeRequest = safeRequest): Provider {

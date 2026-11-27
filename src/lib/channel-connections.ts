@@ -1,3 +1,6 @@
+import { isSocialProvider, SOCIAL_NAMES, type SocialProvider } from "./social-oauth-catalog";
+import { socialAppConfig } from "./social-oauth-config";
+import { socialAuthorizeUrl, exchangeSocialCode, socialOptions, type SocialOption } from "./social-oauth";
 import { createHash, randomBytes } from "node:crypto";
 import { one, q, tx } from "./db";
 import { open, seal } from "./crypto";
@@ -5,18 +8,20 @@ import { call as vkCall } from "./publishing/vk";
 import { telegram, telegramCall } from "./publishing/telegram";
 import { newPkce, creds } from "./oauth";
 
-export type ConnectionProvider = "vk" | "telegram";
+export type ConnectionProvider = "vk" | "telegram" | SocialProvider;
 export interface ConnectionOption { id: string; title: string; avatar?: string }
 interface Connection { id: string; org_id: string; user_id: string; brand_id: string; factory_id: string | null; provider: ConnectionProvider; status: string; payload: unknown; error: string | null }
 export const hashState = (value: string) => createHash("sha256").update(value).digest("hex");
 export const telegramBotName = () => (process.env.TELEGRAM_BOT_USERNAME ?? "").trim().replace(/^@/, "");
-export const channelConnectConfigured = (provider: ConnectionProvider) => provider === "vk" ? !!creds("vk") : !!process.env.TELEGRAM_BOT_TOKEN?.trim() && !!telegramBotName() && !!process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+export const channelConnectConfigured = (provider: "vk" | "telegram") => provider === "vk" ? !!creds("vk") : !!process.env.TELEGRAM_BOT_TOKEN?.trim() && !!telegramBotName() && !!process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
 const origin = () => (process.env.APP_URL ?? "").trim().replace(/\/+$/, "");
 export const vkChannelCallback = () => `${origin()}/api/oauth/vk/callback`;
 const vkId = () => (process.env.VK_ID_BASE?.trim() || "https://id.vk.ru").replace(/\/+$/, "");
 
 export async function startConnection(orgId: string, userId: string, brandId: string, provider: ConnectionProvider, factoryId?: string, channelId?: string) {
-  if (!channelConnectConfigured(provider)) throw new Error(provider === "vk" ? "Подключение VK пока не настроено администратором" : "Бот Telegram пока не настроен администратором");
+  if (!isSocialProvider(provider) && !channelConnectConfigured(provider)) throw new Error(provider === "vk" ? "Подключение VK пока не настроено администратором" : "Бот Telegram пока не настроен администратором");
+  const socialApp = isSocialProvider(provider) ? await socialAppConfig(provider) : null;
+  if (isSocialProvider(provider) && !socialApp) throw new Error(`Подключение ${SOCIAL_NAMES[provider]} ещё не настроено. Администратору нужно зарегистрировать приложение JuicerAI и заполнить параметры в «Администрирование → Соцсети».`);
   if (!await one("select id from kz_brands where id=$1 and org_id=$2", [brandId, orgId])) throw new Error("Выберите бренд");
   if (factoryId && !await one("select id from kz_factories where id=$1 and org_id=$2 and brand_id=$3", [factoryId, orgId, brandId])) throw new Error("Завод не принадлежит выбранному бренду");
   let expectedTarget = "";
@@ -28,13 +33,14 @@ export async function startConnection(orgId: string, userId: string, brandId: st
   await q("update kz_channel_connections set status='failed',payload='{}',error='Срок подключения истёк' where org_id=$1 and user_id=$2 and expires_at<now() and status not in ('failed','used')", [orgId, userId]);
   const state = (provider === "vk" ? "channel_" : "") + randomBytes(24).toString("base64url"), pkce = newPkce();
   if (provider === "vk" && !/^https:\/\//.test(origin())) throw new Error("Укажите HTTPS адрес сайта в APP_URL");
-  const row = await one<{ id: string }>("insert into kz_channel_connections(org_id,user_id,brand_id,factory_id,provider,state_hash,payload) values($1,$2,$3,$4,$5,$6,$7) returning id", [orgId, userId, brandId, factoryId || null, provider, hashState(state), JSON.stringify(seal({ verifier: pkce.verifier, expectedTarget }))]);
   let url: string;
-  if (provider === "telegram") url = `https://t.me/${telegramBotName()}?start=${state}`;
+  if (isSocialProvider(provider)) url = socialAuthorizeUrl(provider, socialApp!, state);
+  else if (provider === "telegram") url = `https://t.me/${telegramBotName()}?start=${state}`;
   else {
     const params = new URLSearchParams({ client_id: creds("vk")!.id, redirect_uri: vkChannelCallback(), response_type: "code", state, code_challenge: pkce.challenge, code_challenge_method: "S256", scope: "groups wall photos" });
     url = `${vkId()}/authorize?${params}`;
   }
+  const row = await one<{ id: string }>("insert into kz_channel_connections(org_id,user_id,brand_id,factory_id,provider,state_hash,payload) values($1,$2,$3,$4,$5,$6,$7) returning id", [orgId, userId, brandId, factoryId || null, provider, hashState(state), JSON.stringify(seal({ verifier: pkce.verifier, expectedTarget, appId: socialApp?.id || "" }))]);
   return { id: row!.id, url };
 }
 
@@ -80,6 +86,12 @@ export async function connectSelected(orgId: string, userId: string, id: string,
   if (row.provider === "vk") {
     await vkCall(payload.token, "photos.getWallUploadServer", { group_id: target });
     credentials = { token: payload.token, photoToken: payload.token, target, refreshToken: payload.refreshToken, expiresAt: payload.expiresAt, deviceId: payload.deviceId, oauth: "vk" };
+  } else if (isSocialProvider(row.provider)) {
+    const stored = JSON.parse(payload.accounts || "[]") as SocialOption[];
+    const account = stored.find(a => a.id === target);
+    if (!account || account.credentials.target !== target) throw new Error("Аккаунт не найден в подтверждённом ответе соцсети. Начните подключение заново.");
+    credentials = account.credentials;
+    if (credentials.expiresAt && Number(credentials.expiresAt) <= Date.now() + 30000) throw new Error("Выданный доступ истёк. Подключите аккаунт заново.");
   } else {
     await telegram.verify({ shared: "1", target });
     const member = await telegramCall<{ status: string }>(process.env.TELEGRAM_BOT_TOKEN!.trim(), "getChatMember", { chat_id: target, user_id: Number(payload.telegramUserId) });
@@ -99,4 +111,24 @@ export async function connectSelected(orgId: string, userId: string, id: string,
     await run("update kz_channel_connections set status='used',payload='{}' where id=$1", [id]);
     return { title: option.title, factoryId: row.factory_id };
   });
+}
+
+/** One-use authorization response, bound to provider, signed-in user, tenant and the original app. */
+export async function finishSocialConnection(orgId: string, userId: string, provider: SocialProvider, state: string, code: string, denied = false) {
+  const row = await one<Connection>("update kz_channel_connections set status='exchanging' where state_hash=$1 and org_id=$2 and user_id=$3 and provider=$4 and status='pending' and expires_at>now() returning *", [hashState(state), orgId, userId, provider]);
+  if (!row) throw new Error("Ссылка подключения истекла или уже использована. Начните подключение заново.");
+  try {
+    if (denied) throw new Error(`Вы отменили подключение ${SOCIAL_NAMES[provider]}. Можно попробовать снова.`);
+    if (!code || code.length > 10000) throw new Error("Соцсеть не вернула код авторизации.");
+    const pending = open(row.payload), app = await socialAppConfig(provider);
+    if (!app || app.id !== pending.appId) throw new Error("Настройки приложения изменились. Начните подключение заново.");
+    const credentials = await exchangeSocialCode(provider, code, app);
+    const options = (await socialOptions(provider, credentials)).filter(a => !pending.expectedTarget || a.id === pending.expectedTarget);
+    if (!options.length) throw new Error(`${SOCIAL_NAMES[provider]} не вернул доступных аккаунтов, групп или досок с правом публикации. Проверьте разрешения и роль администратора.`);
+    await q("update kz_channel_connections set status='ready',payload=$2 where id=$1 and status='exchanging'", [row.id, JSON.stringify(seal({ options: JSON.stringify(options.map(({ id, title }) => ({ id, title }))), accounts: JSON.stringify(options) }))]);
+  } catch (e) {
+    const message = (e as Error).message.slice(0, 300);
+    await q("update kz_channel_connections set status='failed',payload='{}',error=$2 where id=$1", [row.id, message]);
+  }
+  return row.id;
 }

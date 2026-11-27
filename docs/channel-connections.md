@@ -45,3 +45,70 @@
 `npx tsx --test tests/channel-connections.test.ts tests/vk-strict-image.test.ts tests/telegram-single.test.ts`
 
 Тесты используют временную БД и локальные заглушки API. Реальная выдача разрешений VK и назначение ботов в пользовательские каналы проверяются после настройки приложения и ботов.
+
+## OAuth популярных соцсетей (миграция 042)
+
+Администратор открывает `/app/admin/social`, регистрирует **собственные** приложения
+JuicerAI по ссылкам в этой странице, добавляет Redirect URL и сохраняет параметры.
+Значения Client ID и callback SMMplanner не используются. Обычным пользователям
+показывается кнопка «Подключить …», затем выбор доски/группы/страницы/аккаунта.
+Пока параметры не заданы, кнопка отключена с объяснением; готовность приложения
+к работе со всеми пользователями зависит от одобрения платформы.
+
+| Площадка | Серверные переменные (альтернатива админке) | Redirect URL |
+|---|---|---|
+| Pinterest | PINTEREST_CLIENT_ID, PINTEREST_CLIENT_SECRET | https://juicerai.ru/api/channels/oauth/pinterest/callback |
+| Одноклассники | OK_CLIENT_ID, OK_CLIENT_SECRET, OK_APPLICATION_KEY | https://juicerai.ru/api/channels/oauth/ok/callback |
+| Facebook | META_CLIENT_ID, META_CLIENT_SECRET | https://juicerai.ru/api/channels/oauth/facebook/callback |
+| Instagram | то же приложение Meta | https://juicerai.ru/api/channels/oauth/instagram/callback |
+| Threads | THREADS_CLIENT_ID, THREADS_CLIENT_SECRET | https://juicerai.ru/api/channels/oauth/threads/callback |
+
+Сохранённая настройка в админке имеет приоритет над окружением и шифруется целиком.
+Client Secret никогда не возвращается в браузер. Отдельное приложение каждой
+пользовательской компании не требуется: все используют приложение JuicerAI и
+дают ему собственные разрешения. Нельзя обещать публичный запуск до App Review.
+
+OAuth state одноразовый (15 минут), привязан к пользователю, организации, бренду и
+площадке. Callback обменивает code на токены только на сервере. Временные токены
+в записи подключения зашифрованы и удаляются после выбора канала или ошибки.
+Публичный ответ опроса содержит только ID и названия вариантов, без токенов.
+При переподключении доступны только исходный канал и его бренд; чужой канал
+не переносится автоматически между брендами. Для новых OAuth-провайдеров
+отдельный callback не пересекается со входом в аккаунт JuicerAI через VK/Яндекс.
+
+Pinterest выдаёт список досок с пагинацией. Запрашиваются boards:read, pins:write,
+user_accounts:read. Refresh token обновляется перед публикацией под блокировкой
+строки канала; ротированный токен сохраняется. Длительное отсутствие обращений
+может привести к истечению refresh token — тогда нужен повторный вход.
+
+ОК: приложение должно иметь права VALUABLE_ACCESS, GROUP_CONTENT, PHOTO_CONTENT,
+PUBLISH_TO_STREAM, LONG_ACCESS_TOKEN. Для согласования доступов используйте
+официальный кабинет/поддержку ОК; новый вход через VK ID сам по себе не гарантирует
+разрешения старого API на публикацию. Схема Authorization Code и token.do
+предназначена для приложений ОК с соответствующим доступом. Получаем только
+группы с ролью редактора/модератора/администратора, загружаем фотографии отдельно,
+передаём все маркеры в один GROUP_THEME. Не публикуем частичный пост при ошибке фото.
+Длинный токен ОК продлевается самой площадкой при обращении к API; если выдан refresh
+токен, поддерживается его обмен. Старые внешние коннекторы ОК при миграции получают
+тип ok_connector; destination и подпись webhook сохраняются, platform остаётся ok.
+
+Facebook/Instagram: короткий пользовательский токен меняется на длинный, после
+чего получаем Page access token. Показываем только страницы с CREATE_CONTENT/MANAGE
+или соответствующими PROFILE_PLUS tasks. Instagram требует профессионального
+аккаунта, связанного со страницей. Отозванный Page token требует переподключения.
+Threads: короткий токен меняется на 60-дневный; перед истечением поддерживается
+официальный refresh. Просроченный или отозванный доступ требует нового входа.
+
+TenChat отображается как ожидающий партнёрского доступа. Из одной ссылки OAuth
+нельзя вывести контракт token/profile/publish. Не использовать client_id=smm-planner,
+его redirect_uri или state. Нужны собственные реквизиты и официальные схемы API.
+
+Официальные источники:
+- https://developers.pinterest.com/docs/getting-started/set-up-authentication-and-authorization/
+- https://apiok.ru/dev/methods/
+- https://apiok.ru/dev/methods/rest/group/group.getUserGroupsV2
+- https://apiok.ru/dev/examples/photo_upload
+- https://apiok.ru/ext/oauth/permissions
+- https://github.com/odnoklassniki/ok-unity3d-sdk/blob/master/Assets/Odnoklassniki/Scripts/AbstractOdnoklassniki.cs
+- https://developers.facebook.com/documentation/facebook-login/guides/advanced/manual-flow
+- https://developers.facebook.com/documentation/threads/get-started/long-lived-tokens

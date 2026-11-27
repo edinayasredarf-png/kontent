@@ -1,4 +1,6 @@
 "use server";
+import { isSocialProvider, SOCIAL_PROVIDERS } from "./social-oauth-catalog";
+import { socialAppConfig } from "./social-oauth-config";
 import { revalidatePath } from "next/cache";
 import { requireManager } from "./auth";
 import { channelConnectConfigured, connectionStatus, connectSelected, startConnection, type ConnectionProvider } from "./channel-connections";
@@ -10,7 +12,7 @@ const error = (e: unknown) => {
 };
 export async function startChannelConnection(provider: ConnectionProvider, brandId: string, factoryId?: string, channelId?: string) {
   const c = await requireManager();
-  if (!["vk", "telegram"].includes(provider)) return { ok: false as const, error: "Неизвестная площадка" };
+  if (!["vk", "telegram"].includes(provider) && !isSocialProvider(provider)) return { ok: false as const, error: "Неизвестная площадка" };
   try { return { ok: true as const, ...await startConnection(c.org.id, c.user.id, brandId, provider, factoryId, channelId) }; } catch (e) { return error(e); }
 }
 export async function pollChannelConnection(id: string) {
@@ -30,5 +32,5 @@ export async function subscribeTelegramBot() {
 
 export async function channelConnectionAvailability() {
   await requireManager();
-  return { telegram: channelConnectConfigured("telegram"), vk: channelConnectConfigured("vk") };
+  return { telegram: channelConnectConfigured("telegram"), vk: channelConnectConfigured("vk"), ...Object.fromEntries(await Promise.all(SOCIAL_PROVIDERS.map(async p => [p, !!await socialAppConfig(p)]))) };
 }

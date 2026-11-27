@@ -37,6 +37,7 @@ export default async function AdminHome() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map(([l, v, s]) => <div key={String(l)} className="rounded-2xl bg-tile p-5"><div className="mb-1 text-sm text-ink2">{l}</div><div className="text-2xl font-semibold">{typeof v === "number" ? v.toLocaleString("ru-RU") : v}</div><div className="mt-1 text-xs text-ink3">{s}</div></div>)}
       </div>
+      <Link href="/app/admin/social" className="card mb-6 block p-5 text-sm hover:underline">Настроить приложения Pinterest, Одноклассников, Facebook, Instagram и Threads →</Link>
       <section className="card mb-6 p-5">
         <b className="mb-3 block text-sm">Состояние системы</b>
         <div className="space-y-2">{checks.map((c) => {

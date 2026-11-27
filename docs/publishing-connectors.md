@@ -1,13 +1,15 @@
 # Автопубликация и внешние коннекторы
 
 Прямые API: Telegram, VK, MAX, WordPress, Discord, Telegra.ph, Facebook Pages,
-Instagram (профессиональный аккаунт через Facebook Login), Threads, Pinterest.
+Instagram (профессиональный аккаунт через Facebook Login), Threads, Pinterest, Одноклассники.
 Подключения раздельны для каждого бренда; секреты сохраняются шифрованными.
-Новые подключения требуют собственного действующего access token, а Discord — webhook URL.
-OAuth для новых площадок не настроен: нужны зарегистрированные приложения, callback и
-права, одобренные площадкой. Наличие реализации API не означает одобрения приложения.
+Для Pinterest, ОК, Facebook, Instagram и Threads реализовано подключение через OAuth.
+Приложения настраивает администратор в `/app/admin/social`: нужны собственные Client ID,
+Client Secret и разрешения площадок. Пользователи не вводят токены: авторизуются в соцсети
+и выбирают доску, группу, страницу или аккаунт. Наличие реализации API не означает
+регистрации или одобрения приложения. Discord использует webhook URL.
 
-Дзен, TikTok, YouTube, Reddit, Одноклассники, RUTUBE, X, Tumblr, LinkedIn —
+Дзен, TikTok, YouTube, Reddit, RUTUBE, X, Tumblr, LinkedIn —
 **внешние коннекторы**, а не готовые встроенные API этих площадок.
 Пользователь должен создать и авторизовать сценарий n8n/Make или свой сервер.
 Текст и картинки не являются видео. Если сценарий для видеоплощадки объявляет
@@ -63,3 +65,8 @@ HTTP 200 после публикации:
 - https://developers.facebook.com/documentation/instagram-platform/content-publishing
 - https://developers.facebook.com/documentation/threads/posts
 - https://github.com/pinterest/api-description/blob/main/v5/openapi.yaml
+
+Старые внешние подключения Одноклассников сохраняются как `ok_connector`, протокол
+по-прежнему передаёт `platform=ok`. Новые прямые подключения используют `kind=ok`.
+TenChat требует собственного партнёрского приложения и официальной документации;
+пока они не предоставлены, прямое подключение отключено и это явно указано в форме.

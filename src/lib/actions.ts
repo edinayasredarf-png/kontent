@@ -1,4 +1,5 @@
 "use server";
+import { socialChannelCredentials } from "./social-channel-credentials";
 import {planBases} from "./plan-bases";
 import { vkChannelCredentials } from "./vk-channel-token";
 import { orgPlan } from "./plan-catalog";
@@ -300,7 +301,7 @@ export async function checkSavedChannelAction(id: string): Promise<{ ok: true; n
   if (!r) return { ok: false, error: "Канал не найден" };
   const prov = providerFor(r.kind);
   if (!prov) return { ok: false, error: "Тип канала не поддерживается" };
-  try { return { ok: true, name: await prov.verify(r.kind === "vk" ? await vkChannelCredentials(c.org.id, String(id), r.credentials) : open(r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+  try { return { ok: true, name: await prov.verify(r.kind === "vk" ? await vkChannelCredentials(c.org.id, String(id), r.credentials) : await socialChannelCredentials(c.org.id, String(id), r.kind, r.credentials)) }; } catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
 }
 
 export async function saveChannel(_: unknown, f: FormData) {

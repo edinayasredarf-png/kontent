@@ -2,22 +2,24 @@
 import { useEffect, useState } from "react";
 import { Form, Field } from "./Form";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { DIRECT_CHANNELS, CONNECTOR_CHANNELS, isDirectKind, isConnectorKind } from "@/lib/publishing/catalog";
+import { DIRECT_CHANNELS, CONNECTOR_CHANNELS, PARTNER_CHANNELS, isDirectKind, isConnectorKind } from "@/lib/publishing/catalog";
+import { isSocialProvider } from "@/lib/social-oauth-catalog";
+import type { ConnectionProvider } from "@/lib/channel-connections";
 import { GUIDE } from "@/lib/guides";
 import { channelConnectionAvailability } from "@/lib/channel-connect-actions";
 import { ChannelConnectPanel } from "./ChannelConnectPanel";
 import { MaxBotPanel } from "./MaxBotPanel";
 import { checkChannelAction, discoverMaxAction, saveChannel } from "@/lib/actions";
 
-const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max_bot: "MAX", max: "MAX · свой бот", wordpress: "WordPress (SEO-статьи)", ...Object.fromEntries(Object.entries(DIRECT_CHANNELS).map(([k,v]) => [k,v.name])), ...Object.fromEntries(Object.entries(CONNECTOR_CHANNELS).map(([k,v]) => [k, `${v} · внешний коннектор`])), webhook: "Webhook (свой сценарий)" };
+const KINDS: Record<string, string> = { telegram: "Telegram", vk: "ВКонтакте", max_bot: "MAX", max: "MAX · свой бот", wordpress: "WordPress (SEO-статьи)", ...Object.fromEntries(Object.entries(DIRECT_CHANNELS).map(([k,v]) => [k,v.name])), ...Object.fromEntries(Object.entries(CONNECTOR_CHANNELS).map(([k,v]) => [k, `${v} · внешний коннектор`])), ...PARTNER_CHANNELS, webhook: "Webhook (свой сценарий)" };
 
 /** Поля подключения зависят от типа канала — показываем только нужные и подсказываем, где взять значения. */
 export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { initialKind?: string; brands: { id: string; name: string }[]; factoryId?: string; ret?: string; maxBot?: { link: string; name: string } }) {
   const [kind, setKind] = useState(initialKind && initialKind in KINDS ? initialKind : "telegram");
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
-  const [telegramShared, setTelegramShared] = useState(false);
-  useEffect(() => { let active = true; channelConnectionAvailability().then(value => { if (active) setTelegramShared(value.telegram); }).catch(() => {}); return () => { active = false; }; }, []);
-  const hasConnectButton = kind === "vk" || kind === "telegram" && telegramShared;
+  const [availability, setAvailability] = useState<Record<string, boolean>>({});
+  useEffect(() => { let active = true; channelConnectionAvailability().then(value => { if (active) setAvailability(value); }).catch(() => {}); return () => { active = false; }; }, []);
+  const hasConnectButton = kind === "vk" || kind === "telegram" && availability.telegram || isSocialProvider(kind);
   const [manual, setManual] = useState(false);
   const guided = hasConnectButton && !manual;
   const kinds = Object.entries(KINDS).filter(([k]) => k !== "max_bot" || maxBot);
@@ -40,7 +42,7 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
   useEffect(() => { setChk({ busy: false }); }, [kind, brandId]);
   const g = GUIDE[kind];
   return (
-    <Form action={saveChannel} submit={kind === "max_bot" || guided ? "" : "Проверить и подключить"}>
+    <Form action={saveChannel} submit={kind === "tenchat" || kind === "max_bot" || guided ? "" : "Проверить и подключить"}>
       {factoryId && <input type="hidden" name="factory" value={factoryId} />}{ret && <input type="hidden" name="ret" value={ret} />}
       <Field label="Бренд"><select name="brand_id" value={brandId} onChange={e => setBrandId(e.target.value)} className="input">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
       <Field label="Тип"><select name="kind" value={kind} onChange={(e) => { setKind(e.target.value); setManual(false); }} className="input">{kinds.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
@@ -50,14 +52,14 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs text-ink2">{g.steps.map((t, i) => <li key={i}>{t}</li>)}</ol>
         </details>
       )}
-      {hasConnectButton && <><ChannelConnectPanel key={`${kind}-${brandId}`} provider={kind as "vk" | "telegram"} brandId={brandId} factoryId={factoryId} /><button type="button" className="text-xs text-ink2 hover:text-ink" onClick={() => setManual(!manual)}>{manual ? "Скрыть ввод ключа вручную" : "Подключить своим ключом вручную"}</button></>}
+      {hasConnectButton && <><ChannelConnectPanel key={`${kind}-${brandId}`} provider={kind as ConnectionProvider} configured={!!availability[kind]} brandId={brandId} factoryId={factoryId} /><button type="button" className="text-xs text-ink2 hover:text-ink" onClick={() => setManual(!manual)}>{manual ? "Скрыть ввод ключа вручную" : "Подключить своим ключом вручную"}</button></>}
       {kind === "max_bot" && maxBot && <MaxBotPanel botLink={maxBot.link} botName={maxBot.name} factoryId={factoryId} />}
-      {kind !== "max_bot" && !guided && <Field label="Название (необязательно)"><input name="title" className="input" /></Field>}
-      {isDirectKind(kind) && <div key={kind} className="space-y-4">
+      {kind !== "tenchat" && kind !== "max_bot" && !guided && <Field label="Название (необязательно)"><input name="title" className="input" /></Field>}
+      {isDirectKind(kind) && !guided && <div key={kind} className="space-y-4">
         <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{DIRECT_CHANNELS[kind].help}</p>
         <Field label={DIRECT_CHANNELS[kind].target}><input name="target" required type={kind === "discord" ? "password" : "text"} autoComplete="off" className="input" /></Field>
         {DIRECT_CHANNELS[kind].token && <Field label="Access token"><input name="token" type="password" required autoComplete="off" className="input" /></Field>}
-        <p className="text-xs text-ink3">Проверка читает данные аккаунта и не создаёт тестовых постов. Доступ к API не подтверждает все разрешения на публикацию. Автоматический вход для этой площадки пока не настроен: требуется действующий токен или webhook.</p>
+        <p className="text-xs text-ink3">Проверка читает данные аккаунта и не создаёт тестовых постов. Доступ к API не подтверждает все разрешения на публикацию. Ручной режим: требуется действующий токен или webhook. Для соцсетей с OAuth используйте кнопку авторизации выше.</p>
       </div>}
       {isConnectorKind(kind) && <div key={kind} className="space-y-4">
         <p className="rounded-xl bg-tile p-3 text-sm text-ink2">{CONNECTOR_CHANNELS[kind]} подключается через ваш внешний сценарий n8n, Make или собственный сервер. Готового встроенного подключения к этой площадке нет. Сценарий должен авторизоваться на площадке, поддерживать нужный формат и подтверждать реальную публикацию. Для YouTube, TikTok и RUTUBE требуется сценарий создания и загрузки видео.</p>
@@ -66,6 +68,7 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
         <Field label="Секрет подписи HMAC-SHA256"><input name="token" type="password" required autoComplete="off" className="input" /></Field>
         <details className="rounded-xl bg-tile p-3 text-xs text-ink2"><summary className="cursor-pointer">Протокол коннектора</summary><p className="mt-2">Проверка: event=integration.verify. Ответ: ok=true, platform={kind}, account=ваш ID, capabilities=[text,image,carousel,article] (только реально поддерживаемые форматы). Отправка: event=publication.publish, publication_id, format, text, article, images (base64 по порядку). Ответ только после публикации: ok=true, platform, account, status=published, publication_id, id и HTTPS url поста. По publication_id сценарий обязан исключать дубли. Подпись X-Signature: sha256=HMAC(secret, X-Timestamp + «.» + тело JSON).</p></details>
       </div>}
+      {kind === "tenchat" && <div className="rounded-2xl bg-tile p-4 text-sm text-ink2"><b>TenChat · ожидаем партнёрский доступ</b><p className="mt-2">Для подключения без ключей требуется приложение JuicerAI и официальный партнёрский API TenChat. Администратору нужно получить Client ID, Client Secret и документацию авторизации и публикации. Ссылка SMMplanner относится к его приложению; она не подключит аккаунт к JuicerAI.</p></div>}
       {kind === "wordpress" && (<>
         <Field label="Адрес сайта"><input name="target" required className="input" placeholder="https://mysite.ru" /></Field>
         <Field label="Логин WordPress"><input name="wp_user" required autoComplete="off" className="input" /></Field>
@@ -93,7 +96,7 @@ export function ChannelForm({ brands, factoryId, ret, maxBot, initialKind }: { i
         {kind === "vk" && <Field label="Ключ пользователя для фото и аналитики (необязательно)"><input name="photoToken" type="password" autoComplete="off" className="input" /><p className="mt-2 text-xs text-ink3">Ключ администратора сообщества с правами photos и wall. Нужен для загрузки фотографий на стену, если основной ключ принадлежит сообществу.</p></Field>}
         <Field label={kind === "telegram" ? "@канал или id" : "Числовой id сообщества"}><input name="target" required className="input" placeholder={kind === "telegram" ? "@mychannel" : "123456789"} /></Field>
       </>)}
-      {kind !== "max_bot" && !guided && (<>
+      {kind !== "tenchat" && kind !== "max_bot" && !guided && (<>
       <div className="space-y-2">
         <button type="button" onClick={check} disabled={chk.busy} className="btn btn-ghost !py-1.5 text-xs">{chk.busy && <Loader2 size={14} className="animate-spin" />}Проверить подключение</button>
         {chk.text && <p className={`flex items-start gap-1.5 rounded-xl px-3 py-2 text-xs ${chk.ok ? "bg-good-soft text-good" : "bg-bad-soft text-bad"}`}>{chk.ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <XCircle size={14} className="mt-0.5 shrink-0" />}<span>{chk.text}</span></p>}

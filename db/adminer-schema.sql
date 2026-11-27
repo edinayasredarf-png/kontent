@@ -994,5 +994,18 @@ alter table kz_channels add constraint kz_channels_kind_check check (kind in (
   'tiktok','youtube','reddit','ok','rutube','x','tumblr','linkedin'
 )) not valid;
 
+-- 042_social_oauth.sql
+-- Preserve existing external OK workflows, with a distinct kind for the new native API.
+alter table kz_channels drop constraint if exists kz_channels_kind_check;
+alter table kz_channels add constraint kz_channels_kind_check check (kind in (
+  'telegram','vk','dzen','site','webhook','wordpress','max',
+  'discord','telegraph','facebook','instagram','threads','pinterest','ok','ok_connector',
+  'tiktok','youtube','reddit','rutube','x','tumblr','linkedin'
+)) not valid;
 create table if not exists kz_migrations(name text primary key, at timestamptz default now());
-insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql'),('038_channel_connections.sql'),('039_external_post_images.sql'),('040_trends.sql'),('041_publishing_platforms.sql') on conflict do nothing;
+update kz_channels set kind='ok_connector' where kind='ok' and not exists(select 1 from kz_migrations where name='042_social_oauth.sql');
+alter table kz_channel_connections drop constraint if exists kz_channel_connections_provider_check;
+alter table kz_channel_connections add constraint kz_channel_connections_provider_check check (provider in ('vk','telegram','pinterest','ok','facebook','instagram','threads')) not valid;
+
+create table if not exists kz_migrations(name text primary key, at timestamptz default now());
+insert into kz_migrations(name) values ('001_init.sql'),('002_pipeline.sql'),('003_unlimited.sql'),('004_oauth.sql'),('005_monitoring.sql'),('006_brandkit_images.sql'),('007_team_stats.sql'),('008_seo.sql'),('009_studio_max_security.sql'),('010_admin_reset_legal.sql'),('011_theme.sql'),('012_carousel_assets.sql'),('013_share_learning.sql'),('014_signature_api.sql'),('015_formats_comments_links_competitors.sql'),('016_whitelabel_email_guide.sql'),('017_max_source.sql'),('018_flows.sql'),('019_feed_fulltext_fit.sql'),('020_brand_kb.sql'),('021_chat.sql'),('022_max_bot.sql'),('023_user_avatars.sql'),('024_competitor_sites.sql'),('025_competitor_groups.sql'),('026_external_posts.sql'),('027_ai_billing.sql'),('028_expenses_losses.sql'),('029_bonus_funds.sql'),('030_guest_links.sql'),('031_platform_settings.sql'),('032_chat_threads_versions.sql'),('033_support_notifications.sql'),('034_perf_indexes.sql'),('035_creator_presets.sql'),('036_payments_tokens.sql'),('037_competitor_media.sql'),('038_channel_connections.sql'),('039_external_post_images.sql'),('040_trends.sql'),('041_publishing_platforms.sql'),('042_social_oauth.sql') on conflict do nothing;

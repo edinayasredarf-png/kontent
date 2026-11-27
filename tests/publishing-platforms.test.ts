@@ -152,8 +152,9 @@ test("Public URLs must cover every image", () => { assert.throws(() => mediaUrls
 test("Database migration accepts every configured platform and keeps legacy kinds", async () => {
   const { PGlite } = await import("@electric-sql/pglite"); const db = new PGlite();
   try {
-    await db.exec("create table kz_channels(kind text constraint kz_channels_kind_check check(kind in ('telegram'))) ");
+    await db.exec("create table kz_channels(kind text constraint kz_channels_kind_check check(kind in ('telegram'))); create table kz_channel_connections(provider text)");
     await db.exec(readFileSync(new URL("../db/041_publishing_platforms.sql", import.meta.url), "utf8"));
+    await db.exec(readFileSync(new URL("../db/042_social_oauth.sql", import.meta.url), "utf8"));
     for (const kind of ["telegram", "vk", "wordpress", "max", "webhook", "site", ...Object.keys(DIRECT_CHANNELS), ...Object.keys(CONNECTOR_CHANNELS)]) await db.query("insert into kz_channels(kind) values($1)", [kind]);
     await assert.rejects(db.query("insert into kz_channels(kind) values('unknown')"));
   } finally { await db.close(); }

@@ -13,3 +13,18 @@ export async function vkChannelCallbackHandler(req: NextRequest) {
   } catch (e) { result.searchParams.set("error", (e as Error).message.slice(0, 300)); }
   return NextResponse.redirect(result);
 }
+
+export async function socialChannelCallbackHandler(req: NextRequest, provider: import("./social-oauth-catalog").SocialProvider) {
+  const c = await requireManager(), p = req.nextUrl.searchParams;
+  const { socialRedirectUri } = await import("./social-oauth-config");
+  const { finishSocialConnection } = await import("./channel-connections");
+  const result = new URL("/app/channels/connect", socialRedirectUri(provider));
+  try {
+    const state = p.get("state") || "";
+    if (!state || state.length > 200) throw new Error("Соцсеть не вернула корректный state. Начните подключение заново.");
+    result.searchParams.set("connection", await finishSocialConnection(c.org.id, c.user.id, provider, state, p.get("code") || "", !!p.get("error")));
+  } catch (e) { result.searchParams.set("error", (e as Error).message.slice(0, 300)); }
+  const response = NextResponse.redirect(result);
+  response.headers.set("Cache-Control", "no-store"); response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
